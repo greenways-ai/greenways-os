@@ -28,7 +28,8 @@ function navigate(state) {
   if (state.repository) query.set("repo", state.repository);
   if (state.ref) query.set("ref", state.ref);
   if (state.mode === "strict") query.set("mode", "strict");
-  location.search = query.toString();
+  const search = query.toString();
+  location.assign(`${location.pathname}${search ? `?${search}` : ""}`);
 }
 
 function applyThemePreference(preference) {
