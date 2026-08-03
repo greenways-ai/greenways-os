@@ -6,6 +6,12 @@ import { WorldRenderer } from "./world-renderer.js";
 const appRoot = document.querySelector("#world-app");
 let renderer;
 
+const GREENWAYS_MARK = ["0011100", "0100010", "1000001", "1001111", "1000001", "0100010", "0011100"];
+
+function mosaicMark() {
+  return `<span class="gw-mosaic-logo gw-mosaic-logo--greenways" role="img" aria-label="Greenways mosaic mark">${GREENWAYS_MARK.join("").split("").map((cell, index) => `<i data-on="${cell === "1"}" style="--gw-tone:${(Math.floor(index / 7) + index) % 5}"></i>`).join("")}</span>`;
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -25,11 +31,29 @@ function navigate(state) {
   location.search = query.toString();
 }
 
+function applyThemePreference(preference) {
+  if (globalThis.GreenwaysTheme?.apply) return globalThis.GreenwaysTheme.apply(preference, true);
+  const theme = preference === "auto"
+    ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : preference;
+  document.documentElement.dataset.themePreference = preference;
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem("greenways-theme", preference);
+}
+
 function renderWelcome(error = "") {
   const state = queryState();
-  appRoot.innerHTML = `<section class="world-welcome"><div class="world-card">
-    <p class="eyebrow">Repo-first worlds</p><h1>Open a world</h1>
-    <p>Load a public GitHub repository whose root <code>project.edn</code> describes one or more Gaussian splats.</p>
+  appRoot.innerHTML = `<section class="world-welcome"><div class="welcome-frame">
+    <header class="welcome-header"><a href="./" class="welcome-brand">${mosaicMark()}<span>Greenways <em>Worlds</em></span></a><button class="welcome-theme" type="button" data-theme-toggle>Appearance</button></header>
+    <div class="world-card welcome-card"><section class="welcome-hero">
+      <div class="welcome-hero-art" role="img" aria-label="A curious young teenager entering a Greenways mosaic world"></div>
+      <div class="welcome-hero-veil"></div><div class="welcome-hero-copy">
+        <p class="eyebrow">OPEN WORLDS · HARA IN THE BROWSER</p><h1>Enter a<br><i>living world.</i></h1>
+        <p>Follow a curious young explorer into places built and shared in the open. Hara reads each project graph; the browser opens its Gaussian-splat world.</p>
+        <a class="hero-action" href="#world-collection">Discover the collection ↓</a>
+      </div>
+    </section><section class="world-browser" id="world-collection">
+    <div class="section-intro"><p class="eyebrow">THE COLLECTION</p><h2>Three places.<br>One open garden.</h2></div>
     ${error ? `<p role="alert"><code>${escapeHtml(error)}</code></p>` : ""}
     <section class="featured-worlds" aria-label="Featured worlds">
       ${FEATURED_WORLDS.map((world) => `<article class="featured-world">
@@ -39,7 +63,7 @@ function renderWelcome(error = "") {
         <a href="${escapeHtml(world.attribution)}" target="_blank" rel="noreferrer">Source & attribution</a></div>
       </article>`).join("")}
     </section>
-    <p class="world-divider"><span>or open any public repository</span></p>
+    <p class="world-divider"><span>Find another place</span></p>
     <form class="catalog-form" role="search">
       <label>Search greenways-worlds<input name="query" type="search" placeholder="garden, apartment, gaussian splat"></label>
       <button type="submit">Search worlds</button>
@@ -49,12 +73,17 @@ function renderWelcome(error = "") {
       <label>GitHub repository<input name="repo" type="url" required placeholder="https://github.com/owner/world" value="${escapeHtml(state.repository)}"></label>
       <label>Ref (optional)<input name="ref" placeholder="main, tag, or commit SHA" value="${escapeHtml(state.ref)}"></label>
       <label class="mode-control"><input name="strict" type="checkbox" ${state.mode === "strict" ? "checked" : ""}> Strict commits</label>
-      <button type="submit">Allow GitHub & load</button>
+      <button type="submit">Allow GitHub & open world</button>
     </form>
-  </div></section>`;
+  </section></div><footer class="welcome-footer"><span>GREENWAYS / WORLDS</span><span>Repository-defined places · embedded Hara</span></footer></div></section>`;
   const worldForm = appRoot.querySelector(".world-form");
   const catalogForm = appRoot.querySelector(".catalog-form");
   const catalogResults = appRoot.querySelector(".catalog-results");
+  appRoot.querySelector("[data-theme-toggle]").addEventListener("click", () => {
+    const current = document.documentElement.dataset.themePreference || "auto";
+    const next = current === "auto" ? "light" : current === "light" ? "dark" : "auto";
+    applyThemePreference(next);
+  });
   catalogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     catalogResults.innerHTML = "<p>Searching…</p>";
@@ -109,10 +138,11 @@ async function hasGitHubAccess() {
 
 function renderPermission(state) {
   renderWelcome();
-  const button = appRoot.querySelector("button");
+  const form = appRoot.querySelector(".world-form");
+  const button = form.querySelector('button[type="submit"]');
   button.textContent = "Allow GitHub & load";
-  appRoot.querySelector("form").repo.value = state.repository;
-  appRoot.querySelector("form").ref.value = state.ref;
+  form.elements.repo.value = state.repository;
+  form.elements.ref.value = state.ref;
 }
 
 function renderShell(state) {
