@@ -86,6 +86,14 @@
     {"state" (assoc state "studio" (assoc studio "tracks" remaining))
      "effects" []}))
 
+(defn studio-export-project [state]
+  (let [studio (or (get state "studio") (studio-initial-state))
+        tracks (or (get studio "tracks") [])]
+    (if (= 0 (count tracks))
+      (throw "Studio project has no tracks to export")
+      {"state" state
+       "effects" [(effect "export" "studio-project" studio)]})))
+
 (defn identity-create [handle]
   (let [handle (normalize-query handle)]
     (if (string/blank? handle)
@@ -152,7 +160,7 @@
    "effects" [(effect "hestia" "pair" endpoint)]})
 
 (defn host-capabilities []
-  ["clock/now" "crypto/identity" "crypto/sign" "files/audio-drop"
+  ["clock/now" "crypto/identity" "crypto/sign" "files/audio-drop" "files/audio-export"
    "github/catalog" "github/world" "hestia/pair" "scene/gaussian-splat"
    "storage/records" "ui/surfaces"])
 
@@ -174,6 +182,8 @@
                          (studio-add-track (nth args 0) (nth args 1)))
     "studio/remove-track" (fn [space args request node]
                             (studio-remove-track (nth args 0) (nth args 1)))
+    "studio/export-project" (fn [space args request node]
+                              (studio-export-project (nth args 0)))
     "identity/create" (fn [space args request node] (identity-create (nth args 0)))
     "workflow/project-create" (fn [space args request node]
                                 (apply project-create args))
@@ -189,6 +199,7 @@
     "world/render" {"effects" ["scene/gaussian-splat"]}
     "world/touchpoint" {"effects" ["ui/surfaces"]}
     "surface/close" {"effects" ["ui/surfaces"]}
+    "studio/export-project" {"effects" ["files/audio-export"]}
     "identity/create" {"effects" ["crypto/identity"]}
     "hestia/connect" {"effects" ["hestia/pair"]}}))
 
