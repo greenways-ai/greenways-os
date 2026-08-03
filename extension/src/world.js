@@ -69,6 +69,7 @@ function renderWelcome(error = "") {
         navigate({ repository: button.dataset.catalogRepo, ref: "", mode: "dev" });
       }));
     } catch (searchError) {
+      console.error("Greenways world search failed", searchError);
       catalogResults.innerHTML = `<p role="alert">${escapeHtml(searchError.message)}</p>`;
     }
   });
@@ -82,6 +83,7 @@ function renderWelcome(error = "") {
       await requestGitHubAccess();
       navigate({ repository: data.get("repo"), ref: data.get("ref"), mode: data.has("strict") ? "strict" : "dev" });
     } catch (requestError) {
+      console.error("Greenways GitHub permission request failed", requestError);
       renderWelcome(requestError.message);
     }
   });
@@ -94,6 +96,7 @@ function renderWelcome(error = "") {
       await requestGitHubAccess();
       navigate({ repository: world.repository, ref: "", mode: "dev" });
     } catch (requestError) {
+      console.error("Greenways GitHub permission request failed", requestError);
       renderWelcome(requestError.message);
     }
   }));
@@ -147,12 +150,15 @@ function renderFatal(error, state) {
 
 async function loadWorld(state) {
   const view = renderShell(state);
+  let stage = "HAL world/open";
   try {
     const opening = invokeGreenways("world/open", [state.repository, state.ref, state.mode]);
     const resolveEffect = opening.effects.find(({ effect, method }) => effect === "github" && method === "resolve-world");
     if (!resolveEffect) throw new Error("HAL world/open did not request a repository graph");
     const [repository, ref, mode] = resolveEffect.args;
+    stage = "GitHub world graph resolution";
     const graph = await resolveWorldGraph({ repository, ref, mode, client: new PublicGitHubClient() });
+    stage = "HAL world/render";
     const rendering = invokeGreenways("world/render", [graph]);
     const renderEffect = rendering.effects.find(({ effect, method }) => effect === "scene" && method === "render-world");
     if (!renderEffect) throw new Error("HAL world/render did not produce a scene command");
@@ -163,7 +169,10 @@ async function loadWorld(state) {
       camera: graph.project.camera,
       onLayer: ({ layer, status, error }) => {
         if (status === "loaded") loaded += 1;
-        else diagnostics.push({ path: layer.id, message: error?.message || "Gaussian splat failed to load" });
+        else {
+          console.error(`Greenways Gaussian splat layer failed: ${layer.id}`, error, { layer });
+          diagnostics.push({ path: layer.id, message: error?.message || "Gaussian splat failed to load" });
+        }
         view.title.textContent = `${loaded}/${graph.layers.length} layers loaded${diagnostics.length ? " — incomplete" : ""}`;
         showDiagnostics(view.diagnostics, diagnostics);
       },
@@ -171,10 +180,13 @@ async function loadWorld(state) {
     view.title.textContent = `Loading ${graph.layers.length} layer${graph.layers.length === 1 ? "" : "s"}…`;
     view.detail.textContent = `${graph.repository.owner}/${graph.repository.repo} @ ${graph.commit.slice(0, 12)} · ${state.mode}`;
     showDiagnostics(view.diagnostics, diagnostics);
+    stage = "Gaussian splat rendering";
     await renderer.loadLayers(graph.layers);
     view.title.textContent = `${loaded}/${graph.layers.length} layers loaded${diagnostics.length ? " — incomplete" : ""}`;
   } catch (error) {
-    renderFatal(error, state);
+    const failure = new Error(`${stage}: ${error?.message || error}`, { cause: error });
+    console.error(`Greenways world load failed during ${stage}`, failure, { ...state, originalError: error });
+    renderFatal(failure, state);
   }
 }
 
@@ -186,4 +198,8 @@ async function start() {
 }
 
 window.addEventListener("beforeunload", () => renderer?.destroy(), { once: true });
-start();
+start().catch((error) => {
+  const state = queryState();
+  console.error("Greenways world startup failed", error, state);
+  renderFatal(new Error(`World startup: ${error?.message || error}`, { cause: error }), state);
+});

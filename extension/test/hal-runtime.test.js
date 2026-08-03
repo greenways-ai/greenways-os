@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import { start } from "../src/hara-vm.mjs";
+import { encodeHalValue } from "../src/hal-transport.js";
 
 const resources = {
   "greenways.adaptor": fs.readFileSync(new URL("../../src/greenways/adaptor.hal", import.meta.url), "utf8"),
@@ -19,4 +20,25 @@ test("browser VM exposes the HAL kernel through its generated adaptor surface", 
     runtime.eval('(greenways.kernel/dispatch "catalog/search" [[{"name" "apartment"} {"name" "splat-garden"}] "garden"])'),
     '[{"name" "splat-garden"}]',
   );
+});
+
+test("host objects are encoded as EDN maps for HAL dispatch", async () => {
+  const runtime = await start({ resources });
+  runtime.require("greenways.kernel");
+  const graph = {
+    repository: { owner: "greenways-worlds", repo: "playbot", url: "https://github.com/greenways-worlds/playbot" },
+    layers: [{ id: "playbot", assetUrl: "https://raw.githubusercontent.com/greenways-worlds/playbot/commit/world/playbot/lod-meta.json" }],
+    diagnostics: []
+  };
+  const source = `(greenways.kernel/dispatch "world/render" ${encodeHalValue([graph])})`;
+  const result = runtime.eval(source);
+  assert.match(result, /"scene"/);
+  assert.match(result, /"render-world"/);
+});
+
+test("HAL transport rejects invalid and circular host values with their path", () => {
+  assert.throws(() => encodeHalValue({ graph: { scale: Number.NaN } }), /\.graph\.scale must be a finite number/);
+  const value = { graph: {} };
+  value.graph.parent = value;
+  assert.throws(() => encodeHalValue(value), /\.graph\.parent contains a circular reference/);
 });

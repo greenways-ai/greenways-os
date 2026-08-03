@@ -3,6 +3,7 @@ import { start } from "./hara-vm.mjs";
 import adaptorSource from "../../src/greenways/adaptor.hal";
 import kernelSource from "../../src/greenways/kernel.hal";
 import { installLockedPackages } from "./hara-packages.js";
+import { encodeHalValue } from "./hal-transport.js";
 
 const runtime = await start({
   resources: {
@@ -12,11 +13,6 @@ const runtime = await start({
 });
 
 runtime.require("greenways.kernel");
-
-function encode(value) {
-  if (value === undefined) return "nil";
-  return JSON.stringify(value);
-}
 
 function decode(value) {
   return parseEDNString(value, {
@@ -30,7 +26,7 @@ function decode(value) {
 }
 
 export function invokeGreenways(method, args = []) {
-  const output = runtime.eval(`(greenways.kernel/dispatch ${encode(method)} ${encode(args)})`);
+  const output = runtime.eval(`(greenways.kernel/dispatch ${encodeHalValue(method)} ${encodeHalValue(args)})`);
   return decode(output);
 }
 
