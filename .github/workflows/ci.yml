@@ -17,6 +17,8 @@ jobs:
         working-directory: extension
     steps:
       - uses: actions/checkout@v4
+      - name: Enforce gw.* HAL namespaces
+        run: "! rg --glob '*.hal' 'greenways\\.' .."
       - uses: actions/setup-node@v4
         with:
           node-version: 22

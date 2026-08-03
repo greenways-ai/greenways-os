@@ -1,4 +1,4 @@
-(ns greenways.adaptor
+(ns gw.os.adaptor
   (:require [std.substrate :as substrate]))
 
 (defn action-id [prefix method-name]

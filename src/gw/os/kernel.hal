@@ -1,5 +1,5 @@
-(ns greenways.kernel
-  (:require [greenways.adaptor :as adaptor]
+(ns gw.os.kernel
+  (:require [gw.os.adaptor :as adaptor]
             [std.foundation.string :as string]
             [std.substrate :as substrate]))
 

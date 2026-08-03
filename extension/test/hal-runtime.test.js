@@ -5,32 +5,32 @@ import { start } from "../src/hara-vm.mjs";
 import { encodeHalValue } from "../src/hal-transport.js";
 
 const resources = {
-  "greenways.adaptor": fs.readFileSync(new URL("../../src/greenways/adaptor.hal", import.meta.url), "utf8"),
-  "greenways.kernel": fs.readFileSync(new URL("../../src/greenways/kernel.hal", import.meta.url), "utf8"),
+  "gw.os.adaptor": fs.readFileSync(new URL("../../src/gw/os/adaptor.hal", import.meta.url), "utf8"),
+  "gw.os.kernel": fs.readFileSync(new URL("../../src/gw/os/kernel.hal", import.meta.url), "utf8"),
 };
 
 test("browser VM exposes the HAL kernel through its generated adaptor surface", async () => {
   const runtime = await start({ resources });
-  runtime.require("greenways.kernel");
+  runtime.require("gw.os.kernel");
   assert.equal(
-    runtime.eval('(get (get greenways.kernel/SURFACE "workflow/transition") "action")'),
+    runtime.eval('(get (get gw.os.kernel/SURFACE "workflow/transition") "action")'),
     '"@greenways/workflow/transition"',
   );
   assert.equal(
-    runtime.eval('(greenways.kernel/dispatch "catalog/search" [[{"name" "apartment"} {"name" "splat-garden"}] "garden"])'),
+    runtime.eval('(gw.os.kernel/dispatch "catalog/search" [[{"name" "apartment"} {"name" "splat-garden"}] "garden"])'),
     '[{"name" "splat-garden"}]',
   );
 });
 
 test("host objects are encoded as EDN maps for HAL dispatch", async () => {
   const runtime = await start({ resources });
-  runtime.require("greenways.kernel");
+  runtime.require("gw.os.kernel");
   const graph = {
     repository: { owner: "greenways-worlds", repo: "playbot", url: "https://github.com/greenways-worlds/playbot" },
     layers: [{ id: "playbot", assetUrl: "https://raw.githubusercontent.com/greenways-worlds/playbot/commit/world/playbot/lod-meta.json" }],
     diagnostics: []
   };
-  const source = `(greenways.kernel/dispatch "world/render" ${encodeHalValue([graph])})`;
+  const source = `(gw.os.kernel/dispatch "world/render" ${encodeHalValue([graph])})`;
   const result = runtime.eval(source);
   assert.match(result, /"scene"/);
   assert.match(result, /"render-world"/);

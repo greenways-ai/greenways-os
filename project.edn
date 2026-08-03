@@ -5,5 +5,5 @@
  :project/source-paths ["src"]
  :project/test-paths ["test"]
  :project/extension-paths []
- :project/main greenways.kernel
+ :project/main gw.os.kernel
  :project/capabilities #{}}

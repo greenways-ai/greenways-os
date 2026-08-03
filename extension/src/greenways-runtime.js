@@ -1,18 +1,18 @@
 import { parseEDNString } from "edn-data";
 import { start } from "./hara-vm.mjs";
-import adaptorSource from "../../src/greenways/adaptor.hal";
-import kernelSource from "../../src/greenways/kernel.hal";
+import adaptorSource from "../../src/gw/os/adaptor.hal";
+import kernelSource from "../../src/gw/os/kernel.hal";
 import { installLockedPackages } from "./hara-packages.js";
 import { encodeHalValue } from "./hal-transport.js";
 
 const runtime = await start({
   resources: {
-    "greenways.adaptor": adaptorSource,
-    "greenways.kernel": kernelSource,
+    "gw.os.adaptor": adaptorSource,
+    "gw.os.kernel": kernelSource,
   },
 });
 
-runtime.require("greenways.kernel");
+runtime.require("gw.os.kernel");
 
 function decode(value) {
   return parseEDNString(value, {
@@ -26,7 +26,7 @@ function decode(value) {
 }
 
 export function invokeGreenways(method, args = []) {
-  const output = runtime.eval(`(greenways.kernel/dispatch ${encodeHalValue(method)} ${encodeHalValue(args)})`);
+  const output = runtime.eval(`(gw.os.kernel/dispatch ${encodeHalValue(method)} ${encodeHalValue(args)})`);
   return decode(output);
 }
 

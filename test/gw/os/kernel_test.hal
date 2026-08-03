@@ -1,5 +1,5 @@
-(ns greenways.kernel-test
-  (:require [greenways.kernel :as kernel]
+(ns gw.os.kernel-test
+  (:require [gw.os.kernel :as kernel]
             [std.lib.test :as test]))
 
 (test/print-results

@@ -1,5 +1,5 @@
-(ns greenways.adaptor-test
-  (:require [greenways.adaptor :as adaptor]
+(ns gw.os.adaptor-test
+  (:require [gw.os.adaptor :as adaptor]
             [std.lib.test :as test]
             [std.substrate :as substrate]))
 
