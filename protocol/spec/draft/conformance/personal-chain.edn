@@ -1,0 +1,17 @@
+[{:case/id :greenways.os.case/first-inclusion
+  :case/type :chain-inclusion
+  :input {:chain/id "identity/alice"
+          :chain/sequence 1
+          :chain/previous-hash "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          :chain/action-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+  :expect :valid}
+ {:case/id :greenways.os.case/cross-chain-root
+  :case/type :cross-chain-receipt
+  :input {:action-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          :inclusions [{:chain/id "identity/alice" :chain/sequence 7}
+                       {:chain/id "identity/bob" :chain/sequence 3}]}
+  :expect {:same-action true :same-event-hash false}}
+ {:case/id :greenways.os.case/global-head-forbidden
+  :case/type :chain-model
+  :input {:global/head "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+  :expect {:error :global-chain-not-supported}}]

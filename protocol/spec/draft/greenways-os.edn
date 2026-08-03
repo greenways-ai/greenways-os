@@ -1,0 +1,126 @@
+{:document/id :greenways/os
+ :document/type :hara/artifact-specification
+ :document/version "0.1.0"
+ :document/status :draft
+ :document/title "Greenways OS Confidence Protocol"
+ :document/summary "Portable signed creative workflows and AI-mediated quality services backed by personal evidence chains."
+
+ :spec/conforms-to {:spec/id :hara/artifact-metaspec
+                    :spec/version "0.1.0"}
+ :spec/artifact-kind :greenways/confidence-record
+
+ :spec/entities
+ [{:entity/id :greenways.identity/identity
+   :entity/schema
+   {:schema/required [:identity/id :identity/controller-key
+                      :identity/key-history :identity/handles]}}
+  {:entity/id :greenways.identity/resolution
+   :entity/schema
+   {:schema/required [:resolution/identity :resolution/current-key
+                      :resolution/handles :resolution/key-history
+                      :resolution/root]}}
+  {:entity/id :greenways.workflow/policy
+   :entity/schema
+   {:schema/required [:workflow/id :workflow/version :workflow/states
+                      :workflow/transitions :workflow/roles
+                      :workflow/capabilities]}}
+  {:entity/id :greenways.work/workload
+   :entity/schema
+   {:schema/required [:workload/id :workload/workflow
+                      :workload/artifacts :workload/participants]}}
+  {:entity/id :greenways.artifact/version
+   :entity/schema
+   {:schema/required [:artifact/id :artifact/version :artifact/root
+                      :artifact/media-type]}}
+  {:entity/id :greenways.contribution/claim
+   :entity/schema
+   {:schema/required [:claim/id :claim/actor :claim/artifact-root
+                      :claim/action :claim/signature]}}
+  {:entity/id :greenways.receipt/step
+   :entity/schema
+   {:schema/required [:receipt/id :receipt/type :receipt/actor
+                      :receipt/workflow-root :receipt/inputs
+                      :receipt/outputs :receipt/signature]}}
+  {:entity/id :greenways.service/manifest
+   :entity/schema
+   {:schema/required [:service/id :service/version :service/provider
+                      :service/policy-root :service/inputs
+                      :service/capabilities :service/deliverables]}}
+  {:entity/id :greenways.service/execution-receipt
+   :entity/schema
+   {:schema/required [:execution/id :execution/service :execution/actor
+                      :execution/inputs :execution/outputs
+                      :execution/evidence-root :execution/limitations
+                      :execution/signature]}}
+  {:entity/id :greenways.quality/result
+   :entity/schema
+   {:schema/required [:quality/id :quality/class :quality/policy-root
+                      :quality/subject :quality/result :quality/evidence-root]}}
+  {:entity/id :greenways.chain/inclusion
+   :entity/schema
+   {:schema/required [:chain/id :chain/sequence :chain/previous-hash
+                      :chain/action-root :chain/event-hash]}}
+  {:entity/id :greenways.evidence/bundle
+   :entity/schema
+   {:schema/required [:bundle/id :bundle/version :bundle/actions
+                      :bundle/inclusions :bundle/public-keys]}}
+  {:entity/id :greenways.space/furnishing
+   :entity/schema
+   {:schema/required [:furnishing/id :furnishing/root
+                      :furnishing/publisher-key :furnishing/visibility
+                      :furnishing/parents :furnishing/signature]}}
+  {:entity/id :greenways.world/project
+   :entity/schema
+   {:schema/required [:hara/type :hara/version :project/id
+                      :project/version :project/capabilities
+                      :project/world]}}]
+
+ :spec/laws
+ [{:law/id :greenways.identity/handle-is-alias
+   :law/expression "A handle never replaces the stable identity and verified key history."}
+  {:law/id :greenways.identity/resolver-is-cache
+   :law/expression "id.greenways.ai publishes signed identity material and discovery hints but never owns an identity or replaces direct key-history verification."}
+  {:law/id :greenways.identity/no-private-keys
+   :law/expression "An identity resolver never receives private controller or device keys."}
+  {:law/id :greenways.chain/personal-only
+   :law/expression "Chain inclusion is personal; shared receipts reuse action roots rather than a global block root."}
+  {:law/id :greenways.workflow/policy-pinned
+   :law/expression "Every consequential action names the exact workflow policy root accepted by its signer."}
+  {:law/id :greenways.workflow/no-retroactive-expansion
+   :law/expression "A policy revision cannot expand access or permissions over an earlier contribution without a fresh signature."}
+  {:law/id :greenways.service/bounded-authority
+   :law/expression "A service receives only capabilities granted by its engagement and cannot publish or accept its own proposal."}
+  {:law/id :greenways.quality/distinct-classes
+   :law/expression "verified-check, advisory, and sign-off remain distinguishable in storage, verification, and presentation."}
+  {:law/id :greenways.evidence/no-title-oracle
+   :law/expression "Contribution, ownership, permission, and accreditation are signed claims; the protocol does not declare legal title."}
+  {:law/id :greenways.space/hash-and-publisher
+   :law/expression "A furnishing hash identifies exact bytes and its signature proves publication by a key; neither alone declares legal ownership."}
+  {:law/id :greenways.space/fork-lineage
+   :law/expression "A furnishing fork retains the roots of the furnishings from which it derives and is published under the forking actor's own key."}
+  {:law/id :greenways.space/publication-scope
+   :law/expression "The publisher signs whether a furnishing remains personal-chain material or is prepared for sharing."}]
+
+ :spec/checkers
+ [{:checker/id :greenways/signature
+   :checker/input :greenways/confidence-record
+   :checker/output :hara.artifact/finding}
+  {:checker/id :greenways/personal-chain
+   :checker/input :greenways.chain/inclusion
+   :checker/output :hara.artifact/finding}
+  {:checker/id :greenways/workflow-policy
+   :checker/input :greenways.receipt/step
+   :checker/output :hara.artifact/finding}
+  {:checker/id :greenways/service-capabilities
+   :checker/input :greenways.service/execution-receipt
+   :checker/output :hara.artifact/finding}]
+
+ :spec/conformance
+ [{:conformance/id :greenways.os/records
+   :conformance/path "conformance/records.edn"}
+  {:conformance/id :greenways.os/personal-chain
+   :conformance/path "conformance/personal-chain.edn"}
+  {:conformance/id :greenways.os/services
+   :conformance/path "conformance/services.edn"}
+  {:conformance/id :greenways.os/world-project
+   :conformance/path "conformance/world-project.edn"}]}

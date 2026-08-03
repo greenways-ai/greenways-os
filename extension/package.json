@@ -1,0 +1,20 @@
+{
+  "name": "greenways-os",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "EPL-2.0",
+  "scripts": {
+    "build": "esbuild src/world.js --bundle --format=esm --platform=browser --target=chrome116 --external:node:worker_threads --outfile=dist/world.js",
+    "test": "node --test test/*.test.js",
+    "test:browser": "npm run build && playwright test"
+  },
+  "dependencies": {
+    "edn-data": "1.1.2",
+    "playcanvas": "2.21.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "esbuild": "0.28.1"
+  }
+}

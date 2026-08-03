@@ -1,0 +1,15 @@
+{:contribution/id :greenways/os
+ :contribution/owner :greenways
+ :contribution/version "0.1.0"
+ :contribution/status :draft
+ :contribution/title "Greenways OS Confidence Protocol"
+ :contribution/summary "Artist-first signed workflows, personal-chain evidence, AI-mediated services, and portable quality results."
+ :contribution/source
+ {:source/provider :github
+  :source/repository "greenways-ai/os"
+  :source/path "protocol"}
+ :contribution/specs
+ [{:spec/id :greenways/os
+   :spec/version "0.1.0"
+   :spec/path "spec/draft/greenways-os.edn"
+   :spec/metaspec "hara/specs/00-unsorted/artifact/metaspec/artifact-metaspec.edn"}]}

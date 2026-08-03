@@ -1,0 +1,23 @@
+{:conformance/id :greenways.os/world-project
+ :conformance/type :greenways.world/project
+ :conformance/valid
+ [{:hara/type :project
+   :hara/version "1.0.0"
+   :project/id greenways.example/fern-gully
+   :project/version "1.0.0"
+   :project/source-paths ["src"]
+   :project/test-paths ["test"]
+   :project/extension-paths []
+   :project/capabilities [:canvas/webgl2 :input/pointer]
+   :project/world
+   {:world/version "1.0.0"
+    :world/layers [{:world/id grove
+                    :world/asset "world/grove.sog"}]
+    :world/imports []}}]
+ :conformance/invalid
+ [{:case/id :greenways.world/parent-path
+   :case/reason "World assets remain within their repository commit."
+   :world/asset "../grove.sog"}
+  {:case/id :greenways.world/movable-strict-ref
+   :case/reason "Strict imports use complete commit SHAs."
+   :world/ref "main"}]}

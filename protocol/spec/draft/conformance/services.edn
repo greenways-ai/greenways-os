@@ -1,0 +1,16 @@
+[{:case/id :greenways.os.case/reproducible-check
+  :case/type :quality-result
+  :input {:quality/class :verified-check
+          :quality/policy-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          :quality/evidence-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+  :expect :valid}
+ {:case/id :greenways.os.case/advisory-limits
+  :case/type :quality-result
+  :input {:quality/class :advisory
+          :quality/limitations []}
+  :expect {:error :limitations-required}}
+ {:case/id :greenways.os.case/agent-self-accept
+  :case/type :service-proposal
+  :input {:proposal/actor "agent/release-steward"
+          :proposal/accepted-by "agent/release-steward"}
+  :expect {:error :artist-acceptance-required}}]

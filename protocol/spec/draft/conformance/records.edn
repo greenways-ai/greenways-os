@@ -1,0 +1,19 @@
+[{:case/id :greenways.os.case/signed-contribution
+  :case/type :contribution-claim
+  :input {:claim/id "claim/paint-1"
+          :claim/actor "identity/alice"
+          :claim/artifact-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          :claim/action :created
+          :claim/signature "base64url:signature"}
+  :expect :valid}
+ {:case/id :greenways.os.case/handle-without-key
+  :case/type :identity
+  :input {:identity/id "identity/alice"
+          :identity/handles ["alice"]}
+  :expect {:error :missing-controller-key}}
+ {:case/id :greenways.os.case/ownership-is-claim
+  :case/type :claim-semantics
+  :input {:claim/type :ownership
+          :claim/actor "identity/alice"}
+  :expect {:protocol-effect :recorded-claim
+           :legal-title :not-determined}}]
