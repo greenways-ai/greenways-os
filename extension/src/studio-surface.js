@@ -1,3 +1,5 @@
+import { strToU8, zipSync } from "fflate";
+
 const AUDIO_EXTENSION = /\.(?:aac|aif|aiff|flac|m4a|mp3|oga|ogg|opus|wav|webm)$/i;
 
 function humanBytes(bytes) {
@@ -15,6 +17,57 @@ function localId() {
 
 function audioFile(file) {
   return file.type.startsWith("audio/") || AUDIO_EXTENSION.test(file.name);
+}
+
+function safeFilename(value) {
+  const name = String(value || "audio").normalize("NFKC").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").trim();
+  return name || "audio";
+}
+
+function archiveName() {
+  return `greenways-studio-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.hidden = true;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+export async function createStudioArchive(studio, assetStore, { now = () => new Date() } = {}) {
+  const tracks = studio?.tracks ?? [];
+  if (!tracks.length) throw new Error("Studio project has no tracks to export");
+
+  const files = {};
+  const manifestTracks = [];
+  for (const [index, track] of tracks.entries()) {
+    const asset = assetStore.get(track.id);
+    if (!asset?.file) throw new Error(`Local audio is unavailable for ${track.name || track.id}`);
+    const path = `audio/${String(index + 1).padStart(2, "0")}-${safeFilename(track.name)}`;
+    files[path] = new Uint8Array(await asset.file.arrayBuffer());
+    manifestTracks.push({ ...track, assetPath: path });
+  }
+
+  const manifest = {
+    format: "greenways-studio/0.1",
+    exportedAt: now().toISOString(),
+    tracks: manifestTracks,
+  };
+  files["studio.json"] = strToU8(`${JSON.stringify(manifest, null, 2)}\n`);
+  return { archive: zipSync(files, { level: 0 }), manifest };
+}
+
+export async function exportStudioProject(studio, assetStore) {
+  const { archive, manifest } = await createStudioArchive(studio, assetStore);
+  const blob = new Blob([archive], { type: "application/zip" });
+  downloadBlob(blob, archiveName());
+  return { bytes: blob.size, tracks: manifest.tracks.length };
 }
 
 export class AudioAssetStore {
@@ -55,6 +108,7 @@ export function createStudioSurface({ root, close, session, assetStore }) {
         <div><p>HODOS / MUSIC</p><h1>Studio</h1></div>
         <div class="studio-header-actions">
           <span data-studio-count>0 tracks</span>
+          <button type="button" data-studio-export disabled>Export project</button>
           <button type="button" data-studio-close aria-label="Close Studio">Close</button>
         </div>
       </header>
@@ -88,6 +142,7 @@ export function createStudioSurface({ root, close, session, assetStore }) {
   const tracksRoot = root.querySelector("[data-studio-tracks]");
   const dropzone = root.querySelector("[data-studio-dropzone]");
   const count = root.querySelector("[data-studio-count]");
+  const exportButton = root.querySelector("[data-studio-export]");
 
   async function importFiles(fileList) {
     const files = [...fileList].filter(audioFile);
@@ -117,6 +172,18 @@ export function createStudioSurface({ root, close, session, assetStore }) {
 
   root.querySelector("[data-studio-close]").addEventListener("click", close, { signal });
   root.querySelector("[data-studio-choose]").addEventListener("click", () => input.click(), { signal });
+  exportButton.addEventListener("click", async () => {
+    exportButton.disabled = true;
+    exportButton.textContent = "Exporting…";
+    try {
+      await session.dispatch("studio/export-project");
+    } catch (error) {
+      console.error("Studio project export failed", error);
+      exportButton.textContent = "Export failed";
+      exportButton.title = error.message;
+      exportButton.disabled = false;
+    }
+  }, { signal });
   input.addEventListener("change", () => importFiles(input.files).finally(() => { input.value = ""; }), { signal });
   root.addEventListener("dragenter", (event) => {
     if (!event.dataTransfer?.types.includes("Files")) return;
@@ -182,6 +249,9 @@ export function createStudioSurface({ root, close, session, assetStore }) {
     if (destroyed) return;
     const tracks = state?.studio?.tracks ?? [];
     count.textContent = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
+    exportButton.textContent = "Export project";
+    exportButton.title = tracks.length ? "Download a ZIP with studio.json and the original audio files" : "Add a track before exporting";
+    exportButton.disabled = tracks.length === 0;
     dropzone.hidden = tracks.length > 0;
     tracksRoot.replaceChildren(...tracks.map(renderTrack));
   }
