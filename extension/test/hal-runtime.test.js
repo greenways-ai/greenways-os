@@ -36,6 +36,16 @@ test("host objects are encoded as EDN maps for HAL dispatch", async () => {
   assert.match(result, /"render-world"/);
 });
 
+test("Hara carries touchpoint and studio track state", async () => {
+  const runtime = await start({ resources });
+  runtime.require("gw.os.kernel");
+  const opening = runtime.eval('(gw.os.kernel/dispatch "world/touchpoint" [(gw.os.kernel/dispatch "app/bootstrap" []) {"id" "console" "surface" "studio" "label" "Open studio"}])');
+  assert.match(opening, /"active" "studio"/);
+  assert.match(opening, /"open-surface"/);
+  const imported = runtime.eval('(gw.os.kernel/dispatch "studio/add-track" [(gw.os.kernel/dispatch "app/bootstrap" []) {"id" "local:1" "name" "Piano.wav" "size" 42}])');
+  assert.match(imported, /"tracks" \[\{"id" "local:1"/);
+});
+
 test("HAL transport rejects invalid and circular host values with their path", () => {
   assert.throws(() => encodeHalValue({ graph: { scale: Number.NaN } }), /\.graph\.scale must be a finite number/);
   const value = { graph: {} };
