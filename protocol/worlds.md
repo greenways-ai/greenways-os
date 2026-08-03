@@ -78,6 +78,11 @@ only request a surface that the current Hodos/Greenways host has installed.
 The initial installed surface is `:studio`, a conventional 2D music workspace
 that accepts local audio files through browser drag and drop.
 
+The Studio can export a portable ZIP containing `studio.json` and the original
+local audio files. Export begins as a Hara `studio/export-project` transition;
+the browser receives the resulting `export/studio-project` effect and performs
+the binary archive and download work.
+
 Each touchpoint requires:
 
 - `:touchpoint/id` — stable identifier within its project.
