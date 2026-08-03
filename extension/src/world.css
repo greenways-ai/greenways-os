@@ -42,3 +42,9 @@ button { color: inherit; cursor: pointer; }
 .world-fatal .world-card { border-color: rgba(242,142,134,.3); }
 .world-fatal code { display: block; color: #f2a7a0; overflow-wrap: anywhere; }
 @media (max-width: 720px) { .featured-worlds { grid-template-columns: 1fr; }.featured-world { min-height: 0; }.world-form { grid-template-columns: 1fr; }.world-form label:first-child { grid-column: auto; }.world-overlay { display: grid; }.world-status { max-width: calc(100vw - 32px); }.world-controls { width: fit-content; } }
+.catalog-form { display: grid; grid-template-columns: 1fr auto; gap: 0.75rem; align-items: end; }
+.catalog-form label { display: grid; gap: 0.4rem; }
+.catalog-results { display: grid; gap: 0.6rem; margin: 0.8rem 0 1.4rem; }
+.catalog-results article { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: 0.8rem; border: 1px solid rgba(255,255,255,.12); border-radius: 0.8rem; }
+.catalog-results article div { display: grid; gap: 0.2rem; }
+.catalog-results article span { color: #9fb2aa; font-size: 0.88rem; }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseGitHubRepository, rawGitHubUrl, resolveWorldGraph } from "../src/github-worlds.js";
+import { parseGitHubRepository, rawGitHubUrl, resolveWorldGraph, searchGreenwaysWorlds } from "../src/github-worlds.js";
 
 const transform = { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 };
 const rootRepo = parseGitHubRepository("https://github.com/greenways/root.git");
@@ -15,6 +15,20 @@ test("accepts only canonical public GitHub repository URLs", () => {
 
 test("builds raw asset URLs at immutable commits", () => {
   assert.equal(rawGitHubUrl(rootRepo, rootSha, "world/tree one.sog"), `https://raw.githubusercontent.com/greenways/root/${rootSha}/world/tree%20one.sog`);
+});
+
+test("delegates greenways-worlds catalog filtering to the HAL action", async () => {
+  const request = async () => ({
+    ok: true,
+    json: async () => [{ name: "splat-garden", full_name: "greenways-worlds/splat-garden", html_url: "https://github.com/greenways-worlds/splat-garden" }],
+  });
+  const invoke = (method, args) => {
+    assert.equal(method, "catalog/search");
+    assert.equal(args[1], "garden");
+    return args[0];
+  };
+  const results = await searchGreenwaysWorlds("garden", request, invoke);
+  assert.equal(results[0].name, "splat-garden");
 });
 
 test("resolves recursive worlds and composes transform chains", async () => {

@@ -5,6 +5,39 @@ export const GITHUB_ORIGINS = Object.freeze([
   "https://raw.githubusercontent.com/*"
 ]);
 
+let catalogCache;
+
+export async function greenwaysWorldRepositories(request = fetch) {
+  if (!catalogCache) {
+    catalogCache = (async () => {
+      const repositories = [];
+      for (let page = 1; page <= 4; page += 1) {
+        const response = await request(`https://api.github.com/orgs/greenways-worlds/repos?type=public&sort=updated&per_page=100&page=${page}`, {
+          headers: { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" },
+        });
+        if (!response.ok) throw responseError(response, "greenways-worlds catalog");
+        const batch = await response.json();
+        repositories.push(...batch);
+        if (batch.length < 100) break;
+      }
+      return repositories.map((repository) => ({
+        name: repository.name,
+        full_name: repository.full_name,
+        description: repository.description ?? "",
+        topics: repository.topics ?? [],
+        html_url: repository.html_url,
+        updated_at: repository.updated_at,
+      }));
+    })();
+  }
+  return catalogCache;
+}
+
+export async function searchGreenwaysWorlds(query, request = fetch, invoke) {
+  const dispatch = invoke ?? (await import("./greenways-runtime.js")).invokeGreenways;
+  return dispatch("catalog/search", [await greenwaysWorldRepositories(request), query]);
+}
+
 const commitPattern = /^[0-9a-f]{40}$/i;
 
 export function parseGitHubRepository(value) {

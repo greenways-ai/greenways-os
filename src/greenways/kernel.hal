@@ -1,0 +1,151 @@
+(ns greenways.kernel
+  (:require [greenways.adaptor :as adaptor]
+            [std.foundation.string :as string]
+            [std.substrate :as substrate]))
+
+(defn effect [service method & args]
+  {"effect" service "method" method "args" (vec args)})
+
+(defn initial-state []
+  {"identity" nil
+   "project" nil
+   "actions" []
+   "inclusions" []
+   "hestia" nil
+   "world" {"status" "idle" "repository" nil "graph" nil}})
+
+(defn normalize-query [value]
+  (string/lower (string/trim (str (or value "")))))
+
+(defn repository-search-text [repository]
+  (string/lower
+   (str (or (get repository "name") "") " "
+        (or (get repository "full_name") "") " "
+        (or (get repository "description") "") " "
+        (string/join " " (or (get repository "topics") [])))))
+
+(defn catalog-search [repositories query]
+  (let [needle (normalize-query query)]
+    (if (string/blank? needle)
+      repositories
+      (vec (filter
+            (fn [repository]
+              (string/includes? (repository-search-text repository) needle))
+            repositories)))))
+
+(defn world-open [repository ref mode]
+  {"state" {"status" "resolving"
+             "repository" repository
+             "ref" (or ref "")
+             "mode" (if (= mode "strict") "strict" "dev")}
+   "effects" [(effect "github" "resolve-world" repository (or ref "") mode)]})
+
+(defn world-render [graph]
+  {"state" {"status" "ready" "graph" graph}
+   "effects" [(effect "scene" "render-world" graph)]})
+
+(defn identity-create [handle]
+  (let [handle (normalize-query handle)]
+    (if (string/blank? handle)
+      (throw "Identity handle is required")
+      {"identity" {"handle" handle "status" "key-pending"}
+       "effects" [(effect "crypto" "create-identity" handle)]})))
+
+(defn project-create [title owner now id workflow-id]
+  (let [title (string/trim (str (or title "")))]
+    (if (string/blank? title)
+      (throw "Project title is required")
+      {"id" id "title" title "owner" owner
+       "workflow" workflow-id
+       "state" "draft" "artifacts" [] "ideas" [] "repositories" []
+       "friends" [] "proposals" [] "results" [] "createdAt" now})))
+
+(defn allowed-role? [roles actor-role]
+  (> (count (filter (fn [role] (= role actor-role)) roles)) 0))
+
+(defn workflow-create [definition instance-id subject now]
+  (let [states (get definition "states")]
+    (if (= 0 (count states))
+      (throw "Workflow requires at least one state")
+      {"id" instance-id
+       "workflow" (get definition "id")
+       "version" (get definition "version")
+       "subject" subject
+       "state" (first states)
+       "history" []
+       "createdAt" now})))
+
+(defn workflow-transition [definition instance transition-id actor-role now]
+  (let [candidate
+        (first (filter (fn [entry] (= (get entry "id") transition-id))
+                       (get definition "transitions")))]
+    (cond
+      (nil? candidate) (throw "Unknown workflow transition")
+      (not (= (get instance "state") (get candidate "from")))
+      (throw "Transition is not available from the current state")
+      (not (allowed-role? (get candidate "roles") actor-role))
+      (throw "Actor role cannot perform this transition")
+      :else
+      (assoc instance
+             "state" (get candidate "to")
+             "history" (conj (get instance "history")
+                              {"transition" transition-id
+                               "from" (get candidate "from")
+                               "to" (get candidate "to")
+                               "role" actor-role
+                               "at" now})))))
+
+(defn chain-include [chain-id previous action now event-id]
+  {"protocol" "greenways-personal-chain/1"
+   "chainId" chain-id
+   "sequence" (+ 1 (or (get previous "sequence") 0))
+   "previousHash" (or (get previous "eventHash")
+                        "sha256:0000000000000000000000000000000000000000000000000000000000000000")
+   "actionRoot" (get action "root")
+   "includedAt" now
+   "eventHash" event-id})
+
+(defn hestia-connect [endpoint]
+  {"state" {"endpoint" endpoint "status" "connecting"}
+   "effects" [(effect "hestia" "pair" endpoint)]})
+
+(defn host-capabilities []
+  ["clock/now" "crypto/identity" "crypto/sign" "github/catalog"
+   "github/world" "hestia/pair" "scene/gaussian-splat" "storage/records"])
+
+(def SURFACE
+  (adaptor/surface
+   "@greenways"
+   {"app/bootstrap" (fn [space args request node] (initial-state))
+    "app/capabilities" (fn [space args request node] (host-capabilities))
+    "catalog/search" (fn [space args request node]
+                       (catalog-search (nth args 0) (nth args 1)))
+    "world/open" (fn [space args request node]
+                   (world-open (nth args 0) (nth args 1) (nth args 2)))
+    "world/render" (fn [space args request node] (world-render (nth args 0)))
+    "identity/create" (fn [space args request node] (identity-create (nth args 0)))
+    "workflow/project-create" (fn [space args request node]
+                                (apply project-create args))
+    "workflow/create" (fn [space args request node]
+                        (apply workflow-create args))
+    "workflow/transition" (fn [space args request node]
+                            (apply workflow-transition args))
+    "evidence/include" (fn [space args request node]
+                         (apply chain-include args))
+    "hestia/connect" (fn [space args request node]
+                       (hestia-connect (nth args 0)))}
+   {"world/open" {"effects" ["github/world"]}
+    "world/render" {"effects" ["scene/gaussian-splat"]}
+    "identity/create" {"effects" ["crypto/identity"]}
+    "hestia/connect" {"effects" ["hestia/pair"]}}))
+
+(def NODE
+  (adaptor/install-direct
+   (substrate/node-create {"id" "greenways-os"})
+   SURFACE))
+
+(defn dispatch [method-name args]
+  (let [entry (get SURFACE method-name)]
+    (if entry
+      (apply (get entry "fn") [nil (or args []) nil NODE])
+      (throw (str "Unknown Greenways method: " method-name)))))

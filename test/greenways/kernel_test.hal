@@ -1,0 +1,33 @@
+(ns greenways.kernel-test
+  (:require [greenways.kernel :as kernel]
+            [std.lib.test :as test]))
+
+(test/print-results
+ [(test/check "catalog search is case-insensitive across repository metadata"
+              (vec (map (fn [entry] (get entry "name"))
+                        (kernel/catalog-search
+                         [{"name" "apartment"}
+                          {"name" "splat-garden" "topics" ["gaussian-splat"]}]
+                         "GARDEN")))
+              ["splat-garden"])
+  (test/check "Substrate exposes the portable application actions"
+              (get (kernel/dispatch "world/open"
+                                    ["https://github.com/greenways-worlds/apartment" "" "dev"])
+                   "effects")
+              [{"effect" "github"
+                "method" "resolve-world"
+                "args" ["https://github.com/greenways-worlds/apartment" "" "dev"]}])
+  (test/check "generic workflows enforce transitions and roles"
+              (get (kernel/workflow-transition
+                    {"transitions" [{"id" "submit" "from" "draft" "to" "review"
+                                      "roles" ["owner"]}]}
+                    {"state" "draft" "history" []}
+                    "submit" "owner" "2026-08-03T00:00:00Z")
+                   "state")
+              "review")
+  (test/check "personal chain inclusion advances deterministically"
+              (get (kernel/chain-include
+                    "identity/1" {"sequence" 4 "eventHash" "sha256:prev"}
+                    {"root" "sha256:action"} "2026-08-03T00:00:00Z" "sha256:event")
+                   "sequence")
+              5)])

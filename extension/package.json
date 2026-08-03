@@ -5,7 +5,7 @@
   "type": "module",
   "license": "EPL-2.0",
   "scripts": {
-    "build": "esbuild src/world.js --bundle --format=esm --platform=browser --target=chrome116 --external:node:worker_threads --outfile=dist/world.js",
+    "build": "esbuild src/world.js --bundle --format=esm --platform=browser --target=chrome116 --loader:.hal=text --external:node:worker_threads --outfile=dist/world.js",
     "test": "node --test test/*.test.js",
     "test:browser": "npm run build && playwright test"
   },

@@ -1,4 +1,4 @@
-import { GITHUB_ORIGINS, PublicGitHubClient, requestGitHubAccess, resolveWorldGraph } from "./github-worlds.js";
+import { GITHUB_ORIGINS, PublicGitHubClient, requestGitHubAccess, resolveWorldGraph, searchGreenwaysWorlds } from "./github-worlds.js";
 import { FEATURED_WORLDS, featuredWorld } from "./featured-worlds.js";
 import { WorldRenderer } from "./world-renderer.js";
 
@@ -39,6 +39,11 @@ function renderWelcome(error = "") {
       </article>`).join("")}
     </section>
     <p class="world-divider"><span>or open any public repository</span></p>
+    <form class="catalog-form" role="search">
+      <label>Search greenways-worlds<input name="query" type="search" placeholder="garden, apartment, gaussian splat"></label>
+      <button type="submit">Search worlds</button>
+    </form>
+    <div class="catalog-results" aria-live="polite"></div>
     <form class="world-form">
       <label>GitHub repository<input name="repo" type="url" required placeholder="https://github.com/owner/world" value="${escapeHtml(state.repository)}"></label>
       <label>Ref (optional)<input name="ref" placeholder="main, tag, or commit SHA" value="${escapeHtml(state.ref)}"></label>
@@ -46,7 +51,27 @@ function renderWelcome(error = "") {
       <button type="submit">Allow GitHub & load</button>
     </form>
   </div></section>`;
-  appRoot.querySelector("form").addEventListener("submit", async (event) => {
+  const worldForm = appRoot.querySelector(".world-form");
+  const catalogForm = appRoot.querySelector(".catalog-form");
+  const catalogResults = appRoot.querySelector(".catalog-results");
+  catalogForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    catalogResults.innerHTML = "<p>Searching…</p>";
+    try {
+      await requestGitHubAccess();
+      const matches = await searchGreenwaysWorlds(new FormData(catalogForm).get("query"));
+      catalogResults.innerHTML = matches.length ? matches.map((repository) => `<article>
+        <div><strong>${escapeHtml(repository.name)}</strong><span>${escapeHtml(repository.description || "Gaussian splat world")}</span></div>
+        <button type="button" data-catalog-repo="${escapeHtml(repository.html_url)}">Open</button>
+      </article>`).join("") : "<p>No matching worlds.</p>";
+      catalogResults.querySelectorAll("[data-catalog-repo]").forEach((button) => button.addEventListener("click", () => {
+        navigate({ repository: button.dataset.catalogRepo, ref: "", mode: "dev" });
+      }));
+    } catch (searchError) {
+      catalogResults.innerHTML = `<p role="alert">${escapeHtml(searchError.message)}</p>`;
+    }
+  });
+  worldForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const submit = event.currentTarget.querySelector("button");

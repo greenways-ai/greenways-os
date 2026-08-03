@@ -1,0 +1,28 @@
+(ns greenways.adaptor-test
+  (:require [greenways.adaptor :as adaptor]
+            [std.lib.test :as test]
+            [std.substrate :as substrate]))
+
+(defn echo-handler [space args request node]
+  {"value" (first args)})
+
+(def SURFACE
+  (adaptor/surface "@example" {"echo" echo-handler}
+                   {"echo" {"result" "map"}}))
+
+(test/print-results
+ [(test/check "surface derives stable action identities"
+              (get (get SURFACE "echo") "action")
+              "@example/echo")
+  (test/check "direct installation retains discovery metadata"
+              (let [node (adaptor/install-direct
+                          (substrate/node-create {"id" "direct"}) SURFACE)]
+                (get (get (substrate/get-handler node "@example/echo") "meta")
+                     "installation"))
+              "direct")
+  (test/check "proxy installation is generated from the same surface"
+              (let [node (adaptor/install-proxy
+                          (substrate/node-create {"id" "proxy"}) SURFACE "server")]
+                (get (get (substrate/get-handler node "@example/echo") "meta")
+                     "transport_id"))
+              "server")])

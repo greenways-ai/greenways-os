@@ -1,0 +1,84 @@
+(ns greenways.adaptor
+  (:require [std.substrate :as substrate]))
+
+(defn action-id [prefix method-name]
+  (str prefix "/" method-name))
+
+(defn surface
+  "Creates one discoverable adaptor surface from a map of method names to functions."
+  ([prefix functions]
+   (surface prefix functions {}))
+  ([prefix functions metadata]
+   (let [method-names (vec (keys functions))]
+     (loop [index 0 output {}]
+       (if (= index (count method-names))
+         output
+         (let [method-name (nth method-names index)]
+           (recur
+            (+ index 1)
+            (assoc output method-name
+                   {"name" method-name
+                    "action" (action-id prefix method-name)
+                    "fn" (get functions method-name)
+                    "meta" (or (get metadata method-name) {})}))))))))
+
+(defn descriptors [adaptor-surface]
+  (vec (map (fn [method-name] (get adaptor-surface method-name))
+            (keys adaptor-surface))))
+
+(defn install-direct [node adaptor-surface]
+  (let [entries (descriptors adaptor-surface)]
+    (loop [index 0]
+      (if (= index (count entries))
+        node
+        (let [entry (nth entries index)]
+          (do
+            (substrate/register-handler
+             node (get entry "action") (get entry "fn")
+             (assoc (get entry "meta") "installation" "direct"))
+            (recur (+ index 1))))))))
+
+(defn proxy-handler [action transport-id]
+  (fn [space args request node]
+    (substrate/request node nil action args {"transport_id" transport-id})))
+
+(defn install-proxy [node adaptor-surface transport-id]
+  (let [entries (descriptors adaptor-surface)]
+    (loop [index 0]
+      (if (= index (count entries))
+        node
+        (let [entry (nth entries index)
+              action (get entry "action")]
+          (do
+            (substrate/register-handler
+             node action (proxy-handler action transport-id)
+             (assoc (get entry "meta")
+                    "installation" "proxy"
+                    "transport_id" transport-id))
+            (recur (+ index 1))))))))
+
+(defn client-method [node entry options]
+  (fn [& args]
+    (substrate/request node nil (get entry "action") (vec args)
+                       (or options {"local" true}))))
+
+(defn client-methods
+  "Generates a name-to-function client API from the same adaptor surface."
+  ([node adaptor-surface]
+   (client-methods node adaptor-surface {"local" true}))
+  ([node adaptor-surface options]
+   (let [method-names (vec (keys adaptor-surface))]
+     (loop [index 0 output {}]
+       (if (= index (count method-names))
+         output
+         (let [method-name (nth method-names index)
+               entry (get adaptor-surface method-name)]
+           (recur (+ index 1)
+                  (assoc output method-name
+                         (client-method node entry options)))))))))
+
+(defn invoke [client method-name args]
+  (let [method (get client method-name)]
+    (if method
+      (apply method (or args []))
+      (throw (str "Unknown adaptor method: " method-name)))))
