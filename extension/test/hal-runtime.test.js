@@ -44,6 +44,9 @@ test("Hara carries touchpoint and studio track state", async () => {
   assert.match(opening, /"open-surface"/);
   const imported = runtime.eval('(gw.os.kernel/dispatch "studio/add-track" [(gw.os.kernel/dispatch "app/bootstrap" []) {"id" "local:1" "name" "Piano.wav" "size" 42}])');
   assert.match(imported, /"tracks" \[\{"id" "local:1"/);
+  const exported = runtime.eval('(gw.os.kernel/dispatch "studio/export-project" [(get (gw.os.kernel/dispatch "studio/add-track" [(gw.os.kernel/dispatch "app/bootstrap" []) {"id" "local:1" "name" "Piano.wav" "size" 42}]) "state")])');
+  assert.match(exported, /"export"/);
+  assert.match(exported, /"studio-project"/);
 });
 
 test("HAL transport rejects invalid and circular host values with their path", () => {
