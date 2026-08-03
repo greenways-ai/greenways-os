@@ -31,16 +31,21 @@ test("delegates greenways-worlds catalog filtering to the HAL action", async () 
   assert.equal(results[0].name, "splat-garden");
 });
 
-test("resolves recursive worlds and composes transform chains", async () => {
+test("resolves recursive worlds and composes layer and touchpoint transforms", async () => {
   const childRepo = parseGitHubRepository("https://github.com/greenways/child");
   const projects = new Map([
     [`greenways/root@${rootSha}`, {
-      background: "#000000", camera: null, layers: [{ id: "root", asset: "root.sog", transform }],
+      background: "#000000", camera: null, layers: [{ id: "root", asset: "root.sog", transform }], touchpoints: [],
       imports: [{ id: "child", repository: childRepo.url, ref: childSha, transform: { ...transform, position: [5, 0, 0] } }],
     }],
     [`greenways/child@${childSha}`, {
       background: "#ffffff", camera: { position: [0, 0, 1], target: [0, 0, 0], fov: 60 },
-      layers: [{ id: "tree", asset: "tree.sog", transform: { ...transform, scale: 2 } }], imports: [],
+      layers: [{ id: "tree", asset: "tree.sog", transform: { ...transform, scale: 2 } }],
+      touchpoints: [{
+        id: "console", label: "Open studio", description: "", surface: "studio", presentation: "panel",
+        transform: { ...transform, position: [0, 1, -2] },
+      }],
+      imports: [],
     }],
   ]);
   const client = {
@@ -53,6 +58,9 @@ test("resolves recursive worlds and composes transform chains", async () => {
   assert.deepEqual(graph.layers[1].transformChain.map(({ position, scale }) => ({ position, scale })), [
     { position: [5, 0, 0], scale: 1 }, { position: [0, 0, 0], scale: 2 },
   ]);
+  assert.equal(graph.touchpoints.length, 1);
+  assert.equal(graph.touchpoints[0].id, "greenways/root/child/console");
+  assert.deepEqual(graph.touchpoints[0].transformChain.map(({ position }) => position), [[5, 0, 0], [0, 1, -2]]);
   assert.equal(graph.project.background, "#000000");
 });
 
@@ -65,7 +73,7 @@ test("keeps the root world when an import fails", async () => {
     request: async () => { throw new Error("not used"); },
     resolveCommit: async (_repo, ref) => ref || rootSha,
     project: async (repo) => repo.repo === "root" ? {
-      background: "#000000", camera: null, layers: [{ id: "root", asset: "root.sog", transform }],
+      background: "#000000", camera: null, layers: [{ id: "root", asset: "root.sog", transform }], touchpoints: [],
       imports: [{ id: "missing", repository: "https://github.com/greenways/missing", ref: childSha, transform }],
     } : Promise.reject(new Error("not found")),
   };
