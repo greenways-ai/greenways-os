@@ -1,7 +1,7 @@
 import { GITHUB_ORIGINS, PublicGitHubClient, requestGitHubAccess, resolveWorldGraph, searchGreenwaysWorlds } from "./github-worlds.js";
 import { FEATURED_WORLDS, featuredWorld } from "./featured-worlds.js";
 import { invokeGreenways } from "./greenways-runtime.js";
-import { AudioAssetStore, createStudioSurface } from "./studio-surface.js";
+import { AudioAssetStore, createStudioSurface, exportStudioProject } from "./studio-surface.js";
 import { SurfaceHost } from "./surface-host.js";
 import { EffectRuntime, HaraWorldSession } from "./world-session.js";
 import { WorldRenderer } from "./world-renderer.js";
@@ -215,7 +215,8 @@ function installWorldSession(view, diagnostics) {
     .register("ui", "open-surface", ([surface, touchpoint], context) => {
       surfaceHost.open(surface, touchpoint, { session: context.session });
     })
-    .register("ui", "close-surface", () => surfaceHost.close());
+    .register("ui", "close-surface", () => surfaceHost.close())
+    .register("export", "studio-project", ([studio]) => exportStudioProject(studio, audioAssets));
   session = new HaraWorldSession({ invoke: invokeGreenways, effects });
   session.subscribe((haraState) => surfaceHost.update(haraState));
 
