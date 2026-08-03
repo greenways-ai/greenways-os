@@ -2,7 +2,7 @@ import { parseEDNString } from "edn-data";
 import { start } from "./hara-vm.mjs";
 import adaptorSource from "../../src/greenways/adaptor.hal";
 import kernelSource from "../../src/greenways/kernel.hal";
-import { loadLockedPackageResources } from "./hara-packages.js";
+import { installLockedPackages } from "./hara-packages.js";
 
 const runtime = await start({
   resources: {
@@ -39,7 +39,5 @@ export function greenwaysCapabilities() {
 }
 
 export async function activateLockedPackages(lockSource, request) {
-  const resources = await loadLockedPackageResources(lockSource, request);
-  for (const [namespace, source] of Object.entries(resources)) runtime.registerResource(namespace, source);
-  return Object.keys(resources);
+  return installLockedPackages(runtime, lockSource, { fetch: request });
 }
