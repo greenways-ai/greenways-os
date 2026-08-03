@@ -6,11 +6,13 @@
   "license": "EPL-2.0",
   "scripts": {
     "build": "esbuild src/world.js --bundle --format=esm --platform=browser --target=chrome116 --loader:.hal=text --external:node:worker_threads --outfile=dist/world.js",
+    "build:web": "esbuild ../web/src/main.js --bundle --format=esm --platform=browser --target=es2022 --loader:.hal=text --external:node:worker_threads --entry-names=world --asset-names=world --outdir=../web/dist && cp ../web/index.html ../web/dist/index.html",
     "test": "node --test test/*.test.js",
     "test:browser": "npm run build && playwright test"
   },
   "dependencies": {
     "edn-data": "1.1.2",
+    "fflate": "^0.8.2",
     "playcanvas": "2.21.1"
   },
   "devDependencies": {

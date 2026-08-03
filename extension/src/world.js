@@ -1,5 +1,6 @@
 import { GITHUB_ORIGINS, PublicGitHubClient, requestGitHubAccess, resolveWorldGraph, searchGreenwaysWorlds } from "./github-worlds.js";
 import { FEATURED_WORLDS, featuredWorld } from "./featured-worlds.js";
+import { invokeGreenways } from "./greenways-runtime.js";
 import { WorldRenderer } from "./world-renderer.js";
 
 const appRoot = document.querySelector("#world-app");
@@ -147,7 +148,14 @@ function renderFatal(error, state) {
 async function loadWorld(state) {
   const view = renderShell(state);
   try {
-    const graph = await resolveWorldGraph({ repository: state.repository, ref: state.ref, mode: state.mode, client: new PublicGitHubClient() });
+    const opening = invokeGreenways("world/open", [state.repository, state.ref, state.mode]);
+    const resolveEffect = opening.effects.find(({ effect, method }) => effect === "github" && method === "resolve-world");
+    if (!resolveEffect) throw new Error("HAL world/open did not request a repository graph");
+    const [repository, ref, mode] = resolveEffect.args;
+    const graph = await resolveWorldGraph({ repository, ref, mode, client: new PublicGitHubClient() });
+    const rendering = invokeGreenways("world/render", [graph]);
+    const renderEffect = rendering.effects.find(({ effect, method }) => effect === "scene" && method === "render-world");
+    if (!renderEffect) throw new Error("HAL world/render did not produce a scene command");
     const diagnostics = [...graph.diagnostics];
     let loaded = 0;
     renderer = new WorldRenderer(view.canvas, {

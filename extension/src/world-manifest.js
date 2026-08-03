@@ -162,7 +162,8 @@ export function validateWorldProject(value) {
     layers,
     imports,
     camera: normalizeCamera(world["world/camera"]),
-    background
+    background,
+    dependencies: project["project/dependencies"] ?? {}
   };
 }
 
