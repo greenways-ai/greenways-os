@@ -29,12 +29,34 @@ function addTransform(parent, transform, name) {
   return entity;
 }
 
+function touchpointButton(touchpoint) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "world-touchpoint";
+  button.dataset.touchpointId = touchpoint.id;
+  button.setAttribute("aria-label", touchpoint.label);
+  if (touchpoint.description) button.title = touchpoint.description;
+
+  const pin = document.createElement("span");
+  pin.className = "world-touchpoint-pin";
+  pin.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.className = "world-touchpoint-label";
+  label.textContent = touchpoint.label;
+  button.append(pin, label);
+  button.hidden = true;
+  return button;
+}
+
 export class WorldRenderer {
-  constructor(canvas, { background = "#09101a", camera, onLayer } = {}) {
+  constructor(canvas, { background = "#09101a", camera, onLayer, touchpointRoot, onTouchpoint } = {}) {
     this.canvas = canvas;
     this.onLayer = onLayer || (() => {});
+    this.onTouchpoint = onTouchpoint || (() => {});
+    this.touchpointRoot = touchpointRoot || null;
     this.assets = new Map();
     this.entities = [];
+    this.touchpoints = [];
     this.bounds = null;
     this.destroyed = false;
     this.abort = new AbortController();
@@ -63,6 +85,7 @@ export class WorldRenderer {
     this.hasSuppliedCamera = Boolean(supplied);
     this.installControls();
     this.updateCamera();
+    this.app.on("update", this.updateTouchpoints, this);
     this.app.start();
   }
 
@@ -210,6 +233,59 @@ export class WorldRenderer {
     return results;
   }
 
+  loadTouchpoints(touchpoints = []) {
+    if (!this.touchpointRoot) return [];
+    this.touchpointRoot.replaceChildren();
+    this.touchpoints = [];
+
+    for (const touchpoint of touchpoints) {
+      let parent = this.app.root;
+      touchpoint.transformChain.forEach((transform, index) => {
+        parent = addTransform(parent, transform, `${touchpoint.id} touchpoint transform ${index + 1}`);
+        this.entities.push(parent);
+      });
+      const entity = new Entity(`${touchpoint.id} touchpoint`);
+      parent.addChild(entity);
+      this.entities.push(entity);
+
+      const element = touchpointButton(touchpoint);
+      element.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const world = entity.getPosition();
+        this.onTouchpoint({
+          ...touchpoint,
+          position: [world.x, world.y, world.z],
+        });
+      }, { signal: this.abort.signal });
+      this.touchpointRoot.append(element);
+      this.touchpoints.push({ touchpoint, entity, element, screen: new Vec3() });
+    }
+    this.updateTouchpoints();
+    return this.touchpoints;
+  }
+
+  updateTouchpoints() {
+    if (!this.touchpoints.length || this.destroyed) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const width = this.canvas.offsetWidth || rect.width;
+    const height = this.canvas.offsetHeight || rect.height;
+    for (const entry of this.touchpoints) {
+      const world = entry.entity.getPosition();
+      const visible = this.camera.camera.frustum.containsPoint(world);
+      if (!visible) {
+        entry.element.hidden = true;
+        continue;
+      }
+      this.camera.camera.worldToScreen(world, entry.screen);
+      const onCanvas = entry.screen.x >= 0 && entry.screen.x <= width && entry.screen.y >= 0 && entry.screen.y <= height;
+      entry.element.hidden = !onCanvas;
+      if (!onCanvas) continue;
+      entry.element.style.left = `${rect.left + entry.screen.x}px`;
+      entry.element.style.top = `${rect.top + entry.screen.y}px`;
+    }
+  }
+
   resetCamera() {
     if (!this.bounds) return;
     const radius = Math.max(this.bounds.halfExtents.length(), 0.1);
@@ -221,8 +297,11 @@ export class WorldRenderer {
   destroy() {
     this.destroyed = true;
     this.abort.abort();
+    this.app.off("update", this.updateTouchpoints, this);
     this.app.destroy();
+    this.touchpointRoot?.replaceChildren();
     this.assets.clear();
+    this.touchpoints = [];
     this.entities = [];
   }
 }
