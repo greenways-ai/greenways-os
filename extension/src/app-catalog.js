@@ -303,7 +303,7 @@ const BUILTIN_DESCRIPTORS = [
   {
     protocol: APP_MANIFEST_PROTOCOL,
     id: "greenways-home",
-    version: "0.2.0",
+    version: "0.3.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },
     name: "Greenways Home",
     description: "Your private, locally held home for identity, ideas, projects, and receipts.",
@@ -314,7 +314,7 @@ const BUILTIN_DESCRIPTORS = [
   {
     protocol: APP_MANIFEST_PROTOCOL,
     id: "greenways-worlds",
-    version: "0.2.0",
+    version: "0.3.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },
     name: "Worlds",
     description: "Open and explore Greenways Worlds while keeping the local kernel in control.",
@@ -342,7 +342,7 @@ const BUILTIN_DESCRIPTORS = [
   {
     protocol: APP_MANIFEST_PROTOCOL,
     id: "hestia-connector",
-    version: "0.2.0",
+    version: "0.3.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },
     name: "Hestia Connector",
     description: "Pair a private Hestia home node for backup and signed personal-chain receipts.",

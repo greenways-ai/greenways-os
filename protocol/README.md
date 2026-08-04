@@ -21,4 +21,6 @@ public identity material; it never receives private keys or replaces Hestia.
 
 The sovereign-first application boundary and built-in launcher catalog are
 specified in [`apps.md`](apps.md). App manifests are declarative records and
-cannot provide remote code for the extension to execute.
+cannot provide remote code for the extension to execute. The rehydratable
+browser-wide authority, document-context split, and transactional request
+contract are specified in [`kernel.md`](kernel.md).

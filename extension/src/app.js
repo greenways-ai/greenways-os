@@ -1,5 +1,6 @@
 import {
   actionBody,
+  canonical,
   createEvidenceBundle,
   createFurnishingBundle,
   createIdentity,
@@ -27,6 +28,7 @@ import {
   updateArtifactDescription,
   workflowRoot
 } from "./workflow.js";
+import { migrateLegacyIdentityAndPersonalChain } from "./identity-migration.js";
 import { store, withOriginLock } from "./storage.js";
 
 const app = document.getElementById("app");
@@ -48,11 +50,18 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character
 })[character]);
 
 async function load() {
+  const migration = await withOriginLock(
+    "personal-chain",
+    () => migrateLegacyIdentityAndPersonalChain(store),
+  );
   state.identityRecord = await store.get("identity", "owner") ?? null;
   state.project = await store.get("projects", "active") ?? null;
   state.actions = await store.values("actions");
   state.inclusions = (await store.values("inclusions")).sort((a, b) => a.sequence - b.sequence);
   state.hestiaConnected = Boolean(await store.get("settings", "hestia"));
+  if (migration.migrated && migration.inclusionCount > 0) {
+    state.note = `Your local evidence chain was upgraded with a signed audit bridge; ${migration.queuedRoots.length} record${migration.queuedRoots.length === 1 ? " is" : "s are"} ready for Hestia.`;
+  }
   render();
 }
 
@@ -84,7 +93,7 @@ function record(type, payload, subject = state.project?.id ?? null) {
     });
     const action = await signAction(body, privateKey);
     const previous = persisted.inclusions.at(-1) ?? null;
-    const inclusion = await includeAction(identity.identityId, previous, action);
+    const inclusion = await includeAction(identity, privateKey, previous, action);
     await store.putSignedRecord(action, inclusion);
     state.actions = [...persisted.actions, action];
     state.inclusions = [...persisted.inclusions, inclusion];
@@ -95,8 +104,9 @@ function record(type, payload, subject = state.project?.id ?? null) {
 function retainSignedAction(action) {
   return serializeRecord(async () => {
     const persisted = await storedSignedRecords();
+    const { identity, privateKey } = state.identityRecord;
     const previous = persisted.inclusions.at(-1) ?? null;
-    const inclusion = await includeAction(state.identityRecord.identity.identityId, previous, action);
+    const inclusion = await includeAction(identity, privateKey, previous, action);
     await store.putSignedRecord(action, inclusion);
     state.actions = [...persisted.actions, action];
     state.inclusions = [...persisted.inclusions, inclusion];
@@ -533,7 +543,8 @@ async function exportEvidence() {
     identity: state.identityRecord.identity,
     actions: state.actions,
     inclusions: state.inclusions,
-    project: state.project
+    project: state.project,
+    personalChainMigrations: state.identityRecord.personalChainMigrations ?? [],
   });
   const verification = await verifyEvidenceBundle(bundle);
   if (!verification.valid) throw new Error(`Evidence verification failed: ${verification.errors.join(", ")}`);
@@ -542,7 +553,37 @@ async function exportEvidence() {
   render();
 }
 
+async function exportLocalRecovery() {
+  const [identityRecord, project, actions, inclusions, outbox] = await Promise.all([
+    store.get("identity", "owner"),
+    store.get("projects", "active"),
+    store.values("actions"),
+    store.values("inclusions"),
+    store.values("outbox"),
+  ]);
+  const body = {
+    protocol: "greenways-local-recovery/1",
+    exportedAt: new Date().toISOString(),
+    identity: identityRecord?.identity ?? null,
+    personalChainMigrations: identityRecord?.personalChainMigrations ?? [],
+    project: project ?? null,
+    actions,
+    inclusions,
+    outbox,
+  };
+  downloadJson({ ...body, root: await sha256(canonical(body)) }, "greenways-local-recovery.json");
+}
+
 load().catch((error) => {
-  app.innerHTML = `${header()}<main class="content"><section class="card"><h2>Greenways could not start</h2><p class="muted">${escapeHtml(error.message)}</p></section></main>`;
+  app.innerHTML = `${header()}<main class="content"><section class="card"><h2>Greenways needs recovery</h2><p class="muted">${escapeHtml(error.message)}</p><p class="muted">Recovery mode will not reset or delete local records. Export a public-key evidence snapshot before repairing this profile.</p><button class="primary" type="button" data-export-recovery>Export recovery evidence</button><p class="muted" data-recovery-status></p></section></main>`;
+  app.querySelector("[data-export-recovery]").addEventListener("click", async () => {
+    const status = app.querySelector("[data-recovery-status]");
+    try {
+      await exportLocalRecovery();
+      status.textContent = "Recovery evidence exported without the private key or Hestia token.";
+    } catch (recoveryError) {
+      status.textContent = recoveryError?.message || "Recovery evidence could not be exported.";
+    }
+  });
   console.error(error);
 });

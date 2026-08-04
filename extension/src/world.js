@@ -1,9 +1,9 @@
 import { GITHUB_ORIGINS, PublicGitHubClient, requestGitHubAccess, resolveWorldGraph, searchGreenwaysWorlds } from "./github-worlds.js";
 import { FEATURED_WORLDS, featuredWorld } from "./featured-worlds.js";
-import { invokeGreenways } from "./greenways-runtime.js";
+import { KernelClient } from "./kernel-client.js";
 import { AudioAssetStore, createStudioSurface, exportStudioProject } from "./studio-surface.js";
 import { SurfaceHost } from "./surface-host.js";
-import { EffectRuntime, HaraWorldSession } from "./world-session.js";
+import { EffectRuntime } from "./world-session.js";
 import { WorldRenderer } from "./world-renderer.js";
 
 const appRoot = document.querySelector("#world-app");
@@ -29,8 +29,6 @@ function destroyWorld() {
   renderer = undefined;
   surfaceHost?.destroy();
   surfaceHost = undefined;
-  session?.destroy();
-  session = undefined;
   audioAssets?.destroy();
   audioAssets = undefined;
 }
@@ -108,7 +106,11 @@ function renderWelcome(error = "") {
     catalogResults.innerHTML = "<p>Searching…</p>";
     try {
       await requestGitHubAccess();
-      const matches = await searchGreenwaysWorlds(new FormData(catalogForm).get("query"));
+      const matches = await searchGreenwaysWorlds(
+        new FormData(catalogForm).get("query"),
+        fetch,
+        (method, args) => session.call(method, args),
+      );
       catalogResults.innerHTML = matches.length ? matches.map((repository) => `<article>
         <div><strong>${escapeHtml(repository.name)}</strong><span>${escapeHtml(repository.description || "Gaussian splat world")}</span></div>
         <button type="button" data-catalog-repo="${escapeHtml(repository.html_url)}">Open</button>
@@ -202,7 +204,6 @@ function renderFatal(error, state) {
 }
 
 function installWorldSession(view, diagnostics) {
-  const effects = new EffectRuntime();
   audioAssets = new AudioAssetStore();
   surfaceHost = new SurfaceHost(view.surfaces, {
     onRequestClose: () => session?.dispatch("surface/close").catch((error) => {
@@ -211,14 +212,7 @@ function installWorldSession(view, diagnostics) {
   });
   const studioFactory = (context) => createStudioSurface({ ...context, assetStore: audioAssets });
   surfaceHost.register("studio", studioFactory).register("music/studio", studioFactory);
-  effects
-    .register("ui", "open-surface", ([surface, touchpoint], context) => {
-      surfaceHost.open(surface, touchpoint, { session: context.session });
-    })
-    .register("ui", "close-surface", () => surfaceHost.close())
-    .register("export", "studio-project", ([studio]) => exportStudioProject(studio, audioAssets));
-  session = new HaraWorldSession({ invoke: invokeGreenways, effects });
-  session.subscribe((haraState) => surfaceHost.update(haraState));
+  reconcileSurface(session.state);
 
   return (touchpoint) => session.dispatch("world/touchpoint", [touchpoint]).catch((error) => {
     console.error(`Greenways touchpoint failed: ${touchpoint.id}`, error, { touchpoint });
@@ -227,18 +221,35 @@ function installWorldSession(view, diagnostics) {
   });
 }
 
+function reconcileSurface(haraState) {
+  if (!surfaceHost) return;
+  const active = haraState?.surface?.active;
+  if (active && surfaceHost.activeId !== active) {
+    try {
+      surfaceHost.open(active, haraState.surface.payload || {}, { session });
+    } catch (error) {
+      console.error(`Stored Greenways surface could not be restored: ${active}`, error);
+      surfaceHost.close();
+    }
+  } else if (!active && surfaceHost.activeId) {
+    surfaceHost.close();
+  } else {
+    surfaceHost.update(haraState);
+  }
+}
+
 async function loadWorld(state) {
   const view = renderShell(state);
   let stage = "HAL world/open";
   try {
-    const opening = invokeGreenways("world/open", [state.repository, state.ref, state.mode]);
+    const opening = await session.call("world/open", [state.repository, state.ref, state.mode]);
     const resolveEffect = opening.effects.find(({ effect, method }) => effect === "github" && method === "resolve-world");
     if (!resolveEffect) throw new Error("HAL world/open did not request a repository graph");
     const [repository, ref, mode] = resolveEffect.args;
     stage = "GitHub world graph resolution";
     const graph = await resolveWorldGraph({ repository, ref, mode, client: new PublicGitHubClient() });
     stage = "HAL world/render";
-    const rendering = invokeGreenways("world/render", [graph]);
+    const rendering = await session.call("world/render", [graph]);
     const renderEffect = rendering.effects.find(({ effect, method }) => effect === "scene" && method === "render-world");
     if (!renderEffect) throw new Error("HAL world/render did not produce a scene command");
     const diagnostics = [...graph.diagnostics];
@@ -274,13 +285,34 @@ async function loadWorld(state) {
 }
 
 async function start() {
+  const effects = new EffectRuntime()
+    .register("ui", "open-surface", ([surface, touchpoint], context) => {
+      if (!surfaceHost) throw new Error("The world surface host is not ready");
+      surfaceHost.open(surface, touchpoint, { session: context.session });
+    })
+    .register("ui", "close-surface", () => surfaceHost?.close())
+    .register("export", "studio-project", ([studio]) => {
+      if (!audioAssets) throw new Error("The local Studio asset store is not ready");
+      return exportStudioProject(studio, audioAssets);
+    });
+  if (__GREENWAYS_EXTENSION_HOST__) {
+    session = new KernelClient({ clientKind: "world", effects });
+  } else {
+    const { LocalKernelClient } = await import("./local-kernel-client.js");
+    session = await LocalKernelClient.create({ effects });
+  }
+  session.subscribe(reconcileSurface);
+  await session.start();
   const state = queryState();
   if (!state.repository) return renderWelcome();
   if (await hasGitHubAccess()) return loadWorld(state);
   renderPermission(state);
 }
 
-window.addEventListener("beforeunload", destroyWorld, { once: true });
+window.addEventListener("beforeunload", () => {
+  destroyWorld();
+  session?.destroy();
+}, { once: true });
 start().catch((error) => {
   const state = queryState();
   console.error("Greenways world startup failed", error, state);

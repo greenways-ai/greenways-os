@@ -41,7 +41,7 @@ export function randomId(prefix = "record") {
 
 export async function createIdentity(handle) {
   const keys = await webCrypto().subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]
+    { name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]
   );
   const publicKey = await webCrypto().subtle.exportKey("jwk", keys.publicKey);
   const identityId = randomId("identity");
@@ -86,50 +86,97 @@ export function actionBody({ type, actor, workflowRoot = null, subject = null, p
 
 export async function signAction(body, privateKey) {
   const root = await sha256(canonical(body));
-  const signature = new Uint8Array(await webCrypto().subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" }, privateKey, encoder.encode(canonical(body))
-  ));
-  return { ...body, root, signature: bytesToBase64Url(signature) };
+  return { ...body, root, signature: await signCanonical(body, privateKey) };
 }
 
 export async function verifyAction(action, publicJwk) {
   const { root, signature, ...body } = action;
   if (root !== await sha256(canonical(body))) return false;
-  const key = await webCrypto().subtle.importKey(
-    "jwk", publicJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]
-  );
-  return webCrypto().subtle.verify(
-    { name: "ECDSA", hash: "SHA-256" }, key,
-    base64UrlToBytes(signature), encoder.encode(canonical(body))
-  );
+  return verifyCanonicalSignature(body, signature, publicJwk);
 }
 
-export async function includeAction(chainId, previous, action) {
+async function signCanonical(value, privateKey) {
+  const signature = new Uint8Array(await webCrypto().subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" }, privateKey, encoder.encode(canonical(value))
+  ));
+  return bytesToBase64Url(signature);
+}
+
+async function verifyCanonicalSignature(value, signature, publicJwk) {
+  if (!signature || !publicJwk) return false;
+  try {
+    const key = await webCrypto().subtle.importKey(
+      "jwk", publicJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]
+    );
+    return webCrypto().subtle.verify(
+      { name: "ECDSA", hash: "SHA-256" }, key,
+      base64UrlToBytes(signature), encoder.encode(canonical(value))
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function includeAction(chainOwner, privateKey, previous, action) {
   if (!action?.root || !action?.signature) throw new Error("Signed action required");
+  if (!chainOwner?.identityId || !chainOwner?.keyId || !chainOwner?.publicKey) {
+    throw new Error("Key-controlled chain owner required");
+  }
+  if (chainOwner.keyId !== await sha256(canonical(chainOwner.publicKey))) {
+    throw new Error("Chain owner key ID does not match its public key");
+  }
+  if (previous && (previous.chainId !== chainOwner.identityId || previous.keyId !== chainOwner.keyId)) {
+    throw new Error("Previous inclusion belongs to another personal chain");
+  }
   const inclusion = {
     protocol: "greenways-personal-chain/1",
-    chainId,
+    chainId: chainOwner.identityId,
+    keyId: chainOwner.keyId,
     sequence: (previous?.sequence ?? 0) + 1,
     previousHash: previous?.eventHash ?? ZERO_HASH,
     actionRoot: action.root,
     includedAt: new Date().toISOString()
   };
-  return { ...inclusion, eventHash: await sha256(canonical(inclusion)) };
+  const signature = await signCanonical(inclusion, privateKey);
+  if (!await verifyCanonicalSignature(inclusion, signature, chainOwner.publicKey)) {
+    throw new Error("Personal-chain inclusion must be signed by the chain owner's key");
+  }
+  return { ...inclusion, eventHash: await sha256(canonical(inclusion)), signature };
 }
 
-export async function verifyPersonalChain(inclusions) {
+export async function verifyPersonalChain(inclusions, publicKeys) {
+  if (!Array.isArray(inclusions)) return false;
   let previous = null;
+  let chainId = null;
+  let keyId = null;
   for (const inclusion of inclusions) {
-    const { eventHash, ...body } = inclusion;
+    if (!inclusion || typeof inclusion !== "object") return false;
+    const { eventHash, signature, ...body } = inclusion;
+    if (body.protocol !== "greenways-personal-chain/1" || !body.chainId || !body.keyId) return false;
+    if (chainId === null) {
+      chainId = body.chainId;
+      keyId = body.keyId;
+    } else if (body.chainId !== chainId || body.keyId !== keyId) {
+      return false;
+    }
     if (body.sequence !== (previous?.sequence ?? 0) + 1) return false;
     if (body.previousHash !== (previous?.eventHash ?? ZERO_HASH)) return false;
     if (eventHash !== await sha256(canonical(body))) return false;
+    const publicJwk = publicKeys?.[body.keyId];
+    if (!publicJwk || body.keyId !== await sha256(canonical(publicJwk))) return false;
+    if (!await verifyCanonicalSignature(body, signature, publicJwk)) return false;
     previous = inclusion;
   }
   return true;
 }
 
-export async function createEvidenceBundle({ identity, actions, inclusions, project }) {
+export async function createEvidenceBundle({
+  identity,
+  actions,
+  inclusions,
+  project,
+  personalChainMigrations = [],
+}) {
   const bundle = {
     protocol: "greenways-evidence-bundle/1",
     id: randomId("bundle"),
@@ -138,7 +185,8 @@ export async function createEvidenceBundle({ identity, actions, inclusions, proj
     publicKeys: { [identity.keyId]: identity.publicKey },
     identities: [identity],
     actions,
-    inclusions
+    inclusions,
+    personalChainMigrations,
   };
   return { ...bundle, root: await sha256(canonical(bundle)) };
 }
@@ -147,7 +195,7 @@ export async function verifyEvidenceBundle(bundle) {
   const { root, ...body } = bundle;
   const errors = [];
   if (root !== await sha256(canonical(body))) errors.push("bundle-root-mismatch");
-  if (!await verifyPersonalChain(bundle.inclusions ?? [])) errors.push("personal-chain-invalid");
+  if (!await verifyPersonalChain(bundle.inclusions ?? [], bundle.publicKeys ?? {})) errors.push("personal-chain-invalid");
   for (const action of bundle.actions ?? []) {
     const key = bundle.publicKeys?.[action.actor?.keyId];
     if (!key || !await verifyAction(action, key)) errors.push(`action-invalid:${action.id}`);
@@ -156,7 +204,52 @@ export async function verifyEvidenceBundle(bundle) {
   for (const inclusion of bundle.inclusions ?? []) {
     if (!actionRoots.has(inclusion.actionRoot)) errors.push(`action-missing:${inclusion.actionRoot}`);
   }
+  for (const [index, migration] of (bundle.personalChainMigrations ?? []).entries()) {
+    if (!await verifyPersonalChainMigration(
+      migration,
+      bundle.inclusions ?? [],
+      bundle.publicKeys ?? {},
+    )) {
+      errors.push(`personal-chain-migration-invalid:${index}`);
+    }
+  }
   return { valid: errors.length === 0, errors };
+}
+
+export async function verifyPersonalChainMigration(migration, inclusions, publicKeys) {
+  if (!migration || typeof migration !== "object" || Array.isArray(migration)
+    || migration.protocol !== "greenways-action/1"
+    || migration.type !== "@greenways/personal-chain-migrated"
+    || migration.subject !== migration.actor?.identityId
+    || migration.payload?.protocol !== "greenways-personal-chain-migration/1"
+    || migration.payload.fromProtocol !== "greenways-personal-chain/1-unsigned"
+    || migration.payload.toProtocol !== "greenways-personal-chain/1"
+    || !Array.isArray(migration.payload.mappings)
+    || !Array.isArray(migration.payload.previouslyPendingRoots)
+    || !Array.isArray(inclusions)) {
+    return false;
+  }
+  const publicKey = publicKeys?.[migration.actor?.keyId];
+  if (!publicKey || !await verifyAction(migration, publicKey)) return false;
+  const mappings = migration.payload.mappings;
+  if (!mappings.length || mappings.length > inclusions.length) return false;
+  const roots = new Set();
+  for (const [index, mapping] of mappings.entries()) {
+    const inclusion = inclusions[index];
+    if (!mapping || mapping.sequence !== index + 1
+      || inclusion?.sequence !== mapping.sequence
+      || inclusion?.actionRoot !== mapping.actionRoot
+      || inclusion?.eventHash !== mapping.signedEventHash
+      || roots.has(mapping.actionRoot)) {
+      return false;
+    }
+    roots.add(mapping.actionRoot);
+  }
+  return migration.payload.signedHead === inclusions[mappings.length - 1]?.eventHash
+    && migration.payload.legacyHead === mappings.at(-1)?.legacyEventHash
+    && new Set(migration.payload.previouslyPendingRoots).size
+      === migration.payload.previouslyPendingRoots.length
+    && migration.payload.previouslyPendingRoots.every((root) => roots.has(root));
 }
 
 export async function createFurnishingBundle({ identity, privateKey, title, ideas = [], repositories = [], parents = [], visibility = "personal" }) {

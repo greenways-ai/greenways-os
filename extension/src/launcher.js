@@ -4,15 +4,16 @@ import {
   getAppManifest,
   validateAppManifest,
 } from "./app-catalog.js";
-import { invokeGreenways } from "./greenways-runtime.js";
 import {
   HestiaClient,
   requestOriginAccess,
   revokeOriginAccess,
 } from "./hestia-client.js";
+import { sameManifestApproval } from "./app-launch.js";
+import { KernelClient } from "./kernel-client.js";
 import { store, withOriginLock } from "./storage.js";
 import { SurfaceHost } from "./surface-host.js";
-import { EffectRuntime, HaraWorldSession } from "./world-session.js";
+import { EffectRuntime } from "./world-session.js";
 
 const appRoot = document.querySelector("#launcher-app");
 const surfaceRoot = document.querySelector("#launcher-surfaces");
@@ -66,7 +67,7 @@ function requirementLabel(manifest) {
   return manifest.requirement.name;
 }
 
-function appCard(manifest, { installed }) {
+function appCard(manifest, { installed, updateAvailable = false }) {
   const system = isSystemApp(manifest);
   return `<article class="app-card" id="app-${escapeHtml(manifest.id)}" data-app-card="${escapeHtml(manifest.id)}">
     <div class="app-icon app-icon--${escapeHtml(manifest.id)}" aria-hidden="true">${escapeHtml(appGlyph(manifest))}</div>
@@ -80,7 +81,9 @@ function appCard(manifest, { installed }) {
       <small>${escapeHtml(requirementLabel(manifest))}</small>
     </div>
     <div class="app-actions">
-      ${installed
+      ${updateAvailable
+        ? `<button class="app-install" type="button" data-update-app="${escapeHtml(manifest.id)}">Approve v${escapeHtml(manifest.version)}</button><button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}">Remove</button>`
+        : installed
         ? `<button class="app-open" type="button" data-open-app="${escapeHtml(manifest.id)}">Open</button>${system ? "" : `<button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}">Remove</button>`}`
         : `<button class="app-install" type="button" data-install-app="${escapeHtml(manifest.id)}">Install locally</button>`}
     </div>
@@ -110,7 +113,13 @@ function render() {
     </section>
     <section class="app-section" aria-labelledby="installed-heading">
       <div class="section-heading"><div><p>YOUR SPACE</p><h2 id="installed-heading">Installed apps</h2></div><span>${installed.length} local</span></div>
-      <div class="app-grid">${installed.map((manifest) => appCard(manifest, { installed: true })).join("")}</div>
+      <div class="app-grid">${installed.map((approved) => {
+        const current = fixedManifestById(approved.id);
+        const updateAvailable = !isSystemApp(approved)
+          && Boolean(current)
+          && !sameManifestApproval(approved, current);
+        return appCard(updateAvailable ? current : approved, { installed: true, updateAvailable });
+      }).join("")}</div>
     </section>
     <section class="app-section catalog-section" aria-labelledby="catalog-heading">
       <div class="section-heading"><div><p>OPTIONAL SERVICES</p><h2 id="catalog-heading">Add to your browser</h2></div><span>${available.length} available</span></div>
@@ -122,6 +131,7 @@ function render() {
 
   appRoot.querySelectorAll("[data-open-app]").forEach((button) => button.addEventListener("click", () => openApp(button.dataset.openApp)));
   appRoot.querySelectorAll("[data-install-app]").forEach((button) => button.addEventListener("click", () => installApp(button.dataset.installApp)));
+  appRoot.querySelectorAll("[data-update-app]").forEach((button) => button.addEventListener("click", () => updateApp(button.dataset.updateApp)));
   appRoot.querySelectorAll("[data-remove-app]").forEach((button) => button.addEventListener("click", () => removeApp(button.dataset.removeApp)));
 }
 
@@ -130,21 +140,9 @@ function setStatus(message, tone = "quiet") {
   render();
 }
 
-async function persistApps(manifests) {
-  const fixed = manifests.map(({ id }) => fixedManifestById(id)).filter(Boolean);
-  await store.replace("apps", fixed.map((manifest) => [manifest.id, manifest]));
-}
-
-async function restoreInstalledApps() {
-  const stored = await store.values("apps");
-  const storedIds = new Set(stored.map(({ id }) => fixedManifestById(id)?.id).filter(Boolean));
-  const restored = catalog.filter(({ id }) => systemIds.has(id) || storedIds.has(id));
-  await session.dispatch("apps/restore", [restored]);
-}
-
 function withFreshInstalledApps(operation) {
   return withOriginLock(APP_LIFECYCLE_LOCK, async () => {
-    await restoreInstalledApps();
+    await session.refresh();
     return operation();
   });
 }
@@ -165,17 +163,6 @@ function requireInstalledHestiaConnector() {
   }
 }
 
-async function openBrowserApp(appId) {
-  if (!globalThis.chrome?.runtime) {
-    const manifest = getAppManifest(appId);
-    const target = manifest?.launch?.path || manifest?.launch?.url;
-    if (target) location.assign(target);
-    return;
-  }
-  const response = await chrome.runtime.sendMessage({ type: "greenways/open-app", appId });
-  if (!response?.ok) throw new Error(response?.error || "The app could not be opened");
-}
-
 async function installApp(appId) {
   const manifest = fixedManifestById(appId);
   if (!manifest) return setStatus("That app is not in the bundled catalog.", "error");
@@ -184,6 +171,17 @@ async function installApp(appId) {
     setStatus(`${manifest.name} was installed in this browser.`, "good");
   } catch (error) {
     setStatus(error?.message || "The app could not be installed.", "error");
+  }
+}
+
+async function updateApp(appId) {
+  const manifest = fixedManifestById(appId);
+  if (!manifest || isSystemApp(manifest)) return setStatus("That app cannot be updated through the optional-app flow.", "error");
+  try {
+    await withFreshInstalledApps(() => session.dispatch("apps/update", [manifest]));
+    setStatus(`${manifest.name} v${manifest.version} was approved in this browser.`, "good");
+  } catch (error) {
+    setStatus(error?.message || "The app update could not be approved.", "error");
   }
 }
 
@@ -277,9 +275,13 @@ function createHestiaConnectorSurface({ root, close }) {
       await withFreshInstalledApps(async () => {
         requireInstalledHestiaConnector();
         connection = await store.get("settings", "hestia");
-        const token = submittedToken || connection?.token;
-        if (!token) throw new Error("A scoped Hestia device token is required");
         previousOrigin = connection?.origin ?? null;
+        const token = submittedToken || (previousOrigin === requestedOrigin ? connection?.token : null);
+        if (!token) {
+          throw new Error(previousOrigin && previousOrigin !== requestedOrigin
+            ? "A new scoped device token is required when changing Hestia nodes"
+            : "A scoped Hestia device token is required");
+        }
         await client.discover();
         if (previousOrigin && previousOrigin !== requestedOrigin) {
           await revokeOriginAccess(previousOrigin);
@@ -319,7 +321,7 @@ function createHestiaConnectorSurface({ root, close }) {
           return;
         }
         const response = await new HestiaClient({ origin: connection.origin }).append(outbox, { deviceToken: connection.token });
-        await store.deleteMany("outbox", outbox.map((action) => action.root));
+        await store.deleteMany("outbox", outbox.map((entry) => entry.inclusion.eventHash));
         notice = `Hestia accepted ${response.accepted ?? outbox.length} signed record${outbox.length === 1 ? "" : "s"}.`;
         outbox = [];
       });
@@ -362,15 +364,6 @@ function createHestiaConnectorSurface({ root, close }) {
 
 async function start() {
   const effects = new EffectRuntime()
-    .register("storage", "save-apps", async ([installed]) => {
-      const previous = await store.values("apps");
-      await persistApps(installed);
-      return () => store.replace(
-        "apps",
-        previous.map((manifest) => [manifest.id, manifest]),
-      );
-    })
-    .register("browser", "open-app", ([appId]) => openBrowserApp(appId))
     .register("ui", "open-surface", ([surfaceId, payload], context) => {
       surfaceHost.open(surfaceId, payload || { appId: surfaceId }, { session: context.session });
     })
@@ -380,23 +373,32 @@ async function start() {
     onRequestClose: () => session?.dispatch("surface/close").catch((error) => setStatus(error?.message || "The interface could not close.", "error")),
   });
   surfaceHost.register("hestia-connector", createHestiaConnectorSurface);
-  session = new HaraWorldSession({ invoke: invokeGreenways, effects });
+  session = new KernelClient({ clientKind: "launcher", effects });
   session.subscribe((haraState) => {
-    surfaceHost.update(haraState);
+    const activeSurface = haraState?.surface?.active;
+    if (activeSurface === "hestia-connector" && surfaceHost.activeId !== activeSurface) {
+      surfaceHost.open(activeSurface, haraState.surface.payload || { appId: activeSurface }, { session });
+    } else if (!activeSurface && surfaceHost.activeId) {
+      surfaceHost.close();
+    } else {
+      surfaceHost.update(haraState);
+    }
     render();
   });
 
+  render();
+  await session.start();
   await withOriginLock(APP_LIFECYCLE_LOCK, async () => {
-    await restoreInstalledApps();
     const hestia = await store.get("settings", "hestia");
     const connectorInstalled = installedManifests().some(({ id }) => id === "hestia-connector");
     if (hestia && !connectorInstalled) await clearHestiaConnection(hestia);
     else connectorConnected = Boolean(hestia);
-    await persistApps(installedManifests());
   });
   setStatus("Local kernel ready. Network participation is off until you choose it.", "good");
   await handleLaunchIntent();
 }
+
+window.addEventListener("beforeunload", () => session?.destroy(), { once: true });
 
 async function handleLaunchIntent() {
   const match = location.hash.match(/^#app-([a-z0-9]+(?:[.-][a-z0-9]+)*)$/);
