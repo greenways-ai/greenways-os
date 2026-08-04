@@ -60,3 +60,11 @@ test("requires the surface capability when touchpoints are declared", () => {
 test("rejects unknown touchpoint presentations", () => {
   assert.throws(() => readWorldProject(manifest.replace(":touchpoint/presentation :panel", ":touchpoint/presentation :window")), /panel, :modal, or :fullscreen/);
 });
+
+test("rejects remote HAL dependencies before the host can fetch a lockfile", () => {
+  const source = manifest.replace(
+    ":project/capabilities",
+    ":project/dependencies {hara:remote/package \"1.0.0\"}\n :project/capabilities",
+  );
+  assert.throws(() => readWorldProject(source), /remote HAL dependencies cannot execute/);
+});

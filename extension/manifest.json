@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Greenways OS",
-  "version": "0.1.0",
-  "description": "Artist-first private workrooms and AI-mediated release confidence.",
+  "version": "0.2.0",
+  "description": "A sovereign-first local app and participation kernel for your browser.",
   "minimum_chrome_version": "116",
   "background": { "service_worker": "src/background.js", "type": "module" },
   "action": { "default_title": "Open Greenways OS" },
-  "side_panel": { "default_path": "src/sidepanel.html" },
+  "side_panel": { "default_path": "src/launcher.html" },
   "permissions": ["sidePanel", "storage"],
   "optional_host_permissions": [
     "http://127.0.0.1/*",
@@ -14,6 +14,6 @@
     "https://*/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; worker-src 'self' blob:; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; object-src 'none'"
   }
 }

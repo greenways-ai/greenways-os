@@ -17,6 +17,72 @@
               [{"effect" "github"
                 "method" "resolve-world"
                 "args" ["https://github.com/greenways-worlds/apartment" "" "dev"]}])
+  (test/check "application launch effects contain only the installed app id"
+              (get (kernel/apps-open
+                    (get (kernel/apps-install
+                          (kernel/initial-state)
+                          {"id" "historia"
+                           "category" "installable"
+                           "launch" {"handler" "web-tab"
+                                     "url" "javascript:unknown-remote-code"}})
+                         "state")
+                    "historia")
+                   "effects")
+              [{"effect" "browser"
+                "method" "open-app"
+                "args" ["historia"]}])
+  (test/check "removing an installable app persists the remaining manifests"
+              (get (kernel/apps-remove
+                    (get (kernel/apps-restore
+                          (kernel/initial-state)
+                          [{"id" "greenways-home"
+                            "category" "system"
+                            "publisher" {"id" "greenways-ai"}
+                            "capabilities" ["identity/local" "storage/local"]
+                            "launch" {"handler" "extension-page"
+                                      "path" "src/studio.html#home"}}
+                           {"id" "historia"
+                            "category" "installable"
+                            "launch" {"handler" "web-tab"}}])
+                         "state")
+                    "historia")
+                   "effects")
+              [{"effect" "storage"
+                "method" "save-apps"
+                "args" [[{"id" "greenways-home"
+                           "category" "system"
+                           "publisher" {"id" "greenways-ai"}
+                           "capabilities" ["identity/local" "storage/local"]
+                           "launch" {"handler" "extension-page"
+                                     "path" "src/studio.html#home"}}]]}])
+  (test/check "active packaged apps own surface state and close when removed"
+              (let [manifest {"id" "hestia-connector"
+                              "category" "installable"
+                              "publisher" {"id" "greenways-ai"}
+                              "capabilities" ["hestia/connect" "network/https"
+                                              "network/loopback" "storage/local"]
+                              "launch" {"handler" "packaged-surface"
+                                        "surfaceId" "hestia-connector"}}
+                    installed (get (kernel/apps-install (kernel/initial-state) manifest)
+                                   "state")
+                    opened (get (kernel/apps-open installed "hestia-connector") "state")
+                    removed (kernel/apps-remove opened "hestia-connector")]
+                [(get (get opened "surface") "active")
+                 (get (nth (get removed "effects") 1) "method")
+                 (get (get (get removed "state") "apps") "active")
+                 (get (get (get removed "state") "surface") "active")])
+              ["hestia-connector" "close-surface" nil nil])
+  (test/check "reserved system ids are recognized independently of manifest data"
+              [(kernel/system-app-id? "greenways-home")
+               (kernel/system-app-id? "greenways-worlds")
+               (kernel/system-app-id? "historia")]
+              [true true false])
+  (test/check "system capability bindings require the exact packaged set"
+              [(kernel/exact-values? ["identity/local" "storage/local"]
+                                     ["storage/local" "identity/local"])
+               (kernel/exact-values? ["identity/local" "storage/local"]
+                                     ["identity/local" "storage/local" "tabs/open"])]
+              [true false])
   (test/check "generic workflows enforce transitions and roles"
               (get (kernel/workflow-transition
                     {"transitions" [{"id" "submit" "from" "draft" "to" "review"

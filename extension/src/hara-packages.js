@@ -60,13 +60,3 @@ export async function loadLockedPackageResources(lockSource, request = (...args)
   }
   return staged;
 }
-
-// Kept API-compatible with @hara-lang/browser so this host can switch to the
-// published Hara implementation without changing its application surface.
-export async function installLockedPackages(runtime, lockSource, options = {}) {
-  const resources = await loadLockedPackageResources(lockSource, options.fetch);
-  for (const [namespace, source] of Object.entries(resources)) {
-    runtime.registerResource(namespace, source);
-  }
-  return Object.keys(resources);
-}

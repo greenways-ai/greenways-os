@@ -73,7 +73,16 @@
    :entity/schema
    {:schema/required [:hara/type :hara/version :project/id
                       :project/version :project/capabilities
-                      :project/world]}}]
+                      :project/world]}}
+  {:entity/id :greenways.app/manifest
+   :entity/schema
+   {:schema/required [:app/protocol :app/id :app/version :app/publisher
+                      :app/name :app/description
+                      :app/category :app/capabilities :app/launch]
+    :schema/optional [:app/requirement]}}
+  {:entity/id :greenways.app/publisher
+   :entity/schema
+   {:schema/required [:publisher/id :publisher/name]}}]
 
  :spec/laws
  [{:law/id :greenways.identity/handle-is-alias
@@ -99,7 +108,21 @@
   {:law/id :greenways.space/fork-lineage
    :law/expression "A furnishing fork retains the roots of the furnishings from which it derives and is published under the forking actor's own key."}
   {:law/id :greenways.space/publication-scope
-   :law/expression "The publisher signs whether a furnishing remains personal-chain material or is prepared for sharing."}]
+   :law/expression "The publisher signs whether a furnishing remains personal-chain material or is prepared for sharing."}
+  {:law/id :greenways.app/declarative-only
+   :law/expression "An app manifest is inert data and never supplies an executable, module, source, script, or entrypoint for the kernel to fetch or evaluate."}
+  {:law/id :greenways.app/versioned-manifest
+   :law/expression "Every app manifest names the supported app protocol, a SemVer 2.0 integration version, and a publisher with a stable lowercase identifier."}
+  {:law/id :greenways.app/closed-dispatch
+   :law/expression "An app launches only through a locally shipped allowlisted handler, packaged target, surface identifier, and URL."}
+  {:law/id :greenways.app/capability-bounded
+   :law/expression "A manifest declares every capability required by its handler and may use only allowlisted capabilities; declaration cannot grant browser or kernel authority."}
+  {:law/id :greenways.app/packaged-surface-bound
+   :law/expression "A packaged surface is bound to its shipped app identifier and stable publisher identifier; another manifest cannot alias that surface."}
+  {:law/id :greenways.app/companion-disclosed
+   :law/expression "A native-hybrid app identifies its required local companion and never silently falls back to a remote service."}
+  {:law/id :greenways.app/participation-optional
+   :law/expression "Removing optional networked, participation, or social apps leaves the local identity, storage, receipts, and system home usable."}]
 
  :spec/checkers
  [{:checker/id :greenways/signature
@@ -113,6 +136,9 @@
    :checker/output :hara.artifact/finding}
   {:checker/id :greenways/service-capabilities
    :checker/input :greenways.service/execution-receipt
+   :checker/output :hara.artifact/finding}
+  {:checker/id :greenways/app-manifest
+   :checker/input :greenways.app/manifest
    :checker/output :hara.artifact/finding}]
 
  :spec/conformance
@@ -123,4 +149,6 @@
   {:conformance/id :greenways.os/services
    :conformance/path "conformance/services.edn"}
   {:conformance/id :greenways.os/world-project
-   :conformance/path "conformance/world-project.edn"}]}
+   :conformance/path "conformance/world-project.edn"}
+  {:conformance/id :greenways.os/apps
+   :conformance/path "conformance/apps.edn"}]}

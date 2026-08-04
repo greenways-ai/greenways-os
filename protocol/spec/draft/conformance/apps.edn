@@ -1,0 +1,220 @@
+[{:case/id :greenways.os.case/app-web-tab
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :hara-playground
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :hara-lang :publisher/name "Hara Lang"}
+          :app/name "Hara Playground"
+          :app/description "Open the browser-native Hara playground."
+          :app/category :installable
+          :app/capabilities [:hara/evaluate :tabs/open]
+          :app/launch {:launch/handler :web-tab
+                       :launch/url "https://playground.hara-lang.org/"}}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/app-native-companion
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :historia
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :greenways-ai :publisher/name "Greenways AI"}
+          :app/name "Historia"
+          :app/description "Collect AI conversation history locally."
+          :app/category :installable
+          :app/capabilities [:historia/import :network/loopback :tabs/open]
+          :app/launch {:launch/handler :native-hybrid
+                       :launch/url "http://127.0.0.1:4319/"}
+          :app/requirement {:requirement/kind :companion
+                            :requirement/id :historia-local
+                            :requirement/name "Historia local companion"
+                            :requirement/description "Must be installed and listening on 127.0.0.1:4319."}}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/app-remote-module
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :remote-app
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :bad-actor :publisher/name "Bad Actor"}
+          :app/name "Remote app"
+          :app/description "Attempts to provide remote code."
+          :app/category :installable
+          :app/capabilities [:tabs/open]
+          :app/launch {:launch/handler :web-tab
+                       :launch/url "https://playground.hara-lang.org/"
+                       :launch/module "https://example.invalid/app.js"}}
+  :expect {:error :remote-code-field-forbidden}}
+
+ {:case/id :greenways.os.case/app-unsafe-url
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :unsafe-app
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :bad-actor :publisher/name "Bad Actor"}
+          :app/name "Unsafe app"
+          :app/description "Attempts an unsafe launch."
+          :app/category :installable
+          :app/capabilities [:tabs/open]
+          :app/launch {:launch/handler :web-tab
+                       :launch/url "javascript:alert(1)"}}
+  :expect {:error :launch-url-not-allowlisted}}
+
+ {:case/id :greenways.os.case/app-missing-companion
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :historia
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :greenways-ai :publisher/name "Greenways AI"}
+          :app/name "Historia"
+          :app/description "Omits its local companion."
+          :app/category :installable
+          :app/capabilities [:historia/import :network/loopback :tabs/open]
+          :app/launch {:launch/handler :native-hybrid
+                       :launch/url "http://127.0.0.1:4319/"}}
+  :expect {:error :companion-requirement-required}}
+
+ {:case/id :greenways.os.case/app-unknown-surface
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :unknown-connector
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :bad-actor :publisher/name "Bad Actor"}
+          :app/name "Unknown connector"
+          :app/description "Requests a surface not shipped by Greenways OS."
+          :app/category :installable
+          :app/capabilities [:hestia/connect]
+          :app/launch {:launch/handler :packaged-surface
+                       :launch/surface-id :unknown-connector}}
+  :expect {:error :surface-not-allowlisted}}
+
+ {:case/id :greenways.os.case/app-unsupported-protocol
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/2
+          :app/id :hara-playground
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :hara-lang :publisher/name "Hara Lang"}
+          :app/name "Hara Playground"
+          :app/description "Uses an unsupported manifest protocol."
+          :app/category :installable
+          :app/capabilities [:hara/evaluate :tabs/open]
+          :app/launch {:launch/handler :web-tab
+                       :launch/url "https://playground.hara-lang.org/"}}
+  :expect {:error :unsupported-app-protocol}}
+
+ {:case/id :greenways.os.case/app-invalid-version
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :hara-playground
+          :app/version "01.0.0"
+          :app/publisher {:publisher/id :hara-lang :publisher/name "Hara Lang"}
+          :app/name "Hara Playground"
+          :app/description "Uses a leading zero forbidden by SemVer 2.0."
+          :app/category :installable
+          :app/capabilities [:hara/evaluate :tabs/open]
+          :app/launch {:launch/handler :web-tab
+                       :launch/url "https://playground.hara-lang.org/"}}
+  :expect {:error :invalid-semantic-version}}
+
+ {:case/id :greenways.os.case/app-invalid-publisher
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :hara-playground
+          :app/version "0.1.0"
+          :app/publisher {:publisher/name "Unidentified publisher"}
+          :app/name "Hara Playground"
+          :app/description "Omits the stable publisher identifier."
+          :app/category :installable
+          :app/capabilities [:hara/evaluate :tabs/open]
+          :app/launch {:launch/handler :web-tab
+                       :launch/url "https://playground.hara-lang.org/"}}
+  :expect {:error :publisher-id-required}}
+
+ {:case/id :greenways.os.case/app-native-missing-tabs
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :historia
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :greenways-ai :publisher/name "Greenways AI"}
+          :app/name "Historia"
+          :app/description "Omits the browser-tab capability used for launch."
+          :app/category :installable
+          :app/capabilities [:historia/import :network/loopback]
+          :app/launch {:launch/handler :native-hybrid
+                       :launch/url "http://127.0.0.1:4319/"}
+          :app/requirement {:requirement/kind :companion
+                            :requirement/id :historia-local
+                            :requirement/name "Historia local companion"
+                            :requirement/description "Must be installed locally."}}
+  :expect {:error :launch-capability-required
+           :capability :tabs/open}}
+
+ {:case/id :greenways.os.case/app-hestia-surface
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :hestia-connector
+          :app/version "0.2.0"
+          :app/publisher {:publisher/id :greenways-ai :publisher/name "Greenways AI"}
+          :app/name "Hestia Connector"
+          :app/description "Open the packaged Hestia pairing surface."
+          :app/category :installable
+          :app/capabilities [:hestia/connect :network/https :network/loopback :storage/local]
+          :app/launch {:launch/handler :packaged-surface
+                       :launch/surface-id :hestia-connector}}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/app-hestia-surface-alias
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :connector-alias
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :other-publisher :publisher/name "Other Publisher"}
+          :app/name "Connector alias"
+          :app/description "Attempts to alias the packaged Hestia surface."
+          :app/category :installable
+          :app/capabilities [:hestia/connect :network/https :network/loopback :storage/local]
+          :app/launch {:launch/handler :packaged-surface
+                       :launch/surface-id :hestia-connector}}
+  :expect {:error :surface-app-publisher-mismatch}}
+
+ {:case/id :greenways.os.case/app-hestia-missing-capability
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :hestia-connector
+          :app/version "0.2.0"
+          :app/publisher {:publisher/id :greenways-ai :publisher/name "Greenways AI"}
+          :app/name "Hestia Connector"
+          :app/description "Omits the remote HTTPS capability used by its surface."
+          :app/category :installable
+          :app/capabilities [:hestia/connect :network/loopback :storage/local]
+          :app/launch {:launch/handler :packaged-surface
+                       :launch/surface-id :hestia-connector}}
+  :expect {:error :surface-capability-required
+           :capability :network/https}}
+
+ {:case/id :greenways.os.case/app-system-home
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :greenways-home
+          :app/version "0.2.0"
+          :app/publisher {:publisher/id :greenways-ai :publisher/name "Greenways AI"}
+          :app/name "Greenways Home"
+          :app/description "Open the packaged local home."
+          :app/category :system
+          :app/capabilities [:identity/local :storage/local]
+          :app/launch {:launch/handler :extension-page
+                       :launch/path "src/studio.html#home"}}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/app-fake-system
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :fake-system
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :other-publisher :publisher/name "Other Publisher"}
+          :app/name "Fake system app"
+          :app/description "Attempts to claim a packaged system page."
+          :app/category :system
+          :app/capabilities [:identity/local :storage/local]
+          :app/launch {:launch/handler :extension-page
+                       :launch/path "src/studio.html#home"}}
+  :expect {:error :system-app-binding-mismatch}}]

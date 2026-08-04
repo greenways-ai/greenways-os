@@ -9,6 +9,41 @@
 (defn studio-initial-state []
   {"tracks" []})
 
+(def APP-LAUNCH-HANDLERS
+  ["extension-page" "packaged-surface" "native-hybrid" "web-tab"])
+
+(def APP-CATEGORIES
+  ["system" "installable"])
+
+(def SYSTEM-APP-IDS
+  ["greenways-home" "greenways-worlds"])
+
+(def SYSTEM-APP-PUBLISHER-ID
+  "greenways-ai")
+
+(def SYSTEM-APP-PATHS
+  {"greenways-home" "src/studio.html#home"
+   "greenways-worlds" "src/world.html"})
+
+(def SYSTEM-APP-CAPABILITIES
+  {"greenways-home" ["identity/local" "storage/local"]
+   "greenways-worlds" ["network/github" "worlds/browse"]})
+
+(def PACKAGED-SURFACES
+  ["hestia-connector"])
+
+(def HESTIA-CONNECTOR-APP-ID
+  "hestia-connector")
+
+(def HESTIA-CONNECTOR-PUBLISHER-ID
+  "greenways-ai")
+
+(def HESTIA-CONNECTOR-CAPABILITIES
+  ["hestia/connect" "network/https" "network/loopback" "storage/local"])
+
+(defn apps-initial-state []
+  {"installed" [] "active" nil})
+
 (defn initial-state []
   {"identity" nil
    "project" nil
@@ -16,6 +51,7 @@
    "inclusions" []
    "hestia" nil
    "surface" {"active" nil "touchpoint" nil}
+   "apps" (apps-initial-state)
    "studio" (studio-initial-state)
    "world" {"status" "idle" "repository" nil "graph" nil}})
 
@@ -38,6 +74,172 @@
               (string/includes? (repository-search-text repository) needle))
             repositories)))))
 
+(defn value-present? [values value]
+  (> (count (filter (fn [candidate] (= candidate value)) values)) 0))
+
+(defn system-app-id? [app-id]
+  (value-present? SYSTEM-APP-IDS app-id))
+
+(defn exact-values? [expected actual]
+  (and (= (count expected) (count actual))
+       (= (count expected)
+          (count (filter (fn [value] (value-present? actual value)) expected)))))
+
+(defn app-manifest [manifest]
+  (let [app-id (normalize-query (get manifest "id"))
+        category (normalize-query (get manifest "category"))
+        publisher-id (normalize-query (get (get manifest "publisher") "id"))
+        launch (get manifest "launch")
+        handler (normalize-query (get launch "handler"))
+        surface-id (normalize-query (get launch "surfaceId"))
+        capabilities (or (get manifest "capabilities") [])]
+    (cond
+      (string/blank? app-id) (throw "App id is required")
+      (not (value-present? APP-CATEGORIES category))
+      (throw "App category is not supported")
+      (and (system-app-id? app-id) (not (= category "system")))
+      (throw "Reserved system app ids must use the system category")
+      (and (= category "system") (not (system-app-id? app-id)))
+      (throw "Only reserved app ids can use the system category")
+      (and (= category "system")
+           (not (= publisher-id SYSTEM-APP-PUBLISHER-ID)))
+      (throw "System app publisher is not trusted")
+      (and (= category "system")
+           (not (= handler "extension-page")))
+      (throw "System apps must use the extension-page handler")
+      (and (= category "system")
+           (not (= (get launch "path") (get SYSTEM-APP-PATHS app-id))))
+      (throw "System app path is not bound to its id")
+      (and (= category "system")
+           (not (exact-values? (get SYSTEM-APP-CAPABILITIES app-id) capabilities)))
+      (throw "System app capabilities are not bound to its id")
+      (not (value-present? APP-LAUNCH-HANDLERS handler))
+      (throw "App launch handler is not supported")
+      (and (= handler "packaged-surface")
+           (not (value-present? PACKAGED-SURFACES surface-id)))
+      (throw "Packaged app surface is not installed")
+      (and (= handler "packaged-surface")
+           (not (= app-id HESTIA-CONNECTOR-APP-ID)))
+      (throw "Packaged app surface does not match the app id")
+      (and (= handler "packaged-surface")
+           (not (= publisher-id HESTIA-CONNECTOR-PUBLISHER-ID)))
+      (throw "Packaged app surface publisher is not trusted")
+      (and (= handler "packaged-surface")
+           (not (= (count HESTIA-CONNECTOR-CAPABILITIES)
+                   (count (filter (fn [capability]
+                                    (value-present? capabilities capability))
+                                  HESTIA-CONNECTOR-CAPABILITIES)))))
+      (throw "Packaged app surface capabilities are incomplete")
+      :else
+      (assoc manifest "id" app-id
+                      "category" category
+                      "launch" (cond
+                                 (= handler "packaged-surface")
+                                 {"handler" handler "surfaceId" surface-id}
+                                 (= category "system")
+                                 {"handler" handler "path" (get launch "path")}
+                                 :else
+                                 {"handler" handler})))))
+
+(defn installed-apps [state]
+  (or (get (or (get state "apps") (apps-initial-state)) "installed") []))
+
+(defn installed-app [apps app-id]
+  (first (filter (fn [manifest] (= (get manifest "id") app-id)) apps)))
+
+(defn restore-app-manifests [manifests]
+  (loop [index 0 output []]
+    (if (= index (count (or manifests [])))
+      output
+      (let [manifest (app-manifest (nth manifests index))
+            app-id (get manifest "id")]
+        (if (installed-app output app-id)
+          (throw "App id is already installed")
+          (recur (+ index 1) (conj output manifest)))))))
+
+(defn apps-restore [state manifests]
+  (let [installed (restore-app-manifests manifests)
+        previous-apps (or (get state "apps") (apps-initial-state))
+        previous-installed (or (get previous-apps "installed") [])
+        active (get previous-apps "active")
+        active-manifest (installed-app previous-installed active)
+        next-active (if (installed-app installed active) active nil)
+        close-active-surface (and active-manifest
+                                  (= (get (get active-manifest "launch") "handler")
+                                     "packaged-surface")
+                                  (nil? next-active))
+        next-state (assoc state "apps"
+                          {"installed" installed
+                           "active" next-active})]
+    {"state" (if close-active-surface
+               (assoc next-state "surface" {"active" nil "touchpoint" nil})
+               next-state)
+     "effects" (if close-active-surface
+                 [(effect "ui" "close-surface")]
+                 [])}))
+
+(defn apps-save-effect [apps]
+  (effect "storage" "save-apps" apps))
+
+(defn apps-install [state manifest]
+  (let [apps-state (or (get state "apps") (apps-initial-state))
+        apps (installed-apps state)
+        manifest (app-manifest manifest)
+        app-id (get manifest "id")]
+    (cond
+      (= (get manifest "category") "system")
+      (throw "System apps can only be restored")
+      (installed-app apps app-id)
+      (throw "App id is already installed")
+      :else
+      (let [installed (conj apps manifest)]
+        {"state" (assoc state "apps" (assoc apps-state "installed" installed))
+         "effects" [(apps-save-effect installed)]}))))
+
+(defn apps-open [state app-id]
+  (let [app-id (normalize-query app-id)
+        apps-state (or (get state "apps") (apps-initial-state))
+        manifest (installed-app (installed-apps state) app-id)]
+    (if (nil? manifest)
+      (throw "App is not installed")
+      (let [launch (get manifest "launch")
+            handler (get launch "handler")
+            next-state (assoc state "apps" (assoc apps-state "active" app-id))]
+        (if (= handler "packaged-surface")
+          {"state" (assoc next-state "surface"
+                           {"active" (get launch "surfaceId")
+                            "touchpoint" app-id})
+           "effects" [(effect "ui" "open-surface"
+                              (get launch "surfaceId") {"appId" app-id})]}
+          {"state" next-state
+           "effects" [(effect "browser" "open-app" app-id)]})))))
+
+(defn apps-remove [state app-id]
+  (let [app-id (normalize-query app-id)
+        apps-state (or (get state "apps") (apps-initial-state))
+        apps (installed-apps state)
+        manifest (installed-app apps app-id)]
+    (cond
+      (nil? manifest) (throw "App is not installed")
+      (or (system-app-id? app-id) (= (get manifest "category") "system"))
+      (throw "System apps cannot be removed")
+      :else
+      (let [installed (vec (filter (fn [entry] (not (= (get entry "id") app-id))) apps))
+            active (get apps-state "active")
+            active-packaged (and (= active app-id)
+                                 (= (get (get manifest "launch") "handler")
+                                    "packaged-surface"))
+            next-state (assoc state "apps"
+                              (assoc apps-state
+                                     "installed" installed
+                                     "active" (if (= active app-id) nil active)))]
+        {"state" (if active-packaged
+                   (assoc next-state "surface" {"active" nil "touchpoint" nil})
+                   next-state)
+         "effects" (if active-packaged
+                     [(apps-save-effect installed) (effect "ui" "close-surface")]
+                     [(apps-save-effect installed)])}))))
+
 (defn world-open [repository ref mode]
   {"state" {"status" "resolving"
              "repository" repository
@@ -49,8 +251,17 @@
   {"state" {"status" "ready" "graph" graph}
    "effects" [(effect "scene" "render-world" graph)]})
 
+(defn clear-active-packaged-app [state]
+  (let [apps-state (or (get state "apps") (apps-initial-state))
+        active (get apps-state "active")
+        manifest (installed-app (installed-apps state) active)]
+    (if (= (get (get manifest "launch") "handler") "packaged-surface")
+      (assoc state "apps" (assoc apps-state "active" nil))
+      state)))
+
 (defn world-touchpoint [state touchpoint]
-  (let [surface (normalize-query (get touchpoint "surface"))]
+  (let [state (clear-active-packaged-app state)
+        surface (normalize-query (get touchpoint "surface"))]
     (if (string/blank? surface)
       (throw "Touchpoint surface is required")
       {"state" (assoc state "surface"
@@ -59,7 +270,8 @@
        "effects" [(effect "ui" "open-surface" surface touchpoint)]})))
 
 (defn surface-close [state]
-  {"state" (assoc state "surface" {"active" nil "touchpoint" nil})
+  {"state" (assoc (clear-active-packaged-app state)
+                   "surface" {"active" nil "touchpoint" nil})
    "effects" [(effect "ui" "close-surface")]})
 
 (defn track-present? [tracks track-id]
@@ -160,7 +372,7 @@
    "effects" [(effect "hestia" "pair" endpoint)]})
 
 (defn host-capabilities []
-  ["clock/now" "crypto/identity" "crypto/sign" "files/audio-drop" "files/audio-export"
+  ["browser/apps" "clock/now" "crypto/identity" "crypto/sign" "files/audio-drop" "files/audio-export"
    "github/catalog" "github/world" "hestia/pair" "scene/gaussian-splat"
    "storage/records" "ui/surfaces"])
 
@@ -169,6 +381,14 @@
    "@greenways"
    {"app/bootstrap" (fn [space args request node] (initial-state))
     "app/capabilities" (fn [space args request node] (host-capabilities))
+    "apps/restore" (fn [space args request node]
+                     (apps-restore (nth args 0) (nth args 1)))
+    "apps/install" (fn [space args request node]
+                     (apps-install (nth args 0) (nth args 1)))
+    "apps/open" (fn [space args request node]
+                  (apps-open (nth args 0) (nth args 1)))
+    "apps/remove" (fn [space args request node]
+                    (apps-remove (nth args 0) (nth args 1)))
     "catalog/search" (fn [space args request node]
                        (catalog-search (nth args 0) (nth args 1)))
     "world/open" (fn [space args request node]
@@ -195,7 +415,10 @@
                          (apply chain-include args))
     "hestia/connect" (fn [space args request node]
                        (hestia-connect (nth args 0)))}
-   {"world/open" {"effects" ["github/world"]}
+   {"apps/install" {"effects" ["storage/records"]}
+    "apps/open" {"effects" ["browser/apps" "ui/surfaces"]}
+    "apps/remove" {"effects" ["storage/records" "ui/surfaces"]}
+    "world/open" {"effects" ["github/world"]}
     "world/render" {"effects" ["scene/gaussian-splat"]}
     "world/touchpoint" {"effects" ["ui/surfaces"]}
     "surface/close" {"effects" ["ui/surfaces"]}

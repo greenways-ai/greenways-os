@@ -10,5 +10,10 @@ Version 0.1 establishes the minimum confidence rail for a creative release:
 6. publication produces a portable checkpoint and evidence bundle; and
 7. every signer keeps their own personal-chain inclusion record.
 
+The app profile adds a closed declarative catalog boundary: manifests select
+only locally shipped launch handlers and allowlisted capabilities. Optional
+participation apps never become prerequisites for the local identity, storage,
+receipts, or system home. See [`../../apps.md`](../../apps.md).
+
 `verified-check`, `advisory`, and `sign-off` are intentionally different result
 classes. None is a universal quality score or a declaration of legal title.

@@ -1,17 +1,48 @@
 # Greenways OS
 
-Artist-first confidence infrastructure for signed creative workflows,
-AI-mediated services, personal Hestia evidence chains, portable publishing,
-and repository-defined Gaussian splat worlds.
+Greenways OS turns a browser profile into a small, locally installed operating
+environment. Its Hara kernel, application state, keys, and private work remain
+on the person's machine. Participation, social discovery, hosted services, and
+sync are adapters that a person may add; none are prerequisites for starting or
+using the local system.
 
-This repository owns both the Greenways OS protocol and its client surfaces.
-Hara supplies the portable workflow runtime; Hestia supplies each person's
-durable chain, identity recovery, and chosen-authority backup.
+The Chrome extension is the first host. This slice supplies a launcher, trusted
+browser surfaces, a closed host-effect and capability vocabulary, and local Hara
+sessions. Applications are installed from strict declarative manifests. A
+manifest may select code already shipped with Greenways OS, connect through a
+known adapter, or open a web application in an ordinary tab; it cannot download
+or execute remote JavaScript, Wasm, HAL, or another form of remotely hosted code
+inside the extension.
+
+Application lifecycle is Hara-owned inside the launcher and its records are
+persisted in shared browser storage. Origin-wide locks serialize app and
+personal-chain writes across extension pages. Moving every extension surface
+behind one durable, browser-wide Hara host is the next kernel milestone; this
+first slice does not claim that separate extension pages already share one live
+VM session.
+
+## Sovereign-first architecture
+
+1. **Local kernel.** Hara owns portable application and workflow state. The
+   browser supplies bounded effects such as storage, tabs, files, and explicit
+   network connections.
+2. **Installed applications.** The launcher keeps a local, inspectable registry
+   of enabled applications and their capabilities.
+3. **Optional connectors.** Historia, Hestia, GitHub, and later services connect
+   only after a deliberate install, pairing, or permission gesture.
+4. **Optional participation.** Identity resolution, sharing, social spaces, and
+   public services sit above the local kernel. Turning them off does not remove
+   the person's applications or data.
+
+Hestia supplies durable personal evidence chains, agent identity and recovery.
+Historia supplies local, Git-native memory. Neither becomes a central account
+required to enter Greenways OS.
 
 ## Layout
 
 - `protocol/` — normative Greenways-owned records and conformance cases.
-- `extension/` — the low-permission Chrome MV3 side panel and Studio.
+- `extension/` — the low-permission Chrome MV3 launcher, browser host, and
+  trusted application surfaces.
 - `services/identity/` — runnable development slice of `id.greenways.ai`.
 
 `id.greenways.ai` resolves signed handles, key histories, service endpoints,
@@ -34,8 +65,8 @@ npm test
 Load the repository's `extension/` directory as an unpacked extension at
 `chrome://extensions`.
 
-The extension's **Open a GitHub world** surface works before identity setup.
-It reads a public repository's root `project.edn`, resolves every ref to an
+The launcher and **Open a GitHub world** surface work before identity setup.
+The world viewer reads a public repository's root `project.edn`, resolves every ref to an
 immutable Git commit, and renders its local and imported SOG layers. See
 [`protocol/worlds.md`](protocol/worlds.md) for the manifest contract.
 
