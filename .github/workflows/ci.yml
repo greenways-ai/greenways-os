@@ -30,13 +30,25 @@ jobs:
       - run: npm run build:web
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - name: Upload Playwright diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics
+          path: |
+            extension/test-results/
+            extension/playwright-report/
+          if-no-files-found: ignore
       - name: Test Home Link service
+        if: always()
         working-directory: services/home-node
         run: npm test
       - name: Test identity service
+        if: always()
         working-directory: services/identity
         run: npm test
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: greenways-os-extension
           path: |
