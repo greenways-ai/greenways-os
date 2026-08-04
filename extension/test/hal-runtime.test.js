@@ -90,11 +90,19 @@ test("Hara owns the installed app lifecycle and emits identifier-only launch eff
     "nil",
   );
 
-  const hostileManifest = '{"id" "historia" "category" "installable" "launch" {"handler" "web-tab" "url" "javascript:alert(1)" "code" "steal()"}}';
-  const installed = `(get (gw.os.kernel/dispatch "apps/install" [${bootstrap} ${hostileManifest}]) "state")`;
+  const oldConnector = '{"id" "hestia-connector" "version" "0.2.0" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/https" "network/loopback" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}';
+  const newConnector = '{"id" "hestia-connector" "version" "0.3.0" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/https" "network/loopback" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}';
+  const oldInstalled = `(get (gw.os.kernel/dispatch "apps/install" [${bootstrap} ${oldConnector}]) "state")`;
+  assert.equal(
+    runtime.eval(`(get (first (get (get (get (gw.os.kernel/dispatch "apps/update" [${oldInstalled} ${newConnector}]) "state") "apps") "installed")) "version")`),
+    '"0.3.0"',
+  );
+
+  const historiaManifest = '{"id" "historia" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["historia/import" "network/loopback" "tabs/open"] "launch" {"handler" "native-hybrid" "url" "http://127.0.0.1:4319/"}}';
+  const installed = `(get (gw.os.kernel/dispatch "apps/install" [${bootstrap} ${historiaManifest}]) "state")`;
   assert.equal(
     runtime.eval(`(get (get (first (get (get ${installed} "apps") "installed")) "launch") "url")`),
-    "nil",
+    '"http://127.0.0.1:4319/"',
   );
   assert.equal(
     runtime.eval(`(get (gw.os.kernel/dispatch "apps/open" [${installed} "historia"]) "effects")`),
@@ -103,6 +111,10 @@ test("Hara owns the installed app lifecycle and emits identifier-only launch eff
   assert.throws(
     () => runtime.eval(`(gw.os.kernel/dispatch "apps/open" [${bootstrap} "historia"])`),
     /App is not installed/,
+  );
+  assert.throws(
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "historia" "category" "installable" "launch" {"handler" "native-hybrid" "url" "http:\/\/127.0.0.1:9999\/"}}])`),
+    /URL is not bound/,
   );
   assert.throws(
     () => runtime.eval(`(gw.os.kernel/dispatch "apps/remove" [${restored} "greenways-home"])`),
@@ -131,7 +143,7 @@ test("Hara owns the installed app lifecycle and emits identifier-only launch eff
   );
   assert.throws(
     () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "hestia-connector" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/loopback"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}])`),
-    /Packaged app surface capabilities are incomplete/,
+    /Packaged app surface capabilities are not bound/,
   );
   assert.throws(
     () => runtime.eval(`(gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-home" "category" "system" "publisher" {"id" "attacker"} "capabilities" ["identity/local" "storage/local"] "launch" {"handler" "extension-page" "path" "src/studio.html#home"}}]])`),

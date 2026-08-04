@@ -11,6 +11,8 @@ test("extension requests only its two required permissions", () => {
   assert.deepEqual(manifest.permissions, ["sidePanel", "storage"]);
   assert.equal(manifest.side_panel.default_path, "src/launcher.html");
   assert.equal(manifest.minimum_chrome_version, "116");
+  assert.equal(manifest.background.service_worker, "dist/background.js");
+  assert.equal(manifest.background.type, "module");
 });
 
 test("powerful browser permissions are absent", () => {

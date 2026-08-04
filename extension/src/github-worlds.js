@@ -34,8 +34,8 @@ export async function greenwaysWorldRepositories(request = fetch) {
 }
 
 export async function searchGreenwaysWorlds(query, request = fetch, invoke) {
-  const dispatch = invoke ?? (await import("./greenways-runtime.js")).invokeGreenways;
-  return dispatch("catalog/search", [await greenwaysWorldRepositories(request), query]);
+  if (typeof invoke !== "function") throw new TypeError("World catalog search requires a kernel call");
+  return invoke("catalog/search", [await greenwaysWorldRepositories(request), query]);
 }
 
 const commitPattern = /^[0-9a-f]{40}$/i;

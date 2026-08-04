@@ -23,8 +23,10 @@
                           (kernel/initial-state)
                           {"id" "historia"
                            "category" "installable"
-                           "launch" {"handler" "web-tab"
-                                     "url" "javascript:unknown-remote-code"}})
+                           "publisher" {"id" "greenways-ai"}
+                           "capabilities" ["historia/import" "network/loopback" "tabs/open"]
+                           "launch" {"handler" "native-hybrid"
+                                     "url" "http://127.0.0.1:4319/"}})
                          "state")
                     "historia")
                    "effects")
@@ -72,6 +74,18 @@
                  (get (get (get removed "state") "apps") "active")
                  (get (get (get removed "state") "surface") "active")])
               ["hestia-connector" "close-surface" nil nil])
+  (test/check "context restore rejects an orphan packaged surface"
+              (let [restored
+                    (kernel/app-restore
+                     {"protocol" "greenways-kernel-context/1"
+                      "apps" {"active" "hestia-connector"}
+                      "surface" {"active" "hestia-connector"
+                                 "payload" {"appId" "hestia-connector"}}
+                      "studio" {"tracks" []}}
+                     [])]
+                [(get (get restored "apps") "active")
+                 (get (get restored "surface") "active")])
+              [nil nil])
   (test/check "reserved system ids are recognized independently of manifest data"
               [(kernel/system-app-id? "greenways-home")
                (kernel/system-app-id? "greenways-worlds")

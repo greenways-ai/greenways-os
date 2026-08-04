@@ -6,26 +6,29 @@ on the person's machine. Participation, social discovery, hosted services, and
 sync are adapters that a person may add; none are prerequisites for starting or
 using the local system.
 
-The Chrome extension is the first host. This slice supplies a launcher, trusted
-browser surfaces, a closed host-effect and capability vocabulary, and local Hara
-sessions. Applications are installed from strict declarative manifests. A
+The Chrome extension is the first host. Its Manifest V3 service worker owns one
+browser-wide Hara kernel authority, while each launcher or world document keeps
+an isolated logical UI context. The host persists committed profile state,
+per-document checkpoints, and bounded request receipts in IndexedDB, so Chrome
+may suspend the worker without making page globals authoritative. Applications
+are installed from strict declarative manifests. A
 manifest may select code already shipped with Greenways OS, connect through a
 known adapter, or open a web application in an ordinary tab; it cannot download
 or execute remote JavaScript, Wasm, HAL, or another form of remotely hosted code
 inside the extension.
 
-Application lifecycle is Hara-owned inside the launcher and its records are
-persisted in shared browser storage. Origin-wide locks serialize app and
-personal-chain writes across extension pages. Moving every extension surface
-behind one durable, browser-wide Hara host is the next kernel milestone; this
-first slice does not claim that separate extension pages already share one live
-VM session.
+Application lifecycle is Hara-owned inside the kernel host. Installed apps are
+profile-wide; active apps, surfaces, and Studio tracks are document-scoped so
+two pages cannot clobber one another. The host serializes transitions, commits
+the global and context projections atomically, and targets UI effects only to
+the initiating document. Origin-wide locks continue to serialize the separate
+personal evidence chain. See [`protocol/kernel.md`](protocol/kernel.md).
 
 ## Sovereign-first architecture
 
-1. **Local kernel.** Hara owns portable application and workflow state. The
-   browser supplies bounded effects such as storage, tabs, files, and explicit
-   network connections.
+1. **Local kernel.** Hara owns portable application and workflow state. A
+   rehydratable browser-wide host supplies bounded effects such as storage,
+   tabs, files, and explicit network connections.
 2. **Installed applications.** The launcher keeps a local, inspectable registry
    of enabled applications and their capabilities.
 3. **Optional connectors.** Historia, Hestia, GitHub, and later services connect

@@ -4,14 +4,17 @@ import adaptorSource from "../../src/gw/os/adaptor.hal";
 import kernelSource from "../../src/gw/os/kernel.hal";
 import { encodeHalValue } from "./hal-transport.js";
 
-const runtime = await start({
+const runtimePromise = start({
   resources: {
     "gw.os.adaptor": adaptorSource,
     "gw.os.kernel": kernelSource,
   },
+}).then((runtime) => {
+  runtime.require("gw.os.kernel");
+  return runtime;
 });
 
-runtime.require("gw.os.kernel");
+let invokerPromise;
 
 function decode(value) {
   return parseEDNString(value, {
@@ -24,11 +27,20 @@ function decode(value) {
   });
 }
 
-export function invokeGreenways(method, args = []) {
-  const output = runtime.eval(`(gw.os.kernel/dispatch ${encodeHalValue(method)} ${encodeHalValue(args)})`);
-  return decode(output);
+export function createGreenwaysInvoker() {
+  if (!invokerPromise) {
+    invokerPromise = runtimePromise.then((runtime) => (method, args = []) => {
+      const output = runtime.eval(`(gw.os.kernel/dispatch ${encodeHalValue(method)} ${encodeHalValue(args)})`);
+      return decode(output);
+    });
+  }
+  return invokerPromise;
 }
 
-export function greenwaysCapabilities() {
+export async function invokeGreenways(method, args = []) {
+  return (await createGreenwaysInvoker())(method, args);
+}
+
+export async function greenwaysCapabilities() {
   return invokeGreenways("app/capabilities");
 }

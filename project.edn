@@ -1,7 +1,7 @@
 {:hara/type :project
  :hara/version "1.0.0"
  :project/id greenways/greenways-os
- :project/version "0.2.0"
+ :project/version "0.3.0"
  :project/source-paths ["src"]
  :project/test-paths ["test"]
  :project/extension-paths []

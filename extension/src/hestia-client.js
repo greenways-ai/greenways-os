@@ -1,8 +1,23 @@
 import { canonical, sha256 } from "./protocol.js";
+import { SYNC_BATCH_PROTOCOL, orderSyncEntries } from "./sync-protocol.js";
 
 export const IDENTITY_RESOLVER = "https://id.greenways.ai";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+function privateRequestOptions(options = {}) {
+  const request = {
+    credentials: "omit",
+    redirect: "error",
+    referrerPolicy: "no-referrer",
+    cache: "no-store",
+    ...options,
+  };
+  if (!request.signal && globalThis.AbortSignal?.timeout) {
+    request.signal = AbortSignal.timeout(15_000);
+  }
+  return request;
+}
 
 export function normalizeHestiaOrigin(value) {
   const url = new URL(value);
@@ -38,34 +53,41 @@ export class HestiaClient {
   }
 
   async discover() {
-    const response = await this.request(`${this.origin}/.well-known/hestia`);
+    const response = await this.request(
+      `${this.origin}/.well-known/hestia`,
+      privateRequestOptions(),
+    );
     if (!response.ok) throw new Error(`Hestia discovery failed: ${response.status}`);
     const manifest = await response.json();
     if (manifest.protocol !== "hestia-node/1") throw new Error("Unsupported Hestia node");
     return manifest;
   }
 
-  async append(actions, { deviceToken }) {
-    if (!Array.isArray(actions)) throw new TypeError("Hestia append requires an action batch");
+  async append(entries, { deviceToken }) {
     if (typeof deviceToken !== "string" || !deviceToken.trim()) {
       throw new Error("A scoped Hestia device token is required");
     }
+    const orderedEntries = orderSyncEntries(entries);
     const response = await this.request(`${this.origin}/greenways/v1/actions`, {
+      ...privateRequestOptions(),
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Hestia ${deviceToken}` },
-      body: JSON.stringify({ protocol: "greenways-sync/1", actions })
+      body: JSON.stringify({ protocol: SYNC_BATCH_PROTOCOL, entries: orderedEntries })
     });
     if (!response.ok) throw new Error(`Hestia sync failed: ${response.status}`);
     const result = await response.json();
-    if (!Number.isSafeInteger(result.accepted) || result.accepted !== actions.length) {
-      throw new Error(`Hestia accepted ${result.accepted ?? 0} of ${actions.length} records; the local outbox was retained`);
+    if (!Number.isSafeInteger(result.accepted) || result.accepted !== orderedEntries.length) {
+      throw new Error(`Hestia accepted ${result.accepted ?? 0} of ${orderedEntries.length} records; the local outbox was retained`);
     }
     return result;
   }
 }
 
 export async function resolveIdentity(identity, { request = fetch, resolver = IDENTITY_RESOLVER } = {}) {
-  const response = await request(`${resolver}/v1/identities/${encodeURIComponent(identity)}`);
+  const response = await request(
+    `${resolver}/v1/identities/${encodeURIComponent(identity)}`,
+    privateRequestOptions(),
+  );
   if (!response.ok) throw new Error(`Identity resolution failed: ${response.status}`);
   const card = await response.json();
   if (card.protocol !== "greenways-identity-resolution/1") throw new Error("Invalid identity resolution");

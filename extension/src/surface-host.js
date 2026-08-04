@@ -6,6 +6,7 @@ export class SurfaceHost {
     this.factories = new Map();
     this.controller = null;
     this.overlay = null;
+    this.activeId = null;
   }
 
   register(id, factory) {
@@ -40,6 +41,7 @@ export class SurfaceHost {
     overlay.append(scrim, frame);
     this.root.append(overlay);
     this.overlay = overlay;
+    this.activeId = id;
     this.controller = factory({
       ...context,
       payload,
@@ -63,6 +65,7 @@ export class SurfaceHost {
     this.controller = null;
     this.overlay?.remove();
     this.overlay = null;
+    this.activeId = null;
   }
 
   destroy() {

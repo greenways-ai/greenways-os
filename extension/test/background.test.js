@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createInstalledAppChecker, createMessageHandler, resolveAppUrl } from "../src/background.js";
+import { getAppManifest } from "../src/app-catalog.js";
+import {
+  createInstalledAppChecker,
+  createMessageHandler,
+  principalFromSender,
+  resolveAppUrl,
+} from "../src/background.js";
 
-const runtime = { getURL: (path) => `chrome-extension://greenways/${path}` };
+const runtime = { id: "greenways", getURL: (path) => `chrome-extension://greenways/${path}` };
+const senderFor = (path, documentId = `document:${path}`) => ({
+  id: runtime.id,
+  url: runtime.getURL(path),
+  documentId,
+  frameId: 0,
+  tab: { incognito: false },
+});
 
 test("generic app launches resolve only through the fixed bundled catalog", () => {
   assert.equal(
@@ -27,12 +40,20 @@ test("Chrome 116 message listener responds asynchronously and keeps legacy route
   const handler = createMessageHandler({ runtime, tabs });
 
   const genericResponse = new Promise((resolve) => {
-    assert.equal(handler({ type: "greenways/open-app", appId: "greenways-worlds" }, {}, resolve), true);
+    assert.equal(handler(
+      { type: "greenways/open-app", appId: "greenways-worlds" },
+      senderFor("src/launcher.html"),
+      resolve,
+    ), true);
   });
   assert.deepEqual(await genericResponse, { ok: true, tabId: 1 });
 
   const legacyResponse = new Promise((resolve) => {
-    assert.equal(handler({ type: "greenways/open-studio" }, {}, resolve), true);
+    assert.equal(handler(
+      { type: "greenways/open-studio" },
+      senderFor("src/studio.html"),
+      resolve,
+    ), true);
   });
   assert.deepEqual(await legacyResponse, { ok: true, tabId: 2 });
   assert.deepEqual(calls, [
@@ -40,7 +61,11 @@ test("Chrome 116 message listener responds asynchronously and keeps legacy route
     "chrome-extension://greenways/src/studio.html#home",
   ]);
   const rejectedResponse = new Promise((resolve) => {
-    assert.equal(handler({ type: "greenways/open-app", appId: "unbundled" }, {}, resolve), true);
+    assert.equal(handler(
+      { type: "greenways/open-app", appId: "unbundled" },
+      senderFor("src/launcher.html"),
+      resolve,
+    ), true);
   });
   assert.match((await rejectedResponse).error, /Unknown Greenways app/);
   assert.equal(handler({ type: "unrelated" }, {}, () => {}), false);
@@ -55,17 +80,29 @@ test("generic routes allow system apps but reject optional apps until installed"
   });
 
   const systemResponse = new Promise((resolve) => {
-    assert.equal(handler({ type: "greenways/open-app", appId: "greenways-home" }, {}, resolve), true);
+    assert.equal(handler(
+      { type: "greenways/open-app", appId: "greenways-home" },
+      senderFor("src/launcher.html"),
+      resolve,
+    ), true);
   });
   assert.equal((await systemResponse).ok, true);
 
   const installedResponse = new Promise((resolve) => {
-    assert.equal(handler({ type: "greenways/open-app", appId: "hara-playground" }, {}, resolve), true);
+    assert.equal(handler(
+      { type: "greenways/open-app", appId: "hara-playground" },
+      senderFor("src/launcher.html"),
+      resolve,
+    ), true);
   });
   assert.equal((await installedResponse).ok, true);
 
   const deniedResponse = new Promise((resolve) => {
-    assert.equal(handler({ type: "greenways/open-app", appId: "historia" }, {}, resolve), true);
+    assert.equal(handler(
+      { type: "greenways/open-app", appId: "historia" },
+      senderFor("src/launcher.html"),
+      resolve,
+    ), true);
   });
   assert.match((await deniedResponse).error, /Historia is not installed/);
   assert.deepEqual(calls, [
@@ -79,7 +116,7 @@ test("default installation checker reads optional apps from the durable apps sto
   const checker = createInstalledAppChecker({
     get: async (storeName, appId) => {
       reads.push([storeName, appId]);
-      return appId === "historia" ? { id: appId } : undefined;
+      return appId === "historia" ? getAppManifest(appId) : undefined;
     },
   });
 
@@ -91,4 +128,59 @@ test("default installation checker reads optional apps from the durable apps sto
     ["apps", "historia"],
     ["apps", "hara-playground"],
   ]);
+});
+
+test("legacy optional-app launches require the exact approved manifest", async () => {
+  const checker = createInstalledAppChecker({
+    get: async () => ({ ...getAppManifest("historia"), version: "0.0.1" }),
+  });
+  assert.equal(await checker("historia"), false);
+});
+
+test("derives kernel roles from exact active packaged documents", async () => {
+  const activeRuntime = {
+    ...runtime,
+    getContexts: async ({ documentIds }) => [{
+      documentId: documentIds[0],
+      contextType: "TAB",
+      incognito: false,
+    }],
+  };
+  const sender = senderFor("src/launcher.html", "document:active-launcher");
+  assert.deepEqual(
+    await principalFromSender(sender, {
+      type: "greenways/kernel/attach",
+      clientKind: "launcher",
+      contextId: "context/launcher-auth-0001",
+    }, activeRuntime),
+    { kind: "launcher", clientId: "document/document:active-launcher" },
+  );
+  await assert.rejects(
+    principalFromSender(sender, {
+      type: "greenways/kernel/call",
+      clientKind: "launcher",
+      contextId: "context/another-document-0001",
+    }, activeRuntime),
+    /context does not match/,
+  );
+  await assert.rejects(
+    principalFromSender(sender, { clientKind: "world" }, activeRuntime),
+    /role does not match/,
+  );
+  await assert.rejects(
+    principalFromSender({ ...sender, id: "another-extension" }, {}, activeRuntime),
+    /not this extension/,
+  );
+  await assert.rejects(
+    principalFromSender({ ...sender, url: runtime.getURL("src/verifier.html") }, {}, activeRuntime),
+    /not a kernel caller/,
+  );
+  await assert.rejects(
+    principalFromSender({ ...sender, tab: { incognito: true } }, {}, activeRuntime),
+    /incognito/,
+  );
+  await assert.rejects(
+    principalFromSender(sender, {}, { ...activeRuntime, getContexts: async () => [] }),
+    /not an active extension context/,
+  );
 });

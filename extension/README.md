@@ -6,12 +6,20 @@ browser surfaces. It starts without an account or network service. Identity,
 participation, Hestia sync, Historia, and other services are installed or
 connected explicitly.
 
-The launcher owns one long-lived Hara session and persists its app records in
-the extension's shared IndexedDB database. Other extension pages currently own
-their own Hara sessions. Consolidating those page-local sessions behind one
-durable browser-wide kernel host is a later architecture step. Until then,
-origin-wide exclusive locks serialize app lifecycle and personal-chain writes
-across open extension pages.
+The background service worker owns the browser-wide Hara kernel authority.
+Installed applications and request receipts are profile-wide; active apps,
+surfaces, and Studio tracks live in isolated document contexts. Launcher and
+world pages are thin kernel clients. The host serializes all transitions and
+atomically commits each global projection, context checkpoint, installed-app
+snapshot, and request acknowledgement in IndexedDB.
+
+Manifest V3 may stop the worker when it is idle, so no security or durability
+claim depends on a resident process. Clients reconnect with Chrome's unique
+document-lifetime ID, and the host rehydrates before serving the next request.
+Chrome's active `documentId` binds each client to its context record; the host
+never trusts a message-supplied context key. It registers Chrome listeners
+synchronously before the bundled Hara Wasm finishes loading. See
+`../protocol/kernel.md` for the message and state boundary.
 
 The bundled application catalog is declarative. Catalog entries can open a
 packaged surface, a normal browser tab, or a connector implemented by code that
@@ -19,6 +27,15 @@ ships with the extension. They cannot inject downloaded JavaScript into the
 extension origin. Digest-locking fetched source proves integrity but does not
 make it executable by the kernel; remote catalogs remain declarative data. See
 `../protocol/apps.md` for the application contract.
+
+An installed manifest is the approval record for that exact version,
+publisher, launch binding, and capability set. A catalog update cannot silently
+reuse an earlier approval. Page roles are derived from Chrome's active packaged
+document metadata, never from an app ID or role asserted by a message.
+Packaged pages and the service worker remain one Chrome extension principal;
+document contexts isolate trusted UI state but are not sandboxes for compromised
+extension code. This is why executable UI stays bundled and remote code remains
+forbidden.
 
 The Manifest V3 extension requests `sidePanel` and `storage`. Network origins
 are optional permissions so Hestia, public resolvers, and GitHub are only
@@ -54,6 +71,12 @@ Greenways Home can navigate to Hestia Connector but contains no Hestia network
 client of its own. Pairing, sync, credential storage, and optional origin access
 remain in the installed connector; disconnecting or removing it revokes that
 exact origin before its credential is deleted.
+
+The 0.3 upgrade signs the earlier prototype's unsigned personal-chain
+inclusions and hardens an extractable stored controller key. It retains an
+owner-signed old→new hash bridge and queues the complete rebuilt chain once.
+Invalid legacy state fails closed and exposes a public-key recovery export; it
+is not silently reset.
 
 ## GitHub worlds
 

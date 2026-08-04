@@ -68,6 +68,11 @@ attributed, or scoped manifest cannot alias it.
 Resolving a launch is a two-step operation: resolve a normalized app by its
 identifier, then derive a launch instruction from that catalog entry. Callers
 must not dispatch a launch object copied directly from an untrusted message.
+The locally installed manifest is also the approval record. Before every
+launch—including a packaged surface—the kernel compares its app ID, version,
+publisher ID, handler target, and complete capability set with the current
+bundled catalog. Any change requires a new user approval; a matching ID alone
+is insufficient.
 
 ## Capability vocabulary
 
@@ -98,10 +103,10 @@ mandatory: `web-tab` requires `tabs/open`; `native-hybrid` requires
 
 | App | Publisher | Version | Category | Launch | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Greenways Home | `greenways-ai` | `0.2.0` | System | Packaged `src/studio.html#home` | Private local home, identity, projects, and receipts. Hestia actions route to the optional connector; Home performs no Hestia network effect. |
-| Worlds | `greenways-ai` | `0.2.0` | System | Packaged `src/world.html` | World discovery and opening under the local kernel. |
+| Greenways Home | `greenways-ai` | `0.3.0` | System | Packaged `src/studio.html#home` | Private local home, identity, projects, and receipts. Hestia actions route to the optional connector; Home performs no Hestia network effect. |
+| Worlds | `greenways-ai` | `0.3.0` | System | Packaged `src/world.html` | World discovery and opening under the browser-wide kernel. |
 | Historia | `greenways-ai` | `0.1.0` | Installable | Local `http://127.0.0.1:4319/` | Requires the separately installed **Historia local companion**. Failure to find it is an unavailable-app state, never a remote fallback. |
-| Hestia Connector | `greenways-ai` | `0.2.0` | Installable | Packaged surface `hestia-connector` | Pairing and scoped access to loopback or HTTPS home nodes remain explicit. Disconnecting or removing it revokes its exact optional origin before deleting its credential. |
+| Hestia Connector | `greenways-ai` | `0.3.0` | Installable | Packaged surface `hestia-connector` | Pairing and scoped access to loopback or HTTPS home nodes remain explicit. Sync sends signed actions with signed inclusions; disconnecting or removing it revokes its exact optional origin before deleting its credential. |
 | Hara Playground | `hara-lang` | `0.1.0` | Installable | Web tab `https://playground.hara-lang.org/` | Runs as a normal web destination, not extension-loaded remote code. |
 
 ## Distribution boundary

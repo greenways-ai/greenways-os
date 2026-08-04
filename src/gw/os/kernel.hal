@@ -32,6 +32,18 @@
 (def PACKAGED-SURFACES
   ["hestia-connector"])
 
+(def PACKAGED-TAB-LAUNCHES
+  {"historia" {"handler" "native-hybrid" "url" "http://127.0.0.1:4319/"}
+   "hara-playground" {"handler" "web-tab" "url" "https://playground.hara-lang.org/"}})
+
+(def PACKAGED-TAB-PUBLISHERS
+  {"historia" "greenways-ai"
+   "hara-playground" "hara-lang"})
+
+(def PACKAGED-TAB-CAPABILITIES
+  {"historia" ["historia/import" "network/loopback" "tabs/open"]
+   "hara-playground" ["hara/evaluate" "tabs/open"]})
+
 (def HESTIA-CONNECTOR-APP-ID
   "hestia-connector")
 
@@ -40,6 +52,9 @@
 
 (def HESTIA-CONNECTOR-CAPABILITIES
   ["hestia/connect" "network/https" "network/loopback" "storage/local"])
+
+(def KERNEL-CONTEXT-PROTOCOL
+  "greenways-kernel-context/1")
 
 (defn apps-initial-state []
   {"installed" [] "active" nil})
@@ -50,7 +65,7 @@
    "actions" []
    "inclusions" []
    "hestia" nil
-   "surface" {"active" nil "touchpoint" nil}
+   "surface" {"active" nil "payload" nil}
    "apps" (apps-initial-state)
    "studio" (studio-initial-state)
    "world" {"status" "idle" "repository" nil "graph" nil}})
@@ -92,6 +107,7 @@
         launch (get manifest "launch")
         handler (normalize-query (get launch "handler"))
         surface-id (normalize-query (get launch "surfaceId"))
+        packaged-tab-launch (get PACKAGED-TAB-LAUNCHES app-id)
         capabilities (or (get manifest "capabilities") [])]
     (cond
       (string/blank? app-id) (throw "App id is required")
@@ -113,6 +129,8 @@
       (and (= category "system")
            (not (exact-values? (get SYSTEM-APP-CAPABILITIES app-id) capabilities)))
       (throw "System app capabilities are not bound to its id")
+      (and (= handler "extension-page") (not (= category "system")))
+      (throw "Only system apps can use an extension-page handler")
       (not (value-present? APP-LAUNCH-HANDLERS handler))
       (throw "App launch handler is not supported")
       (and (= handler "packaged-surface")
@@ -125,11 +143,23 @@
            (not (= publisher-id HESTIA-CONNECTOR-PUBLISHER-ID)))
       (throw "Packaged app surface publisher is not trusted")
       (and (= handler "packaged-surface")
-           (not (= (count HESTIA-CONNECTOR-CAPABILITIES)
-                   (count (filter (fn [capability]
-                                    (value-present? capabilities capability))
-                                  HESTIA-CONNECTOR-CAPABILITIES)))))
-      (throw "Packaged app surface capabilities are incomplete")
+           (not (exact-values? HESTIA-CONNECTOR-CAPABILITIES capabilities)))
+      (throw "Packaged app surface capabilities are not bound to its id")
+      (and (value-present? ["native-hybrid" "web-tab"] handler)
+           (nil? packaged-tab-launch))
+      (throw "Tab app is not bundled with this kernel")
+      (and packaged-tab-launch
+           (not (= handler (get packaged-tab-launch "handler"))))
+      (throw "Tab app handler is not bound to its id")
+      (and packaged-tab-launch
+           (not (= (get launch "url") (get packaged-tab-launch "url"))))
+      (throw "Tab app URL is not bound to its id")
+      (and packaged-tab-launch
+           (not (= publisher-id (get PACKAGED-TAB-PUBLISHERS app-id))))
+      (throw "Tab app publisher is not bound to its id")
+      (and packaged-tab-launch
+           (not (exact-values? (get PACKAGED-TAB-CAPABILITIES app-id) capabilities)))
+      (throw "Tab app capabilities are not bound to its id")
       :else
       (assoc manifest "id" app-id
                       "category" category
@@ -138,6 +168,8 @@
                                  {"handler" handler "surfaceId" surface-id}
                                  (= category "system")
                                  {"handler" handler "path" (get launch "path")}
+                                 packaged-tab-launch
+                                 packaged-tab-launch
                                  :else
                                  {"handler" handler})))))
 
@@ -172,7 +204,7 @@
                           {"installed" installed
                            "active" next-active})]
     {"state" (if close-active-surface
-               (assoc next-state "surface" {"active" nil "touchpoint" nil})
+               (assoc next-state "surface" {"active" nil "payload" nil})
                next-state)
      "effects" (if close-active-surface
                  [(effect "ui" "close-surface")]
@@ -196,6 +228,28 @@
         {"state" (assoc state "apps" (assoc apps-state "installed" installed))
          "effects" [(apps-save-effect installed)]}))))
 
+(defn apps-update [state manifest]
+  (let [apps-state (or (get state "apps") (apps-initial-state))
+        apps (installed-apps state)
+        manifest (app-manifest manifest)
+        app-id (get manifest "id")
+        previous (installed-app apps app-id)]
+    (cond
+      (= (get manifest "category") "system")
+      (throw "System apps can only be restored")
+      (nil? previous)
+      (throw "App is not installed")
+      (= previous manifest)
+      (throw "App is already approved at this version")
+      :else
+      (let [installed (vec (map (fn [entry]
+                                  (if (= (get entry "id") app-id)
+                                    manifest
+                                    entry))
+                                apps))]
+        {"state" (assoc state "apps" (assoc apps-state "installed" installed))
+         "effects" [(apps-save-effect installed)]}))))
+
 (defn apps-open [state app-id]
   (let [app-id (normalize-query app-id)
         apps-state (or (get state "apps") (apps-initial-state))
@@ -208,7 +262,7 @@
         (if (= handler "packaged-surface")
           {"state" (assoc next-state "surface"
                            {"active" (get launch "surfaceId")
-                            "touchpoint" app-id})
+                            "payload" {"appId" app-id}})
            "effects" [(effect "ui" "open-surface"
                               (get launch "surfaceId") {"appId" app-id})]}
           {"state" next-state
@@ -234,7 +288,7 @@
                                      "installed" installed
                                      "active" (if (= active app-id) nil active)))]
         {"state" (if active-packaged
-                   (assoc next-state "surface" {"active" nil "touchpoint" nil})
+                   (assoc next-state "surface" {"active" nil "payload" nil})
                    next-state)
          "effects" (if active-packaged
                      [(apps-save-effect installed) (effect "ui" "close-surface")]
@@ -266,12 +320,12 @@
       (throw "Touchpoint surface is required")
       {"state" (assoc state "surface"
                        {"active" surface
-                        "touchpoint" (get touchpoint "id")})
+                        "payload" touchpoint})
        "effects" [(effect "ui" "open-surface" surface touchpoint)]})))
 
 (defn surface-close [state]
   {"state" (assoc (clear-active-packaged-app state)
-                   "surface" {"active" nil "touchpoint" nil})
+                   "surface" {"active" nil "payload" nil})
    "effects" [(effect "ui" "close-surface")]})
 
 (defn track-present? [tracks track-id]
@@ -305,6 +359,50 @@
       (throw "Studio project has no tracks to export")
       {"state" state
        "effects" [(effect "export" "studio-project" studio)]})))
+
+(defn restore-studio-state [tracks]
+  (loop [index 0 state (initial-state)]
+    (if (= index (count (or tracks [])))
+      (get state "studio")
+      (recur (+ index 1)
+             (get (studio-add-track state (nth tracks index)) "state")))))
+
+(defn app-checkpoint [state]
+  {"protocol" KERNEL-CONTEXT-PROTOCOL
+   "apps" {"active" (get (or (get state "apps") (apps-initial-state)) "active")}
+   "surface" (or (get state "surface") {"active" nil "payload" nil})
+   "studio" (or (get state "studio") (studio-initial-state))})
+
+(defn app-restore [checkpoint installed]
+  (if (not (= (get checkpoint "protocol") KERNEL-CONTEXT-PROTOCOL))
+    (throw "Kernel context protocol is not supported")
+    (let [base (get (apps-restore (initial-state) installed) "state")
+          apps (get base "apps")
+          requested-active (normalize-query (get (get checkpoint "apps") "active"))
+          active (if (installed-app (get apps "installed") requested-active)
+                   requested-active
+                   nil)
+          requested-surface (get checkpoint "surface")
+          surface-id (normalize-query (get requested-surface "active"))
+          surface-payload (get requested-surface "payload")
+          surface-app-id (normalize-query (get surface-payload "appId"))
+          surface-manifest (installed-app (get apps "installed") surface-app-id)
+          packaged-surface (value-present? PACKAGED-SURFACES surface-id)
+          packaged-surface-approved
+          (and packaged-surface
+               (= active surface-app-id)
+               (= (get (get surface-manifest "launch") "handler") "packaged-surface")
+               (= (get (get surface-manifest "launch") "surfaceId") surface-id))
+          surface (if (or (string/blank? surface-id)
+                          (and packaged-surface (not packaged-surface-approved)))
+                    {"active" nil "payload" nil}
+                    {"active" surface-id
+                     "payload" surface-payload})
+          studio (restore-studio-state (get (get checkpoint "studio") "tracks"))]
+      (assoc base
+             "apps" (assoc apps "active" active)
+             "surface" surface
+             "studio" studio))))
 
 (defn identity-create [handle]
   (let [handle (normalize-query handle)]
@@ -381,10 +479,16 @@
    "@greenways"
    {"app/bootstrap" (fn [space args request node] (initial-state))
     "app/capabilities" (fn [space args request node] (host-capabilities))
+    "app/checkpoint" (fn [space args request node]
+                       (app-checkpoint (nth args 0)))
+    "app/restore" (fn [space args request node]
+                    (app-restore (nth args 0) (nth args 1)))
     "apps/restore" (fn [space args request node]
                      (apps-restore (nth args 0) (nth args 1)))
     "apps/install" (fn [space args request node]
                      (apps-install (nth args 0) (nth args 1)))
+    "apps/update" (fn [space args request node]
+                    (apps-update (nth args 0) (nth args 1)))
     "apps/open" (fn [space args request node]
                   (apps-open (nth args 0) (nth args 1)))
     "apps/remove" (fn [space args request node]
@@ -416,6 +520,7 @@
     "hestia/connect" (fn [space args request node]
                        (hestia-connect (nth args 0)))}
    {"apps/install" {"effects" ["storage/records"]}
+    "apps/update" {"effects" ["storage/records"]}
     "apps/open" {"effects" ["browser/apps" "ui/surfaces"]}
     "apps/remove" {"effects" ["storage/records" "ui/surfaces"]}
     "world/open" {"effects" ["github/world"]}

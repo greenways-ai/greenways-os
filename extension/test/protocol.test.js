@@ -9,12 +9,14 @@ import {
   createIdentity,
   includeAction,
   normalizeHandle,
+  sha256,
   signAction,
   verifyAction,
   verifyEvidenceBundle,
   verifyFurnishingBundle,
   verifyPublicCredential,
-  verifyPersonalChain
+  verifyPersonalChain,
+  verifyPersonalChainMigration,
 } from "../src/protocol.js";
 
 test("canonical representation orders nested object keys", () => {
@@ -28,6 +30,10 @@ test("handles are aliases with a conservative portable shape", () => {
 
 test("identity signs a contribution and independent verification succeeds", async () => {
   const { identity, privateKey } = await createIdentity("alice");
+  assert.equal(privateKey.extractable, false);
+  await assert.rejects(() => globalThis.crypto.subtle.exportKey("jwk", privateKey));
+  assert.equal(identity.keyId, await sha256(canonical(identity.publicKey)));
+  assert.equal(identity.publicKey.kty, "EC");
   const body = actionBody({
     type: "@greenways/contribution-claimed",
     actor: identity,
@@ -39,7 +45,7 @@ test("identity signs a contribution and independent verification succeeds", asyn
   assert.equal(await verifyAction({ ...signed, subject: "sha256:tampered" }, identity.publicKey), false);
 });
 
-test("personal inclusions are local and hash linked", async () => {
+test("personal inclusions are owner signed and hash linked", async () => {
   const { identity, privateKey } = await createIdentity("alice");
   const firstAction = await signAction(actionBody({
     type: "@greenways/project-created", actor: identity, payload: { title: "Release" }
@@ -47,11 +53,39 @@ test("personal inclusions are local and hash linked", async () => {
   const secondAction = await signAction(actionBody({
     type: "@greenways/steward-run", actor: identity, payload: { checks: 5 }
   }), privateKey);
-  const first = await includeAction(identity.identityId, null, firstAction);
-  const second = await includeAction(identity.identityId, first, secondAction);
+  const first = await includeAction(identity, privateKey, null, firstAction);
+  const second = await includeAction(identity, privateKey, first, secondAction);
+  const publicKeys = { [identity.keyId]: identity.publicKey };
   assert.equal(first.previousHash, ZERO_HASH);
-  assert.equal(await verifyPersonalChain([first, second]), true);
-  assert.equal(await verifyPersonalChain([first, { ...second, sequence: 9 }]), false);
+  assert.equal(first.keyId, identity.keyId);
+  assert.ok(first.signature);
+  assert.equal(await verifyPersonalChain([first, second], publicKeys), true);
+  assert.equal(await verifyPersonalChain([first, second], {}), false);
+
+  const { eventHash: ignoredHash, signature, ...forgedBody } = {
+    ...second,
+    includedAt: "2099-01-01T00:00:00.000Z"
+  };
+  const forged = { ...forgedBody, eventHash: await sha256(canonical(forgedBody)), signature };
+  assert.equal(await verifyPersonalChain([first, forged], publicKeys), false);
+  assert.equal(await verifyPersonalChain([first, { ...second, sequence: 9 }], publicKeys), false);
+
+  const mallory = await createIdentity("mallory");
+  const { eventHash: ignoredFirstHash, signature: firstSignature, ...firstBody } = first;
+  const wrongKeyBody = { ...firstBody, keyId: mallory.identity.keyId };
+  const wrongKey = {
+    ...wrongKeyBody,
+    eventHash: await sha256(canonical(wrongKeyBody)),
+    signature: firstSignature
+  };
+  assert.equal(await verifyPersonalChain([wrongKey], {
+    ...publicKeys,
+    [mallory.identity.keyId]: mallory.identity.publicKey
+  }), false);
+  await assert.rejects(
+    includeAction(identity, mallory.privateKey, first, secondAction),
+    /chain owner's key/
+  );
 });
 
 test("evidence bundle verifies actions and personal inclusion", async () => {
@@ -59,14 +93,93 @@ test("evidence bundle verifies actions and personal inclusion", async () => {
   const action = await signAction(actionBody({
     type: "@greenways/checkpoint-created", actor: identity, payload: { artifacts: [] }
   }), privateKey);
-  const inclusion = await includeAction(identity.identityId, null, action);
+  const inclusion = await includeAction(identity, privateKey, null, action);
+  const legacyHash = `sha256:${"a".repeat(64)}`;
+  const migration = await signAction(actionBody({
+    type: "@greenways/personal-chain-migrated",
+    actor: identity,
+    subject: identity.identityId,
+    payload: {
+      protocol: "greenways-personal-chain-migration/1",
+      fromProtocol: "greenways-personal-chain/1-unsigned",
+      toProtocol: "greenways-personal-chain/1",
+      legacyHead: legacyHash,
+      signedHead: inclusion.eventHash,
+      mappings: [{
+        sequence: 1,
+        actionRoot: action.root,
+        legacyEventHash: legacyHash,
+        signedEventHash: inclusion.eventHash,
+      }],
+      previouslyPendingRoots: [action.root],
+    },
+  }), privateKey);
+  assert.equal(await verifyPersonalChainMigration(
+    migration,
+    [inclusion],
+    { [identity.keyId]: identity.publicKey },
+  ), true);
+  const laterAction = await signAction(actionBody({
+    type: "@greenways/checkpoint-extended", actor: identity, payload: { artifacts: ["later"] }
+  }), privateKey);
+  const laterInclusion = await includeAction(identity, privateKey, inclusion, laterAction);
+  assert.equal(await verifyPersonalChainMigration(
+    migration,
+    [inclusion, laterInclusion],
+    { [identity.keyId]: identity.publicKey },
+  ), true);
+  const extendedBundle = await createEvidenceBundle({
+    identity,
+    actions: [action, laterAction],
+    inclusions: [inclusion, laterInclusion],
+    project: { id: "workload/extended" },
+    personalChainMigrations: [migration],
+  });
+  assert.deepEqual(await verifyEvidenceBundle(extendedBundle), { valid: true, errors: [] });
   const bundle = await createEvidenceBundle({
-    identity, actions: [action], inclusions: [inclusion], project: { id: "workload/1" }
+    identity,
+    actions: [action],
+    inclusions: [inclusion],
+    project: { id: "workload/1" },
+    personalChainMigrations: [migration],
   });
   assert.deepEqual(await verifyEvidenceBundle(bundle), { valid: true, errors: [] });
   const result = await verifyEvidenceBundle({ ...bundle, project: { id: "changed" } });
   assert.equal(result.valid, false);
   assert.ok(result.errors.includes("bundle-root-mismatch"));
+
+  const { eventHash: ignoredHash, signature, ...changedInclusionBody } = {
+    ...inclusion,
+    includedAt: "2099-01-01T00:00:00.000Z"
+  };
+  const changedInclusion = {
+    ...changedInclusionBody,
+    eventHash: await sha256(canonical(changedInclusionBody)),
+    signature
+  };
+  const { root: ignoredRoot, ...changedBundleBody } = { ...bundle, inclusions: [changedInclusion] };
+  const changedBundle = {
+    ...changedBundleBody,
+    root: await sha256(canonical(changedBundleBody))
+  };
+  const changedResult = await verifyEvidenceBundle(changedBundle);
+  assert.equal(changedResult.valid, false);
+  assert.ok(changedResult.errors.includes("personal-chain-invalid"));
+
+  const invalidMigration = {
+    ...migration,
+    payload: { ...migration.payload, signedHead: `sha256:${"f".repeat(64)}` },
+  };
+  const { root: ignoredMigrationRoot, ...invalidMigrationBundleBody } = {
+    ...bundle,
+    personalChainMigrations: [invalidMigration],
+  };
+  const invalidMigrationBundle = {
+    ...invalidMigrationBundleBody,
+    root: await sha256(canonical(invalidMigrationBundleBody)),
+  };
+  const migrationResult = await verifyEvidenceBundle(invalidMigrationBundle);
+  assert.ok(migrationResult.errors.includes("personal-chain-migration-invalid:0"));
 });
 
 test("room furnishings are signed, portable, and tamper evident", async () => {
