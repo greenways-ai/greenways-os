@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import {
   createHomeDevice,
   createSignedHomeRequest,
@@ -75,6 +76,22 @@ test("signs method, path, nonce, time, and body hash with the browser device key
   ), true);
 });
 
+test("browser runtime binds receiver-sensitive fetch before modules capture it", async () => {
+  const runtime = await readFile(new URL("../src/browser-runtime.js", import.meta.url), "utf8");
+  const browserGlobal = {
+    calls: 0,
+    fetch() {
+      assert.equal(this, browserGlobal);
+      this.calls += 1;
+      return "ok";
+    },
+  };
+  runInNewContext(runtime, browserGlobal);
+  const capturedFetch = browserGlobal.fetch;
+  assert.equal(capturedFetch.call({ not: "the browser global" }), "ok");
+  assert.equal(browserGlobal.calls, 1);
+});
+
 test("launcher packages Home Link locally rather than as remote UI", async () => {
   const [html, entry, css] = await Promise.all([
     readFile(new URL("../src/launcher.html", import.meta.url), "utf8"),
@@ -83,6 +100,10 @@ test("launcher packages Home Link locally rather than as remote UI", async () =>
   ]);
   assert.match(html, /href="home-link-surface\.css"/);
   assert.match(html, /src="home-link-surface\.js"/);
+  assert.ok(
+    html.indexOf('src="browser-runtime.js"') < html.indexOf('src="home-link-surface.js"'),
+    "browser runtime must bind receiver-sensitive APIs before Home Link loads",
+  );
   assert.match(entry, /createHomeDevice/);
   assert.match(entry, /Descriptions only/);
   assert.match(entry, /never evaluates remote JavaScript, Wasm, HAL/);
