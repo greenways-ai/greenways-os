@@ -6,12 +6,17 @@
 (defn effect [service method & args]
   {"effect" service "method" method "args" (vec args)})
 
+(defn studio-initial-state []
+  {"tracks" []})
+
 (defn initial-state []
   {"identity" nil
    "project" nil
    "actions" []
    "inclusions" []
    "hestia" nil
+   "surface" {"active" nil "touchpoint" nil}
+   "studio" (studio-initial-state)
    "world" {"status" "idle" "repository" nil "graph" nil}})
 
 (defn normalize-query [value]
@@ -43,6 +48,51 @@
 (defn world-render [graph]
   {"state" {"status" "ready" "graph" graph}
    "effects" [(effect "scene" "render-world" graph)]})
+
+(defn world-touchpoint [state touchpoint]
+  (let [surface (normalize-query (get touchpoint "surface"))]
+    (if (string/blank? surface)
+      (throw "Touchpoint surface is required")
+      {"state" (assoc state "surface"
+                       {"active" surface
+                        "touchpoint" (get touchpoint "id")})
+       "effects" [(effect "ui" "open-surface" surface touchpoint)]})))
+
+(defn surface-close [state]
+  {"state" (assoc state "surface" {"active" nil "touchpoint" nil})
+   "effects" [(effect "ui" "close-surface")]})
+
+(defn track-present? [tracks track-id]
+  (> (count (filter (fn [track] (= (get track "id") track-id)) tracks)) 0))
+
+(defn studio-add-track [state track]
+  (let [studio (or (get state "studio") (studio-initial-state))
+        tracks (or (get studio "tracks") [])
+        track-id (normalize-query (get track "id"))
+        track-name (string/trim (str (or (get track "name") "")))]
+    (cond
+      (string/blank? track-id) (throw "Studio track id is required")
+      (string/blank? track-name) (throw "Studio track name is required")
+      (track-present? tracks track-id) (throw "Studio track id already exists")
+      :else
+      {"state" (assoc state "studio"
+                       (assoc studio "tracks" (conj tracks track)))
+       "effects" []})))
+
+(defn studio-remove-track [state track-id]
+  (let [studio (or (get state "studio") (studio-initial-state))
+        tracks (or (get studio "tracks") [])
+        remaining (vec (filter (fn [track] (not (= (get track "id") track-id))) tracks))]
+    {"state" (assoc state "studio" (assoc studio "tracks" remaining))
+     "effects" []}))
+
+(defn studio-export-project [state]
+  (let [studio (or (get state "studio") (studio-initial-state))
+        tracks (or (get studio "tracks") [])]
+    (if (= 0 (count tracks))
+      (throw "Studio project has no tracks to export")
+      {"state" state
+       "effects" [(effect "export" "studio-project" studio)]})))
 
 (defn identity-create [handle]
   (let [handle (normalize-query handle)]
@@ -110,8 +160,9 @@
    "effects" [(effect "hestia" "pair" endpoint)]})
 
 (defn host-capabilities []
-  ["clock/now" "crypto/identity" "crypto/sign" "github/catalog"
-   "github/world" "hestia/pair" "scene/gaussian-splat" "storage/records"])
+  ["clock/now" "crypto/identity" "crypto/sign" "files/audio-drop" "files/audio-export"
+   "github/catalog" "github/world" "hestia/pair" "scene/gaussian-splat"
+   "storage/records" "ui/surfaces"])
 
 (def SURFACE
   (adaptor/surface
@@ -123,6 +174,16 @@
     "world/open" (fn [space args request node]
                    (world-open (nth args 0) (nth args 1) (nth args 2)))
     "world/render" (fn [space args request node] (world-render (nth args 0)))
+    "world/touchpoint" (fn [space args request node]
+                         (world-touchpoint (nth args 0) (nth args 1)))
+    "surface/close" (fn [space args request node]
+                      (surface-close (nth args 0)))
+    "studio/add-track" (fn [space args request node]
+                         (studio-add-track (nth args 0) (nth args 1)))
+    "studio/remove-track" (fn [space args request node]
+                            (studio-remove-track (nth args 0) (nth args 1)))
+    "studio/export-project" (fn [space args request node]
+                              (studio-export-project (nth args 0)))
     "identity/create" (fn [space args request node] (identity-create (nth args 0)))
     "workflow/project-create" (fn [space args request node]
                                 (apply project-create args))
@@ -136,6 +197,9 @@
                        (hestia-connect (nth args 0)))}
    {"world/open" {"effects" ["github/world"]}
     "world/render" {"effects" ["scene/gaussian-splat"]}
+    "world/touchpoint" {"effects" ["ui/surfaces"]}
+    "surface/close" {"effects" ["ui/surfaces"]}
+    "studio/export-project" {"effects" ["files/audio-export"]}
     "identity/create" {"effects" ["crypto/identity"]}
     "hestia/connect" {"effects" ["hestia/pair"]}}))
 

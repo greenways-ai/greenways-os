@@ -184,7 +184,7 @@ function diagnostic(path, error) {
 }
 
 export async function resolveWorldGraph({ repository, ref = "", mode = "dev", client = new PublicGitHubClient() }) {
-  if (!['dev', 'strict'].includes(mode)) throw new Error("Viewer mode must be dev or strict");
+  if (!["dev", "strict"].includes(mode)) throw new Error("Viewer mode must be dev or strict");
   const rootRepository = typeof repository === "string" ? parseGitHubRepository(repository) : repository;
   if (mode === "strict" && !commitPattern.test(ref)) {
     throw new Error("Strict mode requires the root ref to be a full 40-character commit SHA");
@@ -192,6 +192,7 @@ export async function resolveWorldGraph({ repository, ref = "", mode = "dev", cl
   const rootCommit = await client.resolveCommit(rootRepository, ref);
   const diagnostics = [];
   const layers = [];
+  const touchpoints = [];
   const projects = new Set();
 
   async function visit(source, commit, transformChain, ancestry, displayPath, depth) {
@@ -241,6 +242,22 @@ export async function resolveWorldGraph({ repository, ref = "", mode = "dev", cl
       });
     }
 
+    for (const touchpoint of project.touchpoints ?? []) {
+      if (touchpoints.length >= WORLD_LIMITS.touchpoints) {
+        diagnostics.push(diagnostic(displayPath, new Error(`world graph exceeds ${WORLD_LIMITS.touchpoints} touchpoints`)));
+        break;
+      }
+      touchpoints.push({
+        id: [...displayPath, touchpoint.id].join("/"),
+        label: touchpoint.label,
+        description: touchpoint.description,
+        surface: touchpoint.surface,
+        presentation: touchpoint.presentation,
+        source: { ...source, commit },
+        transformChain: [...transformChain, touchpoint.transform],
+      });
+    }
+
     await Promise.all(project.imports.map(async (entry) => {
       const childPath = [...displayPath, entry.id];
       let childRepository;
@@ -269,6 +286,7 @@ export async function resolveWorldGraph({ repository, ref = "", mode = "dev", cl
     commit: rootCommit,
     project: rootProject,
     layers,
+    touchpoints,
     diagnostics,
     complete: diagnostics.length === 0
   };

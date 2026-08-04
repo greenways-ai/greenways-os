@@ -1,10 +1,16 @@
 import { GITHUB_ORIGINS, PublicGitHubClient, requestGitHubAccess, resolveWorldGraph, searchGreenwaysWorlds } from "./github-worlds.js";
 import { FEATURED_WORLDS, featuredWorld } from "./featured-worlds.js";
 import { invokeGreenways } from "./greenways-runtime.js";
+import { AudioAssetStore, createStudioSurface, exportStudioProject } from "./studio-surface.js";
+import { SurfaceHost } from "./surface-host.js";
+import { EffectRuntime, HaraWorldSession } from "./world-session.js";
 import { WorldRenderer } from "./world-renderer.js";
 
 const appRoot = document.querySelector("#world-app");
 let renderer;
+let session;
+let surfaceHost;
+let audioAssets;
 
 const GREENWAYS_MARK = ["0011100", "0100010", "1000001", "1001111", "1000001", "0100010", "0011100"];
 
@@ -16,6 +22,17 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]);
+}
+
+function destroyWorld() {
+  renderer?.destroy();
+  renderer = undefined;
+  surfaceHost?.destroy();
+  surfaceHost = undefined;
+  session?.destroy();
+  session = undefined;
+  audioAssets?.destroy();
+  audioAssets = undefined;
 }
 
 function queryState() {
@@ -43,6 +60,7 @@ function applyThemePreference(preference) {
 }
 
 function renderWelcome(error = "") {
+  destroyWorld();
   const state = queryState();
   appRoot.innerHTML = `<section class="world-welcome"><div class="welcome-frame">
     <header class="welcome-header"><a href="./" class="welcome-brand">${mosaicMark()}<span>Greenways <em>Worlds</em></span></a><button class="welcome-theme" type="button" data-theme-toggle>Appearance</button></header>
@@ -147,8 +165,11 @@ function renderPermission(state) {
 }
 
 function renderShell(state) {
+  destroyWorld();
   appRoot.innerHTML = `<section class="world-shell">
     <div class="world-canvas"><canvas aria-label="Gaussian splat world"></canvas></div>
+    <div class="world-touchpoints" aria-label="World touchpoints"></div>
+    <div class="world-surface-root"></div>
     <div class="world-overlay">
       <div class="world-status" role="status"><strong>Reading world…</strong><span>${escapeHtml(state.repository)}${state.ref ? ` @ ${escapeHtml(state.ref)}` : ""}</span></div>
       <nav class="world-controls" aria-label="World controls">
@@ -161,6 +182,8 @@ function renderShell(state) {
   appRoot.querySelector('[data-action="reset"]').addEventListener("click", () => renderer?.resetCamera());
   return {
     canvas: appRoot.querySelector("canvas"),
+    touchpoints: appRoot.querySelector(".world-touchpoints"),
+    surfaces: appRoot.querySelector(".world-surface-root"),
     title: appRoot.querySelector(".world-status strong"),
     detail: appRoot.querySelector(".world-status span"),
     diagnostics: appRoot.querySelector(".diagnostic-slot"),
@@ -173,10 +196,35 @@ function showDiagnostics(slot, diagnostics) {
 }
 
 function renderFatal(error, state) {
-  renderer?.destroy();
-  renderer = undefined;
+  destroyWorld();
   appRoot.innerHTML = `<section class="world-fatal"><div class="world-card"><p class="eyebrow">World could not open</p><h1>Load failed</h1><code>${escapeHtml(error.message || error)}</code><form class="world-form"><button type="submit">Edit source</button></form></div></section>`;
   appRoot.querySelector("form").addEventListener("submit", (event) => { event.preventDefault(); renderWelcome(error.message); });
+}
+
+function installWorldSession(view, diagnostics) {
+  const effects = new EffectRuntime();
+  audioAssets = new AudioAssetStore();
+  surfaceHost = new SurfaceHost(view.surfaces, {
+    onRequestClose: () => session?.dispatch("surface/close").catch((error) => {
+      console.error("Hara surface close failed", error);
+    }),
+  });
+  const studioFactory = (context) => createStudioSurface({ ...context, assetStore: audioAssets });
+  surfaceHost.register("studio", studioFactory).register("music/studio", studioFactory);
+  effects
+    .register("ui", "open-surface", ([surface, touchpoint], context) => {
+      surfaceHost.open(surface, touchpoint, { session: context.session });
+    })
+    .register("ui", "close-surface", () => surfaceHost.close())
+    .register("export", "studio-project", ([studio]) => exportStudioProject(studio, audioAssets));
+  session = new HaraWorldSession({ invoke: invokeGreenways, effects });
+  session.subscribe((haraState) => surfaceHost.update(haraState));
+
+  return (touchpoint) => session.dispatch("world/touchpoint", [touchpoint]).catch((error) => {
+    console.error(`Greenways touchpoint failed: ${touchpoint.id}`, error, { touchpoint });
+    diagnostics.push({ path: touchpoint.id, message: error?.message || "Touchpoint failed" });
+    showDiagnostics(view.diagnostics, diagnostics);
+  });
 }
 
 async function loadWorld(state) {
@@ -194,10 +242,13 @@ async function loadWorld(state) {
     const renderEffect = rendering.effects.find(({ effect, method }) => effect === "scene" && method === "render-world");
     if (!renderEffect) throw new Error("HAL world/render did not produce a scene command");
     const diagnostics = [...graph.diagnostics];
+    const onTouchpoint = installWorldSession(view, diagnostics);
     let loaded = 0;
     renderer = new WorldRenderer(view.canvas, {
       background: graph.project.background,
       camera: graph.project.camera,
+      touchpointRoot: view.touchpoints,
+      onTouchpoint,
       onLayer: ({ layer, status, error }) => {
         if (status === "loaded") loaded += 1;
         else {
@@ -208,8 +259,9 @@ async function loadWorld(state) {
         showDiagnostics(view.diagnostics, diagnostics);
       },
     });
+    renderer.loadTouchpoints(graph.touchpoints);
     view.title.textContent = `Loading ${graph.layers.length} layer${graph.layers.length === 1 ? "" : "s"}…`;
-    view.detail.textContent = `${graph.repository.owner}/${graph.repository.repo} @ ${graph.commit.slice(0, 12)} · ${state.mode}`;
+    view.detail.textContent = `${graph.repository.owner}/${graph.repository.repo} @ ${graph.commit.slice(0, 12)} · ${graph.touchpoints.length} touchpoint${graph.touchpoints.length === 1 ? "" : "s"} · ${state.mode}`;
     showDiagnostics(view.diagnostics, diagnostics);
     stage = "Gaussian splat rendering";
     await renderer.loadLayers(graph.layers);
@@ -228,7 +280,7 @@ async function start() {
   renderPermission(state);
 }
 
-window.addEventListener("beforeunload", () => renderer?.destroy(), { once: true });
+window.addEventListener("beforeunload", destroyWorld, { once: true });
 start().catch((error) => {
   const state = queryState();
   console.error("Greenways world startup failed", error, state);

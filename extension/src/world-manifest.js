@@ -4,7 +4,8 @@ export const WORLD_LIMITS = Object.freeze({
   manifestBytes: 1024 * 1024,
   importDepth: 8,
   projects: 24,
-  layers: 64
+  layers: 64,
+  touchpoints: 128,
 });
 
 const REQUIRED_PROJECT_KEYS = [
@@ -15,6 +16,7 @@ const REQUIRED_PROJECT_KEYS = [
 
 const semver = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const hexColor = /^#[0-9a-f]{6}$/i;
+const touchpointPresentations = new Set(["panel", "modal", "fullscreen"]);
 
 function object(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof Set) {
@@ -37,6 +39,12 @@ function scalar(value, label) {
 function string(value, label) {
   if (typeof value !== "string") throw new Error(`${label} must be a string`);
   return value;
+}
+
+function nonEmptyString(value, label) {
+  const output = string(value, label).trim();
+  if (!output) throw new Error(`${label} cannot be empty`);
+  return output;
 }
 
 function identifier(value, label) {
@@ -114,6 +122,27 @@ function normalizeImport(value, index) {
   };
 }
 
+function normalizeTouchpoint(value, index) {
+  const label = `:world/touchpoints[${index}]`;
+  const entry = object(value, label);
+  const presentation = entry["touchpoint/presentation"] === undefined
+    ? "panel"
+    : identifier(entry["touchpoint/presentation"], `${label} :touchpoint/presentation`);
+  if (!touchpointPresentations.has(presentation)) {
+    throw new Error(`${label} :touchpoint/presentation must be :panel, :modal, or :fullscreen`);
+  }
+  return {
+    id: identifier(entry["touchpoint/id"], `${label} :touchpoint/id`),
+    label: nonEmptyString(entry["touchpoint/label"], `${label} :touchpoint/label`),
+    description: entry["touchpoint/description"] === undefined
+      ? ""
+      : string(entry["touchpoint/description"], `${label} :touchpoint/description`),
+    surface: identifier(entry["touchpoint/surface"], `${label} :touchpoint/surface`),
+    presentation,
+    transform: normalizeTransform(entry["touchpoint/transform"] ?? {}, `${label} :touchpoint/transform`),
+  };
+}
+
 export function parseProjectEdn(source) {
   if (new TextEncoder().encode(String(source)).byteLength > WORLD_LIMITS.manifestBytes) {
     throw new Error(`project.edn exceeds ${WORLD_LIMITS.manifestBytes} bytes`);
@@ -149,9 +178,16 @@ export function validateWorldProject(value) {
   if (world["world/version"] !== "1.0.0") throw new Error(":project/world requires :world/version \"1.0.0\"");
   const layers = array(world["world/layers"] ?? [], ":world/layers").map(normalizeLayer);
   const imports = array(world["world/imports"] ?? [], ":world/imports").map(normalizeImport);
+  const touchpoints = array(world["world/touchpoints"] ?? [], ":world/touchpoints").map(normalizeTouchpoint);
   if (!layers.length && !imports.length) throw new Error(":project/world must declare at least one layer or import");
-  const ids = [...layers, ...imports].map(({ id }) => id);
-  if (new Set(ids).size !== ids.length) throw new Error(":world/id values must be unique within a project");
+  if (touchpoints.length > WORLD_LIMITS.touchpoints) {
+    throw new Error(`:world/touchpoints exceeds ${WORLD_LIMITS.touchpoints} entries`);
+  }
+  if (touchpoints.length && !capabilities.includes("ui/surfaces")) {
+    throw new Error("project.edn with :world/touchpoints requires capability :ui/surfaces");
+  }
+  const ids = [...layers, ...imports, ...touchpoints].map(({ id }) => id);
+  if (new Set(ids).size !== ids.length) throw new Error("world object ids must be unique within a project");
   const background = world["world/background"] ?? "#08110e";
   if (typeof background !== "string" || !hexColor.test(background)) throw new Error(":world/background must be a six-digit hex colour");
 
@@ -159,8 +195,10 @@ export function validateWorldProject(value) {
     id: identifier(project["project/id"], ":project/id"),
     version,
     title: world["world/title"] === undefined ? identifier(project["project/id"], ":project/id") : string(world["world/title"], ":world/title"),
+    capabilities,
     layers,
     imports,
+    touchpoints,
     camera: normalizeCamera(world["world/camera"]),
     background,
     dependencies: project["project/dependencies"] ?? {}
