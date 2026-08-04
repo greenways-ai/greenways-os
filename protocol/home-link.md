@@ -94,23 +94,58 @@ Greenways OS may still delete the local private key and revoke its origin
 permission; the node is then left only with a stale public-key entry that can no
 longer authenticate the removed browser.
 
+## Durable node state
+
+The reference node stores a versioned `greenways-home-state/1` record containing:
+
+- the node identifier, name, public key and key identifier;
+- the node's PKCS#8 private signing key;
+- each paired browser's public key, name, pairing time, and last-seen time; and
+- the bounded recent nonce cache used to reject replayed signed requests after a
+  restart.
+
+Pairing codes are deliberately excluded. A process restart closes any open
+pairing window and a new code must be issued locally.
+
+A state mutation is acknowledged only after an atomic private-file commit. The
+reference implementation writes a mode-`0600` temporary file, flushes it,
+renames it over the previous state, and flushes the containing directory where
+the platform supports that operation. A failed commit rolls the in-memory
+pairing, presence, or unpair mutation back and returns a service-unavailable
+error rather than claiming durable success.
+
+On startup the node validates the entire record, imports the private P-256 key,
+recomputes its public identity, restores browser grants and recent nonces, and
+fails closed if the file is malformed, overly permissive, symlinked, or
+inconsistent with the private key. A configured node ID cannot silently replace
+an identity already present in the state file.
+
+The private key is currently protected by filesystem permissions rather than
+encryption or an operating-system key store. The state file is therefore a
+sensitive identity backup: restoring it preserves the pinned node identity;
+losing it requires deliberate browser re-pairing.
+
 ## Current reference implementation
 
-`services/home-node/` implements this profile as an in-memory development node.
-It provides:
+`services/home-node/` implements this profile as a file-backed development
+node. It provides:
 
 - signed discovery and node-key pinning;
-- short-lived, single-use pairing codes;
+- durable node identity across restarts;
+- short-lived, single-use, memory-only pairing codes;
 - independent browser-device keys;
+- persistent paired-browser public keys and last-seen records;
 - signed browser presence and unpairing;
 - method, path, timestamp, body-hash and nonce verification;
-- replay and body-tampering rejection;
+- replay rejection across restarts;
+- atomic state updates with rollback on commit failure;
 - extension-origin CORS at the HTTP boundary; and
 - inert Hestia, Historia and Hara service advertisements.
 
-The reference node deliberately does not yet provide persistent device records,
-certificate issuance, a local administrator interface, key rotation, service
-proxying, audited capability grants, WebSocket sessions, or production
+The reference node deliberately does not yet provide encrypted or
+hardware-backed secret storage, certificate issuance, an authenticated local
+administrator interface, node-key rotation and recovery, rate limiting,
+service proxying, audited capability grants, WebSocket sessions, or production
 packaging. Those belong to the Hestia node runtime rather than the browser
 extension.
 
@@ -127,11 +162,14 @@ extension.
 4. **No shared bearer secret.** Compromise or removal of one browser does not
    reveal another browser's signing key or require a shared home password to be
    rotated.
-5. **Explicit origin access.** Chrome origin permission is requested during the
+5. **Durable replay boundary.** Browser grants and accepted nonce records are
+   committed before success is acknowledged, so a node restart does not reopen
+   a recently consumed signed request.
+6. **Explicit origin access.** Chrome origin permission is requested during the
    pairing gesture and revoked when the local link is removed.
-6. **HTTPS away from loopback.** Plain HTTP is accepted only for loopback
+7. **HTTPS away from loopback.** Plain HTTP is accepted only for loopback
    development. A home node reached over LAN or a private overlay network must
    use HTTPS.
-7. **Transport is replaceable.** LAN routing, private DNS, reverse proxies, and
+8. **Transport is replaceable.** LAN routing, private DNS, reverse proxies, and
    private networking products may carry the protocol, but none become the
    Greenways identity or application authority.
