@@ -292,8 +292,15 @@ export class HomeNodeStateFile {
   save(node) {
     node.pruneNonces();
     const directory = dirname(this.path);
+    const directoryExisted = existsSync(directory);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    if (process.platform !== "win32") chmodSync(directory, 0o700);
+    const directoryStats = lstatSync(directory);
+    if (directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
+      throw stateError("Home Node state directory must be a directory, not a link");
+    }
+    if (!directoryExisted && process.platform !== "win32") {
+      chmodSync(directory, 0o700);
+    }
 
     const state = {
       protocol: HOME_NODE_STATE_PROTOCOL,
