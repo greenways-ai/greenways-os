@@ -38,8 +38,8 @@ extension code. This is why executable UI stays bundled and remote code remains
 forbidden.
 
 The Manifest V3 extension requests `sidePanel` and `storage`. Network origins
-are optional permissions so Hestia, public resolvers, and GitHub are only
-contacted after an explicit user action.
+are optional permissions so Home Link, Hestia, public resolvers, and GitHub are
+only contacted after an explicit user action.
 
 ```sh
 npm install
@@ -66,6 +66,14 @@ exercise the first native-hybrid, packaged-connector, and web-app install
 classes. Installing a catalog entry records local enablement; native software
 such as Historia still requires its verified platform companion because Chrome
 extensions cannot install or start operating-system executables.
+
+Home Link is a host-level bridge rather than a remote application. It pairs the
+current browser with a private home server by one-time code, stores a
+non-extractable per-browser signing key, pins the node's self-signed identity,
+and uses mutually signed presence records to show the other paired browsers and
+bounded local-service descriptions. The home server cannot dispatch kernel
+transitions or add executable UI. See `../protocol/home-link.md` and
+`../services/home-node/`.
 
 Greenways Home can navigate to Hestia Connector but contains no Hestia network
 client of its own. Pairing, sync, credential storage, and optional origin access

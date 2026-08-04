@@ -11,11 +11,11 @@ browser-wide Hara kernel authority, while each launcher or world document keeps
 an isolated logical UI context. The host persists committed profile state,
 per-document checkpoints, and bounded request receipts in IndexedDB, so Chrome
 may suspend the worker without making page globals authoritative. Applications
-are installed from strict declarative manifests. A
-manifest may select code already shipped with Greenways OS, connect through a
-known adapter, or open a web application in an ordinary tab; it cannot download
-or execute remote JavaScript, Wasm, HAL, or another form of remotely hosted code
-inside the extension.
+are installed from strict declarative manifests. A manifest may select code
+already shipped with Greenways OS, connect through a known adapter, or open a
+web application in an ordinary tab; it cannot download or execute remote
+JavaScript, Wasm, HAL, or another form of remotely hosted code inside the
+extension.
 
 Application lifecycle is Hara-owned inside the kernel host. Installed apps are
 profile-wide; active apps, surfaces, and Studio tracks are document-scoped so
@@ -49,6 +49,14 @@ Tailscale or Headscale route, or a later Greenways relay can carry it without
 becoming the user's application authority. See
 [`protocol/home-node.md`](protocol/home-node.md).
 
+The first runnable Home Link slice adds a separate non-extractable signing key
+to every paired browser, a short-lived single-use pairing code, a pinned and
+self-signed node identity, signed service discovery and presence, replay
+protection, and signed unpairing. The development node advertises inert service
+descriptions only; it cannot inject executable extension code or dispatch Hara
+kernel transitions. See [`protocol/home-link.md`](protocol/home-link.md) and
+[`services/home-node/`](services/home-node/).
+
 Historia supplies local, Git-native memory. Neither Historia nor a remote Hestia
 node becomes a central account required to enter Greenways OS.
 
@@ -58,6 +66,8 @@ node becomes a central account required to enter Greenways OS.
   including the browser kernel and Hestia Home Node model.
 - `extension/` — the low-permission Chrome MV3 launcher, browser host, and
   trusted application surfaces.
+- `services/home-node/` — runnable signed browser-pairing and home-presence
+  reference service.
 - `services/identity/` — runnable development slice of `id.greenways.ai`.
 
 `id.greenways.ai` resolves signed handles, key histories, service endpoints,
@@ -73,7 +83,11 @@ npm run build
 npm test
 npm run test:browser
 
-cd ../services/identity
+cd ../services/home-node
+npm test
+npm start
+
+cd ../identity
 npm test
 ```
 

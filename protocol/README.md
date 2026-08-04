@@ -24,3 +24,10 @@ specified in [`apps.md`](apps.md). App manifests are declarative records and
 cannot provide remote code for the extension to execute. The rehydratable
 browser-wide authority, document-context split, and transactional request
 contract are specified in [`kernel.md`](kernel.md).
+
+The private browser-and-service architecture is specified in
+[`home-node.md`](home-node.md). Its first runnable wire profile—signed browser
+pairing, pinned node identity, presence, unpairing, and bounded local-service
+discovery—is specified in [`home-link.md`](home-link.md). A home node connects
+browsers but never becomes their Hara kernel or an executable application
+source.

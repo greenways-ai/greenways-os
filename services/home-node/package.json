@@ -1,0 +1,11 @@
+{
+  "name": "@greenways-ai/home-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "EPL-2.0",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}
