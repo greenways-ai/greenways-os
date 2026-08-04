@@ -169,3 +169,23 @@ test("fails closed on identity drift, public-key tampering, and exposed state fi
     /public identity does not match its private key/,
   );
 });
+
+test("does not rewrite permissions on an existing custom state directory", (t) => {
+  if (process.platform === "win32") return;
+  const root = mkdtempSync(join(tmpdir(), "greenways-existing-state-dir-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  chmodSync(root, 0o755);
+  const originalMode = statSync(root).mode & 0o777;
+
+  const statePath = join(root, "state.json");
+  createPersistentHomeNode({
+    statePath,
+    id: "home.existing-directory",
+    name: "Existing Directory Home",
+    services,
+    cryptoProvider: webcrypto,
+  });
+
+  assert.equal(statSync(root).mode & 0o777, originalMode);
+  assert.equal(statSync(statePath).mode & 0o077, 0);
+});
