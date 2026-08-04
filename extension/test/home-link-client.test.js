@@ -79,16 +79,17 @@ test("signs method, path, nonce, time, and body hash with the browser device key
 test("browser runtime binds receiver-sensitive fetch before modules capture it", async () => {
   const runtime = await readFile(new URL("../src/browser-runtime.js", import.meta.url), "utf8");
   const browserGlobal = {
+    marker: "browser-global",
     calls: 0,
     fetch() {
-      assert.equal(this, browserGlobal);
+      assert.equal(this.marker, "browser-global");
       this.calls += 1;
       return "ok";
     },
   };
   runInNewContext(runtime, browserGlobal);
   const capturedFetch = browserGlobal.fetch;
-  assert.equal(capturedFetch.call({ not: "the browser global" }), "ok");
+  assert.equal(capturedFetch.call({ marker: "wrong-receiver" }), "ok");
   assert.equal(browserGlobal.calls, 1);
 });
 
