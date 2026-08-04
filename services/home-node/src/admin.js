@@ -6,10 +6,14 @@ export const HOME_ADMIN_PAIRING_PROTOCOL = "greenways-home-admin-pairing/1";
 export const HOME_ADMIN_REVOKED_PROTOCOL = "greenways-home-admin-revoked/1";
 export const HOME_ADMIN_ERROR_PROTOCOL = "greenways-home-admin-error/1";
 
-const ADMIN_COOKIE = "gw_home_admin";
-const ADMIN_PREFIX = "/greenways/admin/v1";
+const ADMIN_SESSION_COOKIE = "gw_home_admin";
+const ADMIN_API_PREFIX = "/greenways/admin/v1/";
 const DEVICE_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
-const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const LOOPBACK_ADDRESSES = new Set([
+  "127.0.0.1",
+  "::1",
+  "::ffff:127.0.0.1",
+]);
 
 class HomeNodeAdminError extends Error {
   constructor(status, code, message) {
@@ -20,112 +24,63 @@ class HomeNodeAdminError extends Error {
   }
 }
 
-function opaqueSecret(size = 32) {
-  return randomBytes(size).toString("base64url");
-}
-
-function secureHeaders(extra = {}) {
-  return {
-    "cache-control": "no-store, max-age=0",
-    "cross-origin-opener-policy": "same-origin",
-    "cross-origin-resource-policy": "same-origin",
-    "permissions-policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
-    "referrer-policy": "no-referrer",
-    "x-content-type-options": "nosniff",
-    "x-frame-options": "DENY",
-    ...extra,
-  };
-}
-
-function writeJson(response, status, body, extraHeaders = {}) {
-  response.writeHead(status, secureHeaders({
-    "content-type": "application/json; charset=utf-8",
-    ...extraHeaders,
-  }));
-  response.end(JSON.stringify(body));
-}
-
-function writeHtml(response, status, html, headers = {}) {
-  response.writeHead(status, secureHeaders({
-    "content-type": "text/html; charset=utf-8",
-    ...headers,
-  }));
-  response.end(html);
-}
-
-function parseCookies(value = "") {
-  const cookies = new Map();
-  for (const pair of value.split(";")) {
-    const separator = pair.indexOf("=");
-    if (separator < 1) continue;
-    const name = pair.slice(0, separator).trim();
-    const content = pair.slice(separator + 1).trim();
-    if (name) cookies.set(name, content);
+function secret(provider, size) {
+  const value = provider(size);
+  if (!Buffer.isBuffer(value) || value.length < size) {
+    throw new Error("Home Node admin secret provider returned insufficient entropy");
   }
-  return cookies;
+  return value.toString("base64url");
 }
 
-function sameSecret(left, right) {
+function safeEqual(left, right) {
   if (typeof left !== "string" || typeof right !== "string") return false;
   const leftBytes = Buffer.from(left);
   const rightBytes = Buffer.from(right);
   return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
-function assertLoopback(request) {
-  const address = request.socket?.remoteAddress;
-  if (!LOOPBACK_ADDRESSES.has(address)) {
-    throw new HomeNodeAdminError(403, "loopback-required", "Home Node administration is available on loopback only");
+function parseCookies(value = "") {
+  const output = new Map();
+  for (const part of value.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator < 1) continue;
+    const name = part.slice(0, separator).trim();
+    const cookieValue = part.slice(separator + 1).trim();
+    if (name) output.set(name, cookieValue);
   }
+  return output;
 }
 
-function assertExpectedHost(request, origin) {
-  if (request.headers.host !== origin.host) {
-    throw new HomeNodeAdminError(421, "unexpected-host", "The Home Node control plane rejected this Host header");
-  }
-}
-
-function guardSession(request, origin, sessionSecret, csrfSecret) {
-  assertLoopback(request);
-  assertExpectedHost(request, origin);
-  const fetchSite = request.headers["sec-fetch-site"];
-  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
-    throw new HomeNodeAdminError(403, "same-origin-required", "Home Node administration rejects cross-site requests");
-  }
-  const requestOrigin = request.headers.origin;
-  if (requestOrigin !== undefined && requestOrigin !== origin.origin) {
-    throw new HomeNodeAdminError(403, "same-origin-required", "Home Node administration requires its exact loopback origin");
-  }
-  if (request.method !== "GET" && requestOrigin !== origin.origin) {
-    throw new HomeNodeAdminError(403, "same-origin-required", "Home Node mutations require their exact loopback Origin header");
-  }
-  const session = parseCookies(request.headers.cookie).get(ADMIN_COOKIE);
-  if (!sameSecret(session, sessionSecret)) {
-    throw new HomeNodeAdminError(401, "admin-session-required", "Open the local Home Node control plane first");
-  }
-  const csrf = request.headers["x-greenways-csrf"];
-  if (!sameSecret(csrf, csrfSecret)) {
-    throw new HomeNodeAdminError(403, "csrf-required", "Home Node administration requires its local CSRF token");
-  }
-}
-
-function cloneServices(services) {
-  return services.map((service) => ({
+function cloneService(service) {
+  return {
     id: service.id,
     name: service.name,
     kind: service.kind,
     ...(service.version === undefined ? {} : { version: service.version }),
-    capabilities: [...service.capabilities],
+    capabilities: [...(service.capabilities ?? [])],
     status: service.status,
-  }));
+  };
 }
 
-function adminStatus(node) {
-  const pairing = node.pairingAvailable() ? {
-    available: true,
-    issuedAt: node.pairing.issuedAt,
-    expiresAt: node.pairing.expiresAt,
-  } : { available: false };
+function cloneBrowser(device) {
+  return {
+    id: device.id,
+    name: device.name,
+    pairedAt: device.pairedAt,
+    lastSeenAt: device.lastSeenAt,
+  };
+}
+
+function pairingState(node, now) {
+  const available = typeof node.pairingAvailable === "function"
+    ? node.pairingAvailable()
+    : Boolean(node.pairing && new Date(node.pairing.expiresAt).getTime() >= now().getTime());
+  return available
+    ? { available: true, expiresAt: node.pairing.expiresAt }
+    : { available: false };
+}
+
+function adminSnapshot(node, now) {
   return {
     protocol: HOME_ADMIN_STATUS_PROTOCOL,
     node: {
@@ -135,107 +90,192 @@ function adminStatus(node) {
       algorithm: node.node.algorithm,
     },
     durability: node.statePath ? "persistent" : "ephemeral",
-    pairing,
+    pairing: pairingState(node, now),
     browsers: [...node.devices.values()]
-      .map((device) => ({
-        id: device.id,
-        name: device.name,
-        pairedAt: device.pairedAt,
-        lastSeenAt: device.lastSeenAt,
-      }))
+      .map(cloneBrowser)
       .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
-    services: cloneServices(node.services),
-    serverTime: node.now().toISOString(),
+    services: [...(node.services ?? [])].map(cloneService),
+    serverTime: now().toISOString(),
   };
+}
+
+function isLoopbackRequest(request) {
+  return LOOPBACK_ADDRESSES.has(request.socket?.remoteAddress ?? "");
+}
+
+function expectedUrl(getOrigin) {
+  const value = getOrigin();
+  if (!value) throw new HomeNodeAdminError(503, "admin-unavailable", "Home Node control plane is not listening yet");
+  const url = new URL(value);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Home Node control-plane origin must use HTTP or HTTPS");
+  }
+  return url;
+}
+
+function guardLoopback(request, getOrigin) {
+  const origin = expectedUrl(getOrigin);
+  if (!isLoopbackRequest(request)) {
+    throw new HomeNodeAdminError(403, "loopback-required", "Home Node administration is available on loopback only");
+  }
+  if (request.headers.host !== origin.host) {
+    throw new HomeNodeAdminError(421, "unexpected-host", "Home Node rejected an unexpected Host header");
+  }
+  return origin;
+}
+
+function guardSession(request, getOrigin, sessionSecret, csrfSecret) {
+  const origin = guardLoopback(request, getOrigin);
+  const requestOrigin = request.headers.origin;
+  if (requestOrigin !== undefined && requestOrigin !== origin.origin) {
+    throw new HomeNodeAdminError(403, "same-origin-required", "Home Node administration requires its exact loopback origin");
+  }
+  if (request.method !== "GET" && requestOrigin !== origin.origin) {
+    throw new HomeNodeAdminError(403, "same-origin-required", "Home Node mutations require their exact loopback Origin header");
+  }
+  const fetchSite = request.headers["sec-fetch-site"];
+  if (fetchSite && fetchSite !== "same-origin") {
+    throw new HomeNodeAdminError(403, "same-origin-required", "Cross-site Home Node administration is not allowed");
+  }
+  const cookies = parseCookies(request.headers.cookie);
+  if (!safeEqual(cookies.get(ADMIN_SESSION_COOKIE), sessionSecret)) {
+    throw new HomeNodeAdminError(403, "admin-session-required", "Open the local Home Node control plane first");
+  }
+  const csrf = request.headers["x-greenways-csrf"];
+  if (!safeEqual(Array.isArray(csrf) ? csrf[0] : csrf, csrfSecret)) {
+    throw new HomeNodeAdminError(403, "csrf-rejected", "Home Node administration rejected the request token");
+  }
+  return origin;
+}
+
+function secureHeaders(contentType) {
+  return {
+    "cache-control": "no-store",
+    "content-type": contentType,
+    "cross-origin-opener-policy": "same-origin",
+    "cross-origin-resource-policy": "same-origin",
+    "permissions-policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+  };
+}
+
+function writeJson(response, status, body, extraHeaders = {}) {
+  response.writeHead(status, {
+    ...secureHeaders("application/json; charset=utf-8"),
+    ...extraHeaders,
+  });
+  response.end(JSON.stringify(body));
+}
+
+function writeAdminError(response, error) {
+  const status = error instanceof HomeNodeAdminError ? error.status : 500;
+  const code = error instanceof HomeNodeAdminError ? error.code : "internal-error";
+  writeJson(response, status, {
+    protocol: HOME_ADMIN_ERROR_PROTOCOL,
+    error: code,
+    message: status === 500
+      ? "The Home Node control plane could not complete the request"
+      : error.message,
+  });
 }
 
 function methodNotAllowed(response, allowed) {
   writeJson(response, 405, {
     protocol: HOME_ADMIN_ERROR_PROTOCOL,
     error: "method-not-allowed",
-    message: "This Home Node administrator route does not accept that method",
-  }, { allow: allowed });
+    message: `Use ${allowed.join(" or ")} for this Home Node control-plane route`,
+  }, { allow: allowed.join(", ") });
 }
 
-function restoreMap(target, entries) {
+function restoreMap(target, snapshot) {
   target.clear();
-  for (const [key, value] of entries) target.set(key, value);
+  for (const [key, value] of snapshot) target.set(key, value);
 }
 
-function revokeBrowser(node, deviceId) {
-  if (!DEVICE_ID.test(deviceId)) {
-    throw new HomeNodeAdminError(400, "invalid-device-id", "Browser device ID is invalid");
+function revokeBrowser(node, deviceId, now) {
+  if (typeof deviceId !== "string" || !DEVICE_ID.test(deviceId) || deviceId.length > 80) {
+    throw new HomeNodeAdminError(400, "invalid-device", "Browser device identifier is invalid");
   }
   const device = node.devices.get(deviceId);
-  if (!device) {
-    throw new HomeNodeAdminError(404, "unknown-device", "That browser is not paired with this Home Node");
-  }
-  const devicesBefore = [...node.devices.entries()];
-  const noncesBefore = [...node.usedNonces.entries()];
+  if (!device) throw new HomeNodeAdminError(404, "unknown-device", "Browser device is not paired with this Home Node");
+
+  const devicesBefore = new Map(node.devices);
+  const noncesBefore = new Map(node.usedNonces);
   node.devices.delete(deviceId);
   for (const key of node.usedNonces.keys()) {
     if (key.startsWith(`${deviceId}:`)) node.usedNonces.delete(key);
   }
   try {
     node.persistState?.();
-  } catch (error) {
+  } catch (cause) {
     restoreMap(node.devices, devicesBefore);
     restoreMap(node.usedNonces, noncesBefore);
-    throw new HomeNodeAdminError(503, "state-unavailable", "The browser could not be revoked durably");
+    const error = new HomeNodeAdminError(503, "state-unavailable", "Browser revocation could not be durably committed");
+    error.cause = cause;
+    throw error;
   }
+
   return {
     protocol: HOME_ADMIN_REVOKED_PROTOCOL,
-    device: { id: device.id, name: device.name },
-    revokedAt: node.now().toISOString(),
+    deviceId,
+    deviceName: device.name,
+    revokedAt: now().toISOString(),
   };
 }
 
-export function createHomeNodeAdmin({ node, getOrigin }) {
-  const sessionSecret = opaqueSecret();
-  const csrfSecret = opaqueSecret();
+export function createHomeNodeAdmin({
+  node,
+  getOrigin,
+  now = () => new Date(),
+  randomBytesProvider = randomBytes,
+} = {}) {
+  if (!node?.node || !(node.devices instanceof Map) || !(node.usedNonces instanceof Map)) {
+    throw new TypeError("Home Node administration requires a Home Node instance");
+  }
+  if (typeof getOrigin !== "function") throw new TypeError("Home Node administration requires an origin provider");
+
+  const sessionSecret = secret(randomBytesProvider, 32);
+  const csrfSecret = secret(randomBytesProvider, 24);
 
   function matches(pathname) {
-    return pathname === "/" || pathname === "/admin" || pathname.startsWith(`${ADMIN_PREFIX}/`);
+    return pathname === "/" || pathname === "/admin" || pathname.startsWith(ADMIN_API_PREFIX);
   }
 
   async function handle({ request, response, url }) {
     if (!matches(url.pathname)) return false;
     try {
-      const origin = new URL(getOrigin());
-      assertLoopback(request);
-      assertExpectedHost(request, origin);
-
-      if ((url.pathname === "/" || url.pathname === "/admin") && request.method === "GET") {
-        const nonce = opaqueSecret(18);
-        writeHtml(response, 200, renderAdminPage({ node, csrf: csrfSecret, nonce }), {
-          "content-security-policy": [
-            "default-src 'none'",
-            "base-uri 'none'",
-            "connect-src 'self'",
-            "form-action 'none'",
-            "frame-ancestors 'none'",
-            `script-src 'nonce-${nonce}'`,
-            `style-src 'nonce-${nonce}'`,
-          ].join("; "),
-          "set-cookie": `${ADMIN_COOKIE}=${sessionSecret}; Path=/; HttpOnly; SameSite=Strict`,
-        });
-        return true;
-      }
-
-      guardSession(request, origin, sessionSecret, csrfSecret);
-
-      if (url.pathname === `${ADMIN_PREFIX}/status`) {
+      if (url.pathname === "/" || url.pathname === "/admin") {
         if (request.method !== "GET") {
-          methodNotAllowed(response, "GET");
+          methodNotAllowed(response, ["GET"]);
           return true;
         }
-        writeJson(response, 200, adminStatus(node));
+        guardLoopback(request, getOrigin);
+        const nonce = secret(randomBytesProvider, 18);
+        const page = renderAdminPage({ node, csrf: csrfSecret, nonce });
+        response.writeHead(200, {
+          ...secureHeaders("text/html; charset=utf-8"),
+          "content-security-policy": `default-src 'none'; base-uri 'none'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; img-src 'self' data:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'`,
+          "set-cookie": `${ADMIN_SESSION_COOKIE}=${sessionSecret}; HttpOnly; SameSite=Strict; Path=/`,
+        });
+        response.end(page);
         return true;
       }
 
-      if (url.pathname === `${ADMIN_PREFIX}/pairing`) {
+      guardSession(request, getOrigin, sessionSecret, csrfSecret);
+      if (url.pathname === `${ADMIN_API_PREFIX}status`) {
+        if (request.method !== "GET") {
+          methodNotAllowed(response, ["GET"]);
+          return true;
+        }
+        writeJson(response, 200, adminSnapshot(node, now));
+        return true;
+      }
+
+      if (url.pathname === `${ADMIN_API_PREFIX}pairing`) {
         if (request.method !== "POST") {
-          methodNotAllowed(response, "POST");
+          methodNotAllowed(response, ["POST"]);
           return true;
         }
         const pairing = node.issuePairingCode();
@@ -251,35 +291,22 @@ export function createHomeNodeAdmin({ node, getOrigin }) {
       const revoke = url.pathname.match(/^\/greenways\/admin\/v1\/devices\/([^/]+)\/revoke$/);
       if (revoke) {
         if (request.method !== "POST") {
-          methodNotAllowed(response, "POST");
+          methodNotAllowed(response, ["POST"]);
           return true;
         }
         let deviceId;
         try {
           deviceId = decodeURIComponent(revoke[1]);
         } catch {
-          throw new HomeNodeAdminError(400, "invalid-device-id", "Browser device ID is invalid");
+          throw new HomeNodeAdminError(400, "invalid-device", "Browser device identifier is invalid");
         }
-        writeJson(response, 200, revokeBrowser(node, deviceId));
+        writeJson(response, 200, revokeBrowser(node, deviceId, now));
         return true;
       }
 
-      throw new HomeNodeAdminError(404, "admin-not-found", "Home Node administrator endpoint was not found");
+      throw new HomeNodeAdminError(404, "not-found", "Home Node control-plane endpoint was not found");
     } catch (error) {
-      const status = error instanceof HomeNodeAdminError ? error.status : 500;
-      const code = error instanceof HomeNodeAdminError ? error.code : "internal-error";
-      const message = status === 500
-        ? "The Home Node control plane could not complete the request"
-        : error.message;
-      if (!response.headersSent) {
-        writeJson(response, status, {
-          protocol: HOME_ADMIN_ERROR_PROTOCOL,
-          error: code,
-          message,
-        });
-      } else {
-        response.destroy();
-      }
+      writeAdminError(response, error);
       return true;
     }
   }
