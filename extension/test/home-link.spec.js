@@ -16,10 +16,12 @@ const test = base.extend({
     await context.close();
   },
   extensionId: async ({ context }, use) => {
-    let worker = context.serviceWorkers().find(({ url }) => url().endsWith("/dist/background.js"));
+    let worker = context.serviceWorkers().find((candidate) => (
+      candidate.url().endsWith("/dist/background.js")
+    ));
     if (!worker) {
       worker = await context.waitForEvent("serviceworker", {
-        predicate: ({ url }) => url().endsWith("/dist/background.js"),
+        predicate: (candidate) => candidate.url().endsWith("/dist/background.js"),
       });
     }
     await use(new URL(worker.url()).host);
