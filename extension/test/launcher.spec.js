@@ -87,6 +87,10 @@ test("two launchers converge globally, isolate surfaces, and survive a cold work
     first.goto(`chrome-extension://${extensionId}/src/launcher.html`),
     second.goto(`chrome-extension://${extensionId}/src/launcher.html`),
   ]);
+  await Promise.all([
+    expect(first.getByRole("status")).toContainText("Local kernel ready"),
+    expect(second.getByRole("status")).toContainText("Local kernel ready"),
+  ]);
 
   const firstCard = first.locator('[data-app-card="hestia-connector"]');
   const secondCard = second.locator('[data-app-card="hestia-connector"]');

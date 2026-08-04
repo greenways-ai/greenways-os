@@ -28,6 +28,7 @@ let session;
 let surfaceHost;
 let status = { tone: "quiet", message: "Starting the local kernel…" };
 let connectorConnected = false;
+let kernelReady = false;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -69,6 +70,7 @@ function requirementLabel(manifest) {
 
 function appCard(manifest, { installed, updateAvailable = false }) {
   const system = isSystemApp(manifest);
+  const disabled = kernelReady ? "" : ' disabled aria-disabled="true"';
   return `<article class="app-card" id="app-${escapeHtml(manifest.id)}" data-app-card="${escapeHtml(manifest.id)}">
     <div class="app-icon app-icon--${escapeHtml(manifest.id)}" aria-hidden="true">${escapeHtml(appGlyph(manifest))}</div>
     <div class="app-copy">
@@ -82,10 +84,10 @@ function appCard(manifest, { installed, updateAvailable = false }) {
     </div>
     <div class="app-actions">
       ${updateAvailable
-        ? `<button class="app-install" type="button" data-update-app="${escapeHtml(manifest.id)}">Approve v${escapeHtml(manifest.version)}</button><button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}">Remove</button>`
+        ? `<button class="app-install" type="button" data-update-app="${escapeHtml(manifest.id)}"${disabled}>Approve v${escapeHtml(manifest.version)}</button><button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}"${disabled}>Remove</button>`
         : installed
-        ? `<button class="app-open" type="button" data-open-app="${escapeHtml(manifest.id)}">Open</button>${system ? "" : `<button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}">Remove</button>`}`
-        : `<button class="app-install" type="button" data-install-app="${escapeHtml(manifest.id)}">Install locally</button>`}
+        ? `<button class="app-open" type="button" data-open-app="${escapeHtml(manifest.id)}"${disabled}>Open</button>${system ? "" : `<button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}"${disabled}>Remove</button>`}`
+        : `<button class="app-install" type="button" data-install-app="${escapeHtml(manifest.id)}"${disabled}>Install locally</button>`}
     </div>
   </article>`;
 }
@@ -103,7 +105,7 @@ function render() {
   appRoot.innerHTML = `<div class="launcher-shell">
     <header class="launcher-header">
       <div class="launcher-brand">${mosaicMark()}<span><strong>Greenways OS</strong><small>YOUR LOCAL PARTICIPATION KERNEL</small></span></div>
-      <span class="kernel-state"><i></i>Local</span>
+      <span class="kernel-state"><i></i>${kernelReady ? "Local" : "Starting"}</span>
     </header>
     <section class="launcher-intro">
       <p class="eyebrow">SOVEREIGN FIRST · SOCIAL WHEN INVITED</p>
@@ -394,6 +396,7 @@ async function start() {
     if (hestia && !connectorInstalled) await clearHestiaConnection(hestia);
     else connectorConnected = Boolean(hestia);
   });
+  kernelReady = true;
   setStatus("Local kernel ready. Network participation is off until you choose it.", "good");
   await handleLaunchIntent();
 }
