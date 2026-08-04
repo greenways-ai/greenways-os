@@ -1,12 +1,977 @@
-:root{color-scheme:dark;--night:#07100c;--forest:#0e2119;--glass:rgba(20,43,33,.7);--ink:#f4f2e9;--muted:#a6afa8;--line:rgba(232,239,232,.14);--moss:#9ed3ae;--gold:#d1b879;--error:#e48b86;--display:Georgia,"Times New Roman",serif;--mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;background:var(--night);color:var(--ink)}
-*{box-sizing:border-box}html,body{min-width:300px;min-height:100%;margin:0;background:var(--night)}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:wait;opacity:.5}body{background:radial-gradient(circle at 80% -10%,rgba(87,151,111,.2),transparent 36%),linear-gradient(165deg,#0d1f18 0,#07100c 54%,#040906 100%)}
-.launcher-shell{position:relative;min-height:100vh;overflow:hidden;padding:0 18px 22px}.launcher-shell:before{content:"";position:absolute;z-index:0;inset:0;opacity:.15;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:28px 28px}.launcher-shell>*{position:relative;z-index:1}
-.launcher-header{height:72px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.launcher-brand{display:flex;align-items:center;gap:11px}.launcher-brand>span:last-child{display:grid;gap:2px}.launcher-brand strong{font:600 14px/1.1 var(--display);letter-spacing:.01em}.launcher-brand small{color:var(--muted);font:700 7px/1.2 var(--mono);letter-spacing:.11em}.launcher-mark{width:31px;height:31px;display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:3px;border:1px solid rgba(228,236,226,.22);border-radius:9px;background:rgba(255,255,255,.035);transform:rotate(-2deg)}.launcher-mark i{border-radius:1px;background:transparent}.launcher-mark i[data-on="1"]{background:hsl(calc(116 + var(--tone)*8) calc(28% + var(--tone)*4%) calc(55% + var(--tone)*5%));box-shadow:0 0 5px rgba(153,211,174,.25)}.kernel-state{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase}.kernel-state i,.privacy-line i,.launcher-status i{width:6px;height:6px;border-radius:50%;background:var(--moss);box-shadow:0 0 9px rgba(158,211,174,.8)}
-.launcher-intro{padding:38px 4px 26px}.eyebrow,.section-heading p{margin:0 0 8px;color:var(--gold);font:700 8px var(--mono);letter-spacing:.16em}.launcher-intro h1{margin:0;font:400 clamp(36px,10vw,56px)/.92 var(--display);letter-spacing:-.045em}.launcher-intro h1 em{color:var(--moss);font-weight:400}.launcher-intro>p:not(.eyebrow){max-width:530px;margin:20px 0 0;color:#bdc5bf;font-size:12px;line-height:1.65}.privacy-line{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-top:24px;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font:600 8px var(--mono);letter-spacing:.04em}.privacy-line span{display:flex;align-items:center;gap:7px}.privacy-line strong{color:var(--ink)}
-.app-section{padding:20px 0}.catalog-section{margin-top:5px;padding-top:28px;border-top:1px solid var(--line)}.section-heading{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-bottom:13px}.section-heading p{margin-bottom:4px}.section-heading h2{margin:0;font:400 24px/1 var(--display)}.section-heading>span{padding-bottom:2px;color:var(--muted);font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase}.app-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:9px}.app-card{position:relative;min-height:152px;display:grid;grid-template-columns:48px minmax(0,1fr);grid-template-rows:1fr auto;gap:11px;padding:14px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,rgba(29,57,45,.68),rgba(11,25,19,.62));box-shadow:0 16px 36px rgba(0,0,0,.15);backdrop-filter:blur(18px);transition:border-color .18s ease,transform .18s ease}.app-card:hover{border-color:rgba(158,211,174,.36);transform:translateY(-2px)}.app-icon{width:48px;height:48px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.15);border-radius:14px;color:#0a1a12;background:linear-gradient(145deg,#d5e5cc,#7fbd91);box-shadow:inset 0 1px rgba(255,255,255,.6),0 10px 22px rgba(0,0,0,.2);font:400 23px var(--display)}.app-icon--historia{background:linear-gradient(145deg,#eadfbd,#b29b68)}.app-icon--hestia-connector{background:linear-gradient(145deg,#d8ddd5,#82988a)}.app-icon--hara-playground{background:linear-gradient(145deg,#d7d3e7,#8d8eaf)}.app-copy{min-width:0}.app-copy p{margin:1px 0 4px;color:var(--gold);font:700 7px var(--mono);letter-spacing:.14em;text-transform:uppercase}.app-copy h2{margin:0 0 5px;font:500 17px/1.05 var(--display)}.app-copy span{display:block;color:var(--muted);font-size:9px;line-height:1.45}.app-meta{grid-column:1/2;align-self:end;display:grid;gap:3px}.app-meta span{color:#aeb9b1;font:600 7px var(--mono);letter-spacing:.03em}.app-meta small{color:#78867d;font:600 6px/1.3 var(--mono);letter-spacing:.02em}.app-actions{grid-column:2/3;display:flex;align-items:center;justify-content:flex-end;gap:5px}.app-actions button{min-height:30px;padding:7px 10px;border:1px solid rgba(158,211,174,.3);border-radius:999px;color:var(--moss);background:rgba(158,211,174,.06);font:700 8px var(--mono);letter-spacing:.04em}.app-actions .app-more{border-color:transparent;color:#8e9b92;background:transparent}.app-actions .app-install{color:#121e16;background:var(--moss);border-color:var(--moss)}.catalog-empty{margin:0;padding:24px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px;font-size:10px}
-.launcher-status{display:flex;align-items:center;gap:8px;margin:21px 0 0;padding:11px 12px;border:1px solid var(--line);border-radius:11px;color:var(--muted);background:rgba(255,255,255,.025);font:600 8px/1.4 var(--mono)}.launcher-status[data-tone="error"]{color:var(--error);border-color:rgba(228,139,134,.3)}.launcher-status[data-tone="error"] i{background:var(--error);box-shadow:none}.launcher-footer{display:flex;justify-content:space-between;gap:16px;margin-top:24px;padding-top:16px;border-top:1px solid var(--line);color:#718078;font:700 7px var(--mono);letter-spacing:.1em}.launcher-fatal{margin:24px;padding:28px;border:1px solid var(--line);border-radius:18px;background:var(--glass)}.launcher-fatal p{color:var(--gold);font:700 8px var(--mono)}.launcher-fatal h1{font:400 30px var(--display)}.launcher-fatal code{color:var(--error);font-size:10px}
-.launcher-surface-root{position:fixed;z-index:20;inset:0;pointer-events:none}.world-surface-overlay{position:absolute;inset:0;display:grid;align-items:stretch;justify-items:end;padding:10px;pointer-events:auto}.world-surface-scrim{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(2,6,4,.72);backdrop-filter:blur(8px)}.world-surface-frame{position:relative;width:min(620px,calc(100vw - 20px));height:calc(100vh - 20px);overflow:auto;border:1px solid rgba(239,244,237,.22);border-radius:20px;background:#09130e;color:var(--ink);box-shadow:0 30px 90px rgba(0,0,0,.55)}
-.hestia-surface{min-height:100%;display:grid;grid-template-rows:auto 1fr;background:radial-gradient(circle at 80% 5%,rgba(139,179,149,.16),transparent 30%),#09130e}.hestia-surface>header{height:72px;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}.hestia-surface header p{margin:0 0 3px;color:var(--gold);font:700 7px var(--mono);letter-spacing:.14em}.hestia-surface header h1{margin:0;font:400 25px var(--display)}.hestia-surface header button{width:34px;height:34px;border:1px solid var(--line);border-radius:50%;color:var(--ink);background:transparent;font-size:20px}.hestia-body{padding:24px 18px}.hestia-hero{display:flex;gap:14px;align-items:flex-start;padding-bottom:22px;border-bottom:1px solid var(--line)}.hestia-orb{flex:0 0 48px;width:48px;height:48px;display:grid;place-items:center;border-radius:15px;color:#142319;background:linear-gradient(145deg,#dce7db,#8eaf95);font-size:23px}.hestia-hero h2{margin:0 0 7px;font:400 23px/1.05 var(--display)}.hestia-hero p{margin:0;color:var(--muted);font-size:10px;line-height:1.55}.hestia-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}.hestia-metrics div{padding:13px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.025)}.hestia-metrics strong,.hestia-metrics span{display:block}.hestia-metrics strong{font:500 16px var(--display)}.hestia-metrics span{margin-top:3px;color:var(--muted);font:600 7px var(--mono);text-transform:uppercase}.hestia-form{display:grid;gap:11px}.hestia-form label{display:grid;gap:5px;color:var(--muted);font:700 8px var(--mono);letter-spacing:.04em;text-transform:uppercase}.hestia-form input{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;outline:0;color:var(--ink);background:rgba(255,255,255,.035);font:500 11px var(--mono)}.hestia-form input:focus{border-color:var(--moss)}.hestia-form button,.hestia-actions button{min-height:38px;padding:9px 12px;border:1px solid var(--moss);border-radius:9px;color:#102017;background:var(--moss);font:700 8px var(--mono);letter-spacing:.05em;text-transform:uppercase}.hestia-notice{padding:10px;border-left:2px solid var(--moss);color:var(--muted);background:rgba(158,211,174,.05);font-size:9px;line-height:1.5}.hestia-actions{display:flex;gap:7px;margin-top:14px}.hestia-actions button{flex:1;color:var(--moss);background:transparent}.hestia-actions button:last-child{color:var(--muted);border-color:var(--line)}.hestia-footnote{margin:18px 0 0;color:#77847b;font-size:8px;line-height:1.5}
-@media(max-width:430px){.launcher-shell{padding-inline:12px}.launcher-intro{padding-top:30px}.app-grid{grid-template-columns:1fr}.privacy-line{display:grid}.launcher-footer span:last-child{display:none}.world-surface-overlay{padding:0}.world-surface-frame{width:100vw;height:100vh;border:0;border-radius:0}.hestia-body{padding:20px 14px}.hestia-actions{display:grid}.section-heading h2{font-size:22px}}
-.app-card:target{border-color:var(--moss);box-shadow:0 0 0 2px rgba(158,211,174,.12),0 16px 36px rgba(0,0,0,.2)}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+/* Greenways OS launcher
+ * Product-level styling follows @greenways-ai/visual-language.
+ * The kernel remains Greenways: quiet, local, exact, and inhabitable.
+ */
+
+:root {
+  --launcher-page: clamp(14px, 4vw, 24px);
+  --launcher-max: 920px;
+  --launcher-radius: 12px;
+  --launcher-radius-small: 8px;
+  --launcher-success: #237a57;
+  --launcher-danger: #a53c47;
+  --launcher-hestia: #9d2d3a;
+  --launcher-hestia-warm: #ffcb8b;
+}
+
+:root[data-theme="dark"] {
+  --launcher-success: #68d3a4;
+  --launcher-danger: #ff8993;
+  --launcher-hestia: #dc4b40;
+  --launcher-hestia-warm: #ffd6a2;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.46;
+}
+
+.launcher-shell {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, var(--launcher-max));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 0 var(--launcher-page) 26px;
+  overflow: hidden;
+}
+
+.launcher-shell::before {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0 49.85%, var(--gw-line) 49.85% 50.15%, transparent 50.15%),
+    repeating-linear-gradient(0deg, transparent 0 55px, color-mix(in srgb, var(--gw-line) 54%, transparent) 55px 56px),
+    var(--gw-canvas);
+  background-size: min(100%, var(--launcher-max)) 100%, 100% 56px, auto;
+  background-position: center, center, center;
+  opacity: 0.44;
+}
+
+.launcher-shell::after {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--gw-verdigris) 9%, transparent), transparent 24%),
+    linear-gradient(90deg, var(--gw-canvas), color-mix(in srgb, var(--gw-canvas) 78%, transparent) 50%, var(--gw-canvas));
+}
+
+.launcher-header {
+  position: relative;
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-right: 50px;
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.launcher-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.launcher-brand > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.launcher-brand strong {
+  overflow: hidden;
+  color: var(--gw-text);
+  font: 400 15px/1.05 var(--gw-font-display);
+  letter-spacing: 0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launcher-brand small {
+  overflow: hidden;
+  color: var(--gw-text-muted);
+  font: 700 8px/1.2 var(--gw-font-mono);
+  letter-spacing: 0.105em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launcher-mark {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: block;
+  background: url("assets/brand/greenways-small.svg") center / 94% no-repeat;
+}
+
+.launcher-mark i {
+  display: none;
+}
+
+.kernel-state {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: var(--gw-text-muted);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font: 700 9px/1 var(--gw-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.kernel-state i,
+.privacy-line i,
+.launcher-status i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--gw-verdigris);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gw-verdigris) 13%, transparent);
+}
+
+.launcher-theme-toggle {
+  position: fixed;
+  z-index: 15;
+  top: 22px;
+  right: max(var(--launcher-page), calc((100vw - var(--launcher-max)) / 2 + var(--launcher-page)));
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--gw-control-text);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  box-shadow: var(--gw-shadow-soft);
+}
+
+.launcher-theme-toggle:hover {
+  background: var(--gw-control-hover);
+}
+
+.launcher-theme-toggle__icon {
+  font: 700 16px/1 var(--gw-font-sans);
+}
+
+.launcher-theme-toggle__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.launcher-intro {
+  position: relative;
+  min-height: clamp(350px, 58vh, 520px);
+  display: grid;
+  align-content: center;
+  padding: 58px 4px 48px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--gw-line);
+  isolation: isolate;
+}
+
+.launcher-intro::before {
+  position: absolute;
+  z-index: -2;
+  top: 50%;
+  right: clamp(-156px, -16vw, -78px);
+  width: clamp(290px, 72vw, 520px);
+  aspect-ratio: 1;
+  content: "";
+  background: url("assets/brand/greenways-small.svg") center / contain no-repeat;
+  opacity: 0.085;
+  transform: translateY(-50%);
+  filter: saturate(0.82);
+}
+
+.launcher-intro::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background:
+    linear-gradient(90deg, var(--gw-canvas) 2%, color-mix(in srgb, var(--gw-canvas) 95%, transparent) 48%, transparent 88%),
+    linear-gradient(0deg, var(--gw-canvas), transparent 22% 78%, var(--gw-canvas));
+}
+
+.eyebrow,
+.section-heading p,
+.hestia-surface header p {
+  margin: 0;
+  color: var(--gw-gold);
+  font: 700 9px/1.35 var(--gw-font-mono);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.launcher-intro h1 {
+  max-width: 780px;
+  margin: 20px 0 0;
+  color: var(--gw-text);
+  font: 400 clamp(48px, 13vw, 92px) / 0.86 var(--gw-font-display);
+  letter-spacing: -0.065em;
+}
+
+.launcher-intro h1 em {
+  color: var(--gw-verdigris);
+  font-weight: 400;
+}
+
+.launcher-intro > p:not(.eyebrow) {
+  max-width: 570px;
+  margin: 25px 0 0;
+  color: var(--gw-text-muted);
+  font-size: 13px;
+  line-height: 1.68;
+}
+
+.privacy-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-top: 30px;
+  padding: 13px 0;
+  color: var(--gw-text-muted);
+  border-top: 1px solid var(--gw-line);
+  border-bottom: 1px solid var(--gw-line);
+  font: 600 9px/1.4 var(--gw-font-mono);
+  letter-spacing: 0.025em;
+}
+
+.privacy-line span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.privacy-line strong {
+  color: var(--gw-text);
+  font-weight: 700;
+}
+
+.app-section {
+  padding: 34px 0 8px;
+}
+
+.catalog-section {
+  margin-top: 25px;
+  padding-top: 38px;
+  border-top: 1px solid var(--gw-line);
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 15px;
+}
+
+.section-heading p {
+  margin-bottom: 7px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: var(--gw-text);
+  font: 400 clamp(27px, 7vw, 38px) / 0.96 var(--gw-font-display);
+  letter-spacing: -0.035em;
+}
+
+.section-heading > span {
+  padding-bottom: 3px;
+  color: var(--gw-text-muted);
+  font: 700 9px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 11px;
+}
+
+.app-card {
+  position: relative;
+  min-height: 166px;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  gap: 12px 14px;
+  padding: 16px;
+  overflow: hidden;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius);
+  box-shadow: var(--gw-shadow-soft);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.app-card::before {
+  position: absolute;
+  top: -1px;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, transparent, var(--gw-line-strong), transparent);
+}
+
+.app-card:hover {
+  border-color: var(--gw-line-strong);
+  box-shadow: var(--gw-shadow-raised);
+  transform: translateY(-1px);
+}
+
+.app-card:target {
+  border-color: var(--gw-focus);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--gw-focus) 18%, transparent),
+    var(--gw-shadow-raised);
+}
+
+.app-icon {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  align-self: start;
+  overflow: hidden;
+  color: var(--gw-verdigris);
+  background-color: var(--gw-surface-muted);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: 10px;
+  font: 400 25px/1 var(--gw-font-display);
+}
+
+.app-icon--greenways-home,
+.app-icon--historia,
+.app-icon--hestia-connector,
+.app-icon--hara-playground {
+  color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 76%;
+}
+
+.app-icon--greenways-home {
+  background-image: url("assets/brand/greenways-small.svg");
+}
+
+.app-icon--historia {
+  background-image: url("assets/brand/historia-small.svg");
+}
+
+.app-icon--hestia-connector {
+  background-image: url("assets/brand/hestia-small.svg");
+}
+
+.app-icon--hara-playground {
+  background-color: #080a0d;
+  background-image: url("assets/brand/hara-logo.svg");
+  background-size: 72%;
+}
+
+.app-icon--greenways-worlds {
+  color: var(--gw-verdigris);
+  background:
+    radial-gradient(circle, transparent 0 31%, color-mix(in srgb, var(--gw-verdigris) 74%, transparent) 32% 34%, transparent 35% 49%, var(--gw-line-strong) 50% 51%, transparent 52%),
+    var(--gw-surface-muted);
+  font-size: 0;
+}
+
+.app-icon--greenways-worlds::before {
+  width: 8px;
+  height: 8px;
+  content: "";
+  border-radius: 50%;
+  background: var(--gw-verdigris);
+  box-shadow:
+    15px -10px 0 -2px var(--gw-gold),
+    -14px 11px 0 -2px var(--gw-text-muted);
+}
+
+.app-copy {
+  min-width: 0;
+}
+
+.app-copy p {
+  margin: 1px 0 6px;
+  color: var(--gw-gold);
+  font: 700 8px/1.2 var(--gw-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.app-copy h2 {
+  margin: 0 0 7px;
+  color: var(--gw-text);
+  font: 400 20px/1.03 var(--gw-font-display);
+  letter-spacing: -0.02em;
+}
+
+.app-copy span {
+  display: block;
+  color: var(--gw-text-muted);
+  font-size: 11px;
+  line-height: 1.48;
+}
+
+.app-meta {
+  grid-column: 1 / 2;
+  align-self: end;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-meta span,
+.app-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-meta span {
+  color: var(--gw-text-muted);
+  font: 650 8px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.025em;
+}
+
+.app-meta small {
+  color: color-mix(in srgb, var(--gw-text-muted) 78%, transparent);
+  font: 600 7.5px/1.3 var(--gw-font-mono);
+}
+
+.app-actions {
+  grid-column: 2 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.app-actions button {
+  min-height: 34px;
+  padding: 8px 11px;
+  color: var(--gw-text);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font: 700 9px/1 var(--gw-font-mono);
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+}
+
+.app-actions button:hover {
+  background: var(--gw-control-hover);
+}
+
+.app-actions .app-open,
+.app-actions .app-install {
+  color: var(--gw-on-accent);
+  background: var(--gw-verdigris);
+  border-color: color-mix(in srgb, var(--gw-verdigris) 76%, black);
+  box-shadow: inset 0 1px color-mix(in srgb, white 30%, transparent);
+}
+
+.app-actions .app-open:hover,
+.app-actions .app-install:hover {
+  background: color-mix(in srgb, var(--gw-verdigris) 88%, white);
+}
+
+.app-actions .app-more {
+  color: var(--gw-text-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.catalog-empty {
+  margin: 0;
+  padding: 26px;
+  color: var(--gw-text-muted);
+  background: color-mix(in srgb, var(--gw-surface) 68%, transparent);
+  border: 1px dashed var(--gw-line-strong);
+  border-radius: var(--launcher-radius);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.launcher-status {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 30px 0 0;
+  padding: 11px 13px;
+  color: var(--gw-text-muted);
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+  box-shadow: var(--gw-shadow-soft);
+  font: 600 9px/1.45 var(--gw-font-mono);
+}
+
+.launcher-status[data-tone="good"] {
+  color: color-mix(in srgb, var(--launcher-success) 76%, var(--gw-text));
+  border-color: color-mix(in srgb, var(--launcher-success) 34%, var(--gw-line));
+}
+
+.launcher-status[data-tone="good"] i {
+  background: var(--launcher-success);
+}
+
+.launcher-status[data-tone="error"] {
+  color: var(--launcher-danger);
+  border-color: color-mix(in srgb, var(--launcher-danger) 42%, var(--gw-line));
+}
+
+.launcher-status[data-tone="error"] i {
+  background: var(--launcher-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--launcher-danger) 13%, transparent);
+}
+
+.launcher-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 30px;
+  padding: 20px 0 4px;
+  color: var(--gw-text-muted);
+  border-top: 1px solid var(--gw-line);
+  font: 700 8px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.launcher-fatal {
+  width: min(560px, calc(100% - 32px));
+  margin: 40px auto;
+  padding: 30px;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius);
+  box-shadow: var(--gw-shadow-raised);
+}
+
+.launcher-fatal p {
+  margin: 0;
+  color: var(--gw-gold);
+  font: 700 9px var(--gw-font-mono);
+  letter-spacing: 0.14em;
+}
+
+.launcher-fatal h1 {
+  margin: 16px 0;
+  font: 400 34px/1 var(--gw-font-display);
+}
+
+.launcher-fatal code {
+  color: var(--launcher-danger);
+  font: 10px/1.5 var(--gw-font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* Local app surfaces ------------------------------------------------------ */
+
+.launcher-surface-root {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  pointer-events: none;
+}
+
+.world-surface-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-items: stretch;
+  justify-items: end;
+  padding: 12px;
+  pointer-events: auto;
+}
+
+.world-surface-scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgba(2, 7, 5, 0.76);
+  backdrop-filter: blur(8px);
+}
+
+.world-surface-frame {
+  position: relative;
+  width: min(620px, calc(100vw - 24px));
+  height: calc(100vh - 24px);
+  overflow: auto;
+  color: var(--gw-text);
+  background: var(--gw-canvas);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: 16px;
+  box-shadow: 0 34px 110px rgba(0, 0, 0, 0.52);
+}
+
+.hestia-surface {
+  --hestia-accent: var(--launcher-hestia);
+  --hestia-warm: var(--launcher-hestia-warm);
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  color: var(--gw-text);
+  background:
+    linear-gradient(90deg, transparent 0 18%, color-mix(in srgb, var(--gw-line) 52%, transparent) 18% calc(18% + 1px), transparent calc(18% + 1px)),
+    var(--gw-canvas);
+}
+
+.hestia-surface > header {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--gw-header);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.hestia-surface header p {
+  color: var(--hestia-warm);
+}
+
+.hestia-surface header h1 {
+  margin: 5px 0 0;
+  font: 400 29px/1 var(--gw-font-display);
+  letter-spacing: -0.025em;
+}
+
+.hestia-surface header button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--gw-text);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font-size: 22px;
+}
+
+.hestia-surface header button:hover {
+  background: var(--gw-control-hover);
+}
+
+.hestia-body {
+  padding: 30px 20px;
+}
+
+.hestia-hero {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding-bottom: 25px;
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.hestia-orb {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  display: block;
+  color: transparent;
+  background:
+    url("assets/brand/hestia-small.svg") center / 78% no-repeat,
+    var(--gw-surface-muted);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: 10px;
+  font-size: 0;
+}
+
+.hestia-hero h2 {
+  margin: 0 0 9px;
+  font: 400 28px/0.98 var(--gw-font-display);
+  letter-spacing: -0.035em;
+}
+
+.hestia-hero p {
+  margin: 0;
+  color: var(--gw-text-muted);
+  font-size: 11px;
+  line-height: 1.62;
+}
+
+.hestia-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 20px 0;
+}
+
+.hestia-metrics div {
+  padding: 14px;
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.hestia-metrics strong,
+.hestia-metrics span {
+  display: block;
+}
+
+.hestia-metrics strong {
+  color: var(--gw-text);
+  font: 400 19px/1 var(--gw-font-display);
+}
+
+.hestia-metrics span {
+  margin-top: 6px;
+  color: var(--gw-text-muted);
+  font: 700 8px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hestia-form {
+  display: grid;
+  gap: 12px;
+}
+
+.hestia-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--gw-text-muted);
+  font: 700 9px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.hestia-form input {
+  width: 100%;
+  min-height: 43px;
+  padding: 11px 12px;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  outline: 0;
+  font: 500 11px var(--gw-font-mono);
+}
+
+.hestia-form input:focus {
+  border-color: var(--hestia-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hestia-accent) 15%, transparent);
+}
+
+.hestia-form button,
+.hestia-actions button {
+  min-height: 41px;
+  padding: 10px 13px;
+  color: #fff8ef;
+  background: var(--hestia-accent);
+  border: 1px solid color-mix(in srgb, var(--hestia-accent) 78%, black);
+  border-radius: var(--launcher-radius-small);
+  font: 700 9px/1.2 var(--gw-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hestia-notice {
+  margin: 13px 0 0;
+  padding: 11px 12px;
+  color: var(--gw-text-muted);
+  background: color-mix(in srgb, var(--hestia-accent) 7%, var(--gw-surface));
+  border-left: 3px solid var(--hestia-accent);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.hestia-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.hestia-actions button {
+  flex: 1;
+  color: var(--hestia-accent);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--hestia-accent) 48%, var(--gw-line));
+}
+
+.hestia-actions button:last-child {
+  color: var(--gw-text-muted);
+  border-color: var(--gw-line-strong);
+}
+
+.hestia-footnote {
+  margin: 20px 0 0;
+  color: var(--gw-text-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+/* Compact side-panel behaviour ------------------------------------------ */
+
+@media (max-width: 430px) {
+  :root {
+    --launcher-page: 13px;
+  }
+
+  .launcher-header {
+    min-height: 72px;
+    padding-right: 44px;
+  }
+
+  .launcher-theme-toggle {
+    top: 17px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .launcher-mark {
+    width: 37px;
+    height: 37px;
+    flex-basis: 37px;
+  }
+
+  .launcher-brand {
+    gap: 9px;
+  }
+
+  .launcher-brand strong {
+    font-size: 14px;
+  }
+
+  .launcher-brand small {
+    font-size: 7px;
+    letter-spacing: 0.075em;
+  }
+
+  .kernel-state {
+    min-height: 31px;
+    padding-inline: 8px;
+    font-size: 8px;
+  }
+
+  .launcher-intro {
+    min-height: 395px;
+    padding-top: 48px;
+  }
+
+  .launcher-intro h1 {
+    font-size: clamp(48px, 15.2vw, 66px);
+  }
+
+  .privacy-line {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .app-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-card {
+    grid-template-columns: 50px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .app-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .app-actions {
+    gap: 3px;
+  }
+
+  .app-actions button {
+    padding-inline: 9px;
+    font-size: 8px;
+  }
+
+  .launcher-footer span:last-child {
+    display: none;
+  }
+
+  .world-surface-overlay {
+    padding: 0;
+  }
+
+  .world-surface-frame {
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .hestia-body {
+    padding: 25px 15px;
+  }
+
+  .hestia-actions {
+    display: grid;
+  }
+}
+
+@media (max-width: 350px) {
+  .launcher-brand small {
+    display: none;
+  }
+
+  .launcher-intro h1 {
+    font-size: 46px;
+  }
+
+  .app-card {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .app-icon {
+    width: 46px;
+    height: 46px;
+  }
+
+  .app-copy h2 {
+    font-size: 18px;
+  }
+}

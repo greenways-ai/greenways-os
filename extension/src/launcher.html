@@ -1,13 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light" data-theme-preference="auto" data-project="greenways">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#07100c">
-  <title>Greenways OS — Apps</title>
+  <meta name="theme-color" content="#f4f2ec">
+  <meta name="description" content="Greenways OS — a sovereign-first local app and participation kernel for your browser.">
+  <title>Greenways OS — Local apps</title>
+  <link rel="icon" href="assets/brand/greenways-small.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="visual-language.css">
   <link rel="stylesheet" href="launcher.css">
+  <script type="module" src="visual-language.js"></script>
 </head>
 <body>
+  <button class="launcher-theme-toggle" type="button" data-theme-toggle>
+    <span class="launcher-theme-toggle__icon" data-theme-icon aria-hidden="true">◐</span>
+    <span class="launcher-theme-toggle__label" data-theme-label>Auto</span>
+  </button>
   <main id="launcher-app" aria-live="polite"></main>
   <div id="launcher-surfaces" class="launcher-surface-root"></div>
   <script type="module" src="../dist/launcher.js"></script>

@@ -1,0 +1,125 @@
+/*
+ * Greenways OS extension theme
+ * ----------------------------
+ * Browser-extension snapshot of @greenways-ai/visual-language 4.4.0,
+ * pinned to greenways-ai/visual-language@c5b5d560f08e26b2b33433fdae4fe3f7779d2374.
+ *
+ * Extension pages cannot share the greenways.ai theme cookie, so the companion
+ * module persists the same auto/light/dark preference in localStorage.
+ */
+
+:root {
+  --gw-canvas: #f4f2ec;
+  --gw-surface: #fbfaf6;
+  --gw-surface-muted: #e8e8e1;
+  --gw-text: #101612;
+  --gw-text-muted: #58615c;
+  --gw-line: rgba(12, 59, 46, 0.16);
+  --gw-line-strong: rgba(12, 59, 46, 0.34);
+  --gw-verdigris: #0b6b4f;
+  --gw-gold: #b49a63;
+  --gw-terracotta: #7a2f38;
+  --gw-silver: #bfc5c0;
+  --gw-focus: #0b6b4f;
+  --gw-header: rgba(244, 242, 236, 0.94);
+  --gw-accent-1: #123e34;
+  --gw-accent-2: #1f6552;
+  --gw-accent-3: #2c8b69;
+  --gw-accent-4: #61ad82;
+  --gw-accent-5: #cfb66a;
+  --gw-on-accent: #07110d;
+  --gw-control-bg: var(--gw-surface);
+  --gw-control-text: var(--gw-text);
+  --gw-control-hover: #e2eee8;
+  --gw-sigil-ground: var(--gw-surface);
+  --gw-sigil-grout: #d5d0c5;
+  --gw-shadow-soft: 0 18px 50px rgba(30, 43, 36, 0.08);
+  --gw-shadow-raised: 0 24px 70px rgba(30, 43, 36, 0.13);
+  --gw-font-sans: "Manrope", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --gw-font-display: "Bodoni Moda", Didot, "Iowan Old Style", Georgia, serif;
+  --gw-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --gw-canvas: #050a08;
+  --gw-surface: #0b1410;
+  --gw-surface-muted: #111e18;
+  --gw-text: #f7f5ef;
+  --gw-text-muted: #adb5af;
+  --gw-line: rgba(191, 197, 192, 0.18);
+  --gw-line-strong: rgba(191, 197, 192, 0.4);
+  --gw-verdigris: #33a878;
+  --gw-gold: #c8ad73;
+  --gw-terracotta: #a94c59;
+  --gw-silver: #d2d7d3;
+  --gw-focus: #68d3a4;
+  --gw-header: rgba(5, 10, 8, 0.94);
+  --gw-accent-1: #174b3d;
+  --gw-accent-2: #25755d;
+  --gw-accent-3: #38a67c;
+  --gw-accent-4: #70c99a;
+  --gw-accent-5: #b4e4bd;
+  --gw-on-accent: #04100b;
+  --gw-control-bg: #0d1814;
+  --gw-control-text: #f7f5ef;
+  --gw-control-hover: #15271f;
+  --gw-sigil-ground: #0b1410;
+  --gw-sigil-grout: #111a16;
+  --gw-shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.24);
+  --gw-shadow-raised: 0 28px 80px rgba(0, 0, 0, 0.46);
+  color-scheme: dark;
+}
+
+html {
+  min-width: 300px;
+  min-height: 100%;
+  background: var(--gw-canvas);
+}
+
+body {
+  min-width: 300px;
+  min-height: 100%;
+  margin: 0;
+  color: var(--gw-text);
+  background: var(--gw-canvas);
+  font-family: var(--gw-font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  color: var(--gw-on-accent);
+  background: var(--gw-accent-4);
+}
+
+:focus-visible {
+  outline: 3px solid var(--gw-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
