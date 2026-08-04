@@ -151,7 +151,7 @@ test("pairs and restores a signed Home Link in the browser", async ({ context, e
     await expect(dialog).toContainText("Historia");
     await dialog.getByRole("button", { name: "Close Home Link" }).click();
     await expect(homeNode.getByRole("heading", { name: "This browser has a signed route home." })).toBeVisible();
-    await expect(homeNode).toContainText("Browser Test Home");
+    await expect(homeNode.locator(".home-node__core")).toContainText("BROWSER TEST HOME");
 
     await page.reload();
     await expect(page.getByRole("status")).toContainText("Local kernel ready");
