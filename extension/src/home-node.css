@@ -1,0 +1,407 @@
+/*
+ * Hestia Home Node presentation for the Greenways OS launcher.
+ *
+ * This extends the canonical Greenways visual-language shell already supplied
+ * by visual-language.css and launcher.css. It deliberately introduces no
+ * second palette, theme controller, remote asset, or transport assumption.
+ */
+
+.launcher-intro {
+  min-height: clamp(410px, 64vh, 590px);
+}
+
+.intro-register {
+  width: min(100%, 660px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 34px;
+  border-top: 1px solid var(--gw-line-strong);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.intro-register span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 12px 13px;
+  color: var(--gw-text-muted);
+  border-right: 1px solid var(--gw-line);
+  font: 650 9px/1.35 var(--gw-font-mono);
+  letter-spacing: 0.025em;
+}
+
+.intro-register span:last-child {
+  border-right: 0;
+}
+
+.intro-register b {
+  color: var(--gw-gold);
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.home-node {
+  position: relative;
+  isolation: isolate;
+  margin-top: 30px;
+  overflow: hidden;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius);
+  box-shadow: var(--gw-shadow-soft);
+}
+
+.home-node::before {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(116deg, transparent 0 37%, var(--gw-line) 37% calc(37% + 1px), transparent calc(37% + 1px)),
+    linear-gradient(64deg, transparent 0 72%, var(--gw-line) 72% calc(72% + 1px), transparent calc(72% + 1px)),
+    repeating-linear-gradient(90deg, transparent 0 79px, color-mix(in srgb, var(--gw-line) 58%, transparent) 79px 80px),
+    var(--gw-surface);
+  opacity: 0.54;
+}
+
+.home-node::after {
+  position: absolute;
+  right: clamp(-104px, -9vw, -44px);
+  bottom: clamp(-118px, -12vw, -68px);
+  z-index: -1;
+  width: clamp(230px, 34vw, 360px);
+  aspect-ratio: 1;
+  content: "";
+  pointer-events: none;
+  background: url("assets/brand/hestia-small.svg") center / contain no-repeat;
+  opacity: 0.045;
+}
+
+.home-node[data-state="connected"] {
+  border-color: color-mix(in srgb, var(--gw-verdigris) 58%, var(--gw-line-strong));
+}
+
+.home-node[data-state="ready"] {
+  border-color: color-mix(in srgb, var(--gw-gold) 56%, var(--gw-line-strong));
+}
+
+.home-node__header {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 17px;
+  background: color-mix(in srgb, var(--gw-surface) 88%, transparent);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.home-node__kicker {
+  margin: 0;
+  color: var(--gw-gold);
+  font: 750 8.5px/1.35 var(--gw-font-mono);
+  letter-spacing: 0.145em;
+  text-transform: uppercase;
+}
+
+.home-node__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gw-text-muted);
+  font: 750 8.5px/1 var(--gw-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.home-node__state i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--gw-text-muted);
+}
+
+.home-node__state[data-state="ready"] i {
+  background: var(--gw-gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gw-gold) 14%, transparent);
+}
+
+.home-node__state[data-state="connected"] i {
+  background: var(--gw-verdigris);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gw-verdigris) 14%, transparent);
+}
+
+.home-node__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 0.68fr);
+  gap: clamp(28px, 6vw, 74px);
+  align-items: center;
+  padding: clamp(28px, 5vw, 52px) clamp(18px, 4vw, 42px);
+}
+
+.home-node__copy h2 {
+  max-width: 600px;
+  margin: 0;
+  color: var(--gw-text);
+  font: 400 clamp(31px, 6vw, 54px) / 0.96 var(--gw-font-display);
+  letter-spacing: -0.045em;
+}
+
+.home-node__copy p {
+  max-width: 590px;
+  margin: 18px 0 0;
+  color: var(--gw-text-muted);
+  font-size: 12.5px;
+  line-height: 1.68;
+}
+
+.home-node__diagram {
+  min-height: 188px;
+  display: grid;
+  grid-template-columns: minmax(82px, 1fr) 54px minmax(104px, 1.08fr);
+  grid-template-rows: 1fr 42px 1fr;
+  align-items: center;
+  padding: 17px;
+  background: color-mix(in srgb, var(--gw-surface-muted) 62%, transparent);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.home-node__browser,
+.home-node__core,
+.home-node__service {
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  padding: 8px;
+  color: var(--gw-text-muted);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: 7px;
+  font: 750 8px/1.25 var(--gw-font-mono);
+  letter-spacing: 0.075em;
+  text-align: center;
+}
+
+.home-node__browser {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.home-node__rail {
+  position: relative;
+  grid-column: 2;
+  grid-row: 2;
+  height: 1px;
+  background: var(--gw-line-strong);
+}
+
+.home-node__rail::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  content: "";
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-gold);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.home-node[data-state="connected"] .home-node__rail::after {
+  border-color: var(--gw-verdigris);
+}
+
+.home-node__core {
+  position: relative;
+  grid-column: 3;
+  grid-row: 1 / 4;
+  min-height: 126px;
+  align-content: center;
+  color: var(--gw-text);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--gw-surface) 92%, var(--launcher-hestia-warm)), var(--gw-surface-muted));
+  border-color: color-mix(in srgb, var(--launcher-hestia) 64%, var(--gw-line-strong));
+}
+
+.home-node__core b {
+  width: 42px;
+  height: 42px;
+  display: block;
+  margin-bottom: 11px;
+  background: url("assets/brand/hestia-small.svg") center / contain no-repeat;
+  filter: saturate(0.92);
+}
+
+.home-node__diagram[data-state="local"] .home-node__core,
+.home-node__diagram[data-state="ready"] .home-node__core {
+  filter: saturate(0.58);
+}
+
+.home-node__service {
+  grid-column: 3;
+  grid-row: 3;
+  min-height: 28px;
+  align-self: end;
+  margin: 0 9px 9px;
+  opacity: 0.78;
+}
+
+.home-node__register {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  background: color-mix(in srgb, var(--gw-surface-muted) 58%, transparent);
+  border-top: 1px solid var(--gw-line);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.home-node__register div {
+  min-width: 0;
+  padding: 14px 17px;
+  border-right: 1px solid var(--gw-line);
+}
+
+.home-node__register div:last-child {
+  border-right: 0;
+}
+
+.home-node__register dt {
+  margin: 0 0 7px;
+  color: var(--gw-text-muted);
+  font: 750 8px/1.2 var(--gw-font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.home-node__register dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--gw-text);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-node__actions {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 17px;
+  background: color-mix(in srgb, var(--gw-surface) 91%, transparent);
+}
+
+.home-node__actions button,
+.home-node__actions a {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--launcher-radius-small);
+  font: 750 9px/1 var(--gw-font-mono);
+  letter-spacing: 0.045em;
+  text-decoration: none;
+}
+
+.home-node__actions button {
+  padding: 0 14px;
+  color: #fffaf1;
+  background: var(--launcher-hestia);
+  border: 1px solid color-mix(in srgb, var(--launcher-hestia) 78%, var(--gw-line-strong));
+}
+
+.home-node__actions button:hover {
+  background: color-mix(in srgb, var(--launcher-hestia) 88%, var(--gw-text));
+}
+
+.home-node[data-state="connected"] .home-node__actions button {
+  color: var(--gw-on-accent);
+  background: var(--gw-verdigris);
+  border-color: var(--gw-verdigris);
+}
+
+.home-node__actions a {
+  min-height: 30px;
+  color: var(--gw-text-muted);
+  border-bottom: 1px solid var(--gw-line-strong);
+  border-radius: 0;
+}
+
+.home-node__actions a:hover {
+  color: var(--gw-text);
+  border-bottom-color: var(--gw-gold);
+}
+
+.home-node + .privacy-line {
+  margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+  .home-node__body {
+    grid-template-columns: 1fr;
+  }
+
+  .home-node__diagram {
+    width: min(100%, 520px);
+  }
+}
+
+@media (max-width: 520px) {
+  .launcher-intro {
+    min-height: auto;
+    padding-top: 52px;
+  }
+
+  .intro-register {
+    grid-template-columns: 1fr;
+  }
+
+  .intro-register span {
+    border-right: 0;
+    border-bottom: 1px solid var(--gw-line);
+  }
+
+  .intro-register span:last-child {
+    border-bottom: 0;
+  }
+
+  .home-node__header,
+  .home-node__actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .home-node__diagram {
+    min-height: 166px;
+    grid-template-columns: minmax(70px, 1fr) 38px minmax(94px, 1.1fr);
+    padding: 12px;
+  }
+
+  .home-node__register {
+    grid-template-columns: 1fr;
+  }
+
+  .home-node__register div {
+    border-right: 0;
+    border-bottom: 1px solid var(--gw-line);
+  }
+
+  .home-node__register div:last-child {
+    border-bottom: 0;
+  }
+
+  .home-node__actions button {
+    width: 100%;
+  }
+}

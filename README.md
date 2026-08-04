@@ -29,21 +29,33 @@ personal evidence chain. See [`protocol/kernel.md`](protocol/kernel.md).
 1. **Local kernel.** Hara owns portable application and workflow state. A
    rehydratable browser-wide host supplies bounded effects such as storage,
    tabs, files, and explicit network connections.
-2. **Installed applications.** The launcher keeps a local, inspectable registry
+2. **Private home.** A Hestia Home Node can pair several browser profiles with
+   one user-controlled service host. Each browser remains independently useful
+   and independently revocable.
+3. **Installed applications.** The launcher keeps a local, inspectable registry
    of enabled applications and their capabilities.
-3. **Optional connectors.** Historia, Hestia, GitHub, and later services connect
-   only after a deliberate install, pairing, or permission gesture.
-4. **Optional participation.** Identity resolution, sharing, social spaces, and
+4. **Optional connectors.** Historia, GitHub, route providers, and later
+   services connect only after a deliberate enablement, pairing, or permission
+   gesture.
+5. **Optional participation.** Identity resolution, sharing, social spaces, and
    public services sit above the local kernel. Turning them off does not remove
    the person's applications or data.
 
-Hestia supplies durable personal evidence chains, agent identity and recovery.
-Historia supplies local, Git-native memory. Neither becomes a central account
-required to enter Greenways OS.
+Hestia is the private home authority: it owns node identity, signed state,
+rooms, browser-device grants, and the service registry. Historia, Hara, agent
+runtimes, files, models, and other modules can be advertised as Home Services.
+The Home Link protocol remains transport-independent, so a local origin,
+Tailscale or Headscale route, or a later Greenways relay can carry it without
+becoming the user's application authority. See
+[`protocol/home-node.md`](protocol/home-node.md).
+
+Historia supplies local, Git-native memory. Neither Historia nor a remote Hestia
+node becomes a central account required to enter Greenways OS.
 
 ## Layout
 
-- `protocol/` — normative Greenways-owned records and conformance cases.
+- `protocol/` — normative Greenways-owned records and conformance cases,
+  including the browser kernel and Hestia Home Node model.
 - `extension/` — the low-permission Chrome MV3 launcher, browser host, and
   trusted application surfaces.
 - `services/identity/` — runnable development slice of `id.greenways.ai`.
@@ -68,10 +80,11 @@ npm test
 Load the repository's `extension/` directory as an unpacked extension at
 `chrome://extensions`.
 
-The launcher and **Open a GitHub world** surface work before identity setup.
-The world viewer reads a public repository's root `project.edn`, resolves every ref to an
-immutable Git commit, and renders its local and imported SOG layers. See
-[`protocol/worlds.md`](protocol/worlds.md) for the manifest contract.
+The launcher and **Open a GitHub world** surface work before identity setup or
+home-node pairing. The world viewer reads a public repository's root
+`project.edn`, resolves every ref to an immutable Git commit, and renders its
+local and imported SOG layers. See [`protocol/worlds.md`](protocol/worlds.md)
+for the manifest contract.
 
 The viewer features three maintained examples from
 [`greenways-worlds`](https://github.com/greenways-worlds): Apartment (single
