@@ -30,6 +30,9 @@ jobs:
       - run: npm run build:web
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - name: Test Home Link service
+        working-directory: services/home-node
+        run: npm test
       - name: Test identity service
         working-directory: services/identity
         run: npm test
