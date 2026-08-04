@@ -27,6 +27,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npm run build:web
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - name: Test identity service
+        working-directory: services/identity
+        run: npm test
       - uses: actions/upload-artifact@v4
         with:
           name: greenways-os-extension

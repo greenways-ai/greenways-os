@@ -27,8 +27,7 @@ import {
   updateArtifactDescription,
   workflowRoot
 } from "./workflow.js";
-import { HestiaClient, requestOriginAccess } from "./hestia-client.js";
-import { store } from "./storage.js";
+import { store, withOriginLock } from "./storage.js";
 
 const app = document.getElementById("app");
 const view = document.body.dataset.view;
@@ -38,10 +37,11 @@ const state = {
   actions: [],
   inclusions: [],
   workflowRoot: await workflowRoot(),
-  hestia: null,
+  hestiaConnected: false,
   spaceMode: "home",
   note: ""
 };
+let recordPending = Promise.resolve();
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
@@ -52,7 +52,7 @@ async function load() {
   state.project = await store.get("projects", "active") ?? null;
   state.actions = await store.values("actions");
   state.inclusions = (await store.values("inclusions")).sort((a, b) => a.sequence - b.sequence);
-  state.hestia = await store.get("settings", "hestia") ?? null;
+  state.hestiaConnected = Boolean(await store.get("settings", "hestia"));
   render();
 }
 
@@ -60,37 +60,52 @@ async function persistProject() {
   if (state.project) await store.put("projects", "active", state.project);
 }
 
-async function record(type, payload, subject = state.project?.id ?? null) {
-  const { identity, privateKey } = state.identityRecord;
-  const body = actionBody({
-    type, actor: identity, workflowRoot: state.workflowRoot, subject, payload
-  });
-  const action = await signAction(body, privateKey);
-  const previous = state.inclusions.at(-1) ?? null;
-  const inclusion = await includeAction(identity.identityId, previous, action);
-  state.actions.push(action);
-  state.inclusions.push(inclusion);
-  await Promise.all([
-    store.put("actions", action.id, action),
-    store.put("inclusions", inclusion.eventHash, inclusion),
-    store.put("outbox", action.root, action)
-  ]);
-  return action;
+function serializeRecord(operation) {
+  const current = recordPending.then(() => withOriginLock("personal-chain", operation));
+  recordPending = current.catch(() => {});
+  return current;
 }
 
-async function retainSignedAction(action) {
-  const previous = state.inclusions.at(-1) ?? null;
-  const inclusion = await includeAction(state.identityRecord.identity.identityId, previous, action);
-  state.actions.push(action);
-  state.inclusions.push(inclusion);
-  await Promise.all([
-    store.put("actions", action.id, action), store.put("inclusions", inclusion.eventHash, inclusion), store.put("outbox", action.root, action)
+async function storedSignedRecords() {
+  const [actions, inclusions] = await Promise.all([
+    store.values("actions"),
+    store.values("inclusions"),
   ]);
+  inclusions.sort((a, b) => a.sequence - b.sequence);
+  return { actions, inclusions };
+}
+
+function record(type, payload, subject = state.project?.id ?? null) {
+  return serializeRecord(async () => {
+    const persisted = await storedSignedRecords();
+    const { identity, privateKey } = state.identityRecord;
+    const body = actionBody({
+      type, actor: identity, workflowRoot: state.workflowRoot, subject, payload
+    });
+    const action = await signAction(body, privateKey);
+    const previous = persisted.inclusions.at(-1) ?? null;
+    const inclusion = await includeAction(identity.identityId, previous, action);
+    await store.putSignedRecord(action, inclusion);
+    state.actions = [...persisted.actions, action];
+    state.inclusions = [...persisted.inclusions, inclusion];
+    return action;
+  });
+}
+
+function retainSignedAction(action) {
+  return serializeRecord(async () => {
+    const persisted = await storedSignedRecords();
+    const previous = persisted.inclusions.at(-1) ?? null;
+    const inclusion = await includeAction(state.identityRecord.identity.identityId, previous, action);
+    await store.putSignedRecord(action, inclusion);
+    state.actions = [...persisted.actions, action];
+    state.inclusions = [...persisted.inclusions, inclusion];
+  });
 }
 
 function header() {
   const pending = state.actions.length - state.inclusions.length;
-  const protection = state.hestia ? "Hestia connected" : "Protected locally";
+  const protection = state.hestiaConnected ? "Hestia connected" : "Protected locally";
   return `<header class="topbar">
     <div class="brand"><span class="brand-mark">g</span><span><strong>Greenways OS</strong><small>Creative confidence layer</small></span></div>
     <span class="health"><i></i>${escapeHtml(protection)}${pending > 0 ? ` · ${pending} pending` : ""}</span>
@@ -135,7 +150,7 @@ function studioSpace(status) {
     <nav class="space-switcher" aria-label="Space views">${modes.map(([mode, label]) => `<button class="${state.spaceMode === mode ? "active" : ""}" data-space-mode="${mode}">${label}</button>`).join("")}<i></i><button class="icon-button" data-action="publish-furnishing-shared" aria-label="Publish shareable furnishing">↗</button></nav>
     ${state.note ? `<div class="glass-toast">${escapeHtml(state.note)}</div>` : ""}
     ${state.spaceMode === "ideas" ? ideaSpace() : state.spaceMode === "repositories" ? repositorySpace() : state.spaceMode === "friends" ? friendsSpace() : state.spaceMode === "credentials" ? credentialsSpace() : homeRoom(status)}
-    <footer class="space-dock"><span><i></i>${state.hestia ? "Backed up" : "Local"}</span><button data-action="publish-furnishing-personal">Keep on chain</button><button data-action="import-furnishing">Import</button><button data-action="connect-hestia">${state.hestia ? "Hestia" : "Pair Hestia"}</button></footer>
+    <footer class="space-dock"><span><i></i>${state.hestiaConnected ? "Backed up" : "Local"}</span><button data-action="publish-furnishing-personal">Keep on chain</button><button data-action="import-furnishing">Import</button><button data-action="connect-hestia">${state.hestiaConnected ? "Hestia" : "Pair Hestia"}</button></footer>
   </section>`;
 }
 
@@ -155,7 +170,7 @@ function credentialsSpace() {
     <div class="credential-glass"><label>Identity</label><code>${escapeHtml(identity.identityId)}</code><button data-copy="${escapeHtml(identity.identityId)}">Copy</button></div>
     <div class="credential-glass"><label>Controller key</label><code>${escapeHtml(identity.keyId)}</code><button data-copy="${escapeHtml(identity.keyId)}">Copy</button></div>
     <div class="credential-stats"><div><strong>${state.actions.length}</strong><span>signed actions</span></div><div><strong>${state.inclusions.length}</strong><span>chain entries</span></div><div><strong>${(state.project.personalFurnishings ?? []).length}</strong><span>furnishings</span></div></div>
-    <div class="credential-actions"><button class="primary" data-action="export-credential">Export public credential</button><button data-action="proof">Inspect proof</button><button data-action="export">Export evidence</button><button data-action="connect-hestia">${state.hestia ? "Manage Hestia" : "Back up with Hestia"}</button></div>
+    <div class="credential-actions"><button class="primary" data-action="export-credential">Export public credential</button><button data-action="proof">Inspect proof</button><button data-action="export">Export evidence</button><button data-action="connect-hestia">${state.hestiaConnected ? "Manage Hestia" : "Back up with Hestia"}</button></div>
     <p class="credential-warning">Your private signing key never appears here and is never included in an export.</p>
   </section>`;
 }
@@ -239,11 +254,6 @@ function dialogs() {
     <dialog data-dialog="arranger"><form method="dialog" data-form="arranger"><h2>Ask the idea arranger</h2><p class="muted">Describe the relationship you want to see. The agent may propose positions, but cannot apply them.</p>
     <label>Arrangement intent<textarea name="intent" required>Group related ideas and make the creative journey easy to read.</textarea></label>
     <menu><button value="cancel">Cancel</button><button class="primary" value="default">Create proposal</button></menu></form></dialog>
-    <dialog data-dialog="hestia"><form method="dialog" data-form="hestia"><h2>Connect your Hestia</h2>
-    <p class="muted">The extension will request access only to this origin. Signed actions stay queued if the node is unavailable.</p>
-    <label>Hestia origin<input name="origin" type="url" required value="${escapeHtml(state.hestia?.origin ?? "http://127.0.0.1:58080")}"></label>
-    <label>Scoped device token<input name="token" type="password" required autocomplete="off"></label>
-    <menu><button value="cancel">Cancel</button><button class="primary" value="default">Connect</button></menu></form></dialog>
     <dialog data-dialog="proof"><h2>Proof, when you need it</h2><p class="muted">These are personal-chain records, not a global blockchain or legal-title declaration.</p>
       <div class="metric-row"><div class="metric"><strong>${state.actions.length}</strong><small>signed actions</small></div><div class="metric"><strong>${state.inclusions.length}</strong><small>inclusions</small></div><div class="metric"><strong>1</strong><small>controller key</small></div></div>
       <p class="proof">Identity: ${escapeHtml(state.identityRecord.identity.identityId)}<br>Key: ${escapeHtml(state.identityRecord.identity.keyId)}<br>Policy: ${escapeHtml(state.workflowRoot)}</p>
@@ -255,7 +265,7 @@ function dialogs() {
 }
 
 function footer() {
-  return `<footer class="footer">GREENWAYS OS 0.1 · LOCAL FIRST · KEYS STAY WITH YOU</footer>`;
+  return `<footer class="footer">GREENWAYS OS 0.2 · LOCAL FIRST · KEYS STAY WITH YOU</footer>`;
 }
 
 function render() {
@@ -278,7 +288,6 @@ function bind() {
   app.querySelector("[data-friend-input]")?.addEventListener("change", importFriend);
   app.querySelector('[data-form="idea"]')?.addEventListener("submit", addIdeaSubmit);
   app.querySelector('[data-form="arranger"]')?.addEventListener("submit", arrangeIdeasSubmit);
-  app.querySelector('[data-form="hestia"]')?.addEventListener("submit", connectHestiaSubmit);
 }
 
 async function createIdentitySubmit(event) {
@@ -337,9 +346,7 @@ async function dispatch(action) {
   } else if (action === "proof") {
     app.querySelector('[data-dialog="proof"]').showModal();
   } else if (action === "connect-hestia") {
-    app.querySelector('[data-dialog="hestia"]').showModal();
-  } else if (action === "sync") {
-    await syncHestia();
+    location.assign("launcher.html#app-hestia-connector");
   } else if (action === "publish") {
     await publishCheckpoint();
   } else if (action === "verify") {
@@ -517,38 +524,6 @@ async function publishCheckpoint() {
     state.note = "Release checkpoint signed, recorded, and ready for evidence export.";
   } catch (error) {
     state.note = error.message;
-  }
-  render();
-}
-
-async function connectHestiaSubmit(event) {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  const origin = String(data.get("origin"));
-  const token = String(data.get("token"));
-  await requestOriginAccess(origin);
-  const client = new HestiaClient({ origin });
-  await client.discover();
-  state.hestia = { origin: new URL(origin).origin, token };
-  await store.put("settings", "hestia", state.hestia);
-  state.note = "Hestia connected. Your existing signed outbox is ready to sync.";
-  render();
-}
-
-async function syncHestia() {
-  const actions = await store.values("outbox");
-  if (!actions.length) {
-    state.note = "Your signed outbox is already synchronized.";
-    render();
-    return;
-  }
-  try {
-    const client = new HestiaClient({ origin: state.hestia.origin });
-    const response = await client.append(actions, { deviceToken: state.hestia.token });
-    for (const action of actions) await store.delete("outbox", action.root);
-    state.note = `Hestia accepted ${response.accepted ?? actions.length} signed action(s).`;
-  } catch (error) {
-    state.note = `Hestia is unavailable. ${actions.length} signed action(s) remain protected locally.`;
   }
   render();
 }

@@ -134,15 +134,7 @@ export class PublicGitHubClient {
     const key = `${repository.owner}/${repository.repo}@${commit}`;
     if (!this.manifestCache.has(key)) {
       this.manifestCache.set(key, this.text(rawGitHubUrl(repository, commit, "project.edn"), `${key}/project.edn`)
-        .then(readWorldProject)
-        .then(async (project) => {
-          if (Object.keys(project.dependencies).length) {
-            const lock = await this.text(rawGitHubUrl(repository, commit, "project.lock.edn"), `${key}/project.lock.edn`);
-            const { activateLockedPackages } = await import("./greenways-runtime.js");
-            await activateLockedPackages(lock, this.request);
-          }
-          return project;
-        }));
+        .then(readWorldProject));
     }
     return this.manifestCache.get(key);
   }

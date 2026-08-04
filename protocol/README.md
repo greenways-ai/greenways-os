@@ -18,3 +18,7 @@ repository's separate `extension/` Chrome package.
 The public identity discovery boundary is specified in
 [`id.greenways.ai.md`](id.greenways.ai.md). The resolver distributes signed
 public identity material; it never receives private keys or replaces Hestia.
+
+The sovereign-first application boundary and built-in launcher catalog are
+specified in [`apps.md`](apps.md). App manifests are declarative records and
+cannot provide remote code for the extension to execute.

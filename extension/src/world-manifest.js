@@ -173,6 +173,10 @@ export function validateWorldProject(value) {
   for (const required of ["canvas/webgl2", "input/pointer"]) {
     if (!capabilities.includes(required)) throw new Error(`project.edn requires capability :${required}`);
   }
+  const dependencies = object(project["project/dependencies"] ?? {}, ":project/dependencies");
+  if (Object.keys(dependencies).length) {
+    throw new Error("project.edn remote HAL dependencies cannot execute inside the extension");
+  }
 
   const world = object(project["project/world"], ":project/world");
   if (world["world/version"] !== "1.0.0") throw new Error(":project/world requires :world/version \"1.0.0\"");
@@ -201,7 +205,7 @@ export function validateWorldProject(value) {
     touchpoints,
     camera: normalizeCamera(world["world/camera"]),
     background,
-    dependencies: project["project/dependencies"] ?? {}
+    dependencies,
   };
 }
 

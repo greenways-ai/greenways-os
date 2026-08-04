@@ -1,11 +1,11 @@
 {
   "name": "greenways-os",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "license": "EPL-2.0",
   "scripts": {
-    "build": "esbuild src/world.js --bundle --format=esm --platform=browser --target=chrome116 --loader:.hal=text --external:node:worker_threads --outfile=dist/world.js",
+    "build": "node scripts/build-extension.mjs",
     "build:web": "esbuild ../web/src/main.js --bundle --format=esm --platform=browser --target=es2022 --loader:.hal=text --loader:.png=file --external:node:worker_threads --entry-names=world --asset-names=world --outdir=../web/dist && cp ../web/index.html ../web/dist/index.html",
     "test": "node --test test/*.test.js",
     "test:browser": "npm run build && playwright test"

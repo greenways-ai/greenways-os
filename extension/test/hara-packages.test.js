@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { zipSync } from "fflate";
-import { loadLockedPackageResources } from "../src/hara-packages.js";
+import * as haraPackages from "../src/hara-packages.js";
+
+const { loadLockedPackageResources } = haraPackages;
 
 const encoder = new TextEncoder();
 const digest = async (bytes) => `sha256:${[...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
@@ -23,4 +25,8 @@ test("a mismatched locked package digest fails closed", async () => {
   const lock = `{:lock/format 2 :packages {"hara:example/package" {:packages/url "https://packages.example/package.harp" :harp-sha256 "sha256:${"0".repeat(64)}"}}}`;
   const request = async () => ({ ok: true, arrayBuffer: async () => archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) });
   await assert.rejects(loadLockedPackageResources(lock, request), /digest mismatch/);
+});
+
+test("verified remote HAL remains inert and cannot be installed into the runtime", () => {
+  assert.equal("installLockedPackages" in haraPackages, false);
 });

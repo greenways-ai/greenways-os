@@ -99,6 +99,11 @@ A project declaring touchpoints must include `:ui/surfaces` in
 `:project/capabilities`. The capability authorises the request; it does not
 make every named surface available.
 
+Remote `:project/dependencies` are rejected by the Chrome host. Hash-locking a
+HAL package proves which bytes arrived, but remotely fetched source still cannot
+execute inside a Manifest V3 extension. Executable HAL must ship with a reviewed
+Greenways OS package update.
+
 The Hara session carries logical state such as the active surface and the
 studio track list. Browser-native objects—including `File`, object URLs, audio
 buffers, DOM nodes, and PlayCanvas entities—remain in the host and are referred

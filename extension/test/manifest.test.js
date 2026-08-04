@@ -9,6 +9,8 @@ const manifest = JSON.parse(
 test("extension requests only its two required permissions", () => {
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["sidePanel", "storage"]);
+  assert.equal(manifest.side_panel.default_path, "src/launcher.html");
+  assert.equal(manifest.minimum_chrome_version, "116");
 });
 
 test("powerful browser permissions are absent", () => {
@@ -25,4 +27,14 @@ test("powerful browser permissions are absent", () => {
 test("network access remains optional and user-granted", () => {
   assert.equal("host_permissions" in manifest, false);
   assert.ok(manifest.optional_host_permissions.includes("https://*/*"));
+});
+
+test("extension pages allow bundled Hara WebAssembly without allowing remote code", () => {
+  const policy = manifest.content_security_policy.extension_pages;
+  assert.match(policy, /script-src 'self' 'wasm-unsafe-eval'/);
+  assert.match(policy, /worker-src 'self'/);
+  assert.match(policy, /object-src 'none'/);
+  assert.doesNotMatch(policy, /\bblob:/);
+  assert.doesNotMatch(policy, /(?:^|\s)'unsafe-eval'(?:;|\s|$)/);
+  assert.doesNotMatch(policy, /script-src[^;]*https?:/);
 });
