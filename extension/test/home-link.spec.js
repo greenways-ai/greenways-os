@@ -1,19 +1,70 @@
 import { test as base, chromium, expect } from "@playwright/test";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GreenwaysHomeNode } from "../../services/home-node/src/home-node.js";
 import { createHomeNodeServer } from "../../services/home-node/src/server.js";
 
 const extensionPath = fileURLToPath(new URL("..", import.meta.url));
+const omittedTestDirectories = new Set([
+  "node_modules",
+  "playwright-report",
+  "test",
+  "test-results",
+]);
+
+async function createTestExtension() {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "greenways-home-link-"));
+  const testExtensionPath = join(temporaryRoot, "extension");
+
+  await cp(extensionPath, testExtensionPath, {
+    recursive: true,
+    filter(source) {
+      const localPath = relative(extensionPath, source);
+      if (!localPath) return true;
+      return !omittedTestDirectories.has(localPath.split(sep)[0]);
+    },
+  });
+
+  // Chrome's optional-host confirmation is browser chrome, not extension DOM,
+  // and therefore cannot be accepted by a headless Playwright page. The test
+  // copy grants loopback up front so the browser still performs the real HTTP
+  // exchange. The repository manifest remains optional-only and is covered by
+  // manifest.test.js.
+  const manifestPath = join(testExtensionPath, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.host_permissions = [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+  ];
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  return {
+    path: testExtensionPath,
+    async dispose() {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    },
+  };
+}
 
 const test = base.extend({
   context: async ({}, use) => {
+    const testExtension = await createTestExtension();
     const context = await chromium.launchPersistentContext("", {
       channel: "chromium",
       headless: true,
-      args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+      args: [
+        `--disable-extensions-except=${testExtension.path}`,
+        `--load-extension=${testExtension.path}`,
+      ],
     });
-    await use(context);
-    await context.close();
+    try {
+      await use(context);
+    } finally {
+      await context.close();
+      await testExtension.dispose();
+    }
   },
   extensionId: async ({ context }, use) => {
     let worker = context.serviceWorkers().find((candidate) => (
