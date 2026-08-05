@@ -35,12 +35,15 @@ Greenways OS remains the browser kernel. Pairing a Beacon must never let Space i
 
 ## Hoplite application
 
-The project identity and Hara namespace are `greenways.beacon`:
+The product and project identity is `greenways.beacon`. Greenways OS reserves implementation namespaces beneath `gw.*`, so the Hara application is `gw.beacon`:
 
 ```clojure
 :project/id greenways.beacon/service
-:profile/main greenways.beacon/app
+:project/main gw.beacon
+:profile/main gw.beacon/app
 ```
+
+The public descriptor still reports `"id": "greenways.beacon"`; `gw.beacon` is an implementation namespace, not a second product name.
 
 Local routes are handled by Hara:
 
