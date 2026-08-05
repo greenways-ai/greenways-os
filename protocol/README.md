@@ -25,9 +25,15 @@ cannot provide remote code for the extension to execute. The rehydratable
 browser-wide authority, document-context split, and transactional request
 contract are specified in [`kernel.md`](kernel.md).
 
-The private browser-and-service architecture is specified in
+The current local gateway and Space boundary is specified in
+[`beacon.md`](beacon.md). Greenways Beacon is a Hara application on Hoplite and
+provides a fixed, inspectable route to `greenways.space`, where Hestia,
+Ignatius, Historia and later services are composed. Beacon never becomes the
+browser kernel or a second Hestia authority.
+
+The earlier private browser-and-service architecture remains documented in
 [`home-node.md`](home-node.md). Its first runnable wire profile—signed browser
 pairing, pinned node identity, presence, unpairing, and bounded local-service
-discovery—is specified in [`home-link.md`](home-link.md). A home node connects
-browsers but never becomes their Hara kernel or an executable application
-source.
+discovery—is specified in [`home-link.md`](home-link.md). That Node-based
+implementation is now a compatibility path while browser device grants migrate
+to Beacon and Hoplite.
