@@ -94,6 +94,16 @@ export function normalizeBeaconOrigin(value) {
   return url.origin;
 }
 
+/**
+ * Chrome host permissions are match patterns and do not include ports. Beacon
+ * still fetches the exact configured origin; the permission necessarily covers
+ * that host's other ports because that is the browser platform's granularity.
+ */
+export function beaconPermissionPattern(value) {
+  const url = new URL(normalizeBeaconOrigin(value));
+  return `${url.protocol}//${url.hostname}/*`;
+}
+
 function normalizeRuntime(value) {
   const input = plainObject(value, "Beacon runtime");
   assertKeys(input, new Set(["applicationServer", "language", "namespace", "edge"]), "Beacon runtime");
@@ -237,7 +247,7 @@ export function privateSpaceCapabilitiesEnabled(space) {
 }
 
 export async function requestBeaconOriginAccess(origin, permissions = globalThis.chrome?.permissions) {
-  const pattern = `${normalizeBeaconOrigin(origin)}/*`;
+  const pattern = beaconPermissionPattern(origin);
   if (!permissions) return true;
   if (permissions.contains && await permissions.contains({ origins: [pattern] })) return true;
   const granted = await permissions.request({ origins: [pattern] });
@@ -246,7 +256,7 @@ export async function requestBeaconOriginAccess(origin, permissions = globalThis
 }
 
 export async function revokeBeaconOriginAccess(origin, permissions = globalThis.chrome?.permissions) {
-  const pattern = `${normalizeBeaconOrigin(origin)}/*`;
+  const pattern = beaconPermissionPattern(origin);
   if (!permissions) return true;
   const request = { origins: [pattern] };
   if (await permissions.remove(request)) return true;
