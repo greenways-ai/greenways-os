@@ -98,7 +98,7 @@ services/beacon/bin/greenways-beacon check
 services/beacon/bin/greenways-beacon run
 
 curl http://127.0.0.1:58100/.well-known/greenways-beacon
-curl http://127.0.0.1:58100/space/discovery
+curl http://127.0.0.1:58100/space/discovery.json
 ```
 
 The old protocol remains testable during migration:
