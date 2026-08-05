@@ -75,29 +75,29 @@ function homeNodeModel() {
   if (!connection) {
     return {
       state: "local",
-      label: "Local only",
-      title: "Give your browsers a home you control.",
-      description: "Pair this browser with a Greenways Home Node using a single-use code. This profile keeps its own non-extractable signing key and remains useful offline.",
-      action: "Connect home",
+      label: "Compatibility only",
+      title: "Legacy Home Link remains available for migration.",
+      description: "Pair this browser only when preserving the first Greenways Home Node protocol. New local gateway and Space discovery work belongs in Greenways Beacon.",
+      action: "Use legacy Home Link",
       browser: "Local kernel",
       address: "Not paired",
       route: "Local only",
-      core: "HOME NODE",
-      service: "SERVICE CATALOG",
+      core: "LEGACY HOME NODE",
+      service: "COMPATIBILITY SERVICES",
     };
   }
   const serviceCount = homeStatus?.services?.length ?? connection.services?.length ?? 0;
   return {
     state: "connected",
-    label: "Connected",
-    title: "This browser has a signed route home.",
-    description: "Its device key proves signed presence to your private home node. The node may introduce local services, but it cannot replace the browser's Hara kernel or approve applications.",
-    action: "Manage home link",
+    label: "Legacy link",
+    title: "This browser retains its original signed Home Link.",
+    description: "The device key remains available while identity and recovery migrate to Greenways Beacon. This compatibility node is not the new route to greenways.space.",
+    action: "Manage legacy link",
     browser: connection.device.name,
     address: homeAddress(connection),
     route: routeLabel(connection),
     core: connection.node.name.toUpperCase(),
-    service: `${serviceCount} SERVICE${serviceCount === 1 ? "" : "S"}`,
+    service: `${serviceCount} LEGACY SERVICE${serviceCount === 1 ? "" : "S"}`,
   };
 }
 
@@ -111,6 +111,7 @@ function decorateHomeNode() {
   setState(homeNode, model.state);
   setState(homeNode.querySelector(".home-node__state"), model.state);
   setState(homeNode.querySelector(".home-node__diagram"), model.state);
+  setText(homeNode.querySelector(".home-node__kicker"), "LEGACY HOME LINK / DEVICE MIGRATION");
 
   const state = homeNode.querySelector(".home-node__state");
   if (state && state.dataset.homeLinkLabel !== model.label) {
@@ -138,7 +139,7 @@ function decorateHomeNode() {
   const action = homeNode.querySelector("[data-home-node-action]");
   setText(action, model.action);
   const connector = homeNode.querySelector('.home-node__actions a[href="#app-hestia-connector"]');
-  setText(connector, "Inspect Hestia service connector");
+  setText(connector, "Inspect the legacy Hestia connector");
 }
 
 function scheduleDecoration() {
@@ -167,7 +168,7 @@ function statusPresence() {
 
 function assertConnectionNode(status, linkedConnection) {
   if (status.node.id !== linkedConnection.node.id) {
-    throw new Error("The home server identity changed after pairing");
+    throw new Error("The legacy Home Node identity changed after pairing");
   }
   return status;
 }
@@ -181,14 +182,14 @@ function createSurface() {
   const overlay = document.createElement("div");
   overlay.className = "world-surface-overlay home-link-overlay";
   overlay.dataset.homeLinkOverlay = "true";
-  overlay.innerHTML = `<button class="world-surface-scrim" type="button" aria-label="Close Home Link"></button>
-    <div class="world-surface-frame home-link-frame" role="dialog" aria-modal="true" aria-label="Home Link"></div>`;
+  overlay.innerHTML = `<button class="world-surface-scrim" type="button" aria-label="Close Legacy Home Link"></button>
+    <div class="world-surface-frame home-link-frame" role="dialog" aria-modal="true" aria-label="Legacy Home Link"></div>`;
   surfaceRoot.append(overlay);
   const frame = overlay.querySelector(".home-link-frame");
 
   function serviceRows() {
     const services = homeStatus?.services ?? connection?.services ?? [];
-    if (!services.length) return `<p class="home-link-empty">This home node is not advertising any local services.</p>`;
+    if (!services.length) return `<p class="home-link-empty">The compatibility node is not advertising any legacy services.</p>`;
     return `<div class="home-link-services">${services.map((service) => `<article>
       <span class="home-link-service-dot" aria-hidden="true"></span>
       <span><strong>${escapeHtml(service.name)}</strong><small>${escapeHtml(service.kind)}${service.version ? ` · v${escapeHtml(service.version)}` : ""}</small></span>
@@ -198,7 +199,7 @@ function createSurface() {
 
   function browserRows() {
     const browsers = homeStatus?.browsers ?? [];
-    if (!browsers.length) return `<p class="home-link-empty">Refresh to ask the home node which browsers are currently paired.</p>`;
+    if (!browsers.length) return `<p class="home-link-empty">Refresh to inspect browsers still paired through the first Home Link protocol.</p>`;
     return `<div class="home-link-browsers">${browsers.map((browser) => `<article data-current="${browser.current}">
       <span class="home-link-browser-glyph" aria-hidden="true"></span>
       <span><strong>${escapeHtml(browser.name)}${browser.current ? " · this browser" : ""}</strong><small>Last signed presence ${escapeHtml(new Date(browser.lastSeenAt).toLocaleString())}</small></span>
@@ -209,32 +210,32 @@ function createSurface() {
     if (!active) return;
     const linked = Boolean(connection);
     frame.innerHTML = `<section class="home-link-surface">
-      <header><div><p>PRIVATE BROWSER BRIDGE</p><h1>Home Link</h1></div><button type="button" data-home-link-close aria-label="Close Home Link">×</button></header>
+      <header><div><p>LEGACY DEVICE MIGRATION</p><h1>Legacy Home Link</h1></div><button type="button" data-home-link-close aria-label="Close Legacy Home Link">×</button></header>
       <div class="home-link-body">
         <section class="home-link-hero">
           <span class="home-link-hero-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-          <div><h2>${linked ? "Your browsers know their home." : "Give this browser a home address."}</h2><p>${linked
-            ? "This browser proves its presence with a device key that never leaves the extension. The home node may introduce services, but it cannot replace the local kernel or send executable app code."
-            : "Enter a one-time code shown by your private Greenways Home Node. Pairing creates a new signing key for this browser; no Greenways account or reusable bearer token is required."}</p></div>
+          <div><h2>${linked ? "Your original browser link remains active." : "Pair only when preserving an existing Home Link."}</h2><p>${linked
+            ? "This browser still proves signed presence with the first Greenways Home Node protocol. Keep it only while exporting, recovering or deliberately migrating its device identity to Beacon."
+            : "Enter a one-time code from the compatibility Home Node. New installations should connect Greenways Beacon instead; this flow exists so old browser keys and signed records are not abandoned."}</p></div>
         </section>
         ${linked ? `<div class="home-link-metrics">
-          <div><strong>${escapeHtml(homeStatus?.browsers?.length ?? "—")}</strong><span>paired browsers</span></div>
-          <div><strong>${escapeHtml((homeStatus?.services ?? connection.services).length)}</strong><span>local services</span></div>
+          <div><strong>${escapeHtml(homeStatus?.browsers?.length ?? "—")}</strong><span>legacy browsers</span></div>
+          <div><strong>${escapeHtml((homeStatus?.services ?? connection.services).length)}</strong><span>compatibility services</span></div>
           <div><strong>Signed</strong><span>device presence</span></div>
         </div>
-        <dl class="home-link-identity"><div><dt>Home</dt><dd>${escapeHtml(connection.node.name)}</dd></div><div><dt>Origin</dt><dd>${escapeHtml(connection.origin)}</dd></div><div><dt>This browser</dt><dd>${escapeHtml(connection.device.name)}</dd></div></dl>
-        <section class="home-link-list"><div class="home-link-list__heading"><p>LOCAL SERVICES</p><span>Descriptions only</span></div>${serviceRows()}</section>
+        <dl class="home-link-identity"><div><dt>Legacy node</dt><dd>${escapeHtml(connection.node.name)}</dd></div><div><dt>Origin</dt><dd>${escapeHtml(connection.origin)}</dd></div><div><dt>This browser</dt><dd>${escapeHtml(connection.device.name)}</dd></div></dl>
+        <section class="home-link-list"><div class="home-link-list__heading"><p>LEGACY SERVICE DESCRIPTORS</p><span>Compatibility only</span></div>${serviceRows()}</section>
         <section class="home-link-list"><div class="home-link-list__heading"><p>PAIRED BROWSERS</p><span>Signed presence</span></div>${browserRows()}</section>
-        <div class="home-link-actions"><button type="button" data-home-link-refresh ${busy ? "disabled" : ""}>${busy ? "Checking home…" : "Refresh presence"}</button><button type="button" data-home-link-disconnect ${busy ? "disabled" : ""}>Disconnect this browser</button></div>`
+        <div class="home-link-actions"><button type="button" data-home-link-refresh ${busy ? "disabled" : ""}>${busy ? "Checking legacy node…" : "Refresh legacy presence"}</button><button type="button" data-home-link-disconnect ${busy ? "disabled" : ""}>Remove legacy link</button></div>`
           : `<form class="home-link-form">
-          <label>Home server origin<input name="origin" type="url" required value="${DEFAULT_HOME_ORIGIN}" placeholder="https://home.example"></label>
+          <label>Legacy Home Node origin<input name="origin" type="url" required value="${DEFAULT_HOME_ORIGIN}" placeholder="https://home.example"></label>
           <label>Browser name<input name="name" type="text" maxlength="80" required value="${escapeHtml(browserName())}"></label>
           <label>One-time pairing code<input name="code" type="text" inputmode="text" maxlength="9" autocomplete="one-time-code" required placeholder="ABCD-EFGH"></label>
-          <button type="submit" ${busy ? "disabled" : ""}>${busy ? "Pairing browser…" : "Pair this browser"}</button>
+          <button type="submit" ${busy ? "disabled" : ""}>${busy ? "Pairing legacy browser…" : "Pair legacy Home Link"}</button>
         </form>
-        <div class="home-link-boundary"><strong>The transport is not the authority.</strong><span>Use loopback for a server on this machine, or HTTPS over your LAN/private network. Home Link authorizes browsers above that connection.</span></div>`}
+        <div class="home-link-boundary"><strong>Compatibility is not the new architecture.</strong><span>The original Home Link remains isolated so existing browser keys can be recovered or migrated. Greenways Beacon is the Hoplite gateway to greenways.space.</span></div>`}
         ${notice ? `<p class="home-link-notice" data-tone="${escapeHtml(noticeTone)}" role="status">${escapeHtml(notice)}</p>` : ""}
-        <p class="home-link-footnote">The home node advertises inert service identifiers, versions, capabilities, and availability. Greenways OS never evaluates remote JavaScript, Wasm, HAL, or UI supplied by the server.</p>
+        <p class="home-link-footnote">Legacy service descriptors remain inert data. Greenways OS never evaluates remote JavaScript, Wasm, HAL, HTML or executable UI supplied by the compatibility node.</p>
       </div>
     </section>`;
     frame.querySelector("[data-home-link-close]")?.addEventListener("click", closeSurface);
@@ -251,7 +252,7 @@ function createSurface() {
     const name = String(form.get("name") ?? "");
     const code = String(form.get("code") ?? "");
     busy = true;
-    notice = "Requesting access to the home server origin…";
+    notice = "Requesting access to the legacy Home Node origin…";
     noticeTone = "quiet";
     render();
     let requestedOrigin = null;
@@ -264,10 +265,10 @@ function createSurface() {
       await requestHomeOriginAccess(requestedOrigin);
       permissionGranted = true;
       const discovery = await client.discover();
-      if (!discovery.pairing.available) throw new Error("This home node is not currently accepting a browser pairing");
+      if (!discovery.pairing.available) throw new Error("This compatibility node is not currently accepting a browser pairing");
       const device = await createHomeDevice(name);
       const receipt = await client.pair({ code, device, node: discovery.node });
-      if (receipt.node.id !== discovery.node.id) throw new Error("Home discovery changed during pairing");
+      if (receipt.node.id !== discovery.node.id) throw new Error("Legacy Home discovery changed during pairing");
       pairedRecord = createHomeLinkRecord({ origin: requestedOrigin, receipt, device });
       await withOriginLock(HOME_LINK_LOCK, () => store.put("settings", HOME_LINK_SETTINGS_KEY, pairedRecord));
       connection = pairedRecord;
@@ -276,11 +277,11 @@ function createSurface() {
           await client.status(pairedRecord, statusPresence()),
           pairedRecord,
         );
-        notice = "This browser is paired. Its private signing key remains local.";
+        notice = "The legacy browser link is paired. Its private signing key remains local.";
         noticeTone = "good";
       } catch (statusError) {
         homeStatus = null;
-        notice = `This browser is paired, but presence is not yet available: ${statusError?.message || statusError}`;
+        notice = `The legacy link is paired, but presence is not yet available: ${statusError?.message || statusError}`;
         noticeTone = "quiet";
       }
       scheduleDecoration();
@@ -291,7 +292,7 @@ function createSurface() {
       if (permissionGranted && !connection && requestedOrigin) {
         await revokeHomeOriginAccess(requestedOrigin).catch(() => {});
       }
-      notice = error?.message || "This browser could not pair with the home node.";
+      notice = error?.message || "This browser could not pair with the compatibility node.";
       noticeTone = "error";
     } finally {
       busy = false;
@@ -302,7 +303,7 @@ function createSurface() {
   async function refresh() {
     if (!connection || busy) return;
     busy = true;
-    notice = "Sending signed browser presence…";
+    notice = "Sending signed legacy browser presence…";
     noticeTone = "quiet";
     render();
     try {
@@ -310,11 +311,11 @@ function createSurface() {
         await new HomeLinkClient({ origin: connection.origin }).status(connection, statusPresence()),
         connection,
       );
-      notice = `Home confirmed ${homeStatus.browsers.length} paired browser${homeStatus.browsers.length === 1 ? "" : "s"}.`;
+      notice = `The compatibility node confirmed ${homeStatus.browsers.length} paired browser${homeStatus.browsers.length === 1 ? "" : "s"}.`;
       noticeTone = "good";
       scheduleDecoration();
     } catch (error) {
-      notice = error?.message || "The home node could not confirm this browser.";
+      notice = error?.message || "The compatibility node could not confirm this browser.";
       noticeTone = "error";
     } finally {
       busy = false;
@@ -325,7 +326,7 @@ function createSurface() {
   async function disconnect() {
     if (!connection || busy) return;
     busy = true;
-    notice = "Removing this browser from its home…";
+    notice = "Removing this browser's legacy Home Link…";
     noticeTone = "quiet";
     render();
     const previous = connection;
@@ -346,14 +347,14 @@ function createSurface() {
       connection = null;
       homeStatus = null;
       notice = permissionError
-        ? `The browser link was removed, but Chrome origin access still needs attention: ${permissionError.message}`
+        ? `The legacy link was removed, but Chrome origin access still needs attention: ${permissionError.message}`
         : remoteError
-          ? "The local browser link was removed. The unreachable home node may retain a stale public device entry."
-          : "This browser was removed from its home. Local Greenways records were not changed.";
+          ? "The local legacy link was removed. The unreachable compatibility node may retain a stale public device entry."
+          : "The legacy Home Link was removed. Local Greenways records and Beacon settings were not changed.";
       noticeTone = permissionError ? "error" : remoteError ? "quiet" : "good";
       scheduleDecoration();
     } catch (error) {
-      notice = error?.message || "The local home link could not be removed.";
+      notice = error?.message || "The legacy Home Link could not be removed.";
       noticeTone = "error";
     } finally {
       busy = false;
@@ -398,14 +399,16 @@ appRoot?.addEventListener("click", (event) => {
   openSurface();
 }, true);
 
-new MutationObserver(scheduleDecoration).observe(appRoot, { childList: true, subtree: true });
-window.addEventListener("focus", scheduleDecoration);
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) scheduleDecoration();
-});
+if (appRoot) {
+  new MutationObserver(scheduleDecoration).observe(appRoot, { childList: true, subtree: true });
+  window.addEventListener("focus", scheduleDecoration);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleDecoration();
+  });
 
-readLocalState().catch((error) => {
-  console.error("Greenways Home Link could not read local state", error);
+  readLocalState().catch((error) => {
+    console.error("Legacy Greenways Home Link could not read local state", error);
+    scheduleDecoration();
+  });
   scheduleDecoration();
-});
-scheduleDecoration();
+}

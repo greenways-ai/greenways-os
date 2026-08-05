@@ -1,0 +1,744 @@
+/* Greenways Beacon -------------------------------------------------------
+ * The primary local gateway between the browser kernel and greenways.space.
+ * It extends the shared Greenways visual language without creating another
+ * palette, theme controller, or remotely loaded surface.
+ */
+
+:root {
+  --beacon-cyan: #1b96a5;
+  --beacon-cyan-soft: #70d7df;
+  --beacon-warning: #9b762d;
+}
+
+:root[data-theme="dark"] {
+  --beacon-cyan: #53d6df;
+  --beacon-cyan-soft: #9eecf1;
+  --beacon-warning: #d0aa61;
+}
+
+.beacon-card {
+  position: relative;
+  isolation: isolate;
+  margin-top: 30px;
+  overflow: hidden;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid color-mix(in srgb, var(--gw-verdigris) 48%, var(--gw-line-strong));
+  border-radius: var(--launcher-radius);
+  box-shadow: var(--gw-shadow-soft);
+}
+
+.beacon-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 78% 38%, color-mix(in srgb, var(--beacon-cyan) 9%, transparent), transparent 26%),
+    linear-gradient(116deg, transparent 0 42%, var(--gw-line) 42% calc(42% + 1px), transparent calc(42% + 1px)),
+    repeating-linear-gradient(90deg, transparent 0 79px, color-mix(in srgb, var(--gw-line) 54%, transparent) 79px 80px),
+    var(--gw-surface);
+  opacity: 0.72;
+}
+
+.beacon-card::after {
+  position: absolute;
+  z-index: -1;
+  right: -92px;
+  bottom: -112px;
+  width: 290px;
+  height: 290px;
+  content: "";
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--beacon-cyan) 26%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 28px color-mix(in srgb, var(--beacon-cyan) 4%, transparent),
+    0 0 0 58px color-mix(in srgb, var(--gw-verdigris) 3%, transparent);
+}
+
+.beacon-card[data-state="trusted"] {
+  border-color: color-mix(in srgb, var(--gw-verdigris) 72%, var(--gw-line-strong));
+}
+
+.beacon-card[data-state="degraded"] {
+  border-color: color-mix(in srgb, var(--beacon-warning) 62%, var(--gw-line-strong));
+}
+
+.beacon-card__header {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 17px;
+  background: color-mix(in srgb, var(--gw-surface) 88%, transparent);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.beacon-card__header p,
+.beacon-list__heading p,
+.beacon-surface > header p {
+  margin: 0;
+  color: var(--gw-gold);
+  font: 750 8.5px/1.35 var(--gw-font-mono);
+  letter-spacing: 0.145em;
+  text-transform: uppercase;
+}
+
+.beacon-card__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gw-text-muted);
+  font: 750 8.5px/1 var(--gw-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.beacon-card__state i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--gw-text-muted);
+}
+
+.beacon-card__state[data-state="connected"] i {
+  background: var(--beacon-cyan);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--beacon-cyan) 14%, transparent);
+}
+
+.beacon-card__state[data-state="trusted"] i {
+  background: var(--gw-verdigris);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gw-verdigris) 14%, transparent);
+}
+
+.beacon-card__state[data-state="degraded"] i {
+  background: var(--beacon-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--beacon-warning) 14%, transparent);
+}
+
+.beacon-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  gap: clamp(28px, 6vw, 72px);
+  align-items: center;
+  padding: clamp(30px, 5vw, 54px) clamp(18px, 4vw, 42px);
+}
+
+.beacon-card__copy h2 {
+  max-width: 610px;
+  margin: 0;
+  color: var(--gw-text);
+  font: 400 clamp(31px, 6vw, 54px) / 0.96 var(--gw-font-display);
+  letter-spacing: -0.045em;
+}
+
+.beacon-card__copy p {
+  max-width: 600px;
+  margin: 18px 0 0;
+  color: var(--gw-text-muted);
+  font-size: 12.5px;
+  line-height: 1.68;
+}
+
+.beacon-card__diagram {
+  min-height: 174px;
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) 35px minmax(92px, 1.08fr) 35px minmax(92px, 1.12fr);
+  align-items: center;
+  padding: 17px;
+  background: color-mix(in srgb, var(--gw-surface-muted) 62%, transparent);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.beacon-card__node {
+  min-height: 52px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: var(--gw-text-muted);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: 8px;
+  font: 750 7.5px/1.25 var(--gw-font-mono);
+  letter-spacing: 0.07em;
+  text-align: center;
+}
+
+.beacon-card__node--beacon {
+  min-height: 112px;
+  color: var(--gw-text);
+  border-color: color-mix(in srgb, var(--beacon-cyan) 64%, var(--gw-line-strong));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--beacon-cyan) 7%, var(--gw-surface)), var(--gw-surface-muted));
+}
+
+.beacon-card__node--beacon b {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: block;
+  margin-bottom: 9px;
+}
+
+.beacon-card__node--beacon b::before,
+.beacon-card__node--beacon b::after {
+  position: absolute;
+  inset: 9px;
+  content: "";
+  border: 4px solid var(--gw-verdigris);
+  transform: rotate(45deg);
+}
+
+.beacon-card__node--beacon b::after {
+  inset: 15px;
+  border-color: var(--beacon-cyan);
+}
+
+.beacon-card__node--space {
+  min-height: 74px;
+  color: var(--gw-text);
+  border-color: color-mix(in srgb, var(--gw-gold) 54%, var(--gw-line-strong));
+}
+
+.beacon-card__path {
+  position: relative;
+  height: 1px;
+  background: var(--gw-line-strong);
+}
+
+.beacon-card__path::after {
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  content: "";
+  border-top: 1px solid var(--gw-text-muted);
+  border-right: 1px solid var(--gw-text-muted);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.beacon-card[data-state="connected"] .beacon-card__path--space,
+.beacon-card[data-state="trusted"] .beacon-card__path--space {
+  background: color-mix(in srgb, var(--beacon-cyan) 70%, var(--gw-line-strong));
+}
+
+.beacon-card[data-state="degraded"] .beacon-card__path--space {
+  background: repeating-linear-gradient(90deg, var(--beacon-warning) 0 4px, transparent 4px 8px);
+}
+
+.beacon-card__register {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  background: color-mix(in srgb, var(--gw-surface-muted) 58%, transparent);
+  border-top: 1px solid var(--gw-line);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.beacon-card__register div {
+  min-width: 0;
+  padding: 14px 17px;
+  border-right: 1px solid var(--gw-line);
+}
+
+.beacon-card__register div:last-child {
+  border-right: 0;
+}
+
+.beacon-card__register dt {
+  margin: 0 0 7px;
+  color: var(--gw-text-muted);
+  font: 750 8px/1.2 var(--gw-font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.beacon-card__register dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--gw-text);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.beacon-card__actions {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 17px;
+  background: color-mix(in srgb, var(--gw-surface) 91%, transparent);
+}
+
+.beacon-card__actions button,
+.beacon-actions button,
+.beacon-form button {
+  min-height: 38px;
+  padding: 0 14px;
+  color: var(--gw-on-accent);
+  background: var(--gw-verdigris);
+  border: 1px solid color-mix(in srgb, var(--gw-verdigris) 76%, black);
+  border-radius: var(--launcher-radius-small);
+  box-shadow: inset 0 1px color-mix(in srgb, white 30%, transparent);
+  font: 750 9px/1 var(--gw-font-mono);
+  letter-spacing: 0.04em;
+}
+
+.beacon-card__actions button:hover,
+.beacon-actions button:hover,
+.beacon-form button:hover {
+  background: color-mix(in srgb, var(--gw-verdigris) 88%, white);
+}
+
+.beacon-card__actions > span {
+  color: var(--gw-text-muted);
+  font: 700 8px/1.4 var(--gw-font-mono);
+  letter-spacing: 0.04em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+/* Beacon management surface -------------------------------------------- */
+
+.beacon-overlay {
+  z-index: 3;
+}
+
+.beacon-frame {
+  width: min(720px, calc(100vw - 24px));
+}
+
+.beacon-surface {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  color: var(--gw-text);
+  background:
+    linear-gradient(90deg, transparent 0 18%, color-mix(in srgb, var(--gw-line) 52%, transparent) 18% calc(18% + 1px), transparent calc(18% + 1px)),
+    var(--gw-canvas);
+}
+
+.beacon-surface > header {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--gw-header);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.beacon-surface > header h1 {
+  margin: 5px 0 0;
+  font: 400 29px/1 var(--gw-font-display);
+  letter-spacing: -0.025em;
+}
+
+.beacon-surface > header button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--gw-text);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font-size: 22px;
+}
+
+.beacon-surface > header button:hover {
+  background: var(--gw-control-hover);
+}
+
+.beacon-body {
+  padding: 30px 20px;
+}
+
+.beacon-hero {
+  display: flex;
+  gap: 17px;
+  align-items: flex-start;
+  padding-bottom: 25px;
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.beacon-hero-mark {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  flex: 0 0 60px;
+  display: grid;
+  place-items: center;
+  background: var(--gw-surface-muted);
+  border: 1px solid color-mix(in srgb, var(--beacon-cyan) 50%, var(--gw-line-strong));
+  border-radius: 10px;
+}
+
+.beacon-hero-mark::before {
+  width: 34px;
+  height: 28px;
+  content: "";
+  background:
+    linear-gradient(29deg, transparent 46%, var(--gw-line-strong) 47% 53%, transparent 54%),
+    linear-gradient(-29deg, transparent 46%, var(--gw-line-strong) 47% 53%, transparent 54%),
+    linear-gradient(90deg, transparent 46%, var(--gw-line-strong) 47% 53%, transparent 54%);
+}
+
+.beacon-hero-mark i {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--beacon-cyan);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--beacon-cyan) 13%, var(--gw-surface));
+}
+
+.beacon-hero-mark i:nth-child(1) { transform: translate(-14px, 9px); }
+.beacon-hero-mark i:nth-child(2) { transform: translate(14px, 9px); }
+.beacon-hero-mark i:nth-child(3) { transform: translateY(-13px); background: var(--gw-verdigris); }
+
+.beacon-hero h2 {
+  margin: 0 0 9px;
+  font: 400 29px/0.98 var(--gw-font-display);
+  letter-spacing: -0.035em;
+}
+
+.beacon-hero p {
+  margin: 0;
+  color: var(--gw-text-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.beacon-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin: 20px 0;
+}
+
+.beacon-metrics div {
+  padding: 14px;
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.beacon-metrics strong,
+.beacon-metrics span {
+  display: block;
+}
+
+.beacon-metrics strong {
+  color: var(--gw-text);
+  font: 400 19px/1 var(--gw-font-display);
+}
+
+.beacon-metrics span {
+  margin-top: 6px;
+  color: var(--gw-text-muted);
+  font: 700 7.5px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.beacon-identity {
+  margin: 0 0 20px;
+  padding: 14px 0;
+  border-top: 1px solid var(--gw-line);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.beacon-identity div {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.beacon-identity dt {
+  color: var(--gw-text-muted);
+  font: 700 8px/1.4 var(--gw-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.beacon-identity dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--gw-text);
+  font: 600 9px/1.4 var(--gw-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.beacon-form {
+  display: grid;
+  gap: 13px;
+  margin-top: 20px;
+}
+
+.beacon-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--gw-text-muted);
+  font: 700 9px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.beacon-form input {
+  width: 100%;
+  min-height: 43px;
+  padding: 11px 12px;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  outline: 0;
+  font: 500 11px var(--gw-font-mono);
+  text-transform: none;
+}
+
+.beacon-form input:focus {
+  border-color: var(--beacon-cyan);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--beacon-cyan) 15%, transparent);
+}
+
+.beacon-list {
+  margin-top: 20px;
+}
+
+.beacon-list__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.beacon-list__heading span {
+  color: var(--gw-text-muted);
+  font: 700 7.5px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.beacon-services {
+  display: grid;
+  gap: 7px;
+}
+
+.beacon-services article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.beacon-services article > p {
+  grid-column: 2 / -1;
+  margin: 0;
+  color: var(--gw-text-muted);
+  font: 600 7.5px/1.45 var(--gw-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.beacon-services strong,
+.beacon-services small {
+  display: block;
+}
+
+.beacon-services strong {
+  color: var(--gw-text);
+  font-size: 10px;
+}
+
+.beacon-services small {
+  margin-top: 3px;
+  color: var(--gw-text-muted);
+  font: 600 7.5px/1.35 var(--gw-font-mono);
+}
+
+.beacon-services em {
+  color: var(--beacon-cyan);
+  font: 700 7.5px/1 var(--gw-font-mono);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.beacon-service-mark {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--beacon-cyan);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--beacon-cyan) 13%, transparent);
+}
+
+.beacon-empty {
+  margin: 0;
+  padding: 14px;
+  color: var(--gw-text-muted);
+  background: color-mix(in srgb, var(--gw-surface) 68%, transparent);
+  border: 1px dashed var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.beacon-trust {
+  display: grid;
+  gap: 5px;
+  margin-top: 17px;
+  padding: 13px;
+  background: color-mix(in srgb, var(--beacon-warning) 7%, var(--gw-surface));
+  border-left: 3px solid var(--beacon-warning);
+}
+
+.beacon-trust[data-signed="true"] {
+  background: color-mix(in srgb, var(--gw-verdigris) 7%, var(--gw-surface));
+  border-left-color: var(--gw-verdigris);
+}
+
+.beacon-trust strong {
+  font: 400 16px/1.1 var(--gw-font-display);
+}
+
+.beacon-trust span,
+.beacon-footnote {
+  color: var(--gw-text-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.beacon-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.beacon-actions button {
+  flex: 1;
+}
+
+.beacon-actions button:last-child {
+  color: var(--gw-text-muted);
+  background: transparent;
+  border-color: var(--gw-line-strong);
+  box-shadow: none;
+}
+
+.beacon-actions button:last-child:hover {
+  color: var(--gw-text);
+  background: var(--gw-control-hover);
+}
+
+.beacon-notice {
+  margin: 14px 0 0;
+  padding: 11px 12px;
+  color: var(--gw-text-muted);
+  background: var(--gw-surface);
+  border-left: 3px solid var(--gw-line-strong);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.beacon-notice[data-tone="good"] {
+  border-left-color: var(--gw-verdigris);
+}
+
+.beacon-notice[data-tone="error"] {
+  color: var(--launcher-danger);
+  border-left-color: var(--launcher-danger);
+}
+
+.beacon-footnote {
+  margin: 20px 0 0;
+}
+
+@media (max-width: 760px) {
+  .beacon-card__body {
+    grid-template-columns: 1fr;
+  }
+
+  .beacon-card__diagram {
+    width: min(100%, 560px);
+  }
+}
+
+@media (max-width: 520px) {
+  .beacon-card__header,
+  .beacon-card__actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .beacon-card__diagram {
+    min-height: 154px;
+    grid-template-columns: minmax(60px, 1fr) 22px minmax(74px, 1.08fr) 22px minmax(76px, 1.12fr);
+    padding: 11px;
+  }
+
+  .beacon-card__node {
+    padding: 6px;
+    font-size: 6.5px;
+  }
+
+  .beacon-card__register {
+    grid-template-columns: 1fr;
+  }
+
+  .beacon-card__register div {
+    border-right: 0;
+    border-bottom: 1px solid var(--gw-line);
+  }
+
+  .beacon-card__register div:last-child {
+    border-bottom: 0;
+  }
+
+  .beacon-card__actions button {
+    width: 100%;
+  }
+
+  .beacon-card__actions > span {
+    text-align: left;
+  }
+
+  .beacon-frame {
+    width: 100vw;
+  }
+
+  .beacon-body {
+    padding: 25px 15px;
+  }
+
+  .beacon-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .beacon-metrics div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .beacon-actions {
+    display: grid;
+  }
+}
