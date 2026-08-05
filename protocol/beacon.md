@@ -89,13 +89,13 @@ Ambient local cookies, `Origin`, `Referer` and forwarding headers are removed be
 The first Space endpoint is:
 
 ```text
-GET https://greenways.space/beacon/v1/discovery
+GET https://greenways.space/beacon/v1/discovery.json
 ```
 
 Through the local gateway this becomes:
 
 ```text
-GET http://127.0.0.1:58100/space/discovery
+GET http://127.0.0.1:58100/space/discovery.json
 ```
 
 The `greenways-space/1` record identifies Space and lists service descriptors for Hestia, Ignatius and later modules. Descriptors are inert data. They may include service IDs, protocol versions, capability names and status; they cannot contain JavaScript, Wasm, HAL, HTML, extension entrypoints or another executable payload.
