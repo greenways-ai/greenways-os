@@ -5,6 +5,7 @@ import {
   BEACON_PROTOCOL,
   SPACE_PROTOCOL,
   BeaconClient,
+  beaconPermissionPattern,
   normalizeBeaconDescriptor,
   normalizeBeaconOrigin,
   normalizeSpaceDescriptor,
@@ -91,6 +92,8 @@ test("accepts loopback Beacon HTTP and remote Beacon HTTPS only", () => {
   assert.equal(normalizeBeaconOrigin("http://127.0.0.1:58100"), "http://127.0.0.1:58100");
   assert.equal(normalizeBeaconOrigin("http://localhost:58100"), "http://localhost:58100");
   assert.equal(normalizeBeaconOrigin("https://beacon.example"), "https://beacon.example");
+  assert.equal(beaconPermissionPattern("http://127.0.0.1:58100"), "http://127.0.0.1/*");
+  assert.equal(beaconPermissionPattern("https://beacon.example:8443"), "https://beacon.example/*");
   assert.throws(() => normalizeBeaconOrigin("http://192.168.1.20:58100"), /must use HTTPS/);
   assert.throws(() => normalizeBeaconOrigin("https://beacon.example/private"), /without a path/);
   assert.throws(() => normalizeBeaconOrigin("https://user@beacon.example"), /credentials/);
