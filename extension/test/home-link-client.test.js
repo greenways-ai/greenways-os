@@ -6,9 +6,11 @@ import { runInNewContext } from "node:vm";
 import {
   createHomeDevice,
   createSignedHomeRequest,
+  normalizeHomeDiscovery,
   normalizeHomeOrigin,
   normalizePairingCode,
-  normalizeServiceDescriptor,
+  requestHomeOriginAccess,
+  revokeHomeOriginAccess,
 } from "../src/home-link-client.js";
 import { canonical } from "../src/protocol.js";
 
@@ -27,19 +29,39 @@ test("normalizes bounded home origins and one-time pairing codes", () => {
 });
 
 test("rejects executable fields in home discovery service metadata", () => {
-  const service = {
-    id: "historia",
-    name: "Historia",
-    kind: "memory",
-    version: "1",
-    capabilities: ["history.import"],
-    status: "available",
+  const base = {
+    protocol: "greenways-home/1",
+    node: {
+      id: "home.test",
+      name: "Test Home",
+      algorithm: "ECDSA-P256-SHA256",
+      keyId: `sha256:${"0".repeat(64)}`,
+      publicKey: {
+        kty: "EC",
+        crv: "P-256",
+        x: "x",
+        y: "y",
+        ext: true,
+        key_ops: ["verify"],
+      },
+    },
+    pairing: { available: true },
+    services: [{
+      id: "historia",
+      name: "Historia",
+      kind: "memory",
+      version: "1",
+      capabilities: ["history.import"],
+      status: "available",
+    }],
+    issuedAt: "2026-08-05T00:00:00.000Z",
+    signature: "signature",
   };
-  assert.equal(normalizeServiceDescriptor(service).id, "historia");
+  assert.equal(normalizeHomeDiscovery(base).services[0].id, "historia");
   assert.throws(
-    () => normalizeServiceDescriptor({
-      ...service,
-      script: "https://home.example/historia.js",
+    () => normalizeHomeDiscovery({
+      ...base,
+      services: [{ ...base.services[0], script: "https://home.example/historia.js" }],
     }),
     /unsupported field script/,
   );
@@ -76,7 +98,27 @@ test("signs method, path, nonce, time, and body hash with the browser device key
   ), true);
 });
 
-test("browser runtime binds receiver-sensitive fetch before modules capture it", async () => {
+test("requests and revokes the browser match-pattern origin", async () => {
+  const operations = [];
+  const permissions = {
+    request: async (value) => {
+      operations.push(["request", value]);
+      return true;
+    },
+    remove: async (value) => {
+      operations.push(["remove", value]);
+      return true;
+    },
+  };
+  await requestHomeOriginAccess("http://127.0.0.1:58100", permissions);
+  await revokeHomeOriginAccess("http://127.0.0.1:58100", permissions);
+  assert.deepEqual(operations, [
+    ["request", { origins: ["http://127.0.0.1:58100/*"] }],
+    ["remove", { origins: ["http://127.0.0.1:58100/*"] }],
+  ]);
+});
+
+test("browser runtime binds receiver-sensitive APIs before modules capture them", async () => {
   const runtime = await readFile(new URL("../src/browser-runtime.js", import.meta.url), "utf8");
   const browserGlobal = {
     marker: "browser-global",
@@ -93,7 +135,7 @@ test("browser runtime binds receiver-sensitive fetch before modules capture it",
   assert.equal(browserGlobal.calls, 1);
 });
 
-test("launcher packages Home Link locally rather than as remote UI", async () => {
+test("launcher packages legacy Home Link locally as a migration surface", async () => {
   const [html, entry, css] = await Promise.all([
     readFile(new URL("../src/launcher.html", import.meta.url), "utf8"),
     readFile(new URL("../src/home-link-surface.js", import.meta.url), "utf8"),
@@ -106,8 +148,10 @@ test("launcher packages Home Link locally rather than as remote UI", async () =>
     "browser runtime must bind receiver-sensitive APIs before Home Link loads",
   );
   assert.match(entry, /createHomeDevice/);
-  assert.match(entry, /Descriptions only/);
+  assert.match(entry, /LEGACY SERVICE DESCRIPTORS/);
+  assert.match(entry, /Compatibility only/);
   assert.match(entry, /never evaluates remote JavaScript, Wasm, HAL/);
+  assert.match(entry, /Greenways Beacon is the Hoplite gateway/);
   assert.doesNotMatch(entry, /innerHTML\s*=\s*await\s+fetch/);
   assert.match(css, /var\(--gw-canvas\)/);
   assert.match(entry, /stopImmediatePropagation/);

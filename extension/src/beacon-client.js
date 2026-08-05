@@ -95,13 +95,11 @@ export function normalizeBeaconOrigin(value) {
 }
 
 /**
- * Chrome host permissions are match patterns and do not include ports. Beacon
- * still fetches the exact configured origin; the permission necessarily covers
- * that host's other ports because that is the browser platform's granularity.
+ * Chrome origin permissions use match patterns, which accept an explicit port.
+ * Keep permission scope aligned with the exact configured Beacon origin.
  */
 export function beaconPermissionPattern(value) {
-  const url = new URL(normalizeBeaconOrigin(value));
-  return `${url.protocol}//${url.hostname}/*`;
+  return `${normalizeBeaconOrigin(value)}/*`;
 }
 
 function normalizeRuntime(value) {
