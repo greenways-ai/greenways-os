@@ -72,7 +72,7 @@ In another terminal:
 
 ```sh
 curl http://127.0.0.1:58100/.well-known/greenways-beacon
-curl http://127.0.0.1:58100/space/discovery
+curl http://127.0.0.1:58100/space/discovery.json
 ```
 
 Other commands delegate to Hoplite:
