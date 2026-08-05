@@ -34,7 +34,7 @@
    {"origin" space-origin
     "protocol" space-protocol
     "localPrefix" "/space/"
-    "discovery" "/space/discovery"}
+    "discovery" "/space/discovery.json"}
    "boundaries"
    {"browserKernel" "Greenways OS"
     "serviceAuthority" "Greenways Space"
@@ -70,6 +70,7 @@
                "authority" "local"}
      "space" {"origin" space-origin
               "route" "/space/"
+              "discovery" "/space/discovery.json"
               "connection" "on-demand"}
      "services" {"source" "greenways.space"
                  "localCopies" false}}))
