@@ -4,19 +4,25 @@ import test from "node:test";
 
 const source = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-const [html, homeNodeRuntime, homeNodeTheme, protocol] = await Promise.all([
+const [html, homeNodeRuntime, homeNodeTheme, beaconRuntime, protocol] = await Promise.all([
   source("../src/launcher.html"),
   source("../src/home-node.js"),
   source("../src/home-node.css"),
+  source("../src/beacon-surface.js"),
   source("../../protocol/home-node.md"),
 ]);
 
-test("launcher promotes the Hestia Home Node above applications", () => {
+test("launcher promotes Beacon and retains Home Link as migration support", () => {
+  assert.match(html, /href="beacon\.css"/);
+  assert.match(html, /src="beacon-surface\.js"/);
   assert.match(html, /href="home-node\.css"/);
   assert.match(html, /src="home-node\.js"/);
-  assert.match(homeNodeRuntime, /HOME NODE \/ PRIVATE SERVICE HOST/);
-  assert.match(homeNodeRuntime, /Give your browsers a home you control\./);
+  assert.match(homeNodeRuntime, /LEGACY HOME LINK \/ DEVICE MIGRATION/);
+  assert.match(homeNodeRuntime, /Legacy Home Link remains available for migration\./);
+  assert.match(homeNodeRuntime, /Greenways Beacon/);
   assert.match(homeNodeRuntime, /data-home-node-action/);
+  assert.match(beaconRuntime, /data-beacon/);
+  assert.match(beaconRuntime, /A local way into Greenways Space\./);
 });
 
 test("home-node presentation extends the canonical Greenways language", () => {
@@ -27,7 +33,7 @@ test("home-node presentation extends the canonical Greenways language", () => {
   assert.doesNotMatch(homeNodeTheme, /https?:\/\//);
 });
 
-test("home-node control composes with the reviewed launcher", () => {
+test("legacy home-node control composes with the reviewed connector", () => {
   assert.match(homeNodeRuntime, /\[data-install-app\]/);
   assert.match(homeNodeRuntime, /\[data-open-app\]/);
   assert.match(homeNodeRuntime, /store\.get\("settings", "hestia"\)/);
