@@ -1,7 +1,7 @@
 name: Greenways Beacon
 
 env:
-  HOPLITE_REF: 2fee00432677b5efc6efce9ffac47188596e8c88
+  HOPLITE_REF: 344194ea7834d2e996c9f05cf1ca83aa9bc17129
   HARA_REF: ba52a6bfce31aeff7359d0e60d7f8d1538204694
 
 on:
@@ -63,6 +63,10 @@ jobs:
           OPENAPI=greenways-os/services/beacon/.hoplite/openapi/greenways-beacon.json
           grep -F 'location ^~ /space/' "$CONFIG"
           grep -F 'proxy_pass https://greenways.space/beacon/v1/;' "$CONFIG"
+          grep -F 'proxy_ssl_server_name on;' "$CONFIG"
+          grep -F 'proxy_ssl_name greenways.space;' "$CONFIG"
+          grep -F 'proxy_ssl_verify on;' "$CONFIG"
+          grep -F 'proxy_ssl_trusted_certificate ' "$CONFIG"
           grep -F 'proxy_set_header Host greenways.space;' "$CONFIG"
           grep -F 'proxy_set_header Cookie "";' "$CONFIG"
           grep -F 'proxy_set_header Origin "";' "$CONFIG"
