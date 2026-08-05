@@ -17,12 +17,12 @@ const test = base.extend({
     await context.close();
   },
   extensionId: async ({ context }, use) => {
-    let worker = context.serviceWorkers().find(({ url }) => (
-      url().endsWith("/dist/background.js")
+    let worker = context.serviceWorkers().find((candidate) => (
+      candidate.url().endsWith("/dist/background.js")
     ));
     if (!worker) {
       worker = await context.waitForEvent("serviceworker", {
-        predicate: ({ url }) => url().endsWith("/dist/background.js"),
+        predicate: (candidate) => candidate.url().endsWith("/dist/background.js"),
       });
     }
     await use(new URL(worker.url()).host);
@@ -54,7 +54,7 @@ test("launcher presents Beacon as the Hoplite gateway to Greenways Space", async
   await expect(dialog.getByLabel("Beacon origin")).toHaveValue(
     "http://127.0.0.1:58100",
   );
-  await expect(dialog).toContainText("Hara on Hoplite");
+  await expect(dialog).toContainText("local Beacon");
   await expect(dialog).toContainText("greenways.space");
   await expect(dialog).toContainText("Beacon is a gateway, not an account.");
   await expect(dialog).toContainText("Descriptors from Beacon and Space are validated as inert data.");
