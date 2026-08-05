@@ -1,7 +1,7 @@
 name: Greenways Beacon
 
 env:
-  HOPLITE_REF: 344194ea7834d2e996c9f05cf1ca83aa9bc17129
+  HOPLITE_REF: f7eae49e72b6bf2f9ed56187682e4a21d6ee818c
   HARA_REF: ba52a6bfce31aeff7359d0e60d7f8d1538204694
 
 on:
