@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
+import { createHomeNodeAdmin } from "./admin.js";
 import {
   GreenwaysHomeNode,
   HOME_ERROR_PROTOCOL,
@@ -18,7 +19,7 @@ function browserOrigin(value) {
 function corsHeaders(origin = null) {
   return {
     "access-control-allow-origin": origin || "*",
-    "vary": "Origin",
+    vary: "Origin",
     "access-control-allow-methods": "GET, POST, OPTIONS",
     "access-control-allow-headers": "content-type",
     "access-control-allow-private-network": "true",
@@ -53,15 +54,63 @@ async function readJson(request) {
   }
 }
 
+function originHost(host) {
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
+function listeningOrigin(server, host) {
+  const address = server.address();
+  if (!address || typeof address === "string") return null;
+  return `http://${originHost(host)}:${address.port}`;
+}
+
+/**
+ * One mutation lane for the compatibility service.
+ *
+ * Pairing, signed presence, unpairing, and local administration all touch the
+ * same node maps and durable state file. The queue prevents an administrator
+ * revocation from racing a signed browser request, and keeps accepting work
+ * after an earlier operation fails.
+ */
+export function createHomeNodeOperationQueue() {
+  let tail = Promise.resolve();
+  return function runExclusive(operation) {
+    if (typeof operation !== "function") {
+      return Promise.reject(new TypeError("Home Node operation must be a function"));
+    }
+    const result = tail.then(operation);
+    tail = result.then(() => undefined, () => undefined);
+    return result;
+  };
+}
+
 export function createHomeNodeServer({ node = new GreenwaysHomeNode(), host = "127.0.0.1", port = 58100 } = {}) {
   if (!LOOPBACK_BIND_HOSTS.has(host)) {
     throw new Error("The development Home Node must bind to loopback and sit behind HTTPS for remote routes");
   }
-  const server = createServer(async (request, response) => {
+
+  let server = null;
+  const getOrigin = () => listeningOrigin(server, host);
+  const runExclusive = createHomeNodeOperationQueue();
+  const admin = createHomeNodeAdmin({ node, getOrigin });
+
+  server = createServer(async (request, response) => {
     let origin = null;
     try {
+      const url = new URL(
+        request.url ?? "/",
+        getOrigin() ?? `http://${originHost(host)}:${port}`,
+      );
+
+      // The legacy administrator has a separate loopback, Host, session, and
+      // CSRF boundary. Resolve it before the extension-origin CORS gate and in
+      // the same mutation lane as signed browser operations.
+      if (admin.matches(url.pathname)) {
+        await runExclusive(() => admin.handle({ request, response, url }));
+        return;
+      }
+
       origin = browserOrigin(request.headers.origin);
-      const url = new URL(request.url ?? "/", `http://${request.headers.host ?? `${host}:${port}`}`);
       if (request.method === "OPTIONS") {
         response.writeHead(204, corsHeaders(origin));
         response.end();
@@ -72,26 +121,33 @@ export function createHomeNodeServer({ node = new GreenwaysHomeNode(), host = "1
         return;
       }
       if (request.method === "POST" && url.pathname === "/greenways/v1/pair") {
-        writeJson(response, 200, node.pair(await readJson(request)), origin);
+        const body = await readJson(request);
+        writeJson(response, 200, await runExclusive(() => node.pair(body)), origin);
         return;
       }
       if (request.method === "POST" && url.pathname === "/greenways/v1/status") {
-        writeJson(response, 200, await node.status(await readJson(request)), origin);
+        const body = await readJson(request);
+        writeJson(response, 200, await runExclusive(() => node.status(body)), origin);
         return;
       }
       if (request.method === "POST" && url.pathname === "/greenways/v1/unpair") {
-        writeJson(response, 200, await node.unpair(await readJson(request)), origin);
+        const body = await readJson(request);
+        writeJson(response, 200, await runExclusive(() => node.unpair(body)), origin);
         return;
       }
       throw new HomeNodeError(404, "not-found", "Greenways home endpoint was not found");
     } catch (error) {
       const status = error instanceof HomeNodeError ? error.status : 500;
       const code = error instanceof HomeNodeError ? error.code : "internal-error";
-      writeJson(response, status, {
-        protocol: HOME_ERROR_PROTOCOL,
-        error: code,
-        message: status === 500 ? "The home node could not complete the request" : error.message,
-      }, origin);
+      if (!response.headersSent) {
+        writeJson(response, status, {
+          protocol: HOME_ERROR_PROTOCOL,
+          error: code,
+          message: status === 500 ? "The home node could not complete the request" : error.message,
+        }, origin);
+      } else {
+        response.destroy();
+      }
     }
   });
 
@@ -113,10 +169,15 @@ export function createHomeNodeServer({ node = new GreenwaysHomeNode(), host = "1
       if (!server.listening) return;
       await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     },
+    issuePairingCode() {
+      return runExclusive(() => node.issuePairingCode());
+    },
     get origin() {
-      const address = server.address();
-      if (!address || typeof address === "string") return null;
-      return `http://${host}:${address.port}`;
+      return getOrigin();
+    },
+    get adminUrl() {
+      const origin = getOrigin();
+      return origin ? `${origin}/admin` : null;
     },
   };
 }
@@ -151,29 +212,30 @@ function defaultServices() {
 }
 
 async function main() {
-  let latestCode = null;
   const node = new GreenwaysHomeNode({
     id: process.env.GREENWAYS_HOME_ID || "greenways-home-dev",
-    name: process.env.GREENWAYS_HOME_NAME || "Greenways Home (development)",
+    name: process.env.GREENWAYS_HOME_NAME || "Greenways Home (compatibility)",
     services: defaultServices(),
     onPairingCode(code, pairing) {
-      latestCode = code;
       console.log(`Greenways Home pairing code: ${code} (expires ${pairing.expiresAt})`);
     },
   });
-  node.issuePairingCode();
 
   const host = process.env.HOST || "127.0.0.1";
   const port = Number(process.env.PORT || 58100);
   const app = createHomeNodeServer({ node, host, port });
   await app.listen();
-  console.log(`Greenways Home listening at ${app.origin}`);
-  console.log("The server advertises inert service descriptors only; it never sends browser code.");
+  console.log(`Greenways Home compatibility service listening at ${app.origin}`);
+  console.log(`Local control plane: ${app.adminUrl}`);
+  console.log("Pairing is closed until it is opened locally or SIGUSR1 is sent.");
+  console.log("New gateway work belongs in Greenways Beacon on Hoplite.");
 
-  process.on("SIGUSR1", () => node.issuePairingCode());
+  process.on("SIGUSR1", () => {
+    app.issuePairingCode().catch((error) => console.error("Could not issue pairing code", error));
+  });
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.once(signal, async () => {
-      console.log(`Closing Greenways Home (${latestCode ? "pairing code invalidated" : "no active pairing code"})…`);
+      console.log("Closing Greenways Home compatibility service…");
       await app.close();
       process.exit(0);
     });
