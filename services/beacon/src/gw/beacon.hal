@@ -1,4 +1,4 @@
-(ns greenways.beacon
+(ns gw.beacon
   (:require [hoplite.core :as h]
             [std.json :as json]))
 
@@ -29,6 +29,7 @@
    "runtime"
    {"applicationServer" "Hoplite"
     "language" "Hara"
+    "namespace" "gw.beacon"
     "edge" "Nginx"}
    "space"
    {"origin" space-origin

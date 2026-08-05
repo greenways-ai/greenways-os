@@ -6,12 +6,12 @@
  :project/test-paths []
  :project/extension-paths []
  :project/capabilities #{:host/nginx}
- :project/main greenways.beacon
+ :project/main gw.beacon
  :project/default-profile :server
  :project/profiles
  {:server
   {:profile/language :hoplite
-   :profile/main greenways.beacon/app
+   :profile/main gw.beacon/app
    :profile/options {:port 58100
                      :workers 1}
    :profile/extensions
