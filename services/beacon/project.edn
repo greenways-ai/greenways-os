@@ -1,0 +1,24 @@
+{:hara/type :project
+ :hara/version "1.0.0"
+ :project/id greenways.beacon/service
+ :project/version "0.1.0"
+ :project/source-paths ["src"]
+ :project/test-paths []
+ :project/extension-paths []
+ :project/capabilities #{:host/nginx}
+ :project/main greenways.beacon
+ :project/default-profile :server
+ :project/profiles
+ {:server
+  {:profile/language :hoplite
+   :profile/main greenways.beacon/app
+   :profile/options {:port 58100
+                     :workers 1}
+   :profile/extensions
+   {:extension/hoplite
+    {:hoplite/authentication
+     {:auth/realms
+      {:management {:auth/providers [:auth/key]
+                    :auth/required true}
+       :application {:auth/providers [:auth/key]
+                     :auth/required false}}}}}}}}

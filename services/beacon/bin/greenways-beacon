@@ -1,0 +1,71 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+HOPLITE=${HOPLITE:-hoplite}
+ORIGIN=${GREENWAYS_BEACON_ORIGIN:-http://127.0.0.1:58100}
+ACTION=${1:-run}
+if [ "$#" -gt 0 ]; then
+  shift
+fi
+
+serve() {
+  command "$HOPLITE" serve "$1" --profile server --mode "$2" "$ROOT"
+}
+
+case "$ACTION" in
+  run|foreground)
+    exec "$HOPLITE" serve foreground --profile server --mode prod "$ROOT"
+    ;;
+  dev)
+    exec "$HOPLITE" serve foreground --profile server --mode dev "$ROOT"
+    ;;
+  check)
+    exec "$HOPLITE" serve check --profile server --mode prod "$ROOT"
+    ;;
+  build)
+    exec "$HOPLITE" serve build --profile server --mode prod "$ROOT"
+    ;;
+  start|status|reload|stop|install|uninstall)
+    exec "$HOPLITE" serve "$ACTION" --profile server --mode prod "$ROOT"
+    ;;
+  open)
+    URL="$ORIGIN/"
+    if command -v open >/dev/null 2>&1; then
+      exec open "$URL"
+    elif command -v xdg-open >/dev/null 2>&1; then
+      exec xdg-open "$URL"
+    else
+      printf '%s\n' "$URL"
+    fi
+    ;;
+  space)
+    exec curl --fail --silent --show-error "$ORIGIN/space/discovery"
+    ;;
+  help|-h|--help)
+    cat <<'EOF'
+Greenways Beacon · local Hoplite gateway to greenways.space
+
+Usage:
+  greenways-beacon run       Run Beacon in the foreground
+  greenways-beacon dev       Run the development profile
+  greenways-beacon check     Validate the Hara/Hoplite project
+  greenways-beacon build     Build Hoplite and Nginx configuration
+  greenways-beacon start     Start the Hoplite service
+  greenways-beacon status    Inspect the Hoplite process
+  greenways-beacon reload    Reload the service
+  greenways-beacon stop      Stop the service
+  greenways-beacon install   Install the macOS LaunchAgent
+  greenways-beacon uninstall Remove the macOS LaunchAgent
+  greenways-beacon open      Open the local Beacon descriptor
+  greenways-beacon space     Read Space discovery through Beacon
+
+Set HOPLITE to select the Hoplite executable and GREENWAYS_BEACON_ORIGIN
+when operating a non-default loopback listener.
+EOF
+    ;;
+  *)
+    printf 'greenways-beacon: unknown command: %s\n' "$ACTION" >&2
+    exit 2
+    ;;
+esac
