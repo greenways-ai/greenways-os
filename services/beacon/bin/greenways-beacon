@@ -9,10 +9,6 @@ if [ "$#" -gt 0 ]; then
   shift
 fi
 
-serve() {
-  command "$HOPLITE" serve "$1" --profile server --mode "$2" "$ROOT"
-}
-
 case "$ACTION" in
   run|foreground)
     exec "$HOPLITE" serve foreground --profile server --mode prod "$ROOT"
@@ -40,7 +36,7 @@ case "$ACTION" in
     fi
     ;;
   space)
-    exec curl --fail --silent --show-error "$ORIGIN/space/discovery"
+    exec curl --fail --silent --show-error "$ORIGIN/space/discovery.json"
     ;;
   help|-h|--help)
     cat <<'EOF'
