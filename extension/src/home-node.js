@@ -3,9 +3,9 @@ import { store } from "./storage.js";
 const appRoot = document.querySelector("#launcher-app");
 const HOME_APP_ID = "hestia-connector";
 const COPY = {
-  eyebrow: "LOCAL KERNEL · PRIVATE HOME · PARTICIPATION BY INVITATION",
-  heading: "Bring your browser<br><em>back home.</em>",
-  description: "Greenways OS keeps a sovereign kernel inside each browser profile, then gives those profiles a private Hestia home for services, records and agents you control.",
+  eyebrow: "LOCAL KERNEL · GREENWAYS BEACON · SPACE BY CONSENT",
+  heading: "One browser.<br><em>Connected worlds.</em>",
+  description: "Greenways OS keeps a sovereign Hara kernel inside each browser profile. Greenways Beacon adds a local Hoplite gateway to greenways.space, where Hestia, Ignatius and other services appear only through explicit consent.",
 };
 
 let decorateScheduled = false;
@@ -72,10 +72,10 @@ function homeModel({ connection, installed, available }) {
   if (connection) {
     return {
       state: "connected",
-      label: "Connected",
-      title: "This browser has a private route home.",
-      description: "Signed records can move between this browser profile and your Hestia node without making remote participation a condition of use.",
-      action: "Open home link",
+      label: "Legacy link",
+      title: "This browser retains its original Home Link.",
+      description: "The signed browser relationship remains available while device identity migrates to Greenways Beacon. It is compatibility infrastructure, not the new route to Greenways Space.",
+      action: "Open legacy link",
       address: homeAddress(connection),
       route: routeLabel(connection),
       disabled: !available,
@@ -85,10 +85,10 @@ function homeModel({ connection, installed, available }) {
   if (installed) {
     return {
       state: "ready",
-      label: "Connector ready",
-      title: "Pair this browser with a home node.",
-      description: "The local kernel is already usable. Pairing adds a private Hestia authority for Historia, Hara, agents, files and future Home Services.",
-      action: "Pair home node",
+      label: "Legacy connector",
+      title: "Use Home Link only for compatibility.",
+      description: "The bundled Hestia connector can still pair with the first Home Node protocol. New gateway and service discovery work belongs in Greenways Beacon.",
+      action: "Pair legacy Home Link",
       address: "Awaiting origin",
       route: "Local only",
       disabled: !available,
@@ -97,10 +97,10 @@ function homeModel({ connection, installed, available }) {
 
   return {
     state: "local",
-    label: "Local only",
-    title: "Give your browsers a home you control.",
-    description: "Enable the bundled Hestia connector to pair this browser profile with a machine in your home. Nothing is exposed publicly and the browser remains useful offline.",
-    action: "Enable home connector",
+    label: "Compatibility only",
+    title: "Legacy Home Link remains available for migration.",
+    description: "Enable the old connector only when preserving or exporting an existing browser-to-home relationship. Beacon is the primary local gateway for new installations.",
+    action: "Enable legacy connector",
     address: "Not configured",
     route: "Local only",
     disabled: !available,
@@ -113,8 +113,8 @@ function operatingLayers() {
   register.setAttribute("aria-label", "Greenways operating layers");
   register.innerHTML = `
     <span><b>01</b> Local browser kernel</span>
-    <span><b>02</b> Private home link</span>
-    <span><b>03</b> Participation by consent</span>
+    <span><b>02</b> Greenways Beacon</span>
+    <span><b>03</b> Space services by consent</span>
   `;
   return register;
 }
@@ -123,7 +123,7 @@ function homeNodeMarkup(model, connection) {
   const origin = connection?.origin || model.address;
   return `<section class="home-node" data-state="${model.state}" data-home-node aria-labelledby="home-node-heading">
     <header class="home-node__header">
-      <p class="home-node__kicker">HOME NODE / PRIVATE SERVICE HOST</p>
+      <p class="home-node__kicker">LEGACY HOME LINK / DEVICE MIGRATION</p>
       <span class="home-node__state" data-state="${model.state}"><i></i>${escapeHtml(model.label)}</span>
     </header>
     <div class="home-node__body">
@@ -134,18 +134,18 @@ function homeNodeMarkup(model, connection) {
       <div class="home-node__diagram" data-state="${model.state}" aria-hidden="true">
         <span class="home-node__browser">THIS BROWSER</span>
         <i class="home-node__rail"></i>
-        <span class="home-node__core"><b></b>HESTIA NODE</span>
-        <span class="home-node__service">SIGNED SERVICES</span>
+        <span class="home-node__core"><b></b>LEGACY HOME NODE</span>
+        <span class="home-node__service">COMPATIBILITY SERVICES</span>
       </div>
     </div>
     <dl class="home-node__register">
       <div><dt>This browser</dt><dd>Local kernel</dd></div>
-      <div><dt>Home address</dt><dd title="${escapeHtml(origin)}">${escapeHtml(model.address)}</dd></div>
+      <div><dt>Legacy address</dt><dd title="${escapeHtml(origin)}">${escapeHtml(model.address)}</dd></div>
       <div><dt>Route</dt><dd>${escapeHtml(model.route)}</dd></div>
     </dl>
     <div class="home-node__actions">
       <button type="button" data-home-node-action${model.disabled ? " disabled aria-disabled=\"true\"" : ""}>${escapeHtml(model.action)}</button>
-      <a href="#app-${HOME_APP_ID}">Inspect the Hestia connector</a>
+      <a href="#app-${HOME_APP_ID}">Inspect the legacy Hestia connector</a>
     </div>
   </section>`;
 }
@@ -164,7 +164,7 @@ function waitForControl(predicate, timeout = 4_000) {
     });
     const timer = setTimeout(() => {
       observer.disconnect();
-      reject(new Error("The Hestia connector did not become ready"));
+      reject(new Error("The legacy Hestia connector did not become ready"));
     }, timeout);
     observer.observe(appRoot, { childList: true, subtree: true });
   });
@@ -242,8 +242,8 @@ async function decorateLauncher() {
   setText(
     privacy,
     connection
-      ? `Paired with ${homeAddress(connection)}`
-      : "No remote service is trusted by default",
+      ? `Legacy Home Link paired with ${homeAddress(connection)}`
+      : "Beacon and Space remain optional",
   );
 }
 
