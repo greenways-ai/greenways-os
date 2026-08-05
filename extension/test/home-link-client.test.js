@@ -35,7 +35,7 @@ test("rejects executable fields in home discovery service metadata", () => {
       id: "home.test",
       name: "Test Home",
       algorithm: "ECDSA-P256-SHA256",
-      keyId: "sha256:test-node",
+      keyId: `sha256:${"0".repeat(64)}`,
       publicKey: {
         kty: "EC",
         crv: "P-256",
@@ -113,8 +113,8 @@ test("requests and revokes the browser match-pattern origin", async () => {
   await requestHomeOriginAccess("http://127.0.0.1:58100", permissions);
   await revokeHomeOriginAccess("http://127.0.0.1:58100", permissions);
   assert.deepEqual(operations, [
-    ["request", { origins: ["http://127.0.0.1/*"] }],
-    ["remove", { origins: ["http://127.0.0.1/*"] }],
+    ["request", { origins: ["http://127.0.0.1:58100/*"] }],
+    ["remove", { origins: ["http://127.0.0.1:58100/*"] }],
   ]);
 });
 
