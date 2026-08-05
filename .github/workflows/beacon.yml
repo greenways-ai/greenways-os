@@ -1,0 +1,75 @@
+name: Greenways Beacon
+
+env:
+  HOPLITE_REF: 344194ea7834d2e996c9f05cf1ca83aa9bc17129
+  HARA_REF: ba52a6bfce31aeff7359d0e60d7f8d1538204694
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/beacon/**"
+      - "protocol/beacon.md"
+      - ".github/workflows/beacon.yml"
+  pull_request:
+    paths:
+      - "services/beacon/**"
+      - "protocol/beacon.md"
+      - ".github/workflows/beacon.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beacon-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hoplite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: greenways-os
+      - uses: actions/checkout@v5
+        with:
+          repository: greenways-ai/hoplite
+          ref: ${{ env.HOPLITE_REF }}
+          path: hoplite
+      - uses: actions/checkout@v5
+        with:
+          repository: hara-lang/hara
+          ref: ${{ env.HARA_REF }}
+          path: hara.lang
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate operator scripts
+        run: |
+          sh -n greenways-os/services/beacon/bin/greenways-beacon
+          sh -n greenways-os/services/beacon/bin/greenways-home
+      - name: Check the Beacon project
+        run: >-
+          cargo run --manifest-path hoplite/Cargo.toml --
+          serve check --profile server --mode prod
+          greenways-os/services/beacon
+      - name: Build the Hoplite ingress
+        run: >-
+          cargo run --manifest-path hoplite/Cargo.toml --
+          serve build --profile server --mode prod
+          greenways-os/services/beacon
+      - name: Verify the immutable Space route
+        run: |
+          CONFIG=greenways-os/services/beacon/.hoplite/conf/nginx.conf
+          OPENAPI=greenways-os/services/beacon/.hoplite/openapi/greenways-beacon.json
+          grep -F 'location ^~ /space/' "$CONFIG"
+          grep -F 'proxy_pass https://greenways.space/beacon/v1/;' "$CONFIG"
+          grep -F 'proxy_ssl_server_name on;' "$CONFIG"
+          grep -F 'proxy_ssl_name greenways.space;' "$CONFIG"
+          grep -F 'proxy_ssl_verify on;' "$CONFIG"
+          grep -F 'proxy_ssl_trusted_certificate ' "$CONFIG"
+          grep -F 'proxy_set_header Host greenways.space;' "$CONFIG"
+          grep -F 'proxy_set_header Cookie "";' "$CONFIG"
+          grep -F 'proxy_set_header Origin "";' "$CONFIG"
+          grep -F '"x-hoplite-static-proxies"' "$OPENAPI"
+          grep -F '"/space/"' "$OPENAPI"
+          grep -F '"https://greenways.space/beacon/v1/"' "$OPENAPI"

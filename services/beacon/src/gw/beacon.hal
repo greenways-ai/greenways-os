@@ -1,0 +1,115 @@
+(ns gw.beacon
+  (:require [hoplite.core :as h]
+            [std.json :as json]))
+
+(def protocol "greenways-beacon/1")
+(def space-protocol "greenways-space/1")
+(def space-origin "https://greenways.space")
+
+(def public-headers
+  {"content-type" "application/json; charset=utf-8"
+   "cache-control" "no-store"
+   "access-control-allow-origin" "*"
+   "access-control-allow-methods" "GET, OPTIONS"
+   "access-control-allow-headers" "authorization, content-type"
+   "x-content-type-options" "nosniff"})
+
+(defn json-response
+  [status value]
+  {:status status
+   :headers public-headers
+   :body (json/write value)})
+
+(defn descriptor
+  []
+  {"protocol" protocol
+   "id" "greenways.beacon"
+   "name" "Greenways Beacon"
+   "role" "local-gateway"
+   "runtime"
+   {"applicationServer" "Hoplite"
+    "language" "Hara"
+    "namespace" "gw.beacon"
+    "edge" "Nginx"}
+   "space"
+   {"origin" space-origin
+    "protocol" space-protocol
+    "localPrefix" "/space/"
+    "discovery" "/space/discovery.json"}
+   "boundaries"
+   {"browserKernel" "Greenways OS"
+    "serviceAuthority" "Greenways Space"
+    "privateOffice" "Hestia"
+    "agentService" "Ignatius"}
+   "capabilities"
+   ["space.discovery"
+    "space.transport"
+    "local.health"]
+   "legacy"
+   {"protocol" "greenways-home/1"
+    "status" "compatibility-only"}})
+
+(defn root
+  [_request]
+  (json-response 200 (descriptor)))
+
+(defn health
+  [_request]
+  (json-response
+    200
+    {"protocol" "greenways-beacon-health/1"
+     "status" "ready"
+     "runtime" "hoplite"
+     "spaceRoute" "/space/"}))
+
+(defn status
+  [_request]
+  (json-response
+    200
+    {"protocol" "greenways-beacon-status/1"
+     "beacon" {"status" "ready"
+               "authority" "local"}
+     "space" {"origin" space-origin
+              "route" "/space/"
+              "discovery" "/space/discovery.json"
+              "connection" "on-demand"}
+     "services" {"source" "greenways.space"
+                 "localCopies" false}}))
+
+(defn preflight
+  [_request]
+  {:status 204
+   :headers public-headers
+   :body ""})
+
+(def app
+  (h/app
+    {:name "greenways-beacon"
+     :proxies
+     [{:path "/space/"
+       :upstream "https://greenways.space/beacon/v1/"}]
+     :resources
+     [["/"
+       {:get {:name :beacon/root
+              :summary "Describe this Greenways Beacon"
+              :handler #'root}
+        :options {:name :beacon/root-options
+                  :handler #'preflight}}]
+      ["/.well-known/greenways-beacon"
+       {:get {:name :beacon/discovery
+              :summary "Discover the local Beacon and its Space route"
+              :handler #'root}
+        :options {:name :beacon/discovery-options
+                  :handler #'preflight}}]
+      ["/beacon/v1/health"
+       {:get {:name :beacon/health
+              :summary "Report local Hoplite readiness"
+              :handler #'health}
+        :options {:name :beacon/health-options
+                  :handler #'preflight}}]
+      ["/beacon/v1/status"
+       {:get {:name :beacon/status
+              :summary "Report the configured Greenways Space relationship"
+              :handler #'status}
+        :options {:name :beacon/status-options
+                  :handler #'preflight}}]]}))

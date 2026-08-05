@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+printf '%s\n' 'greenways-home is now Greenways Beacon; use greenways-beacon.' >&2
+exec "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/greenways-beacon" "$@"

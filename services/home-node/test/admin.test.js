@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import test from "node:test";
-import { createHomeNodeServer } from "../src/server.js";
+import {
+  createHomeNodeOperationQueue,
+  createHomeNodeServer,
+} from "../src/server.js";
 import {
   HOME_ADMIN_PAIRING_PROTOCOL,
   HOME_ADMIN_REVOKED_PROTOCOL,
@@ -107,6 +110,29 @@ async function startAdmin(node = createFakeNode()) {
   };
 }
 
+function rawRequest(url, { method = "GET", headers = {} } = {}) {
+  const target = new URL(url);
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({
+      hostname: target.hostname,
+      port: target.port,
+      path: `${target.pathname}${target.search}`,
+      method,
+      headers,
+    }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve({
+        status: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks).toString("utf8"),
+      }));
+    });
+    request.once("error", reject);
+    request.end();
+  });
+}
+
 function pageSession(response, html) {
   const cookie = response.headers.get("set-cookie").split(";", 1)[0];
   const csrf = html.match(/<meta name="gw-csrf" content="([^"]+)"/)?.[1];
@@ -124,6 +150,31 @@ function adminHeaders(origin, cookie, csrf) {
   };
 }
 
+test("serializes compatibility mutations and recovers after an error", async () => {
+  const runExclusive = createHomeNodeOperationQueue();
+  const order = [];
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+
+  const first = runExclusive(async () => {
+    order.push("first:start");
+    await gate;
+    order.push("first:end");
+  });
+  const second = runExclusive(() => {
+    order.push("second");
+  });
+
+  await Promise.resolve();
+  assert.deepEqual(order, ["first:start"]);
+  release();
+  await Promise.all([first, second]);
+  assert.deepEqual(order, ["first:start", "first:end", "second"]);
+
+  await assert.rejects(runExclusive(() => { throw new Error("expected"); }), /expected/);
+  assert.equal(await runExclusive(() => "ready"), "ready");
+});
+
 test("serves a local visual-language control plane with a strict session", async (t) => {
   const app = await startAdmin();
   t.after(app.close);
@@ -140,9 +191,11 @@ test("serves a local visual-language control plane with a strict session", async
   assert.match(response.headers.get("set-cookie"), /HttpOnly/);
   assert.match(response.headers.get("set-cookie"), /SameSite=Strict/);
 
-  const rebound = await fetch(`${app.origin}/admin`, { headers: { host: "attacker.example" } });
+  const rebound = await rawRequest(`${app.origin}/admin`, {
+    headers: { host: "attacker.example" },
+  });
   assert.equal(rebound.status, 421);
-  assert.equal((await rebound.json()).error, "unexpected-host");
+  assert.equal(JSON.parse(rebound.body).error, "unexpected-host");
 });
 
 test("requires exact same-origin cookie and CSRF proof for admin APIs", async (t) => {
