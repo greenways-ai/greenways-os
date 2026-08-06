@@ -5,6 +5,7 @@ import kernelSource from "../../src/gw/os/kernel.hal";
 import servicesSource from "../../src/gw/os/services.hal";
 import { encodeHalValue } from "./hal-transport.js";
 import { createHalModuleRuntime } from "./hal-module-runtime.js";
+import { createDevtoolsRuntime } from "./devtools-runtime.js";
 import {
   loadLockedPackageBundle,
   lockedPackageAppEntry,
@@ -27,6 +28,7 @@ const runtimePromise = start({
 
 let invokerPromise;
 let moduleRuntimePromise;
+let devtoolsRuntimePromise;
 
 function decode(value) {
   return parseEDNString(value, {
@@ -54,6 +56,17 @@ export function createGreenwaysModuleRuntime() {
     moduleRuntimePromise = runtimePromise.then(createHalModuleRuntime);
   }
   return moduleRuntimePromise;
+}
+
+export function createGreenwaysDevtoolsRuntime() {
+  if (!devtoolsRuntimePromise) {
+    devtoolsRuntimePromise = Promise.all([
+      runtimePromise,
+      createGreenwaysModuleRuntime(),
+      createGreenwaysInvoker(),
+    ]).then(([runtime, modules, invoke]) => createDevtoolsRuntime({ runtime, modules, invoke }));
+  }
+  return devtoolsRuntimePromise;
 }
 
 export async function invokeGreenways(method, args = []) {

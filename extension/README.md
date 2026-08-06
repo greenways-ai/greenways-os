@@ -1,8 +1,54 @@
 # Greenways OS extension
 
-The Chrome extension is the first Greenways OS host. Its first product remains a local **Keyring** plus a strict **Package Manager**, but those products now sit on an explicit resident service graph coordinated by one browser-wide Hara kernel.
+This directory is the loadable Chrome Manifest V3 host for Greenways OS. The extension owns one rehydratable, browser-wide Hara kernel in its service worker and ships one fixed root application, **Kernel DevTools**.
 
-## Resident core services
+For the complete developer installation, Native Messaging setup, RESP verification, troubleshooting, and uninstall steps, start with [`../README.md`](../README.md).
+
+## Build and load
+
+Use the repository root as the working directory:
+
+```bash
+node --version
+npm --prefix extension ci
+npm --prefix extension run build
+```
+
+Node.js 22 or newer is required. Then:
+
+1. open `chrome://extensions`;
+2. enable **Developer mode**;
+3. select **Load unpacked**; and
+4. choose the repository's `extension/` directory.
+
+The build writes reviewed bundles to `extension/dist/`. The unpacked directory, not `dist/` by itself, is the extension root.
+
+## First distribution
+
+The first extension distribution is:
+
+```text
+Greenways OS root host
+├── resident Hara kernel
+├── local durable store
+├── capability and consent authority
+├── identity and keyring
+├── package lifecycle and trust
+├── declarative surface host
+└── Kernel DevTools                       preinstalled root app
+```
+
+`greenways-devtools` is packaged with the extension, preinstalled, non-removable, and separate from the ordinary application catalogue. A registry, preview package, or HAL module cannot claim its identifier, packaged page, host principal, or methods.
+
+Kernel DevTools attaches to the existing service-worker kernel. It does not embed a second Hara runtime. It provides:
+
+- an explicit namespace Hara REPL;
+- bounded calls into reviewed kernel methods;
+- module generation and lock-digest inspection;
+- resident core-service inspection; and
+- explicit controls for the optional authenticated RESP bridge.
+
+## Resident services
 
 A core service is a permanent authority boundary, not necessarily a permanent UI. The current `greenways-core-service/1` registry reserves ten non-removable services:
 
@@ -11,81 +57,114 @@ kernel · store · capabilities · identity · keyring
 packages · surfaces · receipts · connectors · work
 ```
 
-Kernel, Store, Capability and Consent, Identity, Keyring, Package Lifecycle, and Surface Host are active. Receipt Journal, Connector Broker, and Work Supervisor are registered as foundation services so apps can depend on stable boundaries as those implementations arrive.
+Kernel, Store, Capability and Consent, Identity, Keyring, Package Lifecycle, and Surface Host are active. Receipt Journal, Connector Broker, and Work Supervisor are registered as stable foundation boundaries while their complete implementations arrive.
 
-The service catalogue and closed capability vocabulary are defined in both JavaScript and HAL and tested for exact parity. Packaged pages can inspect the public service graph, but only the trusted launcher can create or revoke operation grants.
+The service catalogue and closed capability vocabulary are defined in JavaScript and HAL and tested for parity. Packages cannot register new core services, host effects, Chrome permissions, or capability definitions.
 
-### Capability and Consent
+### Capability authority
 
-A manifest requests broad installation capabilities. Consequential operations such as `key/sign`, `credential/use`, and `model/generate` additionally require a durable `greenways-capability-grant/1` record bound to the exact app ID, version, publisher, and HAL lock digest. Grants are stored in the same two-phase IndexedDB transaction as kernel state, survive service-worker suspension, expire at their declared time, and are automatically revoked when an app is updated or removed.
+A package manifest declares broad installation requirements. Consequential operations such as `key/sign`, `credential/use`, and `model/generate` additionally require a durable `greenways-capability-grant/1` record bound to the exact app ID, version, publisher, and HAL lock digest.
 
-Grant constraints are bounded data and may name opaque profile references, models, budgets, or purposes. Secret-like fields such as API keys, passwords, tokens, private keys, or authorization values are rejected before persistence.
+A stored grant is not sufficient by itself. The service worker verifies that the exact approval is still current. A HAL module must also have a matching durable module record and appear in the immutable runtime index created only after boot-time archive re-verification and successful namespace registration. A corrupt or unrestored module cannot recover authority through an old grant.
 
-See `../protocol/core-services.md`.
+Grant constraints are bounded data. Secret-like fields such as API keys, passwords, bearer tokens, private keys, and authorization values are rejected before persistence. Capability evidence exposes public approval identity and runtime verification only; it does not expose package archives, credential values, or private keys.
 
-## Core 01: Keyring
+See [`../protocol/core-services.md`](../protocol/core-services.md).
 
-The launcher presents Keyring before every package or network connection.
+## Module runtime
 
-- A controller identity uses a non-extractable ECDSA P-256 `CryptoKey` stored with the existing local identity record in IndexedDB.
-- Model-provider credentials are session-only records in `chrome.storage.session`.
-- Keyring status returns public metadata only: identity ID, handle, key ID, provider, label, and creation time.
-- There is no operation that returns a private signing key or provider credential. A later allowlisted provider host will consume credentials behind the keyring boundary.
-
-The current UI supports creating the controller, adding/removing OpenRouter, OpenAI, and Anthropic session profiles, and clearing all provider credentials. It intentionally does not expose an external website bridge yet. A future System Keychain app will provide a replaceable companion UI and provider while the Keyring authority remains resident. See `../protocol/keyring.md`.
-
-## Core 02: Package Manager
-
-The existing Hara-owned app lifecycle now appears as a package manager. `greenways-app/1` remains the exact runtime approval record; `greenways-package/1` projects records into these product kinds:
-
-- `system`
-- `hal-module`
-- `bundled-module`
-- `companion`
-- `web-application`
-
-The catalogue is declarative. Entries may select a packaged surface, launch a known local companion, open an allowlisted website, or select the locally shipped `hal-module` handler. Remote JavaScript, arbitrary Wasm, HTML, CSS, and host handlers remain forbidden. HAL is accepted only from a digest-verified HARP graph, rewritten into an app-owned namespace generation and executed by the already-packaged Hara runtime. A changed version, publisher, launch binding, capability set, or module lock digest requires fresh local approval. See `../protocol/packages.md`.
-
-## Runtime boundary
-
-The Manifest V3 service worker owns the browser-wide Hara kernel authority. Installed packages and request receipts are profile-wide; active package and surface state are isolated by Chrome document identity. The host registers listeners synchronously and rehydrates durable state before serving requests, so MV3 suspension does not move authority into a launcher page.
-
-The launcher, World viewer, and other packaged pages are kernel clients. They do not embed a second Hara runtime. The build checks that the reviewed Hara Wasm and `gw.os.kernel` occur only in `dist/background.js`.
-
-## Launcher hierarchy
-
-The side panel is organized as:
+`greenways-app/1` remains the exact runtime approval record. Digest-verified `.hal` packages are loaded through the locally shipped `hal-module` handler and rewritten into fresh app-owned namespace generations:
 
 ```text
-Keyring
-Package Manager
-  ├── Installed packages
-  └── Package catalogue
-Optional connections
-  ├── Greenways Beacon
-  └── Legacy Home Link / Hestia migration
+app.<id>.g<generation>.*
 ```
 
-Beacon and Home Link still use their existing reviewed clients and permission boundaries. The new core product decorator moves their cards below package management without replacing those implementations.
+Install and reload stage a fresh generation and swap it only after verification and evaluation succeed. A failed reload leaves the previous generation active. Module lock and archive bytes are re-verified whenever the service worker restores the package.
+
+Remote JavaScript, HTML, CSS, arbitrary WebAssembly, host handlers, browser permissions, and manifest-embedded source remain forbidden. A content hash proves exact bytes; it does not grant extension authority.
+
+See [`../protocol/packages.md`](../protocol/packages.md) and [`../protocol/apps.md`](../protocol/apps.md).
+
+## Keyring
+
+The Keyring remains a resident authority service even when its management surfaces become applications.
+
+- The controller identity uses a non-extractable ECDSA P-256 `CryptoKey` retained in IndexedDB.
+- Provider credentials are currently session-scoped records in `chrome.storage.session`.
+- Public status contains identity ID, handle, key ID, provider, label, and creation time only.
+- There is no operation that returns a private signing key or provider credential.
+
+A future System Keychain application can add a replaceable native credential provider while the core Keyring continues to enforce opaque references, signing operations, policy, and receipts.
+
+See [`../protocol/keyring.md`](../protocol/keyring.md).
+
+## RESP bridge
+
+Chrome extension pages do not own raw listening sockets. The optional TCP listener is supplied by `services/devtools-node` through Chrome Native Messaging.
+
+The bridge:
+
+- starts only from the fixed Kernel DevTools page;
+- binds only to `127.0.0.1`;
+- requires a fresh one-session 256-bit token;
+- supports a closed RESP2 command vocabulary;
+- limits requests and responses to 1 MB; and
+- closes and invalidates the token when the native connection stops.
+
+Install the native companion from the repository root after loading the extension and copying its ID:
+
+```bash
+node services/devtools-node/bin/greenways-devtools-install.mjs \
+  --extension-id aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --browser chrome
+```
+
+Accepted browser names are `chrome`, `chrome-beta`, `chromium`, and `brave`. The installer currently supports macOS and Linux. See [`../services/devtools-node/README.md`](../services/devtools-node/README.md).
 
 ## Permissions
 
-The required manifest permissions remain only:
+The required extension permissions are:
 
 ```text
 sidePanel
 storage
+nativeMessaging
 ```
 
-Provider credentials use `chrome.storage.session`; no new network permission is required merely to manage a key. Loopback and HTTPS origins remain optional host permissions requested only when a user activates Beacon, Hestia, Historia, GitHub Worlds, or another connector.
+`nativeMessaging` allows the reviewed DevTools page to connect to the separately installed `ai.greenways.devtools` companion. It does not allow an extension page to execute arbitrary native commands.
 
-## Development
+Loopback and HTTPS origins remain optional host permissions. They are requested only when a user activates Beacon, Hestia, Historia, GitHub Worlds, or another reviewed connector.
 
-```sh
-npm install
-npm run build
-npm test
-npm run test:browser
+## Runtime boundary
+
+The Manifest V3 service worker owns kernel authority. Installed package state, capability grants, module records, and prepared receipts are profile-wide. Active package and surface state remains isolated by Chrome document identity.
+
+Listeners are registered synchronously and durable state is rehydrated before requests are served, so MV3 suspension does not make a launcher page authoritative. The launcher, World viewer, Kernel DevTools, and other packaged pages are clients of the service-worker host.
+
+The build verifies that the reviewed Hara Wasm runtime and `gw.os.kernel` occur only in `dist/background.js`.
+
+## Tests
+
+From the repository root:
+
+```bash
+npm --prefix extension ci
+npm --prefix extension test
+npm --prefix extension run build
 ```
 
-For local use, enable developer mode at `chrome://extensions` and load this directory unpacked. Generated bundles under `dist/` are intentionally ignored.
+For the Playwright suite:
+
+```bash
+npm exec --prefix extension -- playwright install chromium
+npm --prefix extension run test:browser
+```
+
+For the Native Messaging companion:
+
+```bash
+npm --prefix services/devtools-node ci
+npm --prefix services/devtools-node test
+```
+
+Generated bundles under `dist/`, Playwright results, and installed dependencies are intentionally not committed.

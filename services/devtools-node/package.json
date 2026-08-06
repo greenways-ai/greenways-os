@@ -1,0 +1,18 @@
+{
+  "name": "@greenways-ai/devtools-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "EPL-2.0",
+  "description": "Loopback RESP companion for the Greenways OS root DevTools app.",
+  "bin": {
+    "greenways-devtools-host": "bin/greenways-devtools-host.mjs",
+    "greenways-devtools-install": "bin/greenways-devtools-install.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

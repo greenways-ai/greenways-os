@@ -118,7 +118,14 @@ function normalizeManifest(value) {
   return manifest;
 }
 
-export function validateModuleRecord(value) {
+/**
+ * Returns the bounded approval projection of a durable module record.
+ *
+ * This intentionally does not copy or verify archive bytes. Authorization may
+ * use this projection only when the same app and lock digest are also present
+ * in host-owned runtime state populated after full boot-time verification.
+ */
+export function moduleRecordApproval(value) {
   const input = plainObject(value, "Module record");
   closedKeys(input, RECORD_KEYS, "Module record");
   if (input.protocol !== MODULE_RECORD_PROTOCOL) {
@@ -131,18 +138,25 @@ export function validateModuleRecord(value) {
   if (lockDigest !== manifest.lockDigest) {
     throw new Error("Module record lock digest does not match its approval manifest");
   }
-  const lockSource = nonEmptyString(input.lockSource, "Module record lock source", 4 * 1024 * 1024);
   const installedAt = nonEmptyString(input.installedAt, "Module record installation time", 80);
   if (Number.isNaN(Date.parse(installedAt))) throw new Error("Module record installation time is invalid");
   return Object.freeze({
     protocol: MODULE_RECORD_PROTOCOL,
     id,
     manifest,
-    lockSource,
     lockDigest,
+    installedAt,
+  });
+}
+
+export function validateModuleRecord(value) {
+  const input = plainObject(value, "Module record");
+  const approval = moduleRecordApproval(input);
+  return Object.freeze({
+    ...approval,
+    lockSource: nonEmptyString(input.lockSource, "Module record lock source", 4 * 1024 * 1024),
     entry: qualifiedEntry(input.entry),
     packages: normalizePackages(input.packages),
-    installedAt,
   });
 }
 

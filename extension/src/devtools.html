@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-project="greenways">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1110">
+  <meta name="description" content="Greenways Kernel DevTools — inspect and program the browser-resident Hara kernel.">
+  <title>Greenways OS — Kernel DevTools</title>
+  <link rel="icon" href="assets/brand/greenways-small.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="devtools.css">
+  <script src="browser-runtime.js"></script>
+</head>
+<body>
+  <div class="devtools-shell">
+    <header class="devtools-header">
+      <div class="devtools-brand">
+        <span class="devtools-mark" aria-hidden="true">λ</span>
+        <span><strong>Greenways OS</strong><small>ROOT / KERNEL DEVTOOLS</small></span>
+      </div>
+      <div class="devtools-state"><i></i><span data-kernel-state>Starting kernel</span></div>
+    </header>
+
+    <main>
+      <section class="devtools-hero">
+        <div>
+          <p class="eyebrow">PREINSTALLED ROOT APP</p>
+          <h1>Program the OS<br><em>from inside the OS.</em></h1>
+          <p>Inspect the resident kernel, evaluate Hara in an explicit namespace, call reviewed kernel methods, and expose an authenticated loopback RESP endpoint to editor tooling.</p>
+        </div>
+        <dl class="kernel-summary">
+          <div><dt>Namespace</dt><dd data-current-namespace>—</dd></div>
+          <div><dt>Modules</dt><dd data-module-count>—</dd></div>
+          <div><dt>Bridge</dt><dd data-bridge-summary>Off</dd></div>
+        </dl>
+      </section>
+
+      <section class="devtools-grid">
+        <article class="panel repl-panel">
+          <header><div><p>HARA CONSOLE</p><h2>Kernel REPL</h2></div><span>ROOT AUTHORITY</span></header>
+          <form data-eval-form>
+            <label>Namespace<input name="namespace" value="gw.devtools" spellcheck="false" autocomplete="off"></label>
+            <label>Expression<textarea name="source" spellcheck="false" rows="9">(keys (gw.os.kernel/initial-state))</textarea></label>
+            <div class="panel-actions"><button type="submit">Evaluate</button><button type="button" class="quiet" data-clear-output>Clear output</button></div>
+          </form>
+          <ol class="console-output" data-console-output aria-live="polite"></ol>
+        </article>
+
+        <article class="panel call-panel">
+          <header><div><p>KERNEL DISPATCH</p><h2>Call a method</h2></div><span>READ / TEST</span></header>
+          <form data-call-form>
+            <label>Method<input name="method" value="core/services" spellcheck="false" autocomplete="off"></label>
+            <label>Arguments<textarea name="args" spellcheck="false" rows="5">[]</textarea></label>
+            <div class="panel-actions"><button type="submit">Call kernel</button></div>
+          </form>
+          <pre class="call-result" data-call-result>Kernel methods return here.</pre>
+        </article>
+
+        <article class="panel bridge-panel">
+          <header><div><p>LOCAL PROGRAMMING PORT</p><h2>RESP bridge</h2></div><span data-bridge-state>STOPPED</span></header>
+          <p class="panel-copy">The Chrome extension never opens a TCP listener. A separately installed native host binds only to <code>127.0.0.1</code> while this session is active.</p>
+          <form data-bridge-form>
+            <label>Loopback port<input name="port" type="number" min="1024" max="65535" value="46379"></label>
+            <div class="panel-actions"><button type="submit" data-bridge-start>Start RESP</button><button type="button" class="quiet" data-bridge-stop disabled>Stop</button></div>
+          </form>
+          <div class="bridge-secret" hidden data-bridge-secret>
+            <span>Session AUTH token</span>
+            <div><code data-bridge-token></code><button type="button" data-copy-token>Copy</button></div>
+          </div>
+          <pre class="bridge-example" data-bridge-example>redis-cli -h 127.0.0.1 -p 46379
+AUTH &lt;session-token&gt;
+GW.STATUS
+GW.EVAL gw.devtools "(+ 20 22)"</pre>
+          <p class="bridge-note" data-bridge-note>Install the Greenways DevTools native host before starting the bridge.</p>
+        </article>
+
+        <article class="panel inventory-panel">
+          <header><div><p>RESIDENT STATE</p><h2>Modules &amp; services</h2></div><button type="button" class="refresh" data-refresh>Refresh</button></header>
+          <div class="inventory-columns">
+            <section><h3>HAL modules</h3><ul data-module-list><li>Loading…</li></ul></section>
+            <section><h3>Core services</h3><ul data-service-list><li>Loading…</li></ul></section>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer><span>GREENWAYS / ROOT OS</span><span>DevTools is local, preinstalled, and non-removable</span></footer>
+  </div>
+  <script type="module" src="../dist/devtools.js"></script>
+</body>
+</html>
