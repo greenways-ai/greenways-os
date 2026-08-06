@@ -4,6 +4,14 @@ import adaptorSource from "../../src/gw/os/adaptor.hal";
 import kernelSource from "../../src/gw/os/kernel.hal";
 import { encodeHalValue } from "./hal-transport.js";
 import { createHalModuleRuntime } from "./hal-module-runtime.js";
+import {
+  loadLockedPackageBundle,
+  lockedPackageAppEntry,
+} from "./hara-packages.js";
+import {
+  createModuleRecord,
+  stageModuleRecord,
+} from "./module-record.js";
 
 const runtimePromise = start({
   resources: {
@@ -72,4 +80,42 @@ export async function invokeGreenwaysModule(id, args = []) {
     args.map(encodeHalValue),
   );
   return decode(output);
+}
+
+
+export function createGreenwaysModuleRecord(manifest, bundle, options) {
+  return createModuleRecord(manifest, bundle, {
+    ...options,
+    entry: lockedPackageAppEntry(bundle),
+  });
+}
+
+export async function restoreGreenwaysModules(records, { strict = false } = {}) {
+  if (!Array.isArray(records)) throw new TypeError("Greenways module records must be an array");
+  const modules = await createGreenwaysModuleRuntime();
+  const prepared = [];
+  const failures = [];
+  for (const record of records) {
+    try {
+      const staged = await stageModuleRecord(record, {
+        loadBundle: loadLockedPackageBundle,
+        appEntry: lockedPackageAppEntry,
+      });
+      prepared.push(modules.prepareInstall(staged));
+    } catch (error) {
+      failures.push(Object.freeze({ id: record?.id ?? null, error }));
+    }
+  }
+  if (strict && failures.length) {
+    for (const transaction of prepared.reverse()) transaction.rollback();
+    throw new AggregateError(
+      failures.map(({ error }) => error),
+      "One or more stored Greenways modules failed boot verification",
+    );
+  }
+  const installed = prepared.map((transaction) => transaction.commit());
+  return Object.freeze({
+    installed: Object.freeze(installed),
+    failures: Object.freeze(failures),
+  });
 }

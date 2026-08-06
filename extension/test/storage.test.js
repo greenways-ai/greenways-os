@@ -13,6 +13,7 @@ import {
   getKernelSnapshot,
   kernelContextKey,
   kernelRequestKey,
+  moduleStore,
   prepareKernelRequest,
   putSignedRecordStores,
   readKernelSnapshot,
@@ -67,8 +68,8 @@ function recordingStores(initial = new Map()) {
   return { calls, values, tx };
 }
 
-test("database v3 adds the kernel store without removing existing stores", () => {
-  assert.equal(DATABASE_VERSION, 3);
+test("database v4 adds durable module records without removing existing stores", () => {
+  assert.equal(DATABASE_VERSION, 4);
   assert.deepEqual(DATABASE_STORES, [
     "settings",
     "identity",
@@ -77,6 +78,7 @@ test("database v3 adds the kernel store without removing existing stores", () =>
     "inclusions",
     "outbox",
     "apps",
+    "modules",
     "kernel",
   ]);
 });
@@ -320,6 +322,47 @@ test("commits global and context envelopes, exact apps, and request acknowledgem
   assert.equal(values.get("kernel:context:launcher:one"), contextEnvelope);
 });
 
+test("commits an exact module snapshot in the same two-phase transaction", async () => {
+  const { calls, values, tx } = recordingStores(new Map([
+    ["modules:old", { id: "old" }],
+    ["kernel:request:req-module", { id: "req-module", status: "prepared" }],
+  ]));
+  const module = {
+    protocol: "greenways-module-record/1",
+    id: "notes",
+    lockDigest: `sha256:${"a".repeat(64)}`,
+  };
+  await commitKernelStores(tx, {
+    requestId: "req-module",
+    contextId: "launcher:modules",
+    globalEnvelope: { protocol: "greenways-kernel-global/1", revision: 1 },
+    contextEnvelope: { protocol: "greenways-kernel-context/1", revision: 1 },
+    apps: [{ id: "greenways-home" }, { id: "notes" }],
+    modules: [module],
+  });
+  assert.ok(calls.some((call) => call[0] === "modules" && call[1] === "clear"));
+  assert.ok(calls.some((call) => call[0] === "modules" && call[1] === "put" && call[2] === "notes"));
+  assert.equal(values.has("modules:old"), false);
+  assert.equal(values.get("modules:notes"), module);
+  assert.equal(values.has("kernel:request:req-module"), false);
+});
+
+test("validates a complete module snapshot before queuing kernel writes", async () => {
+  const { calls, tx } = recordingStores();
+  await assert.rejects(
+    commitKernelStores(tx, {
+      requestId: "req-module-invalid",
+      contextId: "launcher:modules",
+      globalEnvelope: { revision: 1 },
+      contextEnvelope: { revision: 1 },
+      apps: [],
+      modules: [{ id: "notes" }, { id: "notes" }],
+    }),
+    /duplicate module id notes/,
+  );
+  assert.deepEqual(calls, []);
+});
+
 test("rebinds packaged system manifests and their app projection atomically", async () => {
   const { calls, tx } = recordingStores(new Map([
     ["apps:greenways-home", { id: "greenways-home", version: "0.2.0" }],
@@ -386,6 +429,14 @@ test("kernel lifecycle helpers select one bounded transaction each", async () =>
     globalEnvelope: { revision: 9 },
     apps: [],
   }, transact);
+  await commitKernelTransition({
+    requestId: "req-module-write",
+    contextId: "world:one",
+    globalEnvelope: { revision: 10 },
+    contextEnvelope: { revision: 5 },
+    apps: [],
+    modules: [{ id: "notes" }],
+  }, transact);
 
   assert.deepEqual(transactions, [
     ["kernel", "readwrite"],
@@ -394,6 +445,7 @@ test("kernel lifecycle helpers select one bounded transaction each", async () =>
     ["kernel", "readwrite"],
     [["kernel", "apps"], "readwrite"],
     [["kernel", "apps"], "readwrite"],
+    [["kernel", "apps", "modules"], "readwrite"],
   ]);
   assert.ok(calls.some((call) => call[0] === "kernel" && call[1] === "delete" && call[2] === "request:req-new"));
 });
@@ -416,6 +468,12 @@ test("kernel keys are namespaced and snapshot retrieval is concurrent", async ()
     ["kernel", "get", "global"],
     ["kernel", "get", "context:launcher"],
   ]);
+});
+
+test("exposes a module-only durable repository facade", () => {
+  assert.deepEqual(Object.keys(moduleStore), ["get", "put", "delete", "values", "replace"]);
+  assert.throws(() => moduleStore.get(""), /non-empty string/);
+  assert.throws(() => moduleStore.put({}), /Module record id/);
 });
 
 test("coordinates shared state through an origin-wide exclusive lock", async () => {

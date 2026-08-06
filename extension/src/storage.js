@@ -1,7 +1,7 @@
 import { createSyncEntry, validateSyncEntry } from "./sync-protocol.js";
 
 const DATABASE = "greenways-os-v1";
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 export const DATABASE_STORES = Object.freeze([
   "settings",
   "identity",
@@ -10,6 +10,7 @@ export const DATABASE_STORES = Object.freeze([
   "inclusions",
   "outbox",
   "apps",
+  "modules",
   "kernel",
 ]);
 
@@ -168,6 +169,20 @@ function appProjectionEntries(apps) {
   });
 }
 
+function moduleProjectionEntries(modules) {
+  if (!Array.isArray(modules)) throw new TypeError("Kernel module projection must be an array");
+  const seen = new Set();
+  return modules.map((record, index) => {
+    if (!record || typeof record !== "object" || Array.isArray(record)) {
+      throw new TypeError(`Kernel module projection entry ${index} must be an object`);
+    }
+    const moduleId = recordId(record.id, `Kernel module projection entry ${index} id`);
+    if (seen.has(moduleId)) throw new Error(`Kernel module projection contains duplicate module id ${moduleId}`);
+    seen.add(moduleId);
+    return [moduleId, record];
+  });
+}
+
 export function putPreparedKernelRequest(target, requestId, requestEnvelope) {
   const key = kernelRequestKey(requestId);
   const value = envelope(requestEnvelope, "Kernel request envelope");
@@ -184,33 +199,40 @@ export async function commitKernelStores(tx, {
   globalEnvelope,
   contextEnvelope,
   apps,
+  modules,
 }) {
   const pendingKey = kernelRequestKey(requestId);
   const contextKey = kernelContextKey(contextId);
   const globalValue = envelope(globalEnvelope, "Kernel global envelope");
   const contextValue = envelope(contextEnvelope, "Kernel context envelope");
   const appEntries = appProjectionEntries(apps);
+  const moduleEntries = modules === undefined ? null : moduleProjectionEntries(modules);
   const kernel = tx.objectStore("kernel");
   const appStore = tx.objectStore("apps");
-
-  await Promise.all([
+  const writes = [
     requestValue(kernel.put(globalValue, KERNEL_GLOBAL_KEY)),
     requestValue(kernel.put(contextValue, contextKey)),
     replaceStoreEntries(appStore, appEntries),
     requestValue(kernel.delete(pendingKey)),
-  ]);
+  ];
+  if (moduleEntries) writes.push(replaceStoreEntries(tx.objectStore("modules"), moduleEntries));
+  await Promise.all(writes);
 }
 
 export async function replaceKernelGlobalStores(tx, {
   globalEnvelope,
   apps,
+  modules,
 }) {
   const globalValue = envelope(globalEnvelope, "Kernel global envelope");
   const appEntries = appProjectionEntries(apps);
-  await Promise.all([
+  const moduleEntries = modules === undefined ? null : moduleProjectionEntries(modules);
+  const writes = [
     requestValue(tx.objectStore("kernel").put(globalValue, KERNEL_GLOBAL_KEY)),
     replaceStoreEntries(tx.objectStore("apps"), appEntries),
-  ]);
+  ];
+  if (moduleEntries) writes.push(replaceStoreEntries(tx.objectStore("modules"), moduleEntries));
+  await Promise.all(writes);
 }
 
 export async function readKernelSnapshot(target, contextId) {
@@ -242,11 +264,13 @@ export function abortKernelRequest(requestId, transact = databaseTransaction) {
 }
 
 export function commitKernelTransition(change, transact = databaseTransaction) {
-  return transact(["kernel", "apps"], "readwrite", (tx) => commitKernelStores(tx, change));
+  const stores = change?.modules === undefined ? ["kernel", "apps"] : ["kernel", "apps", "modules"];
+  return transact(stores, "readwrite", (tx) => commitKernelStores(tx, change));
 }
 
 export function replaceKernelGlobal(change, transact = databaseTransaction) {
-  return transact(["kernel", "apps"], "readwrite", (tx) => (
+  const stores = change?.modules === undefined ? ["kernel", "apps"] : ["kernel", "apps", "modules"];
+  return transact(stores, "readwrite", (tx) => (
     replaceKernelGlobalStores(tx, change)
   ));
 }
@@ -298,3 +322,15 @@ export const store = {
     (tx) => replacePersonalChainStores(tx, change),
   ),
 };
+
+
+export const moduleStore = Object.freeze({
+  get: (id) => store.get("modules", recordId(id, "Module id")),
+  put: (record) => {
+    const value = envelope(record, "Module record");
+    return store.put("modules", recordId(value.id, "Module record id"), value);
+  },
+  delete: (id) => store.delete("modules", recordId(id, "Module id")),
+  values: () => store.values("modules"),
+  replace: (records) => store.replace("modules", moduleProjectionEntries(records)),
+});

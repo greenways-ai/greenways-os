@@ -18,7 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Enforce gw.* HAL namespaces
-        run: "! rg --glob '*.hal' 'greenways\\.' .."
+        run: |
+          if grep -R -E --include='*.hal' -n \
+            -e '\(ns[[:space:]]+greenways\.' \
+            -e '\[[[:space:]]*greenways\.' \
+            -e '\([[:space:]]*greenways\.' \
+            -e '[[:space:]]greenways\.[A-Za-z0-9_.-]+/' \
+            ..; then
+            echo "Legacy greenways.* HAL namespace found" >&2
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22

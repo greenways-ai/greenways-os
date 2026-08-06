@@ -53,7 +53,7 @@ test("a resource must be covered by the package file digest map", async () => {
   const archive = zipSync({ "package.edn": packageEdn, "src/example/package.hal": source });
   const lock = `{:lock/format 2 :packages {"hara:example/package" {:packages/url "https://packages.example/package.harp" :harp-sha256 "${await digest(archive)}"}}}`;
   const request = async () => ({ ok: true, arrayBuffer: async () => archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) });
-  await assert.rejects(loadLockedPackageBundle(lock, request), /is not digest-declared/);
+  await assert.rejects(loadLockedPackageBundle(lock, request), /undeclared file/);
 });
 
 test("a package graph must identify exactly one Greenways app entry", async () => {

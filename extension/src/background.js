@@ -5,7 +5,7 @@ import {
   KERNEL_PROTOCOL,
   serializeKernelError,
 } from "./kernel-host.js";
-import { store } from "./storage.js";
+import { moduleStore, store } from "./storage.js";
 
 export { resolveAppUrl } from "./app-launch.js";
 
@@ -106,10 +106,23 @@ export async function principalFromSender(sender, message, runtime = globalThis.
 export function createKernelHost({
   runtime = globalThis.chrome?.runtime,
   tabs = globalThis.chrome?.tabs,
+  modules = moduleStore,
 } = {}) {
+  if (!modules || typeof modules.values !== "function") {
+    throw new TypeError("Kernel host requires a durable module repository");
+  }
   return import("./greenways-runtime.js")
-    .then(({ createGreenwaysInvoker }) => createGreenwaysInvoker())
-    .then((invoke) => new BrowserKernelHost({ invoke, runtime, tabs }));
+    .then(async ({ createGreenwaysInvoker, restoreGreenwaysModules }) => {
+      const [invoke, records] = await Promise.all([
+        createGreenwaysInvoker(),
+        modules.values(),
+      ]);
+      const restored = await restoreGreenwaysModules(records);
+      for (const failure of restored.failures) {
+        console.warn(`Stored HAL module ${failure.id ?? "<unknown>"} failed boot verification`, failure.error);
+      }
+      return new BrowserKernelHost({ invoke, runtime, tabs });
+    });
 }
 
 function defaultKernelHost(options) {
