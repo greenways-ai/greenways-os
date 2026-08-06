@@ -12,13 +12,14 @@ const [html, homeNodeRuntime, homeNodeTheme, beaconRuntime, protocol] = await Pr
   source("../../protocol/home-node.md"),
 ]);
 
-test("launcher promotes Beacon and retains Home Link as migration support", () => {
+test("launcher demotes Home Link as migration support without breaking its control", () => {
   assert.match(html, /href="beacon\.css"/);
   assert.match(html, /src="beacon-surface\.js"/);
   assert.match(html, /href="home-node\.css"/);
   assert.match(html, /src="home-node\.js"/);
   assert.match(homeNodeRuntime, /LEGACY HOME LINK \/ DEVICE MIGRATION/);
-  assert.match(homeNodeRuntime, /Legacy Home Link remains available for migration\./);
+  assert.match(homeNodeRuntime, /Give your browsers a home you control\./);
+  assert.match(homeNodeRuntime, /Enable the old connector only when preserving or exporting/);
   assert.match(homeNodeRuntime, /Greenways Beacon/);
   assert.match(homeNodeRuntime, /data-home-node-action/);
   assert.match(beaconRuntime, /data-beacon/);
