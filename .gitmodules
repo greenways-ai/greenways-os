@@ -1,0 +1,3 @@
+[submodule "extension/hara-chrome/ui/hara-ui"]
+	path = extension/hara-chrome/ui/hara-ui
+	url = https://github.com/hara-lang/hara-ui.git
