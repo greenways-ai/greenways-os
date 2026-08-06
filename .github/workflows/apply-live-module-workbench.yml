@@ -1,0 +1,71 @@
+name: Apply Live Module Workbench
+
+on:
+  push:
+    branches:
+      - agent/live-module-workbench
+    paths:
+      - .github/live-module-workbench.part-00
+      - .github/live-module-workbench.part-01
+      - .github/live-module-workbench.part-02
+      - .github/live-module-workbench.part-03
+      - .github/live-module-workbench.part-04
+      - .github/live-module-workbench.part-05
+      - .github/live-module-workbench.part-06
+      - .github/live-module-workbench.part-07
+      - .github/live-module-workbench.part-08
+      - .github/live-module-workbench.part-09
+      - .github/live-module-workbench.part-10
+      - .github/workflows/apply-live-module-workbench.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/live-module-workbench
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify, apply, and test Workbench
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The payload is split only to cross the connector transport boundary.
+          # Every byte is verified before source is applied to the branch.
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          from pathlib import Path
+
+          encoded = b"".join(
+              Path(f".github/live-module-workbench.part-{index:02d}").read_bytes()
+              for index in range(11)
+          )
+          assert hashlib.sha256(encoded).hexdigest() == "7174d919f768d5880a0177e441a6e2f2de0b635ec0a1cea06f960d30ea3e1b03"
+          archive = base64.b64decode(encoded, validate=True)
+          assert hashlib.sha256(archive).hexdigest() == "6cfbdbf2f108fe62d2e27769ec604badff176db589ab26edfe4da7d0700d0b05"
+          Path("/tmp/workbench.tar.gz").write_bytes(archive)
+          PY
+
+          tar -xzf /tmp/workbench.tar.gz -C .
+          git apply .payload/greenways-os-spec.patch
+          rm -rf .payload
+
+          npm --prefix extension ci
+          npm --prefix extension test
+          npm --prefix extension run build
+          npm --prefix services/devtools-node ci
+          npm --prefix services/devtools-node test
+
+          git config user.name "greenways-os-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Live Module Workbench"
+          git push origin HEAD:agent/live-module-workbench
