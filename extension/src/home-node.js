@@ -86,9 +86,9 @@ function homeModel({ connection, installed, available }) {
     return {
       state: "ready",
       label: "Legacy connector",
-      title: "Give your browsers a home you control.",
+      title: "Use Home Link only for compatibility.",
       description: "The bundled Hestia connector can still pair with the first Home Node protocol. New gateway and service discovery work belongs in Greenways Beacon.",
-      action: "Connect home",
+      action: "Pair legacy Home Link",
       address: "Awaiting origin",
       route: "Local only",
       disabled: !available,
@@ -98,9 +98,9 @@ function homeModel({ connection, installed, available }) {
   return {
     state: "local",
     label: "Compatibility only",
-    title: "Give your browsers a home you control.",
+    title: "Legacy Home Link remains available for migration.",
     description: "Enable the old connector only when preserving or exporting an existing browser-to-home relationship. Beacon is the primary local gateway for new installations.",
-    action: "Connect home",
+    action: "Enable legacy connector",
     address: "Not configured",
     route: "Local only",
     disabled: !available,
