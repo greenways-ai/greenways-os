@@ -1,0 +1,48 @@
+[{:case/id :greenways.os.case/registry-signed-envelope
+  :case/type :registry-envelope
+  :input {:registry/protocol :greenways-registry/1
+          :registry/key-id "greenways-packages-test-1"
+          :registry/algorithm "ES256"
+          :registry/signed "ezppbmRleC9leHBpcmVzLWF0ICIyMDI2LTA4LTA3VDAwOjAwOjAwLjAwMFoiIDppbmRleC9nZW5lcmF0ZWQtYXQgIjIwMjYtMDgtMDZUMDA6MDA6MDAuMDAwWiIgOmluZGV4L3BhY2thZ2VzIHt9IDppbmRleC9wcm90b2NvbCAiZ3JlZW53YXlzLXJlZ2lzdHJ5LWluZGV4LzEiIDppbmRleC9yZWdpc3RyeSAiaHR0cHM6Ly9wYWNrYWdlcy5ncmVlbndheXMuYWkvIn0"
+          :registry/signature "0Ml_iy0OYoOGwD6ExMUhlcjzhxlRazgQrnxzmor8OnPpnfpcg3H1aWsaMeo-cbcFZvo7i0uXpDZxhL4mCMUY4A"}
+  :fixture/key "fixtures/registry-root-public.jwk"
+  :expect :valid}
+
+ {:case/id :greenways.os.case/registry-unknown-key
+  :case/type :registry-envelope
+  :input {:registry/protocol :greenways-registry/1
+          :registry/key-id "attacker-key"
+          :registry/algorithm "ES256"
+          :registry/signed "ezppbmRleC9leHBpcmVzLWF0ICIyMDI2LTA4LTA3VDAwOjAwOjAwLjAwMFoiIDppbmRleC9nZW5lcmF0ZWQtYXQgIjIwMjYtMDgtMDZUMDA6MDA6MDAuMDAwWiIgOmluZGV4L3BhY2thZ2VzIHt9IDppbmRleC9wcm90b2NvbCAiZ3JlZW53YXlzLXJlZ2lzdHJ5LWluZGV4LzEiIDppbmRleC9yZWdpc3RyeSAiaHR0cHM6Ly9wYWNrYWdlcy5ncmVlbndheXMuYWkvIn0"
+          :registry/signature "0Ml_iy0OYoOGwD6ExMUhlcjzhxlRazgQrnxzmor8OnPpnfpcg3H1aWsaMeo-cbcFZvo7i0uXpDZxhL4mCMUY4A"}
+  :expect {:error :registry-key-not-trusted}}
+
+ {:case/id :greenways.os.case/registry-expired-index
+  :case/type :registry-index
+  :clock "2026-08-06T12:00:00Z"
+  :input {:index/protocol :greenways-registry-index/1
+          :index/registry "https://packages.greenways.ai/"
+          :index/generated-at "2026-08-05T00:00:00Z"
+          :index/expires-at "2026-08-06T00:00:00Z"
+          :index/packages {}}
+  :expect {:error :registry-index-expired}}
+
+ {:case/id :greenways.os.case/registry-lock-digest-mismatch
+  :case/type :registry-resolution
+  :input {:version-record {:lock/sha256 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :lock-bytes "<fixture with a different digest>"}
+  :expect {:error :lock-digest-mismatch}}
+
+ {:case/id :greenways.os.case/registry-cannot-add-handler
+  :case/type :registry-resolution
+  :input {:app/manifest {:app/protocol :greenways-app/1
+                         :app/id :foreign-handler
+                         :app/version "1.0.0"
+                         :app/publisher {:publisher/id :publisher
+                                         :publisher/name "Publisher"}
+                         :app/name "Foreign handler"
+                         :app/description "Attempts to add a host handler."
+                         :app/category :installable
+                         :app/capabilities [:hara/module]
+                         :app/launch {:launch/handler :foreign-runtime}}}
+  :expect {:error :handler-not-allowlisted}}]

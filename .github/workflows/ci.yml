@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: extension/package-lock.json
+          cache-dependency-path: |
+            extension/package-lock.json
+            services/packages/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run build
@@ -47,6 +49,10 @@ jobs:
         if: always()
         working-directory: services/identity
         run: npm test
+      - name: Test package registry service
+        if: always()
+        working-directory: services/packages
+        run: npm ci && npm test
       - uses: actions/upload-artifact@v4
         if: success()
         with:

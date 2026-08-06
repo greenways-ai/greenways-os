@@ -6,20 +6,24 @@ remain useful without an account, remote registry, social graph, or hosted
 service. Participation is optional: an app may add collaboration or a remote
 service, but it cannot become a condition for using the local kernel.
 
-This draft defines the built-in catalog boundary. An app manifest is inert,
-declarative data. It selects a runtime handler already shipped in the extension;
-it never supplies JavaScript, a module URL, an executable, an entrypoint, or
-source code for the extension to fetch and run.
+An app manifest is inert, declarative data. It selects a runtime handler already
+shipped in the extension and never carries JavaScript, WebAssembly, HTML, a
+native executable, an entrypoint, or source code. The sole executable-package
+carve-out is `hal-module`: the manifest may identify an independently fetched,
+digest-verified `.harp` package whose HAL resources are evaluated by the
+browser-resident Hara kernel inside a bounded, app-owned namespace generation.
+The archive is not a manifest field and cannot add a host handler, browser
+permission, native provider, capability, or DOM implementation.
 
 ## Manifest
 
-Every manifest has exactly these fields:
+Every non-module manifest has exactly these fields:
 
 | Field | Meaning |
 | --- | --- |
 | `protocol` | Exact manifest protocol, currently `greenways-app/1`. |
 | `id` | Stable lowercase identifier. |
-| `version` | SemVer 2.0 version of this exact app integration, including optional prerelease and build metadata. |
+| `version` | SemVer 2.0 version of this exact app integration. |
 | `publisher` | Stable lowercase publisher identifier and human-facing name. |
 | `name` | Human-facing app name. |
 | `description` | Plain-language purpose shown before installation or launch. |
@@ -28,95 +32,166 @@ Every manifest has exactly these fields:
 | `launch` | One allowlisted handler and the handler-specific target. |
 | `requirement` | Optional companion disclosure; required only for `native-hybrid`. |
 
-Unknown fields are invalid. Publisher and version remain visible in every
-installation record so upgrades and catalog provenance do not depend on mutable
-display text. In particular, `executable`, `module`, `source`,
-`script`, `entrypoint`, and URL variants of those names are invalid at any
-depth. A catalog cannot smuggle an execution mechanism into descriptive data.
+A `hal-module` manifest additionally has exactly these metadata fields:
 
-Versions follow SemVer 2.0: core numeric identifiers cannot contain leading
-zeroes, numeric prerelease identifiers cannot contain leading zeroes, and
-prerelease or build identifiers cannot be empty. Build metadata such as
-`1.2.0+package.7` is valid. The publisher identifier is the stable binding;
-the publisher name is display text.
+| Field | Meaning |
+| --- | --- |
+| `kind` | Exact value `hal-module`. |
+| `channel` | `release`, `preview`, or `bundled`. |
+| `lockDigest` | SHA-256 of the exact UTF-8 `project.lock.edn` bytes. |
+| `source` | Channel-bound provenance only: registry coordinate, pinned GitHub repository and commit, or bundled relative path. |
+
+Unknown fields are invalid. Publisher and version remain visible in every
+installation record so upgrades and provenance do not depend on mutable display
+text. `executable`, `module`, `script`, `entrypoint`, and URL variants of those
+names remain invalid at every depth. `source` is accepted only as the closed,
+metadata-only provenance descriptor of a `hal-module`; it cannot contain source
+text, an executable URL, or nested extension fields.
+
+Versions follow SemVer 2.0. The publisher identifier is the stable binding; the
+publisher name is display text.
 
 `system` identifies surfaces shipped as part of Greenways OS. System apps are
 always available and can only select their fixed allowlisted app ID, publisher,
-packaged extension path, and exact capability set.
-`installable` identifies an optional integration. Installation is a local user
-decision recorded separately from the immutable manifest; being listed does
-not mean that an app is installed, trusted, running, or granted authority.
+packaged target, and exact capability set. `installable` identifies an optional
+integration. Installation is a local user decision recorded separately from the
+immutable offer; being listed does not mean an app is installed, trusted,
+running, or granted authority.
 
 ## Launch handlers
 
 | Handler | Target | Rule |
 | --- | --- | --- |
 | `extension-page` | `path` | The path must name a packaged page in the extension-page allowlist. |
-| `packaged-surface` | `surfaceId` | The surface must already be compiled into and registered by Greenways OS, and the manifest must match that surface's app and publisher binding. |
-| `native-hybrid` | `url` | The URL must be an exact allowlisted loopback URL; the manifest must disclose its local companion and declare `network/loopback` plus `tabs/open`. |
-| `web-tab` | `url` | The URL must be an exact allowlisted HTTPS destination and opens as a browser tab, outside the extension execution context. |
+| `packaged-surface` | `surfaceId` | The surface must already be compiled into and registered by Greenways OS and match its app/publisher binding. |
+| `native-hybrid` | `url` | The URL must be an exact allowlisted loopback URL; the manifest discloses its local companion and declares `network/loopback` plus `tabs/open`. |
+| `web-tab` | `url` | The URL must be an exact allowlisted HTTPS destination and opens outside the extension execution context. |
+| `hal-module` | none | The host loads verified HAL resources into an isolated `app.<id>.gN.*` namespace generation and renders only through a host-owned declarative surface. |
 
-The built-in draft accepts the packaged surface `hestia-connector`, the local
-URL `http://127.0.0.1:4319/`, and the web destination
-`https://playground.hara-lang.org/`. Queries, fragments, credentials, alternate
-hosts, protocol downgrades, `data:` URLs, and `javascript:` URLs are rejected.
-The `hestia-connector` surface is bound to app ID `hestia-connector`, publisher
-ID `greenways-ai`, and the required capabilities `hestia/connect`,
-`network/https`, `network/loopback`, and `storage/local`. A differently named,
-attributed, or scoped manifest cannot alias it.
+A registry can distribute a manifest selecting `hal-module`, because that
+handler is locally shipped and fixed. A registry cannot introduce another
+handler, a new host service, or a new declarative view element.
 
-Resolving a launch is a two-step operation: resolve a normalized app by its
-identifier, then derive a launch instruction from that catalog entry. Callers
-must not dispatch a launch object copied directly from an untrusted message.
-The locally installed manifest is also the approval record. Before every
-launch—including a packaged surface—the kernel compares its app ID, version,
-publisher ID, handler target, and complete capability set with the current
-bundled catalog. Any change requires a new user approval; a matching ID alone
-is insufficient.
+## HAL module container
+
+A `.hal` app is distributed as one or more `.harp` archives selected by a
+`:lock/format 2` lock. Before staging, the extension verifies:
+
+1. the exact lock digest bound by the approval;
+2. each archive URL against channel policy;
+3. archive size and SHA-256;
+4. archive path safety;
+5. `package.edn` and `:harp/format 1`;
+6. every declared file size and SHA-256; and
+7. a duplicate-free namespace set.
+
+Every resource begins with a matching `ns` form. The container rewrites all
+package-local namespace references under a fresh generation such as
+`app.notes.g3.notes.view`, loads the entry resource, then atomically swaps the
+active generation. A failed load leaves the previous generation active. Reload
+never mutates the old namespace in place.
+
+V1 module source cannot directly reference `gw.os.*`, another `app.*` root, or
+`std.native.*`, and cannot use dynamic namespace/evaluation forms. A module gets
+host services only by returning bounded data and requesting capabilities through
+typed kernel dispatch. These source checks are defence in depth; capability
+policy, not namespace naming or a content hash, is the security boundary.
+
+The host owns executable DOM. The module's view function returns a bounded EDN
+view tree. The host validates depth, node count, string size, action identifiers,
+and the closed element/attribute vocabulary before constructing DOM nodes. No
+remote HTML, event handler, stylesheet, script, or URL-bearing element is
+accepted as view data.
+
+## Channels
+
+### Release
+
+The source descriptor names an allowlisted registry and package coordinate. The
+registry index is signature-verified, the selected version binds an exact lock
+digest, and every package is verified through the lock. An advertised newer
+version is only `update-available`; it is never installed automatically.
+
+### Preview
+
+The source descriptor names `owner/repo` and an exact 40-character commit SHA.
+Strict mode accepts only a SHA. Development mode may resolve a branch or tag,
+but the resolved SHA is displayed and persisted before installation. Lock and
+archive fetches are derived from that immutable commit and use the same digest
+verification pipeline as release packages. Preview installations are visibly
+badged.
+
+### Bundled
+
+The source descriptor names a safe relative path inside the reviewed extension
+bundle. Build output binds the exact lock digest. Bundled modules use the same
+container and lifecycle as release and preview modules; only provenance differs.
+
+Switching channel is an explicit update operation and requires approval even
+when version and capabilities happen to match.
+
+## Approval
+
+For ordinary apps, approval continues to bind app ID, version, publisher ID,
+handler target, and the complete sorted capability set.
+
+For `hal-module`, approval binds exactly:
+
+```text
+id + version + publisher-id + sorted-capabilities + hal-module + lock-digest
+```
+
+The lock digest is the code identity. A changed lock or capability set always
+requires a fresh approval. Source provenance and channel are retained in the
+installed record and receipts; switching channel is separately consented. A
+hash proves byte identity, not safety or authority.
+
+## Lifecycle
+
+The fixed module lifecycle is:
+
+```text
+modules/install
+modules/update
+modules/reload
+modules/remove
+modules/invoke
+```
+
+Install and update validate the manifest, approval, lock, archives, and staged
+namespace before committing the profile-wide installed record. Reload stages a
+fresh generation and swaps only after successful evaluation. Remove revokes the
+active generation and closes its surface but retains app data unless a separate
+deletion is requested. Checkpoint and restore use the existing app context
+protocol; module state is data and is never treated as source.
+
+Kernel-host transitions retain the existing serialized prepare → effects →
+commit discipline. Module staging is compensatable until commit. A browser or
+other non-replayable effect is never used to install module code.
 
 ## Capability vocabulary
 
-Capabilities describe the authority an integration needs; they do not grant it
-by themselves. The current closed vocabulary is:
+Capabilities describe requested authority; they do not grant it by themselves.
+The current closed vocabulary additionally includes:
 
 | Capability | Purpose |
 | --- | --- |
-| `identity/local` | Use the browser-held Greenways identity. |
-| `storage/local` | Use Greenways local application storage. |
-| `network/github` | Read explicitly selected public GitHub world material. |
-| `network/loopback` | Contact an allowlisted service on the local machine. |
-| `network/https` | Contact a user-approved remote HTTPS service origin. |
-| `tabs/open` | Open an allowlisted destination in a browser tab. |
-| `worlds/browse` | Browse Greenways Worlds. |
-| `historia/import` | Ask the local Historia integration to collect history. |
-| `hestia/connect` | Pair with a Hestia node under the connector's own consent flow. |
-| `hara/evaluate` | Use the Hara playground's evaluation environment. |
+| `hara/module` | Run a digest-verified HAL module in the bounded kernel container. |
 
-A runtime handler must still enforce its own permissions and consent. A
-manifest cannot mint a capability, enlarge a browser permission, or bypass the
-Hestia and Historia pairing boundaries. Handler-specific capabilities are
-mandatory: `web-tab` requires `tabs/open`; `native-hybrid` requires
-`network/loopback` and `tabs/open`; and the Hestia packaged surface requires
-`hestia/connect`, `network/https`, `network/loopback`, and `storage/local`.
-
-## Built-in catalog
-
-| App | Publisher | Version | Category | Launch | Notes |
-| --- | --- | --- | --- | --- | --- |
-| Greenways Home | `greenways-ai` | `0.3.0` | System | Packaged `src/studio.html#home` | Private local home, identity, projects, and receipts. Hestia actions route to the optional connector; Home performs no Hestia network effect. |
-| Worlds | `greenways-ai` | `0.3.0` | System | Packaged `src/world.html` | World discovery and opening under the browser-wide kernel. |
-| Historia | `greenways-ai` | `0.1.0` | Installable | Local `http://127.0.0.1:4319/` | Requires the separately installed **Historia local companion**. Failure to find it is an unavailable-app state, never a remote fallback. |
-| Hestia Connector | `greenways-ai` | `0.3.0` | Installable | Packaged surface `hestia-connector` | Pairing and scoped access to loopback or HTTPS home nodes remain explicit. Sync sends signed actions with signed inclusions; disconnecting or removing it revokes its exact optional origin before deleting its credential. |
-| Hara Playground | `hara-lang` | `0.1.0` | Installable | Web tab `https://playground.hara-lang.org/` | Runs as a normal web destination, not extension-loaded remote code. |
+Existing capabilities remain `identity/local`, `storage/local`,
+`network/github`, `network/loopback`, `network/https`, `tabs/open`,
+`worlds/browse`, `historia/import`, `hestia/connect`, and `hara/evaluate`.
+`hal-module` requires `hara/module`. Any further host service needs a reviewed
+Greenways OS capability and policy update; an archive cannot mint one.
 
 ## Distribution boundary
 
-The built-in catalog changes only with a reviewed Greenways OS package update.
-A future signed app or service registry may distribute descriptions, versions,
-receipts, and installation offers, but a registry record cannot extend this
-runtime allowlist. A new execution handler, packaged surface, host, or capability
-requires a local Greenways OS update and conformance coverage.
+A signed registry may distribute descriptions, versions, publisher records,
+lock files, `.harp` archives, receipts, and `hal-module` installation offers.
+It cannot extend the local runtime-handler allowlist, browser permissions,
+capability vocabulary, native providers, effect policy, surface vocabulary, or
+message limits. Those remain reviewed Greenways OS code with conformance tests.
 
-This keeps the extension a sovereign local kernel first. Users can add Historia,
-Hestia, hosted playgrounds, collaboration, or later social services one by one,
-and removing those integrations leaves the local home and its records intact.
+This keeps the extension a sovereign local kernel first. Users can add or remove
+optional modules and services while the local identity, storage, receipts, and
+system home remain usable.

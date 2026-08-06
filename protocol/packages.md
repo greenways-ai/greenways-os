@@ -1,55 +1,53 @@
 # Greenways Package Manager protocol
 
-Status: first product projection  
+Status: modular app draft  
 Manager protocol: `greenways-package-manager/1`  
 Package protocol: `greenways-package/1`
 
 ## Purpose
 
-Greenways Package Manager is the second permanent Greenways OS product. It turns the existing Hara-owned application lifecycle into an explicit package model while retaining exact local approvals and Manifest V3’s executable-code boundary.
-
-Keyring and Package Manager are core host services. They are not removable packages.
+Greenways Package Manager projects the Hara-owned application lifecycle as an
+explicit package model while retaining exact local approvals and Manifest V3's
+remote-code boundary. Keyring and Package Manager are core host services. They
+are not removable packages.
 
 ## Runtime approval compatibility
 
-`greenways-app/1` remains the normative runtime approval record. It binds:
-
-- package ID;
-- semantic version;
-- publisher identity;
-- name and description;
-- category;
-- exact capability set;
-- exact launch handler and packaged surface, path, or allowlisted URL;
-- a disclosed native companion requirement where applicable.
-
-`greenways-package/1` is a read-only product projection of that validated record. It does not loosen validation or add executable fields.
+`greenways-app/1` remains the normative runtime approval record. For ordinary
+apps it binds package ID, semantic version, publisher, exact capabilities, and
+the locally shipped launch target. For `hal-module` it additionally binds the
+exact lock digest. `greenways-package/1` is a read-only product projection of a
+validated record; it cannot loosen validation or add executable fields.
 
 ## Package kinds
 
 ### `system`
 
-A reviewed surface that ships with Greenways OS and is restored with the kernel. System IDs, publisher, packaged path, and capabilities are bound together.
+A reviewed surface shipped with Greenways OS and restored with the kernel.
+System IDs, publisher, target, and capabilities are bound together.
 
-Current examples: Greenways Home and Worlds.
+### `hal-module`
+
+An optional or bundled `.hal` application installed from a digest-verified
+`:lock/format 2` package graph. Its source is evaluated only by the browser-held
+Hara kernel under an app-owned namespace generation. It receives no ambient
+extension authority and renders through host-owned declarative surfaces.
 
 ### `bundled-module`
 
-An optional package whose implementation ships in the same reviewed extension but remains disabled until the user approves its manifest.
-
-Current example: Hestia Connector.
+A reviewed integration whose implementation ships in the extension bundle. It
+may be progressively represented as a `hal-module` with channel `bundled` so
+system and third-party modules share one lifecycle.
 
 ### `companion`
 
-A package that opens or coordinates with an explicitly disclosed local native service. The extension cannot install or start the operating-system executable.
-
-Current example: Historia local companion.
+A package that opens or coordinates with an explicitly disclosed local native
+service. The extension cannot install or start the operating-system executable.
 
 ### `web-application`
 
-An allowlisted ordinary website opened in a browser tab. It does not become extension code and cannot use keyring capabilities unless a separate, exact website bridge is later approved.
-
-Current example: Hara Playground.
+An allowlisted ordinary website opened in a browser tab. It does not become
+extension code and cannot use keyring capabilities without a separate bridge.
 
 ## Inventory projection
 
@@ -61,13 +59,24 @@ update-available
 available
 ```
 
-An approval is current only when ID, version, publisher, launch handler/binding, and sorted capability set match the reviewed catalogue. A changed record requires explicit approval; an old approval cannot be silently widened.
+Release comparison uses SemVer only after registry signature verification. An
+approval is current only when its approval identity matches. A newer index entry
+never silently updates an installed package.
 
-## Installation and removal
+Module records also expose channel, source provenance, lock digest, active
+namespace generation, and the last verification result. Preview records are
+always visibly badged.
 
-Installation records the exact manifest in the profile-wide Hara state and IndexedDB package projection. It does not fetch executable code.
+## Installation, reload, and removal
 
-Removal disables the package and closes its active packaged surface. Package-specific durable data is retained unless a separate deletion operation is explicitly requested. Connector removal must revoke its exact optional origin permission before deleting its credential.
+Installation records the exact manifest and verified package material using the
+kernel's two-phase IndexedDB transition. The archive and lock are re-verified
+before registration on every service-worker boot.
+
+Reload stages and evaluates a fresh namespace generation, then swaps the active
+generation. Failure leaves the prior generation active. Removal closes the app's
+surface and deactivates its generation. Package-specific durable data is retained
+unless a separate deletion operation is explicitly requested.
 
 System packages cannot be removed through the optional package flow.
 
@@ -75,33 +84,43 @@ System packages cannot be removed through the optional package flow.
 
 The following are inert package metadata and may be fetched after validation:
 
-- IDs, versions, names, descriptions, categories;
-- capability names;
+- IDs, versions, names, descriptions, categories, and capabilities;
 - publisher records and signatures;
 - content digests and sizes;
 - compatibility and dependency descriptions;
-- icons, documentation, schemas, prompts, and other data-only resources.
+- icons, documentation, schemas, prompts, and data-only resources; and
+- closed release, preview, or bundled provenance descriptors.
 
 The following cannot be installed as remote extension logic:
 
 - JavaScript or TypeScript modules;
-- WebAssembly;
-- HAL source or bytecode intended to extend the privileged extension host;
-- HTML or UI entrypoints;
-- scripts, evaluators, native commands, or arbitrary URLs.
+- arbitrary WebAssembly;
+- HTML, CSS, or UI entrypoints;
+- scripts, native commands, dynamic evaluators, or arbitrary URLs;
+- host handlers, effects, browser permissions, native providers, or capability
+  definitions supplied by a package.
 
-Executable browser modules must arrive in a reviewed Greenways OS build or a separately reviewed companion extension. Hara package archives may be digest-verified for bounded Hara execution contexts, but a hash alone does not grant extension privileges or bypass the host capability vocabulary.
+The narrow exception is HAL source in a verified `.harp` graph, evaluated as
+unprivileged data by the already-packaged Hara Wasm runtime. The container
+rewrites it into an app-owned namespace generation, blocks protected/native
+namespace references and dynamic evaluation in v1, and exposes host services
+only through declared capabilities and fixed dispatch. HAL byte identity does
+not grant extension privileges. A hash is necessary for reproducibility, never
+sufficient for authority.
+
+Executable browser modules and changes to the HAL container itself must arrive
+in a reviewed Greenways OS build or a separately reviewed companion extension.
 
 ## Keyring relationship
 
-A package manifest may eventually request capabilities such as:
+A package manifest may request closed capabilities such as `key/public`,
+`key/sign`, or `model/generate` when those capabilities are introduced by a
+reviewed host update. The manifest and package may not declare or contain a
+secret. Installation grants no ambient use of a controller or provider profile.
+Every operation remains subject to caller binding, user policy, context
+disclosure, limits, and receipts.
 
-```text
-key/public
-key/sign
-model/generate
-```
-
-The manifest may not declare or contain a secret. Installation grants no ambient use of a controller or provider profile. Every operation remains subject to caller binding, user policy, context disclosure, limits, and audit receipts.
-
-DevTools, page debugging, or arbitrary browser automation must not share secret storage merely because they appear as packages in one Greenways OS interface. Such capabilities may require an isolated companion extension speaking a typed Greenways module protocol.
+DevTools, page debugging, and browser automation must not share secret storage
+merely because they appear in one package interface. Higher-risk capabilities
+may require an isolated companion extension speaking a typed Greenways module
+protocol.
