@@ -1,0 +1,235 @@
+(ns gw.os.services
+  (:require [std.foundation.string :as string]))
+
+(def CORE-SERVICE-PROTOCOL
+  "greenways-core-service/1")
+
+(def CAPABILITY-DEFINITION-PROTOCOL
+  "greenways-capability-definition/1")
+
+(def CAPABILITY-GRANT-PROTOCOL
+  "greenways-capability-grant/1")
+
+(def CORE-SERVICES
+  [{"protocol" CORE-SERVICE-PROTOCOL
+    "id" "kernel"
+    "name" "Kernel and Module Runtime"
+    "version" "0.1.0"
+    "status" "active"
+    "resident" true
+    "removable" false
+    "dependencies" []}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "store"
+    "name" "Durable State Store"
+    "version" "0.1.0"
+    "status" "active"
+    "resident" true
+    "removable" false
+    "dependencies" ["kernel"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "capabilities"
+    "name" "Capability and Consent"
+    "version" "0.1.0"
+    "status" "active"
+    "resident" true
+    "removable" false
+    "dependencies" ["kernel" "store"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "identity"
+    "name" "Identity"
+    "version" "0.1.0"
+    "status" "active"
+    "resident" true
+    "removable" false
+    "dependencies" ["store" "capabilities"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "keyring"
+    "name" "Keyring"
+    "version" "0.1.0"
+    "status" "active"
+    "resident" true
+    "removable" false
+    "dependencies" ["identity" "store" "capabilities"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "packages"
+    "name" "Package Lifecycle and Trust"
+    "version" "0.1.0"
+    "status" "active"
+    "resident" true
+    "removable" false
+    "dependencies" ["kernel" "store" "capabilities"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "surfaces"
+    "name" "Surface and Interaction Host"
+    "version" "0.1.0"
+    "status" "active"
+    "resident" true
+    "removable" false
+    "dependencies" ["kernel" "capabilities"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "receipts"
+    "name" "Receipt and Event Journal"
+    "version" "0.1.0"
+    "status" "foundation"
+    "resident" true
+    "removable" false
+    "dependencies" ["store" "identity"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "connectors"
+    "name" "Connector Broker"
+    "version" "0.1.0"
+    "status" "foundation"
+    "resident" true
+    "removable" false
+    "dependencies" ["capabilities" "keyring" "receipts"]}
+   {"protocol" CORE-SERVICE-PROTOCOL
+    "id" "work"
+    "name" "Work and Agent Supervisor"
+    "version" "0.1.0"
+    "status" "foundation"
+    "resident" true
+    "removable" false
+    "dependencies" ["kernel" "store" "capabilities" "receipts"]}])
+
+(def CAPABILITY-DEFINITIONS
+  [{"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hara/evaluate" "service" "kernel" "risk" "medium" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hara/module" "service" "kernel" "risk" "high" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hestia/connect" "service" "connectors" "risk" "high" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "historia/import" "service" "connectors" "risk" "medium" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "identity/local" "service" "identity" "risk" "high" "grantable" false "trustedPublishers" ["greenways-ai"]}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "network/github" "service" "connectors" "risk" "medium" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "network/https" "service" "connectors" "risk" "high" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "network/loopback" "service" "connectors" "risk" "high" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "storage/local" "service" "store" "risk" "medium" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "tabs/open" "service" "surfaces" "risk" "medium" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "worlds/browse" "service" "connectors" "risk" "low" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "key/public" "service" "keyring" "risk" "low" "grantable" true "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "key/sign" "service" "keyring" "risk" "critical" "grantable" true "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "credential/manage" "service" "keyring" "risk" "critical" "grantable" true "trustedPublishers" ["greenways-ai"]}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "credential/use" "service" "keyring" "risk" "critical" "grantable" true "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "model/generate" "service" "connectors" "risk" "high" "grantable" true "trustedPublishers" []}])
+
+(defn normalize-id [value]
+  (string/lower (string/trim (str (or value "")))))
+
+(defn value-present? [values value]
+  (> (count (filter (fn [candidate] (= candidate value)) values)) 0))
+
+(defn core-services []
+  CORE-SERVICES)
+
+(defn core-service [service-id]
+  (first (filter (fn [entry]
+                   (= (get entry "id") (normalize-id service-id)))
+                 CORE-SERVICES)))
+
+(defn capability-definitions []
+  CAPABILITY-DEFINITIONS)
+
+(defn capability-definition [capability-id]
+  (first (filter (fn [entry]
+                   (= (get entry "id") (normalize-id capability-id)))
+                 CAPABILITY-DEFINITIONS)))
+
+(defn manifest-capability? [manifest capability-id]
+  (value-present? (or (get manifest "capabilities") []) capability-id))
+
+(defn trusted-publisher? [definition publisher-id]
+  (let [publishers (or (get definition "trustedPublishers") [])]
+    (or (= 0 (count publishers))
+        (value-present? publishers publisher-id))))
+
+(defn grant-subject [manifest]
+  {"kind" "app"
+   "appId" (get manifest "id")
+   "version" (get manifest "version")
+   "publisherId" (get (get manifest "publisher") "id")
+   "lockDigest" (if (= (get manifest "kind") "hal-module")
+                  (get manifest "lockDigest")
+                  nil)})
+
+(defn exact-subject? [left right]
+  (and (= (get left "kind") (get right "kind"))
+       (= (get left "appId") (get right "appId"))
+       (= (get left "version") (get right "version"))
+       (= (get left "publisherId") (get right "publisherId"))
+       (= (get left "lockDigest") (get right "lockDigest"))))
+
+(defn capability-grant [manifest grant]
+  (let [grant-id (string/trim (str (or (get grant "id") "")))
+        capability-id (normalize-id (get grant "capability"))
+        definition (capability-definition capability-id)
+        subject (get grant "subject")
+        expected-subject (grant-subject manifest)]
+    (cond
+      (not (= (get grant "protocol") CAPABILITY-GRANT-PROTOCOL))
+      (throw "Capability grant protocol is not supported")
+      (string/blank? grant-id)
+      (throw "Capability grant id is required")
+      (nil? definition)
+      (throw "Capability is not in the closed vocabulary")
+      (not (= (get definition "grantable") true))
+      (throw "Capability is not operation-grantable")
+      (not (manifest-capability? manifest capability-id))
+      (throw "App manifest does not declare the requested capability")
+      (not (trusted-publisher? definition (get expected-subject "publisherId")))
+      (throw "Capability is restricted to a trusted publisher")
+      (not (exact-subject? subject expected-subject))
+      (throw "Capability grant subject does not match the approved app")
+      (string/blank? (string/trim (str (or (get grant "issuedAt") ""))))
+      (throw "Capability grant issuance time is required")
+      :else
+      (assoc grant "id" grant-id
+                   "capability" capability-id
+                   "subject" expected-subject
+                   "constraints" (or (get grant "constraints") {})
+                   "expiresAt" (get grant "expiresAt")
+                   "revokedAt" (get grant "revokedAt")))))
+
+(defn restored-grant [grant]
+  (let [grant-id (string/trim (str (or (get grant "id") "")))
+        capability-id (normalize-id (get grant "capability"))
+        definition (capability-definition capability-id)
+        subject (get grant "subject")]
+    (cond
+      (not (= (get grant "protocol") CAPABILITY-GRANT-PROTOCOL))
+      (throw "Stored capability grant protocol is not supported")
+      (string/blank? grant-id)
+      (throw "Stored capability grant id is required")
+      (nil? definition)
+      (throw "Stored capability is not in the closed vocabulary")
+      (not (= (get definition "grantable") true))
+      (throw "Stored capability is not operation-grantable")
+      (not (= (get subject "kind") "app"))
+      (throw "Stored capability grant subject is invalid")
+      (string/blank? (normalize-id (get subject "appId")))
+      (throw "Stored capability grant app id is required")
+      :else
+      (assoc grant "id" grant-id
+                   "capability" capability-id
+                   "constraints" (or (get grant "constraints") {})
+                   "expiresAt" (get grant "expiresAt")
+                   "revokedAt" (get grant "revokedAt")))))
+
+(defn restore-grants [grants]
+  (loop [index 0 output []]
+    (if (= index (count (or grants [])))
+      output
+      (let [grant (restored-grant (nth grants index))
+            grant-id (get grant "id")]
+        (if (> (count (filter (fn [entry] (= (get entry "id") grant-id)) output)) 0)
+          (throw "Stored capability grants contain a duplicate id")
+          (recur (+ index 1) (conj output grant)))))))
+
+(defn current-grant? [manifest grant capability-id now]
+  (let [expires-at (string/trim (str (or (get grant "expiresAt") "")))
+        now (string/trim (str (or now "")))
+        unexpired (or (string/blank? expires-at)
+                      (string/blank? now)
+                      (> (compare expires-at now) 0))]
+    (and manifest
+         (= (get grant "capability") capability-id)
+         (nil? (get grant "revokedAt"))
+         unexpired
+         (exact-subject? (get grant "subject") (grant-subject manifest)))))

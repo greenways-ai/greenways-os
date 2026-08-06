@@ -21,16 +21,32 @@ export function resolveAppUrl(appId, runtime = globalThis.chrome?.runtime) {
   throw new Error(`${manifest.name} opens inside the Greenways launcher`);
 }
 
+export function appApprovalIdentity(manifest) {
+  if (!manifest) return null;
+  const capabilities = [...(manifest.capabilities ?? [])].sort();
+  if (manifest.launch?.handler === "hal-module") {
+    return Object.freeze({
+      id: manifest.id,
+      version: manifest.version,
+      publisherId: manifest.publisher?.id,
+      capabilities,
+      handler: "hal-module",
+      lockDigest: manifest.lockDigest,
+    });
+  }
+  return Object.freeze({
+    id: manifest.id,
+    version: manifest.version,
+    publisherId: manifest.publisher?.id,
+    capabilities,
+    handler: manifest.launch?.handler,
+    path: manifest.launch?.path,
+    url: manifest.launch?.url,
+    surfaceId: manifest.launch?.surfaceId,
+  });
+}
+
 export function sameManifestApproval(approved, current = getAppManifest(approved?.id)) {
   if (!approved || !current) return false;
-  const approvedCapabilities = [...(approved.capabilities ?? [])].sort();
-  const currentCapabilities = [...(current.capabilities ?? [])].sort();
-  return approved.id === current.id
-    && approved.version === current.version
-    && approved.publisher?.id === current.publisher?.id
-    && approved.launch?.handler === current.launch?.handler
-    && approved.launch?.path === current.launch?.path
-    && approved.launch?.url === current.launch?.url
-    && approved.launch?.surfaceId === current.launch?.surfaceId
-    && JSON.stringify(approvedCapabilities) === JSON.stringify(currentCapabilities);
+  return JSON.stringify(appApprovalIdentity(approved)) === JSON.stringify(appApprovalIdentity(current));
 }

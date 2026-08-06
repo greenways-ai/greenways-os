@@ -1,11 +1,11 @@
 import { parseEDNString } from "edn-data";
 import { unzipSync } from "fflate";
+import { sha256 } from "./crypto.js";
 
 const ednOptions = {
   mapAs: "object", setAs: "array", listAs: "array",
   keywordAs: "string", charAs: "string", objectKeysAs: "string",
 };
-
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 export const HARP_LIMITS = Object.freeze({
@@ -14,27 +14,17 @@ export const HARP_LIMITS = Object.freeze({
   expandedBytes: 16 * 1024 * 1024,
   manifestBytes: 1024 * 1024,
 });
-const hex = (bytes) => [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
-async function sha256(bytes) {
-  return `sha256:${hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))}`;
+function plainObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`${label} must be an object`);
+  }
+  return value;
 }
 
-function packageUrl(entry) {
-  return entry["distribution/url"]
-    ?? entry["packages/url"]
-    ?? entry["release-url"]
-    ?? entry.url
-    ?? entry["distribution/path"];
-}
-
-function packageDigest(entry) {
-  return entry["harp-sha256"] ?? entry.sha256;
-}
-
-function safeArchivePath(path) {
-  return path && !path.startsWith("/") && !path.includes("\\")
-    && path.split("/").every((part) => part && part !== "." && part !== "..");
+function safePath(value) {
+  return typeof value === "string" && value && !value.startsWith("/") && !value.includes("\\")
+    && value.split("/").every((part) => part && part !== "." && part !== "..");
 }
 
 
@@ -46,13 +36,9 @@ function unzipBoundedArchive(archive, coordinate) {
   let expandedBytes = 0;
   return unzipSync(archive, {
     filter(file) {
-      if (!safeArchivePath(file.name)) {
-        throw new Error(`Locked package ${coordinate} contains an unsafe path`);
-      }
+      if (!safePath(file.name)) throw new Error(`Locked package ${coordinate} contains an unsafe path`);
       files += 1;
-      if (files > HARP_LIMITS.files) {
-        throw new Error(`Locked package ${coordinate} contains too many files`);
-      }
+      if (files > HARP_LIMITS.files) throw new Error(`Locked package ${coordinate} contains too many files`);
       if (!Number.isSafeInteger(file.originalSize) || file.originalSize < 0) {
         throw new Error(`Locked package ${coordinate} has an invalid expanded size for ${file.name}`);
       }
@@ -65,61 +51,42 @@ function unzipBoundedArchive(archive, coordinate) {
   });
 }
 
-function plainObject(value, label) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new TypeError(`${label} must be an object`);
-  }
-  return value;
+function archiveUrl(entry) {
+  return entry["distribution/url"] ?? entry["packages/url"] ?? entry["release-url"] ?? entry.url;
 }
 
-function packageAppEntry(manifest, label) {
-  const descriptor = manifest["greenways/app"];
-  if (descriptor === undefined) return null;
-  const input = plainObject(descriptor, `${label} :greenways/app`);
-  for (const key of Object.keys(input)) {
+function archiveDigest(entry) {
+  return entry["harp-sha256"] ?? entry.sha256;
+}
+
+function appEntry(manifest, label) {
+  const raw = manifest["greenways/app"];
+  if (raw === undefined) return null;
+  const value = plainObject(raw, `${label} :greenways/app`);
+  for (const key of Object.keys(value)) {
     if (key !== "entry") throw new Error(`${label} :greenways/app contains unsupported field ${key}`);
   }
-  if (typeof input.entry !== "string" || !input.entry.includes("/")) {
+  if (typeof value.entry !== "string" || !value.entry.includes("/")) {
     throw new Error(`${label} :greenways/app requires a namespace-qualified :entry`);
   }
-  return input.entry;
+  return value.entry;
 }
 
-function freezePackageRecord(record) {
-  return Object.freeze({
-    ...record,
-    resourceNames: Object.freeze(record.resourceNames),
-  });
-}
-
-/**
- * Fetches and verifies every archive in a :lock/format 2 lock.
- *
- * The returned bundle deliberately keeps executable HAL source separate from
- * app manifests. Callers may persist the exact lock and archive bytes, but a
- * module can become active only after manifest validation, approval policy,
- * and the HAL namespace container have accepted it.
- */
-export async function loadLockedPackageBundle(
-  lockSource,
-  request = (...args) => globalThis.fetch(...args),
-  { resolvePackageUrl = (value) => value } = {},
-) {
+export async function verifyLockedPackageBundle(lockSource, request) {
   const lockText = String(lockSource);
   const lock = parseEDNString(lockText, ednOptions);
   if (lock["lock/format"] !== 2) throw new Error("project.lock.edn requires :lock/format 2");
-  plainObject(lock.packages ?? {}, "project.lock.edn packages");
-
-  const staged = {};
+  const lockPackages = plainObject(lock.packages ?? {}, "project.lock.edn packages");
   const packages = {};
-  for (const [coordinate, rawEntry] of Object.entries(lock.packages ?? {})) {
-    const entry = plainObject(rawEntry, `Locked package ${coordinate}`);
-    const lockedUrl = packageUrl(entry);
-    const digest = packageDigest(entry);
-    if (!lockedUrl || !digest) throw new Error(`Locked package ${coordinate} is missing its URL or SHA-256`);
-    const url = resolvePackageUrl(lockedUrl, { coordinate, entry });
-    if (typeof url !== "string" || !url) throw new Error(`Locked package ${coordinate} resolved to an invalid URL`);
+  const resources = {};
 
+  for (const [coordinate, rawEntry] of Object.entries(lockPackages)) {
+    const entry = plainObject(rawEntry, `Locked package ${coordinate}`);
+    const url = archiveUrl(entry);
+    const digest = archiveDigest(entry);
+    if (typeof url !== "string" || !url || typeof digest !== "string" || !digest) {
+      throw new Error(`Locked package ${coordinate} is missing its URL or SHA-256`);
+    }
     const response = await request(url);
     if (!response?.ok) throw new Error(`Locked package ${coordinate} failed: ${response?.status ?? "network"}`);
     const archive = new Uint8Array(await response.arrayBuffer());
@@ -136,28 +103,21 @@ export async function loadLockedPackageBundle(
     if (files["package.edn"].byteLength > HARP_LIMITS.manifestBytes) {
       throw new Error(`Locked package ${coordinate} package.edn exceeds the manifest byte limit`);
     }
-
     const manifest = parseEDNString(decoder.decode(files["package.edn"]), ednOptions);
-    if (manifest["harp/format"] !== 1) {
-      throw new Error(`Locked package ${coordinate} requires :harp/format 1`);
-    }
+    if (manifest["harp/format"] !== 1) throw new Error(`Locked package ${coordinate} requires :harp/format 1`);
     const declaredFiles = plainObject(manifest.files ?? {}, `Locked package ${coordinate} files`);
     const declaredResources = plainObject(manifest.resources ?? {}, `Locked package ${coordinate} resources`);
     const archivePaths = new Set(Object.keys(files));
     const declaredPaths = new Set(["package.edn", ...Object.keys(declaredFiles)]);
     for (const path of archivePaths) {
-      if (!declaredPaths.has(path)) {
-        throw new Error(`Locked package ${coordinate} contains undeclared file ${path}`);
-      }
+      if (!declaredPaths.has(path)) throw new Error(`Locked package ${coordinate} contains undeclared file ${path}`);
     }
     for (const path of declaredPaths) {
-      if (!archivePaths.has(path)) {
-        throw new Error(`Locked package ${coordinate} is missing ${path}`);
-      }
+      if (!archivePaths.has(path)) throw new Error(`Locked package ${coordinate} is missing ${path}`);
     }
 
     for (const [path, rawFile] of Object.entries(declaredFiles)) {
-      if (!safeArchivePath(path)) throw new Error(`Locked package ${coordinate} declares an unsafe path`);
+      if (!safePath(path)) throw new Error(`Locked package ${coordinate} declares an unsafe path`);
       const file = plainObject(rawFile, `Locked package ${coordinate} file ${path}`);
       if (!Number.isSafeInteger(file.size) || file.size < 0 || !/^sha256:[a-f0-9]{64}$/.test(file.sha256 ?? "")) {
         throw new Error(`Locked package ${coordinate} has invalid file evidence for ${path}`);
@@ -168,32 +128,19 @@ export async function loadLockedPackageBundle(
         throw new Error(`Locked package ${coordinate} failed file verification: ${path}`);
       }
     }
-
-    const resourceNames = [];
     for (const [namespace, path] of Object.entries(declaredResources)) {
-      if (typeof path !== "string" || !safeArchivePath(path)) {
-        throw new Error(`Locked package ${coordinate} declares an unsafe resource path`);
+      if (!safePath(path) || !(path in declaredFiles)) {
+        throw new Error(`Locked package ${coordinate} resource ${path} is not safely digest-declared`);
       }
-      if (!(path in declaredFiles)) {
-        throw new Error(`Locked package ${coordinate} resource ${path} is not digest-declared`);
-      }
-      if (staged[namespace]) throw new Error(`Duplicate locked HAL namespace: ${namespace}`);
+      if (resources[namespace]) throw new Error(`Duplicate locked HAL namespace: ${namespace}`);
       const bytes = files[path];
       if (!bytes) throw new Error(`Locked package ${coordinate} is missing resource ${path}`);
-      staged[namespace] = decoder.decode(bytes);
-      resourceNames.push(namespace);
+      resources[namespace] = decoder.decode(bytes);
     }
-
-    packages[coordinate] = freezePackageRecord({
+    packages[coordinate] = Object.freeze({
       coordinate,
-      version: entry.version ?? null,
-      url,
-      digest,
-      size: archive.byteLength,
-      archive: archive.slice(),
       manifest,
-      appEntry: packageAppEntry(manifest, `Locked package ${coordinate}`),
-      resourceNames,
+      appEntry: appEntry(manifest, `Locked package ${coordinate}`),
     });
   }
 
@@ -201,18 +148,14 @@ export async function loadLockedPackageBundle(
     lock,
     lockSource: lockText,
     lockDigest: await sha256(encoder.encode(lockText)),
-    resources: Object.freeze(staged),
     packages: Object.freeze(packages),
+    resources: Object.freeze(resources),
   });
 }
 
-export async function loadLockedPackageResources(lockSource, request, options) {
-  return (await loadLockedPackageBundle(lockSource, request, options)).resources;
-}
-
-export function lockedPackageAppEntry(bundle) {
+export function requireSingleAppEntry(bundle) {
   const entries = Object.values(plainObject(bundle?.packages, "Locked package bundle packages"))
-    .map((record) => record?.appEntry)
+    .map((record) => record.appEntry)
     .filter(Boolean);
   if (entries.length !== 1) {
     throw new Error(`Locked package graph must declare exactly one Greenways app entry; found ${entries.length}`);

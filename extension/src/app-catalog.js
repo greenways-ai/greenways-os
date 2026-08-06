@@ -1,30 +1,28 @@
+import { APP_CAPABILITIES } from "./core-services.js";
+
 const IDENTIFIER = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SEMANTIC_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+const SHA256 = /^sha256:[a-f0-9]{64}$/;
+const GITHUB_PART = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?$/;
+const GITHUB_SHA = /^[a-f0-9]{40}$/;
+const PACKAGE_COORDINATE = /^[a-z0-9][a-z0-9._-]*:[a-z0-9][a-z0-9._/-]*$/;
 export const APP_MANIFEST_PROTOCOL = "greenways-app/1";
+
+export const APP_CHANNELS = Object.freeze(["bundled", "release", "preview"]);
 
 export const RUNTIME_HANDLERS = Object.freeze([
   "extension-page",
   "packaged-surface",
   "native-hybrid",
   "web-tab",
+  "hal-module",
 ]);
 
 export const PACKAGED_SURFACE_IDS = Object.freeze([
   "hestia-connector",
 ]);
 
-export const APP_CAPABILITIES = Object.freeze([
-  "hara/evaluate",
-  "hestia/connect",
-  "historia/import",
-  "identity/local",
-  "network/github",
-  "network/https",
-  "network/loopback",
-  "storage/local",
-  "tabs/open",
-  "worlds/browse",
-]);
+export { APP_CAPABILITIES };
 
 const PACKAGED_EXTENSION_PATHS = new Set([
   "src/studio.html#home",
@@ -36,9 +34,14 @@ const NATIVE_HYBRID_URLS = new Set([
 const WEB_TAB_URLS = new Set([
   "https://playground.hara-lang.org/",
 ]);
+const RELEASE_REGISTRIES = new Set([
+  "https://packages.hara-lang.org/",
+  "https://packages.greenways.ai/",
+]);
 const HANDLER_SET = new Set(RUNTIME_HANDLERS);
 const SURFACE_SET = new Set(PACKAGED_SURFACE_IDS);
 const CAPABILITY_SET = new Set(APP_CAPABILITIES);
+const CHANNEL_SET = new Set(APP_CHANNELS);
 const PACKAGED_SURFACE_BINDINGS = Object.freeze({
   "hestia-connector": Object.freeze({
     appId: "hestia-connector",
@@ -67,7 +70,8 @@ const FORBIDDEN_CODE_FIELD = /^(?:remote[-_])?(?:executable|module|source|script
 
 const MANIFEST_KEYS = new Set([
   "protocol", "id", "version", "publisher", "name", "description",
-  "category", "capabilities", "launch", "requirement"
+  "category", "capabilities", "launch", "requirement",
+  "kind", "channel", "lockDigest", "source",
 ]);
 const PUBLISHER_KEYS = new Set(["id", "name"]);
 const LAUNCH_KEYS = Object.freeze({
@@ -75,8 +79,14 @@ const LAUNCH_KEYS = Object.freeze({
   "packaged-surface": new Set(["handler", "surfaceId"]),
   "native-hybrid": new Set(["handler", "url"]),
   "web-tab": new Set(["handler", "url"]),
+  "hal-module": new Set(["handler"]),
 });
 const REQUIREMENT_KEYS = new Set(["kind", "id", "name", "description"]);
+const MODULE_SOURCE_KEYS = Object.freeze({
+  registry: new Set(["kind", "registry", "coordinate"]),
+  github: new Set(["kind", "owner", "repo", "sha"]),
+  bundled: new Set(["kind", "path"]),
+});
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -111,15 +121,24 @@ function semanticVersion(value, label) {
   return output;
 }
 
-function assertNoExecutableFields(value, label, seen = new WeakSet()) {
+function sha256Digest(value, label) {
+  const output = nonEmptyString(value, label, 80);
+  if (!SHA256.test(output)) throw new Error(`${label} must be sha256:<64 lowercase hex characters>`);
+  return output;
+}
+
+function assertNoExecutableFields(value, label, seen = new WeakSet(), path = []) {
   if (!value || typeof value !== "object") return;
   if (seen.has(value)) throw new Error(`${label} cannot contain cyclic data`);
   seen.add(value);
   for (const [key, child] of Object.entries(value)) {
-    if (FORBIDDEN_CODE_FIELD.test(key)) {
+    const safeModuleSourceDescriptor = path.length === 0
+      && key === "source"
+      && value.kind === "hal-module";
+    if (FORBIDDEN_CODE_FIELD.test(key) && !safeModuleSourceDescriptor) {
       throw new Error(`${label} cannot declare executable, module, source, script, or entrypoint fields`);
     }
-    assertNoExecutableFields(child, `${label}.${key}`, seen);
+    assertNoExecutableFields(child, `${label}.${key}`, seen, [...path, key]);
   }
   seen.delete(value);
 }
@@ -144,6 +163,14 @@ function safeUrl(value, label, allowedUrls) {
   return parsed.href;
 }
 
+function safeBundledPath(value, label) {
+  const path = nonEmptyString(value, label, 240);
+  if (path.startsWith("/") || path.includes("\\") || path.split("/").some((part) => !part || part === "." || part === "..")) {
+    throw new Error(`${label} must be a safe relative path`);
+  }
+  return path;
+}
+
 function normalizeLaunch(value, label) {
   const input = plainObject(value, label);
   const handler = nonEmptyString(input.handler, `${label}.handler`, 40);
@@ -165,7 +192,10 @@ function normalizeLaunch(value, label) {
   if (handler === "native-hybrid") {
     return Object.freeze({ handler, url: safeUrl(input.url, `${label}.url`, NATIVE_HYBRID_URLS) });
   }
-  return Object.freeze({ handler, url: safeUrl(input.url, `${label}.url`, WEB_TAB_URLS) });
+  if (handler === "web-tab") {
+    return Object.freeze({ handler, url: safeUrl(input.url, `${label}.url`, WEB_TAB_URLS) });
+  }
+  return Object.freeze({ handler });
 }
 
 function normalizeRequirement(value, label) {
@@ -199,6 +229,75 @@ function normalizePublisher(value, label) {
   });
 }
 
+function normalizeGitHubPart(value, label) {
+  const output = nonEmptyString(value, label, 100);
+  if (!GITHUB_PART.test(output) || output === "." || output === "..") {
+    throw new Error(`${label} is not a valid GitHub owner or repository name`);
+  }
+  return output;
+}
+
+function normalizeModuleSource(value, channel, label) {
+  const input = plainObject(value, label);
+  const kind = nonEmptyString(input.kind, `${label}.kind`, 20);
+  const allowed = MODULE_SOURCE_KEYS[kind];
+  if (!allowed) throw new Error(`${label}.kind must be registry, github, or bundled`);
+  assertKeys(input, allowed, label);
+
+  if (channel === "release" && kind !== "registry") {
+    throw new Error(`${label}.kind must be registry for the release channel`);
+  }
+  if (channel === "preview" && kind !== "github") {
+    throw new Error(`${label}.kind must be github for the preview channel`);
+  }
+  if (channel === "bundled" && kind !== "bundled") {
+    throw new Error(`${label}.kind must be bundled for the bundled channel`);
+  }
+
+  if (kind === "registry") {
+    const registry = safeUrl(input.registry, `${label}.registry`, RELEASE_REGISTRIES);
+    const coordinate = nonEmptyString(input.coordinate, `${label}.coordinate`, 160);
+    if (!PACKAGE_COORDINATE.test(coordinate) || coordinate.includes("..")) {
+      throw new Error(`${label}.coordinate is invalid`);
+    }
+    return Object.freeze({ kind, registry, coordinate });
+  }
+  if (kind === "github") {
+    const sha = nonEmptyString(input.sha, `${label}.sha`, 40).toLowerCase();
+    if (!GITHUB_SHA.test(sha)) throw new Error(`${label}.sha must be a pinned 40-character commit sha`);
+    return Object.freeze({
+      kind,
+      owner: normalizeGitHubPart(input.owner, `${label}.owner`),
+      repo: normalizeGitHubPart(input.repo, `${label}.repo`),
+      sha,
+    });
+  }
+  return Object.freeze({
+    kind,
+    path: safeBundledPath(input.path, `${label}.path`),
+  });
+}
+
+function normalizeModuleMetadata(input, launch, capabilities, category, label) {
+  const moduleFieldsPresent = ["kind", "channel", "lockDigest", "source"]
+    .some((key) => input[key] !== undefined);
+  if (launch.handler !== "hal-module") {
+    if (moduleFieldsPresent) throw new Error(`${label}: only hal-module apps may declare module installation metadata`);
+    return null;
+  }
+  if (input.kind !== "hal-module") throw new Error(`${label}.kind must be hal-module`);
+  if (category !== "installable") throw new Error(`${label}: hal-module apps must currently be installable`);
+  if (!capabilities.includes("hara/module")) throw new Error(`${label}: hal-module apps require hara/module`);
+  const channel = nonEmptyString(input.channel, `${label}.channel`, 20);
+  if (!CHANNEL_SET.has(channel)) throw new Error(`${label}.channel must be bundled, release, or preview`);
+  return Object.freeze({
+    kind: "hal-module",
+    channel,
+    lockDigest: sha256Digest(input.lockDigest, `${label}.lockDigest`),
+    source: normalizeModuleSource(input.source, channel, `${label}.source`),
+  });
+}
+
 export function normalizeAppDescriptor(value, label = "app manifest") {
   const input = plainObject(value, label);
   assertNoExecutableFields(input, label);
@@ -221,6 +320,7 @@ export function normalizeAppDescriptor(value, label = "app manifest") {
   const requirement = input.requirement === undefined
     ? null
     : normalizeRequirement(input.requirement, `${label}.requirement`);
+  const moduleMetadata = normalizeModuleMetadata(input, launch, capabilities, category, label);
 
   if (category === "system" && launch.handler !== "extension-page") {
     throw new Error(`${label}: system apps must use the extension-page handler`);
@@ -284,6 +384,7 @@ export function normalizeAppDescriptor(value, label = "app manifest") {
     launch,
   };
   if (requirement) output.requirement = requirement;
+  if (moduleMetadata) Object.assign(output, moduleMetadata);
   return Object.freeze(output);
 }
 

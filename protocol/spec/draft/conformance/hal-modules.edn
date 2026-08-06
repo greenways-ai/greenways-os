@@ -1,0 +1,118 @@
+[{:case/id :greenways.os.case/hal-module-release
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :greenways-notes
+          :app/version "1.2.0"
+          :app/publisher {:publisher/id :greenways-ai
+                          :publisher/name "Greenways AI"}
+          :app/name "Notes"
+          :app/description "A bounded HAL notes application."
+          :app/category :installable
+          :app/capabilities [:hara/module :storage/local]
+          :app/launch {:launch/handler :hal-module}
+          :app/kind :hal-module
+          :app/channel :release
+          :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          :app/source {:source/kind :registry
+                       :source/registry "https://packages.greenways.ai/"
+                       :source/coordinate "greenways:notes"}}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/hal-module-preview-pinned
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :greenways-notes
+          :app/version "1.2.0-preview.1"
+          :app/publisher {:publisher/id :greenways-ai
+                          :publisher/name "Greenways AI"}
+          :app/name "Notes preview"
+          :app/description "A commit-pinned HAL preview."
+          :app/category :installable
+          :app/capabilities [:hara/module :storage/local]
+          :app/launch {:launch/handler :hal-module}
+          :app/kind :hal-module
+          :app/channel :preview
+          :app/lock-digest "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          :app/source {:source/kind :github
+                       :source/owner "greenways-ai"
+                       :source/repo "greenways-notes"
+                       :source/sha "0123456789abcdef0123456789abcdef01234567"}}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/hal-module-preview-mutable-ref
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :greenways-notes
+          :app/version "1.2.0-preview.1"
+          :app/publisher {:publisher/id :greenways-ai
+                          :publisher/name "Greenways AI"}
+          :app/name "Notes preview"
+          :app/description "Attempts to retain a mutable branch."
+          :app/category :installable
+          :app/capabilities [:hara/module]
+          :app/launch {:launch/handler :hal-module}
+          :app/kind :hal-module
+          :app/channel :preview
+          :app/lock-digest "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          :app/source {:source/kind :github
+                       :source/owner "greenways-ai"
+                       :source/repo "greenways-notes"
+                       :source/sha "main"}}
+  :expect {:error :preview-sha-required}}
+
+ {:case/id :greenways.os.case/hal-module-capability-required
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :greenways-notes
+          :app/version "1.2.0"
+          :app/publisher {:publisher/id :greenways-ai
+                          :publisher/name "Greenways AI"}
+          :app/name "Notes"
+          :app/description "Omits the module capability."
+          :app/category :installable
+          :app/capabilities [:storage/local]
+          :app/launch {:launch/handler :hal-module}
+          :app/kind :hal-module
+          :app/channel :release
+          :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          :app/source {:source/kind :registry
+                       :source/registry "https://packages.greenways.ai/"
+                       :source/coordinate "greenways:notes"}}
+  :expect {:error :module-capability-required}}
+
+ {:case/id :greenways.os.case/hal-module-code-in-manifest
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :greenways-notes
+          :app/version "1.2.0"
+          :app/publisher {:publisher/id :greenways-ai
+                          :publisher/name "Greenways AI"}
+          :app/name "Notes"
+          :app/description "Attempts to smuggle source in a descriptor."
+          :app/category :installable
+          :app/capabilities [:hara/module]
+          :app/launch {:launch/handler :hal-module}
+          :app/kind :hal-module
+          :app/channel :release
+          :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          :app/source {:source/kind :registry
+                       :source/registry "https://packages.greenways.ai/"
+                       :source/coordinate "greenways:notes"
+                       :source/source "(ns attacker)"}}
+  :expect {:error :remote-code-field-forbidden}}
+
+ {:case/id :greenways.os.case/hal-module-lock-change-reapproval
+  :case/type :approval-transition
+  :input {:approved {:app/id :greenways-notes
+                     :app/version "1.2.0"
+                     :app/publisher-id :greenways-ai
+                     :app/capabilities [:hara/module :storage/local]
+                     :app/handler :hal-module
+                     :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :proposed {:app/id :greenways-notes
+                     :app/version "1.2.0"
+                     :app/publisher-id :greenways-ai
+                     :app/capabilities [:hara/module :storage/local]
+                     :app/handler :hal-module
+                     :app/lock-digest "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}
+  :expect {:error :fresh-approval-required}}]

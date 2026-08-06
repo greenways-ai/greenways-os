@@ -1,7 +1,7 @@
 import { createSyncEntry, validateSyncEntry } from "./sync-protocol.js";
 
 const DATABASE = "greenways-os-v1";
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 5;
 export const DATABASE_STORES = Object.freeze([
   "settings",
   "identity",
@@ -10,6 +10,8 @@ export const DATABASE_STORES = Object.freeze([
   "inclusions",
   "outbox",
   "apps",
+  "modules",
+  "grants",
   "kernel",
 ]);
 
@@ -168,6 +170,34 @@ function appProjectionEntries(apps) {
   });
 }
 
+function moduleProjectionEntries(modules) {
+  if (!Array.isArray(modules)) throw new TypeError("Kernel module projection must be an array");
+  const seen = new Set();
+  return modules.map((record, index) => {
+    if (!record || typeof record !== "object" || Array.isArray(record)) {
+      throw new TypeError(`Kernel module projection entry ${index} must be an object`);
+    }
+    const moduleId = recordId(record.id, `Kernel module projection entry ${index} id`);
+    if (seen.has(moduleId)) throw new Error(`Kernel module projection contains duplicate module id ${moduleId}`);
+    seen.add(moduleId);
+    return [moduleId, record];
+  });
+}
+
+export function capabilityProjectionEntries(grants) {
+  if (!Array.isArray(grants)) throw new TypeError("Kernel capability projection must be an array");
+  const seen = new Set();
+  return grants.map((grant, index) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      throw new TypeError(`Kernel capability projection entry ${index} must be an object`);
+    }
+    const grantId = recordId(grant.id, `Kernel capability projection entry ${index} id`);
+    if (seen.has(grantId)) throw new Error(`Kernel capability projection contains duplicate grant id ${grantId}`);
+    seen.add(grantId);
+    return [grantId, grant];
+  });
+}
+
 export function putPreparedKernelRequest(target, requestId, requestEnvelope) {
   const key = kernelRequestKey(requestId);
   const value = envelope(requestEnvelope, "Kernel request envelope");
@@ -184,33 +214,46 @@ export async function commitKernelStores(tx, {
   globalEnvelope,
   contextEnvelope,
   apps,
+  modules,
+  grants,
 }) {
   const pendingKey = kernelRequestKey(requestId);
   const contextKey = kernelContextKey(contextId);
   const globalValue = envelope(globalEnvelope, "Kernel global envelope");
   const contextValue = envelope(contextEnvelope, "Kernel context envelope");
   const appEntries = appProjectionEntries(apps);
+  const moduleEntries = modules === undefined ? null : moduleProjectionEntries(modules);
+  const grantEntries = grants === undefined ? null : capabilityProjectionEntries(grants);
   const kernel = tx.objectStore("kernel");
   const appStore = tx.objectStore("apps");
-
-  await Promise.all([
+  const writes = [
     requestValue(kernel.put(globalValue, KERNEL_GLOBAL_KEY)),
     requestValue(kernel.put(contextValue, contextKey)),
     replaceStoreEntries(appStore, appEntries),
     requestValue(kernel.delete(pendingKey)),
-  ]);
+  ];
+  if (moduleEntries) writes.push(replaceStoreEntries(tx.objectStore("modules"), moduleEntries));
+  if (grantEntries) writes.push(replaceStoreEntries(tx.objectStore("grants"), grantEntries));
+  await Promise.all(writes);
 }
 
 export async function replaceKernelGlobalStores(tx, {
   globalEnvelope,
   apps,
+  modules,
+  grants,
 }) {
   const globalValue = envelope(globalEnvelope, "Kernel global envelope");
   const appEntries = appProjectionEntries(apps);
-  await Promise.all([
+  const moduleEntries = modules === undefined ? null : moduleProjectionEntries(modules);
+  const grantEntries = grants === undefined ? null : capabilityProjectionEntries(grants);
+  const writes = [
     requestValue(tx.objectStore("kernel").put(globalValue, KERNEL_GLOBAL_KEY)),
     replaceStoreEntries(tx.objectStore("apps"), appEntries),
-  ]);
+  ];
+  if (moduleEntries) writes.push(replaceStoreEntries(tx.objectStore("modules"), moduleEntries));
+  if (grantEntries) writes.push(replaceStoreEntries(tx.objectStore("grants"), grantEntries));
+  await Promise.all(writes);
 }
 
 export async function readKernelSnapshot(target, contextId) {
@@ -241,12 +284,19 @@ export function abortKernelRequest(requestId, transact = databaseTransaction) {
   ));
 }
 
+function kernelProjectionStores(change) {
+  const stores = ["kernel", "apps"];
+  if (change?.modules !== undefined) stores.push("modules");
+  if (change?.grants !== undefined) stores.push("grants");
+  return stores;
+}
+
 export function commitKernelTransition(change, transact = databaseTransaction) {
-  return transact(["kernel", "apps"], "readwrite", (tx) => commitKernelStores(tx, change));
+  return transact(kernelProjectionStores(change), "readwrite", (tx) => commitKernelStores(tx, change));
 }
 
 export function replaceKernelGlobal(change, transact = databaseTransaction) {
-  return transact(["kernel", "apps"], "readwrite", (tx) => (
+  return transact(kernelProjectionStores(change), "readwrite", (tx) => (
     replaceKernelGlobalStores(tx, change)
   ));
 }
@@ -298,3 +348,27 @@ export const store = {
     (tx) => replacePersonalChainStores(tx, change),
   ),
 };
+
+
+export const moduleStore = Object.freeze({
+  get: (id) => store.get("modules", recordId(id, "Module id")),
+  put: (record) => {
+    const value = envelope(record, "Module record");
+    return store.put("modules", recordId(value.id, "Module record id"), value);
+  },
+  delete: (id) => store.delete("modules", recordId(id, "Module id")),
+  values: () => store.values("modules"),
+  replace: (records) => store.replace("modules", moduleProjectionEntries(records)),
+});
+
+
+export const capabilityStore = Object.freeze({
+  get: (id) => store.get("grants", recordId(id, "Capability grant id")),
+  put: (grant) => {
+    const value = envelope(grant, "Capability grant");
+    return store.put("grants", recordId(value.id, "Capability grant id"), value);
+  },
+  delete: (id) => store.delete("grants", recordId(id, "Capability grant id")),
+  values: () => store.values("grants"),
+  replace: (grants) => store.replace("grants", capabilityProjectionEntries(grants)),
+});

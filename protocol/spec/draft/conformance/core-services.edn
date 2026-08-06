@@ -1,0 +1,119 @@
+[{:case/id :greenways.os.case/core-service-resident
+  :case/type :core-service
+  :input {:service/protocol :greenways-core-service/1
+          :service/id :keyring
+          :service/version "0.1.0"
+          :service/status :active
+          :service/resident true
+          :service/removable false
+          :service/dependencies [:identity :store :capabilities]}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/core-service-removable
+  :case/type :core-service
+  :input {:service/protocol :greenways-core-service/1
+          :service/id :keyring
+          :service/version "0.1.0"
+          :service/status :active
+          :service/resident true
+          :service/removable true
+          :service/dependencies [:identity :store :capabilities]}
+  :expect {:error :core-service-cannot-be-removable}}
+
+ {:case/id :greenways.os.case/capability-definition-key-sign
+  :case/type :capability-definition
+  :input {:capability/protocol :greenways-capability-definition/1
+          :capability/id :key/sign
+          :capability/service :keyring
+          :capability/risk :critical
+          :capability/grantable true
+          :capability/trusted-publishers []}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/capability-grant-exact-module
+  :case/type :capability-grant
+  :input {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-0001
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :key/sign
+          :grant/constraints {:purpose :publication-receipt}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at "2026-08-07T00:00:00.000Z"
+          :grant/revoked-at nil}
+  :expect :valid}
+
+ {:case/id :greenways.os.case/capability-grant-stale-lock
+  :case/type :capability-authorisation
+  :installed {:app/id :signing-room
+              :app/version "0.1.0"
+              :app/publisher-id :example
+              :app/lock-digest "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              :app/capabilities [:hara/module :key/sign]}
+  :grant {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-0002
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :key/sign
+          :grant/constraints {}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at nil
+          :grant/revoked-at nil}
+  :expect {:authorised false :reason :grant-subject-stale}}
+
+ {:case/id :greenways.os.case/capability-grant-secret-constraint
+  :case/type :capability-grant
+  :input {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-0003
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :credential/use
+          :grant/constraints {:api-key "must-not-be-stored"}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at nil
+          :grant/revoked-at nil}
+  :expect {:error :secret-material-forbidden}}
+
+ {:case/id :greenways.os.case/capability-grant-expired
+  :case/type :capability-authorisation
+  :at "2026-08-06T02:00:00.000Z"
+  :grant {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-0004
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :key/sign
+          :grant/constraints {}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at "2026-08-06T01:00:00.000Z"
+          :grant/revoked-at nil}
+  :expect {:authorised false :reason :grant-expired}}
+
+ {:case/id :greenways.os.case/capability-grant-clock-rollback-revocation
+  :case/type :capability-revocation
+  :clock "2026-08-05T23:00:00.000Z"
+  :grant {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-0005
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :key/sign
+          :grant/constraints {}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at nil
+          :grant/revoked-at nil}
+  :expect {:grant/revoked-at "2026-08-06T00:00:00.000Z"
+           :authorised false}}]

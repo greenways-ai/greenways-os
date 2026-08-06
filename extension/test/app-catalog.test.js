@@ -42,7 +42,7 @@ test("publishes the five declarative built-in apps", () => {
   assert.equal(APP_MANIFEST_PROTOCOL, "greenways-app/1");
   assert.deepEqual(SYSTEM_APP_IDS, ["greenways-home", "greenways-worlds"]);
   assert.deepEqual(RUNTIME_HANDLERS, [
-    "extension-page", "packaged-surface", "native-hybrid", "web-tab"
+    "extension-page", "packaged-surface", "native-hybrid", "web-tab", "hal-module"
   ]);
   assert.deepEqual(PACKAGED_SURFACE_IDS, ["hestia-connector"]);
   assert.ok(APP_CAPABILITIES.includes("network/loopback"));

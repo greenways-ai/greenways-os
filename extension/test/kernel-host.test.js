@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAppManifest } from "../src/app-catalog.js";
+import { getAppManifest, validateAppManifest } from "../src/app-catalog.js";
 import {
   BrowserKernelHost,
   KERNEL_CONTEXT_RECORD_PROTOCOL,
@@ -20,6 +20,8 @@ function copy(value) {
 function initialState() {
   return {
     apps: { installed: [], active: null },
+    core: { services: [] },
+    capabilities: { grants: [] },
     surface: { active: null, payload: null },
     studio: { tracks: [] },
     world: { status: "idle", repository: null, graph: null },
@@ -35,15 +37,26 @@ function checkpoint(state) {
   };
 }
 
-function restoredState(saved, installed) {
+function restoredState(saved, installed, grants = []) {
   const state = initialState();
   state.apps = {
     installed: copy(installed),
     active: installed.some(({ id }) => id === saved.apps?.active) ? saved.apps.active : null,
   };
+  state.capabilities = { grants: copy(grants) };
   state.surface = copy(saved.surface ?? state.surface);
   state.studio = copy(saved.studio ?? state.studio);
   return state;
+}
+
+function revokeAppGrants(state, appId, revokedAt) {
+  const grants = state.capabilities?.grants ?? [];
+  const next = grants.map((grant) => {
+    if (grant.subject?.appId !== appId || grant.revokedAt) return copy(grant);
+    const effectiveTime = grant.issuedAt > revokedAt ? grant.issuedAt : revokedAt;
+    return { ...copy(grant), revokedAt: effectiveTime };
+  });
+  return { grants: next, changed: JSON.stringify(grants) !== JSON.stringify(next) };
 }
 
 function createInvoker({ override, calls = [] } = {}) {
@@ -57,9 +70,16 @@ function createInvoker({ override, calls = [] } = {}) {
       }
       if (method === "app/bootstrap") return initialState();
       if (method === "app/checkpoint") return checkpoint(args[0]);
-      if (method === "app/restore") return restoredState(args[0], args[1]);
+      if (method === "app/restore") return restoredState(args[0], args[1], args[2] ?? []);
       if (method === "apps/restore") {
-        return { state: restoredState(checkpoint(args[0]), args[1]), effects: [] };
+        return {
+          state: restoredState(
+            checkpoint(args[0]),
+            args[1],
+            args[0]?.capabilities?.grants ?? [],
+          ),
+          effects: [],
+        };
       }
       if (method === "apps/install") {
         const [state, manifest] = args;
@@ -71,14 +91,21 @@ function createInvoker({ override, calls = [] } = {}) {
         };
       }
       if (method === "apps/update") {
-        const [state, manifest] = args;
+        const [state, manifest, revokedAt] = args;
         if (!state.apps.installed.some(({ id }) => id === manifest.id)) throw new Error("App is not installed");
         const installed = state.apps.installed.map((entry) => (
           entry.id === manifest.id ? copy(manifest) : entry
         ));
+        const revoked = revokeAppGrants(state, manifest.id, revokedAt);
+        const effects = [{ effect: "storage", method: "save-apps", args: [installed] }];
+        if (revoked.changed) effects.push({ effect: "storage", method: "save-grants", args: [revoked.grants] });
         return {
-          state: { ...copy(state), apps: { ...copy(state.apps), installed } },
-          effects: [{ effect: "storage", method: "save-apps", args: [installed] }],
+          state: {
+            ...copy(state),
+            apps: { ...copy(state.apps), installed },
+            capabilities: { grants: revoked.grants },
+          },
+          effects,
         };
       }
       if (method === "apps/open") {
@@ -103,12 +130,53 @@ function createInvoker({ override, calls = [] } = {}) {
         };
       }
       if (method === "apps/remove") {
-        const [state, appId] = args;
+        const [state, appId, revokedAt] = args;
         const installed = state.apps.installed.filter(({ id }) => id !== appId);
         const active = state.apps.active === appId ? null : state.apps.active;
+        const revoked = revokeAppGrants(state, appId, revokedAt);
+        const effects = [{ effect: "storage", method: "save-apps", args: [installed] }];
+        if (revoked.changed) effects.push({ effect: "storage", method: "save-grants", args: [revoked.grants] });
         return {
-          state: { ...copy(state), apps: { installed, active } },
-          effects: [{ effect: "storage", method: "save-apps", args: [installed] }],
+          state: {
+            ...copy(state),
+            apps: { installed, active },
+            capabilities: { grants: revoked.grants },
+          },
+          effects,
+        };
+      }
+      if (method === "core/services") return [{ id: "kernel", resident: true, removable: false }];
+      if (method === "capabilities/vocabulary") return [{ id: "key/sign", grantable: true }];
+      if (method === "capabilities/list") return copy(args[0]?.capabilities?.grants ?? []);
+      if (method === "capabilities/check") {
+        const [state, appId, capability, now] = args;
+        return copy((state.capabilities?.grants ?? []).find((grant) => (
+          grant.subject?.appId === appId
+          && grant.capability === capability
+          && !grant.revokedAt
+          && (!grant.expiresAt || !now || grant.expiresAt > now)
+        )) ?? null);
+      }
+      if (method === "capabilities/grant") {
+        const [state, grant] = args;
+        const grants = state.capabilities?.grants ?? [];
+        if (grants.some(({ id }) => id === grant.id)) throw new Error("Capability grant id already exists");
+        const nextGrants = [...grants, copy(grant)];
+        return {
+          state: { ...copy(state), capabilities: { grants: nextGrants } },
+          effects: [{ effect: "storage", method: "save-grants", args: [nextGrants] }],
+        };
+      }
+      if (method === "capabilities/revoke") {
+        const [state, grantId, revokedAt] = args;
+        const grants = state.capabilities?.grants ?? [];
+        if (!grants.some(({ id }) => id === grantId)) throw new Error("Capability grant does not exist");
+        const nextGrants = grants.map((grant) => (
+          grant.id === grantId ? { ...copy(grant), revokedAt } : copy(grant)
+        ));
+        return {
+          state: { ...copy(state), capabilities: { grants: nextGrants } },
+          effects: [{ effect: "storage", method: "save-grants", args: [nextGrants] }],
         };
       }
       if (method === "surface/close") {
@@ -192,12 +260,18 @@ class MemoryKernelRepository {
     await this.repository.put("kernel", "global", change.globalEnvelope);
     await this.repository.put("kernel", `context:${change.contextId}`, change.contextEnvelope);
     await this.repository.replace("apps", change.apps.map((manifest) => [manifest.id, manifest]));
+    if (change.grants !== undefined) {
+      await this.repository.replace("grants", change.grants.map((grant) => [grant.id, grant]));
+    }
     this.repository.target("kernel").delete(`request:${change.requestId}`);
   }
 
   async replaceGlobal(change) {
     await this.repository.put("kernel", "global", change.globalEnvelope);
     await this.repository.replace("apps", change.apps.map((manifest) => [manifest.id, manifest]));
+    if (change.grants !== undefined) {
+      await this.repository.replace("grants", change.grants.map((grant) => [grant.id, grant]));
+    }
   }
 }
 
@@ -714,4 +788,233 @@ test("host persistence records use the versioned global and context protocols", 
   const context = await rig.repository.get("kernel", `context:${LAUNCHER_A.clientId}`);
   assert.equal(global.protocol, KERNEL_GLOBAL_PROTOCOL);
   assert.equal(context.protocol, KERNEL_CONTEXT_RECORD_PROTOCOL);
+});
+
+test("migrates pre-grant global envelopes into an explicit empty grant projection", async () => {
+  const repository = new MemoryRepository();
+  const installed = [
+    getAppManifest("greenways-home"),
+    getAppManifest("greenways-worlds"),
+  ];
+  await repository.put("kernel", "global", {
+    protocol: KERNEL_GLOBAL_PROTOCOL,
+    revision: 4,
+    installed,
+    receipts: [],
+    updatedAt: "2026-08-03T00:00:00.000Z",
+  });
+
+  const rig = createRig({ repository });
+  await rig.host.attach(LAUNCHER_A);
+  const migrated = await repository.get("kernel", "global");
+
+  assert.deepEqual(migrated.grants, []);
+  assert.equal(migrated.revision, 5);
+  assert.deepEqual(await repository.values("grants"), []);
+});
+
+test("exposes resident service and capability projections through bounded kernel calls", async () => {
+  const rig = createRig();
+  const services = await rig.host.call(LAUNCHER_A, "core/services", []);
+  const vocabulary = await rig.host.call(WORLD_A, "capabilities/vocabulary", []);
+  const grants = await rig.host.call(LAUNCHER_A, "capabilities/list", []);
+
+  assert.deepEqual(services.value, [{ id: "kernel", resident: true, removable: false }]);
+  assert.deepEqual(vocabulary.value, [{ id: "key/sign", grantable: true }]);
+  assert.deepEqual(grants.value, []);
+  assert.ok(rig.invoker.calls.some(({ method, args }) => (
+    method === "capabilities/list" && args[0]?.apps?.installed
+  )));
+});
+
+test("persists an exact app-bound capability grant and revocation across restarts", async () => {
+  const repository = new MemoryRepository();
+  const lockDigest = `sha256:${"a".repeat(64)}`;
+  const module = validateAppManifest({
+    protocol: "greenways-app/1",
+    id: "signing-room",
+    version: "0.1.0",
+    publisher: { id: "example", name: "Example" },
+    name: "Signing Room",
+    description: "Signs bounded publication receipts.",
+    category: "installable",
+    capabilities: ["hara/module", "key/sign"],
+    launch: { handler: "hal-module" },
+    kind: "hal-module",
+    channel: "preview",
+    lockDigest,
+    source: {
+      kind: "github",
+      owner: "example",
+      repo: "signing-room",
+      sha: "b".repeat(40),
+    },
+  });
+  await repository.put("kernel", "global", {
+    protocol: KERNEL_GLOBAL_PROTOCOL,
+    revision: 1,
+    installed: [module],
+    grants: [],
+    receipts: [],
+    updatedAt: "2026-08-06T00:00:00.000Z",
+  });
+
+  const first = createRig({ repository });
+  const granted = await dispatch(
+    first.host,
+    LAUNCHER_A,
+    "request/capability-grant-1001",
+    "capabilities/grant",
+    [{
+      id: "grant/signing-room-0001",
+      appId: module.id,
+      capability: "key/sign",
+      constraints: { purpose: "publication-receipt" },
+      expiresAt: "2026-08-07T00:00:00.000Z",
+    }],
+  );
+
+  const grant = granted.state.capabilities.grants[0];
+  assert.equal(grant.subject.appId, module.id);
+  assert.equal(grant.subject.version, module.version);
+  assert.equal(grant.subject.publisherId, module.publisher.id);
+  assert.equal(grant.subject.lockDigest, lockDigest);
+  assert.equal(grant.capability, "key/sign");
+  assert.equal((await repository.get("kernel", "global")).grants[0].id, grant.id);
+  assert.equal((await repository.get("grants", grant.id)).capability, "key/sign");
+  assert.equal(first.kernelRepository.commits.at(-1).grants[0].id, grant.id);
+
+  const restarted = createRig({ repository });
+  const restored = await restarted.host.attach(LAUNCHER_A);
+  assert.equal(restored.state.capabilities.grants[0].id, grant.id);
+  const checked = await restarted.host.call(
+    LAUNCHER_A,
+    "capabilities/check",
+    [module.id, "key/sign"],
+  );
+  assert.equal(checked.value.id, grant.id);
+
+  const revoked = await dispatch(
+    restarted.host,
+    LAUNCHER_A,
+    "request/capability-revoke-1002",
+    "capabilities/revoke",
+    [grant.id],
+  );
+  assert.equal(revoked.state.capabilities.grants[0].revokedAt, grant.issuedAt);
+  assert.equal(
+    (await restarted.host.call(LAUNCHER_A, "capabilities/check", [module.id, "key/sign"])).value,
+    null,
+  );
+});
+
+test("removing an app revokes its grants atomically so reinstall cannot revive them", async () => {
+  const repository = new MemoryRepository();
+  const module = validateAppManifest({
+    protocol: "greenways-app/1",
+    id: "temporary-signer",
+    version: "0.1.0",
+    publisher: { id: "example", name: "Example" },
+    name: "Temporary Signer",
+    description: "Exercises removal-bound capability revocation.",
+    category: "installable",
+    capabilities: ["hara/module", "key/sign"],
+    launch: { handler: "hal-module" },
+    kind: "hal-module",
+    channel: "preview",
+    lockDigest: `sha256:${"e".repeat(64)}`,
+    source: {
+      kind: "github",
+      owner: "example",
+      repo: "temporary-signer",
+      sha: "f".repeat(40),
+    },
+  });
+  await repository.put("kernel", "global", {
+    protocol: KERNEL_GLOBAL_PROTOCOL,
+    revision: 1,
+    installed: [module],
+    grants: [],
+    receipts: [],
+    updatedAt: "2026-08-06T00:00:00.000Z",
+  });
+
+  const rig = createRig({ repository });
+  const granted = await dispatch(
+    rig.host,
+    LAUNCHER_A,
+    "request/remove-grant-1101",
+    "capabilities/grant",
+    [{
+      id: "grant/temporary-signer-0001",
+      appId: module.id,
+      capability: "key/sign",
+      constraints: { purpose: "temporary-test" },
+    }],
+  );
+  const removed = await dispatch(
+    rig.host,
+    LAUNCHER_A,
+    "request/remove-app-1102",
+    "apps/remove",
+    [module.id],
+  );
+
+  assert.equal(removed.state.apps.installed.some(({ id }) => id === module.id), false);
+  assert.ok(removed.state.capabilities.grants[0].revokedAt);
+  assert.ok(removed.state.capabilities.grants[0].revokedAt >= granted.state.capabilities.grants[0].issuedAt);
+  const global = await repository.get("kernel", "global");
+  assert.equal(global.grants[0].revokedAt, removed.state.capabilities.grants[0].revokedAt);
+  assert.equal((await repository.get("grants", global.grants[0].id)).revokedAt, global.grants[0].revokedAt);
+});
+
+test("rejects undeclared capability grants before preparing a durable request", async () => {
+  const repository = new MemoryRepository();
+  const module = validateAppManifest({
+    protocol: "greenways-app/1",
+    id: "notes-room",
+    version: "0.1.0",
+    publisher: { id: "example", name: "Example" },
+    name: "Notes Room",
+    description: "A module without signing authority.",
+    category: "installable",
+    capabilities: ["hara/module"],
+    launch: { handler: "hal-module" },
+    kind: "hal-module",
+    channel: "preview",
+    lockDigest: `sha256:${"c".repeat(64)}`,
+    source: {
+      kind: "github",
+      owner: "example",
+      repo: "notes-room",
+      sha: "d".repeat(40),
+    },
+  });
+  await repository.put("kernel", "global", {
+    protocol: KERNEL_GLOBAL_PROTOCOL,
+    revision: 1,
+    installed: [module],
+    grants: [],
+    receipts: [],
+    updatedAt: "2026-08-06T00:00:00.000Z",
+  });
+  const rig = createRig({ repository });
+
+  await assert.rejects(
+    dispatch(
+      rig.host,
+      LAUNCHER_A,
+      "request/capability-denied-1003",
+      "capabilities/grant",
+      [{
+        id: "grant/notes-room-0001",
+        appId: module.id,
+        capability: "key/sign",
+        constraints: {},
+      }],
+    ),
+    (error) => error.code === "CAPABILITY_DENIED" && /does not declare key\/sign/.test(error.message),
+  );
+  assert.deepEqual(rig.kernelRepository.prepared, []);
+  assert.deepEqual(rig.kernelRepository.commits, []);
 });
