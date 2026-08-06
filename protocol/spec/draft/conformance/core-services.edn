@@ -116,4 +116,85 @@
           :grant/expires-at nil
           :grant/revoked-at nil}
   :expect {:grant/revoked-at "2026-08-06T00:00:00.000Z"
-           :authorised false}}]
+           :authorised false}}
+
+ {:case/id :greenways.os.case/capability-module-runtime-missing
+  :case/type :capability-authorisation
+  :installed {:app/id :signing-room
+              :app/version "0.1.0"
+              :app/publisher-id :example
+              :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              :app/capabilities [:hara/module :key/sign]}
+  :module-record {:record/protocol :greenways-module-record/1
+                  :record/app-id :signing-room
+                  :record/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+  :runtime nil
+  :grant {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-runtime-0001
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :key/sign
+          :grant/constraints {}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at nil
+          :grant/revoked-at nil}
+  :expect {:authorised false :reason :module-runtime-unverified}}
+
+ {:case/id :greenways.os.case/capability-module-runtime-exact
+  :case/type :capability-authorisation
+  :installed {:app/id :signing-room
+              :app/version "0.1.0"
+              :app/publisher-id :example
+              :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              :app/capabilities [:hara/module :key/sign]}
+  :module-record {:record/protocol :greenways-module-record/1
+                  :record/app-id :signing-room
+                  :record/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+  :runtime {:runtime/app-id :signing-room
+            :runtime/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            :runtime/generation 3
+            :runtime/root "app.signing-room.g3"}
+  :grant {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-runtime-0002
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :key/sign
+          :grant/constraints {}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at nil
+          :grant/revoked-at nil}
+  :expect {:authorised true :reason :verified-module-runtime}}
+
+ {:case/id :greenways.os.case/capability-module-runtime-digest-mismatch
+  :case/type :capability-authorisation
+  :installed {:app/id :signing-room
+              :app/version "0.1.0"
+              :app/publisher-id :example
+              :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              :app/capabilities [:hara/module :key/sign]}
+  :module-record {:record/protocol :greenways-module-record/1
+                  :record/app-id :signing-room
+                  :record/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+  :runtime {:runtime/app-id :signing-room
+            :runtime/lock-digest "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            :runtime/generation 3
+            :runtime/root "app.signing-room.g3"}
+  :grant {:grant/protocol :greenways-capability-grant/1
+          :grant/id :grant/signing-room-runtime-0003
+          :grant/subject {:subject/kind :app
+                          :subject/app-id :signing-room
+                          :subject/version "0.1.0"
+                          :subject/publisher-id :example
+                          :subject/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+          :grant/capability :key/sign
+          :grant/constraints {}
+          :grant/issued-at "2026-08-06T00:00:00.000Z"
+          :grant/expires-at nil
+          :grant/revoked-at nil}
+  :expect {:authorised false :reason :module-runtime-unverified}}]

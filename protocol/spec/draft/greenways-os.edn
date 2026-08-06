@@ -1,9 +1,9 @@
 {:document/id :greenways/os
  :document/type :hara/artifact-specification
- :document/version "0.3.0"
+ :document/version "0.3.1"
  :document/status :draft
  :document/title "Greenways OS Confidence Protocol"
- :document/summary "Resident browser authority services, exact capability grants, modular HAL applications, and portable signed creative workflows backed by personal evidence chains."
+ :document/summary "Resident browser authority services, runtime-verified capability grants, modular HAL applications, and portable signed creative workflows backed by personal evidence chains."
 
  :spec/conforms-to {:spec/id :hara/artifact-metaspec
                     :spec/version "0.1.0"}
@@ -116,7 +116,12 @@
    {:schema/required [:grant/protocol :grant/id :grant/subject
                       :grant/capability :grant/constraints
                       :grant/issued-at]
-    :schema/optional [:grant/expires-at :grant/revoked-at]}}]
+    :schema/optional [:grant/expires-at :grant/revoked-at]}}
+  {:entity/id :greenways.capability/decision
+   :entity/schema
+   {:schema/required [:decision/protocol :decision/allowed
+                      :decision/reason :decision/capability
+                      :decision/subject :decision/evidence]}}]
 
  :spec/laws
  [{:law/id :greenways.identity/handle-is-alias
@@ -178,7 +183,11 @@
   {:law/id :greenways.capability/no-secrets
    :law/expression "Capability constraints contain bounded policy and opaque references, never private keys, passwords, provider credentials, bearer tokens, or authorization values."}
   {:law/id :greenways.capability/final-revocation
-   :law/expression "Revocation is final and recorded no earlier than issuance even when the browser or operating-system clock moves backwards."}]
+   :law/expression "Revocation is final and recorded no earlier than issuance even when the browser or operating-system clock moves backwards."}
+  {:law/id :greenways.capability/runtime-verified-module
+   :law/expression "A HAL capability grant can authorize an operation only while the exact durable module approval and lock digest are present in host-owned runtime evidence produced after current-boot archive verification and successful namespace registration."}
+  {:law/id :greenways.capability/no-secret-evidence
+   :law/expression "A capability decision may expose bounded public approval and runtime metadata but never lock source, archive bytes, private keys, provider credentials, bearer tokens, or other secret material."}]
 
  :spec/checkers
  [{:checker/id :greenways/signature
@@ -207,6 +216,9 @@
    :checker/output :hara.artifact/finding}
   {:checker/id :greenways/capability-grant
    :checker/input :greenways.capability/grant
+   :checker/output :hara.artifact/finding}
+  {:checker/id :greenways/capability-decision
+   :checker/input :greenways.capability/decision
    :checker/output :hara.artifact/finding}]
 
  :spec/conformance

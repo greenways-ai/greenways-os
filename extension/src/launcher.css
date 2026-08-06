@@ -975,3 +975,33 @@ button:disabled {
     font-size: 18px;
   }
 }
+
+
+/* Root OS tools ---------------------------------------------------------- */
+.root-tools-section {
+  position: relative;
+}
+.root-tools-section::before {
+  position: absolute;
+  inset: 10px 0 auto;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gw-green) 55%, var(--gw-line)), transparent);
+}
+.root-app-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.root-app-card {
+  border-color: color-mix(in srgb, var(--gw-green) 38%, var(--gw-line));
+  background: linear-gradient(110deg, color-mix(in srgb, var(--gw-green) 7%, var(--gw-surface)), var(--gw-surface));
+}
+.app-icon--root {
+  color: var(--gw-page);
+  background: var(--gw-green);
+  border-color: color-mix(in srgb, var(--gw-green) 72%, black);
+  font-family: var(--gw-font-mono);
+  box-shadow: 0 12px 36px color-mix(in srgb, var(--gw-green) 16%, transparent);
+}
+.root-app-card .app-copy p {
+  color: var(--gw-green);
+}

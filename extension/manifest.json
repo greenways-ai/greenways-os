@@ -1,13 +1,24 @@
 {
   "manifest_version": 3,
   "name": "Greenways OS",
-  "version": "0.3.0",
-  "description": "A local keyring and package manager powered by a browser-resident Hara kernel.",
+  "version": "0.4.0",
+  "description": "A programmable browser operating system with a resident Hara kernel and preinstalled Kernel DevTools.",
   "minimum_chrome_version": "116",
-  "background": { "service_worker": "dist/background.js", "type": "module" },
-  "action": { "default_title": "Open Greenways OS" },
-  "side_panel": { "default_path": "src/launcher.html" },
-  "permissions": ["sidePanel", "storage"],
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open Greenways OS"
+  },
+  "side_panel": {
+    "default_path": "src/launcher.html"
+  },
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "nativeMessaging"
+  ],
   "optional_host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",

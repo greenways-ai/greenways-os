@@ -1,0 +1,30 @@
+{:conformance/protocol "greenways-devtools/1"
+ :conformance/cases
+ [{:case/id :devtools/root-app-fixed
+   :case/input {:app/id "greenways-devtools"
+                :app/source :os-build
+                :app/preinstalled true
+                :app/removable false}
+   :case/expect :accept}
+  {:case/id :devtools/package-cannot-claim-root
+   :case/input {:app/id "greenways-devtools"
+                :app/source :registry-package}
+   :case/expect :reject}
+  {:case/id :devtools/loopback-resp
+   :case/input {:bridge/host "127.0.0.1"
+                :bridge/port 46379
+                :bridge/auth :fresh-session-token}
+   :case/expect :accept}
+  {:case/id :devtools/non-loopback-rejected
+   :case/input {:bridge/host "0.0.0.0"
+                :bridge/port 46379}
+   :case/expect :reject}
+  {:case/id :devtools/unauthenticated-eval-rejected
+   :case/input {:resp/command "GW.EVAL"
+                :resp/authenticated false}
+   :case/expect :reject}
+  {:case/id :devtools/native-host-no-evaluator
+   :case/input {:native/capabilities [:tcp-loopback :resp :native-messaging]
+                :native/hara-runtime false
+                :native/keyring-access false}
+   :case/expect :accept}]}
