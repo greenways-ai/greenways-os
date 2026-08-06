@@ -1,83 +1,76 @@
 # Greenways OS
 
-Greenways OS turns a browser profile into a small, locally installed operating
-environment. Its Hara kernel, application state, keys, and private work remain
-on the person's machine. Participation, social discovery, hosted services, and
-sync are adapters that a person may add; none are prerequisites for starting or
-using the local system.
+Greenways OS is a local **keyring and package manager** powered by a browser-resident Hara kernel.
 
-The Chrome extension is the first host. Its Manifest V3 service worker owns one
-browser-wide Hara kernel authority, while each launcher or world document keeps
-an isolated logical UI context. The host persists committed profile state,
-per-document checkpoints, and bounded request receipts in IndexedDB, so Chrome
-may suspend the worker without making page globals authoritative. Applications
-are installed from strict declarative manifests. A manifest may select code
-already shipped with Greenways OS, connect through a known adapter, or open a
-web application in an ordinary tab; it cannot download or execute remote
-JavaScript, Wasm, HAL, or another form of remotely hosted code inside the
-extension.
+The first product has two permanent responsibilities:
 
-Application lifecycle is Hara-owned inside the kernel host. Installed apps are
-profile-wide; active apps, surfaces, and Studio tracks are document-scoped so
-two pages cannot clobber one another. The host serializes transitions, commits
-the global and context projections atomically, and targets UI effects only to
-the initiating document. Origin-wide locks continue to serialize the separate
-personal evidence chain. See [`protocol/kernel.md`](protocol/kernel.md).
+1. **Keyring.** Create and retain a non-extractable controller key, hold session-scoped model-provider credentials, and later perform typed signing or model operations without exposing raw keys to websites or packages.
+2. **Package manager.** Install exact, attributable package manifests; show their capabilities before approval; preserve approved versions locally; and keep executable extension code bundled and reviewable.
 
-## Sovereign-first architecture
+Everything else—Hara Playground, Historia, Hestia, Worlds, Beacon, DevTools, and later Greenways services—sits above those two foundations as a package, companion, web application, or explicit connection.
 
-1. **Local kernel.** Hara owns portable application and workflow state. A
-   rehydratable browser-wide host supplies bounded effects such as storage,
-   tabs, files, and explicit network connections.
-2. **Greenways Beacon.** A local Hara application on Hoplite gives the browser
-   one inspectable ingress and an immutable route to `greenways.space`.
-3. **Greenways Space.** Hestia, Ignatius, Historia and later services are
-   composed behind a signed service catalogue rather than embedded into the
-   browser or Beacon.
-4. **Installed applications.** The launcher keeps a local, inspectable registry
-   of enabled applications and their capabilities.
-5. **Optional participation.** Identity resolution, sharing, social spaces, and
-   public services sit above the local kernel. Turning them off does not remove
-   the person's applications or data.
+```text
+Greenways OS
+├── Keyring
+│   ├── non-extractable controller key
+│   └── session-only provider credentials
+├── Package manager
+│   ├── exact manifest approvals
+│   ├── capabilities and launch bindings
+│   └── bundled / companion / web packages
+└── Optional packages and connections
+    ├── Hara Playground
+    ├── Historia
+    ├── Hestia
+    ├── Worlds
+    ├── Greenways Beacon → greenways.space
+    └── later DevTools and agent modules
+```
 
-Beacon is not a second Hestia node. It owns the local gateway boundary, route
-health and the future browser-device link. Hestia remains the private-office
-and evidence authority; Ignatius and other services remain part of Greenways
-Space. A browser may be offline from both Beacon and Space and still launch
-local applications and retain signed work. See [`protocol/beacon.md`](protocol/beacon.md)
-and [`services/beacon/`](services/beacon/).
+## Product boundary
 
-The first Beacon profile exposes local discovery, health and status through
-Hara handlers and maps `/space/` to a fixed HTTPS path on `greenways.space`
-through Hoplite/Nginx. The upstream cannot be selected by request data, and
-ambient local cookies, browser origin and forwarding headers are not forwarded
-as authority.
+The keyring is not an ordinary package. It is part of the trusted Greenways OS host. Packages may eventually request narrow operations such as `key/sign` or `model/generate`; they must never receive a private signing key or provider API credential.
 
-The earlier `greenways-home/1` browser-pairing prototype remains under
-[`services/home-node/`](services/home-node/) while paired browser identities
-migrate deliberately. It is compatibility code, not the target service
-runtime. Existing keys must not be silently replaced merely because Beacon has
-a new product name or implementation.
+The package manager is also core. The existing `greenways-app/1` manifest remains the execution approval record, while `greenways-package/1` is the product-facing projection used to classify system packages, bundled modules, native companions, and ordinary web applications. A package update cannot silently reuse an earlier approval when its version, publisher, launch binding, or capabilities change.
 
-Historia supplies local, Git-native memory. Hestia supplies private offices,
-mandates, signed approvals and selective receipts. Neither becomes a central
-account required to enter Greenways OS.
+Manifest V3 executable logic remains self-contained. A digest can prove which remote resource was fetched, but it does not turn remote JavaScript, Wasm, HAL, HTML, or another executable entrypoint into installable extension code. Executable browser modules must ship in a reviewed Greenways OS release or a separately reviewed companion extension. See [`protocol/packages.md`](protocol/packages.md).
 
-## Layout
+## Keyring storage model
 
-- `protocol/` — normative Greenways-owned records and conformance cases,
-  including the browser kernel, Beacon and legacy Home Link boundaries.
-- `extension/` — the low-permission Chrome MV3 launcher, browser host, and
-  trusted application surfaces.
-- `services/beacon/` — the `greenways.beacon` Hara application on Hoplite and
-  its operator wrappers.
-- `services/home-node/` — compatibility implementation of the first signed
-  browser-pairing wire profile.
-- `services/identity/` — runnable development slice of `id.greenways.ai`.
+Greenways OS currently uses two deliberately different key lifetimes:
 
-`id.greenways.ai` resolves signed handles, key histories, service endpoints,
-and witnessed checkpoint references. Personal histories and private keys
-remain with participant-controlled Hestia infrastructure.
+- The controller is an ECDSA P-256 `CryptoKey` created as **non-extractable** and retained in the extension’s local IndexedDB state. Its public identity card and key ID can be exported; the private key cannot.
+- OpenRouter, OpenAI, and Anthropic credentials added through the Keyring surface are stored only in `chrome.storage.session`. They are cleared when the browser restarts or the extension is reloaded, disabled, updated, or explicitly locked.
+
+The current release manages these records locally. It does **not** yet expose a website-to-keyring forwarder. That transport will require exact origin grants, typed provider operations, request budgets, context disclosure, and an approval/audit path before Hara Playground can call it. See [`protocol/keyring.md`](protocol/keyring.md).
+
+## Hara kernel
+
+The Manifest V3 service worker owns one rehydratable, browser-wide Hara kernel. Installed package state and prepared request receipts are profile-wide; active surfaces and world state remain document-scoped. The host persists committed projections and bounded receipts in IndexedDB so Chrome may suspend the worker without making page globals authoritative.
+
+The kernel owns lifecycle transitions. JavaScript supplies a closed host-effect vocabulary for storage, tabs, files, packaged surfaces, and explicit network connections. Packaged pages are clients of that authority rather than secondary kernels. See [`protocol/kernel.md`](protocol/kernel.md).
+
+## Optional connections
+
+Greenways Beacon, Greenways Space, Hestia, and the earlier Home Link remain supported, but they are no longer the product hierarchy.
+
+- **Beacon** is a local Hara application on Hoplite that provides an inspectable route to `greenways.space`.
+- **Greenways Space** describes Hestia, Ignatius, Historia, and later services through a bounded catalogue.
+- **Hestia** remains the private-office and evidence authority.
+- **Legacy Home Link** remains compatibility infrastructure while existing browser-device keys migrate deliberately.
+
+None of these connections can install extension code, replace the local keyring, or grant a package capability. A browser may remain offline and still use the keyring, package manager, installed local packages, and signed work.
+
+## Repository layout
+
+- `protocol/keyring.md` — controller keys, session provider profiles, and the no-key-export contract.
+- `protocol/packages.md` — package kinds, exact approvals, and executable-code boundaries.
+- `protocol/kernel.md` — durable Hara kernel and document-context lifecycle.
+- `extension/` — Chrome Manifest V3 host, Keyring surface, package catalogue, launcher, and trusted browser surfaces.
+- `src/gw/os/` — Hara-owned kernel and adaptor namespaces.
+- `services/beacon/` — optional `greenways.beacon` Hara application on Hoplite.
+- `services/home-node/` — legacy signed browser-pairing compatibility implementation.
+- `services/identity/` — development slice of `id.greenways.ai`.
 
 ## Development
 
@@ -91,7 +84,9 @@ npm test
 npm run test:browser
 ```
 
-Validate and run Beacon with a Hoplite build that supports static upstreams:
+Load `extension/` as an unpacked extension from `chrome://extensions`.
+
+Validate and run the optional Beacon service:
 
 ```sh
 services/beacon/bin/greenways-beacon check
@@ -101,46 +96,9 @@ curl http://127.0.0.1:58100/.well-known/greenways-beacon
 curl http://127.0.0.1:58100/space/discovery.json
 ```
 
-The old protocol remains testable during migration:
+The legacy Home Link and identity development services remain testable independently:
 
 ```sh
-cd services/home-node
-npm test
+cd services/home-node && npm test
+cd ../identity && npm test
 ```
-
-The identity development service remains separate:
-
-```sh
-cd services/identity
-npm test
-```
-
-Load the repository's `extension/` directory as an unpacked extension at
-`chrome://extensions`.
-
-The launcher and **Open a GitHub world** surface work before identity setup or
-Beacon enrolment. The world viewer reads a public repository's root
-`project.edn`, resolves every ref to an immutable Git commit, and renders its
-local and imported SOG layers. See [`protocol/worlds.md`](protocol/worlds.md)
-for the manifest contract.
-
-The viewer features three maintained examples from
-[`greenways-worlds`](https://github.com/greenways-worlds): Apartment (single
-SOG), Playbot (streamed SOG), and Splat Garden (immutable repository imports).
-
-## First vertical slice
-
-An artist can create a key-controlled identity and project, add digest-addressed
-contributions, run the Release Steward, accept service proposals, publish a
-signed release checkpoint, and export a self-verifying evidence bundle. Every
-action is included in that artist's local personal chain and can later be sent
-to their Hestia service through an explicitly approved Space capability.
-
-The Release Steward performs named checks with visible limitations. It cannot
-edit artifacts, accept its own proposals, publish, or turn its advice into a
-global quality score. Rights records are attributable claims and permissions;
-they are not declarations of legal title or jurisdiction-specific legal advice.
-
-`id.greenways.ai` verifies self-signed public registrations and returns
-content-rooted resolutions. A handle collision stays visible. The resolver
-does not receive private keys or become the identity authority.

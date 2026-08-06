@@ -1,0 +1,24 @@
+/* Stable launcher hierarchy.
+ * Visual order is CSS-owned so legacy connection decorators never need to
+ * reparent live nodes and cannot keep the document load event unsettled.
+ */
+.launcher-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+.launcher-shell > .launcher-header { order: 0; }
+.launcher-shell > .launcher-intro { order: 1; }
+.launcher-shell > .core-products { order: 2; }
+.launcher-shell > .app-section:not(.catalog-section) { order: 3; }
+.launcher-shell > .catalog-section { order: 4; }
+.launcher-shell > .core-connections { order: 5; }
+.launcher-shell > .beacon-card { order: 6; }
+.launcher-shell > .home-node { order: 7; }
+.launcher-shell > .launcher-status { order: 8; }
+.launcher-shell > .launcher-footer { order: 9; }
+
+.launcher-shell > .beacon-card,
+.launcher-shell > .home-node {
+  margin-top: 14px;
+}
