@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   apply:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,10 +37,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          cat .github/live-module-workbench.part-{00..10} > /tmp/workbench.tar.gz.b64
-          echo "7174d919f768d5880a0177e441a6e2f2de0b635ec0a1cea06f960d30ea3e1b03  /tmp/workbench.tar.gz.b64" | sha256sum --check -
-          base64 --decode /tmp/workbench.tar.gz.b64 > /tmp/workbench.tar.gz
-          echo "6cfbdbf2f108fe62d2e27769ec604badff176db589ab26edfe4da7d0700d0b05  /tmp/workbench.tar.gz" | sha256sum --check -
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          from pathlib import Path
+
+          encoded = b"".join(
+              Path(f".github/live-module-workbench.part-{index:02d}").read_bytes()
+              for index in range(11)
+          )
+          assert hashlib.sha256(encoded).hexdigest() == "7174d919f768d5880a0177e441a6e2f2de0b635ec0a1cea06f960d30ea3e1b03"
+          archive = base64.b64decode(encoded, validate=True)
+          assert hashlib.sha256(archive).hexdigest() == "6cfbdbf2f108fe62d2e27769ec604badff176db589ab26edfe4da7d0700d0b05"
+          Path("/tmp/workbench.tar.gz").write_bytes(archive)
+          PY
 
           tar -xzf /tmp/workbench.tar.gz -C .
           git apply .payload/greenways-os-spec.patch
