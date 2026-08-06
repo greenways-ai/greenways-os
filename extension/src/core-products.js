@@ -124,19 +124,6 @@ function decorate() {
     }
   });
 
-  // Preserve the established Home Link controls while its card is demoted to
-  // optional migration infrastructure. Connected-state copy remains owned by
-  // the legacy surface and is not rewritten here.
-  const homeNode = shell.querySelector("[data-home-node]");
-  const homeHeading = homeNode?.querySelector("h2");
-  if (homeHeading?.textContent === "Legacy Home Link remains available for migration.") {
-    setText(homeHeading, "Give your browsers a home you control.");
-  }
-  const homeAction = homeNode?.querySelector("button");
-  if (homeAction?.textContent === "Use legacy Home Link") {
-    setText(homeAction, "Connect home");
-  }
-
   // Keep the original Greenways Space destination explicit in the disconnected
   // Beacon dialog as well as on its launcher card.
   const beaconDescription = surfaceRoot
