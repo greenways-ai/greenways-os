@@ -13,6 +13,44 @@ const LAUNCHER_A = Object.freeze({ kind: "launcher", clientId: "launcher/client-
 const LAUNCHER_B = Object.freeze({ kind: "launcher", clientId: "launcher/client-bravo-0002" });
 const WORLD_A = Object.freeze({ kind: "world", clientId: "world/client-alpha-000001" });
 
+const ALLOW_CAPABILITY_AUTHORITY = Object.freeze({
+  async check({ appId, capability }) {
+    return Object.freeze({
+      protocol: "greenways-capability-decision/1",
+      allowed: true,
+      reason: "test-authority",
+      capability,
+      subject: Object.freeze({ id: appId }),
+      evidence: Object.freeze({ kind: "test" }),
+    });
+  },
+  async assert(request, context) {
+    return this.check(request, context);
+  },
+});
+
+function denyingCapabilityAuthority(reason = "module-runtime-unverified") {
+  return Object.freeze({
+    async check({ appId, capability }) {
+      return Object.freeze({
+        protocol: "greenways-capability-decision/1",
+        allowed: false,
+        reason,
+        capability,
+        subject: Object.freeze({ id: appId }),
+        evidence: null,
+      });
+    },
+    async assert(request, context) {
+      const decision = await this.check(request, context);
+      const error = new Error(`Capability authority denied: ${decision.capability} (${decision.reason})`);
+      error.code = "CAPABILITY_DENIED";
+      error.decision = decision;
+      throw error;
+    },
+  });
+}
+
 function copy(value) {
   return structuredClone(value);
 }
@@ -301,7 +339,12 @@ class FakeRuntime {
   }
 }
 
-function createRig({ repository = new MemoryRepository(), invoker, runtime = new FakeRuntime() } = {}) {
+function createRig({
+  repository = new MemoryRepository(),
+  invoker,
+  runtime = new FakeRuntime(),
+  capabilityAuthority = ALLOW_CAPABILITY_AUTHORITY,
+} = {}) {
   const hara = invoker ?? createInvoker();
   const kernelRepository = new MemoryKernelRepository(repository);
   const tabs = {
@@ -316,6 +359,7 @@ function createRig({ repository = new MemoryRepository(), invoker, runtime = new
     invoke: hara.invoke.bind(hara),
     repository,
     kernelRepository,
+    capabilityAuthority,
     runtime,
     tabs,
     now: () => new Date(Date.UTC(2026, 7, 4, 0, 0, tick++)),
@@ -825,6 +869,109 @@ test("exposes resident service and capability projections through bounded kernel
   assert.ok(rig.invoker.calls.some(({ method, args }) => (
     method === "capabilities/list" && args[0]?.apps?.installed
   )));
+});
+
+test("fails a capability check closed before Hara grants are consulted", async () => {
+  const repository = new MemoryRepository();
+  const module = validateAppManifest({
+    protocol: "greenways-app/1",
+    id: "unverified-signer",
+    version: "0.1.0",
+    publisher: { id: "example", name: "Example" },
+    name: "Unverified Signer",
+    description: "Exercises the host-owned runtime authority gate.",
+    category: "installable",
+    capabilities: ["hara/module", "key/sign"],
+    launch: { handler: "hal-module" },
+    kind: "hal-module",
+    channel: "preview",
+    lockDigest: `sha256:${"9".repeat(64)}`,
+    source: {
+      kind: "github",
+      owner: "example",
+      repo: "unverified-signer",
+      sha: "8".repeat(40),
+    },
+  });
+  await repository.put("kernel", "global", {
+    protocol: KERNEL_GLOBAL_PROTOCOL,
+    revision: 1,
+    installed: [module],
+    grants: [],
+    receipts: [],
+    updatedAt: "2026-08-06T00:00:00.000Z",
+  });
+  const rig = createRig({
+    repository,
+    capabilityAuthority: denyingCapabilityAuthority(),
+  });
+
+  const checked = await rig.host.call(
+    LAUNCHER_A,
+    "capabilities/check",
+    [module.id, "key/sign"],
+  );
+  assert.equal(checked.value, null);
+  assert.equal(checked.authority.allowed, false);
+  assert.equal(checked.authority.reason, "module-runtime-unverified");
+  assert.equal(rig.invoker.calls.some(({ method }) => method === "capabilities/check"), false);
+});
+
+test("denies a capability grant before preparing durable state when authority is unverified", async () => {
+  const repository = new MemoryRepository();
+  const module = validateAppManifest({
+    protocol: "greenways-app/1",
+    id: "blocked-signer",
+    version: "0.1.0",
+    publisher: { id: "example", name: "Example" },
+    name: "Blocked Signer",
+    description: "Cannot receive authority before runtime verification.",
+    category: "installable",
+    capabilities: ["hara/module", "key/sign"],
+    launch: { handler: "hal-module" },
+    kind: "hal-module",
+    channel: "preview",
+    lockDigest: `sha256:${"7".repeat(64)}`,
+    source: {
+      kind: "github",
+      owner: "example",
+      repo: "blocked-signer",
+      sha: "6".repeat(40),
+    },
+  });
+  await repository.put("kernel", "global", {
+    protocol: KERNEL_GLOBAL_PROTOCOL,
+    revision: 1,
+    installed: [module],
+    grants: [],
+    receipts: [],
+    updatedAt: "2026-08-06T00:00:00.000Z",
+  });
+  const rig = createRig({
+    repository,
+    capabilityAuthority: denyingCapabilityAuthority(),
+  });
+
+  await assert.rejects(
+    dispatch(
+      rig.host,
+      LAUNCHER_A,
+      "request/blocked-capability-1001",
+      "capabilities/grant",
+      [{
+        id: "grant/blocked-signer-0001",
+        appId: module.id,
+        capability: "key/sign",
+        constraints: { purpose: "test" },
+      }],
+    ),
+    (error) => (
+      error.code === "CAPABILITY_DENIED"
+      && error.decision?.reason === "module-runtime-unverified"
+    ),
+  );
+  assert.deepEqual(rig.kernelRepository.prepared, []);
+  assert.deepEqual(rig.kernelRepository.commits, []);
 });
 
 test("persists an exact app-bound capability grant and revocation across restarts", async () => {

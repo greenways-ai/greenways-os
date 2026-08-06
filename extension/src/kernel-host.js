@@ -195,7 +195,7 @@ function requireBundledCatalogManifest(method, args) {
   }
 }
 
-function capabilityDispatchArguments(method, args, state, now) {
+async function capabilityDispatchArguments(method, args, state, now, capabilityAuthority) {
   if (method === "apps/update" || method === "apps/remove") {
     return [...args, now.toISOString()];
   }
@@ -207,9 +207,17 @@ function capabilityDispatchArguments(method, args, state, now) {
     const manifest = state?.apps?.installed?.find(({ id }) => id === request.appId);
     if (!manifest) throw errorWithCode("Capability grant app is not installed", "APP_NOT_INSTALLED");
     try {
+      await capabilityAuthority.assert({
+        appId: request.appId,
+        capability: request.capability,
+      }, {
+        installed: state?.apps?.installed ?? [],
+      });
       return [createCapabilityGrant(request, manifest, { now: () => now })];
     } catch (error) {
-      throw errorWithCode(error.message, "CAPABILITY_DENIED", { cause: error });
+      const denied = errorWithCode(error.message, "CAPABILITY_DENIED", { cause: error });
+      if (error?.decision) denied.decision = error.decision;
+      throw denied;
     }
   }
   if (method === "capabilities/revoke") {
@@ -303,15 +311,22 @@ export class BrowserKernelHost {
     invoke,
     repository = store,
     kernelRepository = kernelStore,
+    capabilityAuthority,
     runtime = globalThis.chrome?.runtime,
     tabs = globalThis.chrome?.tabs,
     now = () => new Date(),
   }) {
     if (typeof invoke !== "function") throw new TypeError("Kernel host requires a Hara invoker");
     if (!repository) throw new TypeError("Kernel host requires durable storage");
+    if (!capabilityAuthority
+      || typeof capabilityAuthority.check !== "function"
+      || typeof capabilityAuthority.assert !== "function") {
+      throw new TypeError("Kernel host requires a capability authority gate");
+    }
     this.invoke = invoke;
     this.repository = repository;
     this.kernelRepository = kernelRepository;
+    this.capabilityAuthority = capabilityAuthority;
     this.runtime = runtime;
     this.tabs = tabs;
     this.now = now;
@@ -469,21 +484,40 @@ export class BrowserKernelHost {
     boundedJson(args, "Kernel call arguments");
     return this.enqueue(async () => {
       let invokeArgs = args;
+      let authority = null;
       if (STATEFUL_CALLS.has(method)) {
         const [global, context] = await Promise.all([
           this.globalState(),
           this.contextState(principal),
         ]);
         const state = await this.compose(global, context);
-        invokeArgs = method === "capabilities/check"
-          ? [state, ...args, this.now().toISOString()]
-          : [state, ...args];
+        if (method === "capabilities/check") {
+          authority = await this.capabilityAuthority.check({
+            appId: args[0],
+            capability: args[1],
+          }, {
+            installed: state?.apps?.installed ?? [],
+          });
+          if (!authority.allowed) {
+            return {
+              ok: true,
+              protocol: KERNEL_PROTOCOL,
+              value: null,
+              authority,
+            };
+          }
+          invokeArgs = [state, ...args, this.now().toISOString()];
+        } else {
+          invokeArgs = [state, ...args];
+        }
       }
-      return {
+      const response = {
         ok: true,
         protocol: KERNEL_PROTOCOL,
         value: await this.invoke(method, invokeArgs),
       };
+      if (authority) response.authority = authority;
+      return response;
     });
   }
 
@@ -556,11 +590,12 @@ export class BrowserKernelHost {
 
     const previousState = await this.compose(global, context);
     const operationTime = this.now();
-    const dispatchArgs = capabilityDispatchArguments(
+    const dispatchArgs = await capabilityDispatchArguments(
       request.method,
       request.args,
       previousState,
       operationTime,
+      this.capabilityAuthority,
     );
     const result = await this.invoke(request.method, [previousState, ...dispatchArgs]);
     if (!result || typeof result !== "object" || !result.state) {

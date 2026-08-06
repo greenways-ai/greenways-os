@@ -21,6 +21,10 @@ A manifest requests broad installation capabilities. Consequential operations su
 
 Grant constraints are bounded data and may name opaque profile references, models, budgets, or purposes. Secret-like fields such as API keys, passwords, tokens, private keys, or authorization values are rejected before persistence.
 
+A grant is not sufficient by itself. Before a grant is created or returned by `capabilities/check`, the service worker verifies that the exact app approval is still current. HAL modules must also have the same durable module record and lock digest in an immutable runtime index created only after boot-time archive re-verification and successful namespace registration. A stored module that failed to restore therefore cannot regain authority through an old grant.
+
+Capability authority evidence contains only public approval identity, lock digest, generation, and namespace root. It never projects lock source, package archives, provider credentials, or private keys.
+
 See `../protocol/core-services.md`.
 
 ## Core 01: Keyring

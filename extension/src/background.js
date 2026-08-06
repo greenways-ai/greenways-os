@@ -1,6 +1,10 @@
 import { SYSTEM_APP_IDS, getAppManifest } from "./app-catalog.js";
 import { resolveAppUrl, sameManifestApproval } from "./app-launch.js";
 import {
+  CapabilityAuthority,
+  createVerifiedModuleRuntimeState,
+} from "./capability-authority.js";
+import {
   BrowserKernelHost,
   KERNEL_PROTOCOL,
   serializeKernelError,
@@ -121,7 +125,12 @@ export function createKernelHost({
       for (const failure of restored.failures) {
         console.warn(`Stored HAL module ${failure.id ?? "<unknown>"} failed boot verification`, failure.error);
       }
-      return new BrowserKernelHost({ invoke, runtime, tabs });
+      const moduleVerification = createVerifiedModuleRuntimeState(restored.installed);
+      const capabilityAuthority = new CapabilityAuthority({
+        moduleRepository: modules,
+        moduleVerification,
+      });
+      return new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority });
     });
 }
 
