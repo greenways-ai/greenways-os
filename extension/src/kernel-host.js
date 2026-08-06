@@ -64,6 +64,19 @@ const CLIENT_POLICY = Object.freeze({
       "studio/export-project",
     ]),
   }),
+  devtools: Object.freeze({
+    calls: new Set([
+      "core/services",
+      "capabilities/vocabulary",
+      "capabilities/list",
+      "capabilities/check",
+      "devtools/status",
+      "devtools/modules",
+      "devtools/eval",
+      "devtools/call",
+    ]),
+    dispatches: new Set(),
+  }),
 });
 
 const STATEFUL_CALLS = new Set(["capabilities/list", "capabilities/check"]);
@@ -314,6 +327,7 @@ export class BrowserKernelHost {
     capabilityAuthority,
     runtime = globalThis.chrome?.runtime,
     tabs = globalThis.chrome?.tabs,
+    devtools,
     now = () => new Date(),
   }) {
     if (typeof invoke !== "function") throw new TypeError("Kernel host requires a Hara invoker");
@@ -323,7 +337,15 @@ export class BrowserKernelHost {
       || typeof capabilityAuthority.assert !== "function") {
       throw new TypeError("Kernel host requires a capability authority gate");
     }
+    if (devtools !== undefined && typeof devtools?.call !== "function") {
+      throw new TypeError("Kernel host DevTools runtime must expose call()");
+    }
     this.invoke = invoke;
+    this.devtools = devtools ?? Object.freeze({
+      async call() {
+        throw errorWithCode("Root DevTools runtime is unavailable", "DEVTOOLS_UNAVAILABLE");
+      },
+    });
     this.repository = repository;
     this.kernelRepository = kernelRepository;
     this.capabilityAuthority = capabilityAuthority;
@@ -514,7 +536,9 @@ export class BrowserKernelHost {
       const response = {
         ok: true,
         protocol: KERNEL_PROTOCOL,
-        value: await this.invoke(method, invokeArgs),
+        value: method.startsWith("devtools/")
+          ? await this.devtools.call(method, invokeArgs)
+          : await this.invoke(method, invokeArgs),
       };
       if (authority) response.authority = authority;
       return response;

@@ -6,9 +6,9 @@ const manifest = JSON.parse(
   await readFile(new URL("../manifest.json", import.meta.url), "utf8"),
 );
 
-test("extension requests only its two required permissions", () => {
+test("extension requests only its three required root-OS permissions", () => {
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ["sidePanel", "storage"]);
+  assert.deepEqual(manifest.permissions, ["sidePanel", "storage", "nativeMessaging"]);
   assert.equal(manifest.side_panel.default_path, "src/launcher.html");
   assert.equal(manifest.minimum_chrome_version, "116");
   assert.equal(manifest.background.service_worker, "dist/background.js");
@@ -21,6 +21,7 @@ test("powerful browser permissions are absent", () => {
     ...(manifest.optional_permissions ?? []),
   ]);
 
+  assert.equal(declared.has("nativeMessaging"), true);
   for (const forbidden of ["debugger", "tabs", "scripting", "webRequest"]) {
     assert.equal(declared.has(forbidden), false, forbidden);
   }

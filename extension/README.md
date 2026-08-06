@@ -93,3 +93,25 @@ npm run test:browser
 ```
 
 For local use, enable developer mode at `chrome://extensions` and load this directory unpacked. Generated bundles under `dist/` are intentionally ignored.
+
+## Root OS and Kernel DevTools
+
+The first extension distribution is the resident Greenways OS plus one fixed root app,
+`greenways-devtools`. It is packaged with the extension, preinstalled, non-removable, and separate
+from the ordinary application catalogue. The DevTools page does not embed another Hara runtime;
+it attaches to the single service-worker kernel.
+
+DevTools provides an explicit namespace REPL, bounded calls into reviewed kernel methods, module
+and service inspection, and an optional authenticated RESP2 bridge. The TCP listener is provided
+by `services/devtools-node` through Chrome Native Messaging because extension pages do not own raw
+listening sockets. It binds only to `127.0.0.1`, requires a fresh session token, and shuts down with
+the native connection.
+
+```bash
+npm --prefix services/devtools-node test
+node services/devtools-node/bin/greenways-devtools-install.mjs \
+  --extension-id <id-from-chrome-extensions> \
+  --browser chrome
+```
+
+See `../protocol/devtools.md` for the authority and wire-level boundaries.

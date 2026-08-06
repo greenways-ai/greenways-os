@@ -12,6 +12,7 @@ const CONTEXT_PROTOCOL = "greenways-kernel-context/1";
 const LAUNCHER_A = Object.freeze({ kind: "launcher", clientId: "launcher/client-alpha-0001" });
 const LAUNCHER_B = Object.freeze({ kind: "launcher", clientId: "launcher/client-bravo-0002" });
 const WORLD_A = Object.freeze({ kind: "world", clientId: "world/client-alpha-000001" });
+const DEVTOOLS_A = Object.freeze({ kind: "devtools", clientId: "devtools/client-alpha-001" });
 
 const ALLOW_CAPABILITY_AUTHORITY = Object.freeze({
   async check({ appId, capability }) {
@@ -344,6 +345,7 @@ function createRig({
   invoker,
   runtime = new FakeRuntime(),
   capabilityAuthority = ALLOW_CAPABILITY_AUTHORITY,
+  devtools,
 } = {}) {
   const hara = invoker ?? createInvoker();
   const kernelRepository = new MemoryKernelRepository(repository);
@@ -362,6 +364,7 @@ function createRig({
     capabilityAuthority,
     runtime,
     tabs,
+    devtools,
     now: () => new Date(Date.UTC(2026, 7, 4, 0, 0, tick++)),
   });
   return { host, repository, kernelRepository, runtime, tabs, invoker: hara };
@@ -1164,4 +1167,28 @@ test("rejects undeclared capability grants before preparing a durable request", 
   );
   assert.deepEqual(rig.kernelRepository.prepared, []);
   assert.deepEqual(rig.kernelRepository.commits, []);
+});
+
+
+test("root DevTools has a fixed call surface and no state-changing dispatches", async () => {
+  const calls = [];
+  const rig = createRig({
+    devtools: {
+      async call(method, args) { calls.push([method, args]); return { method, args }; },
+    },
+  });
+  assert.deepEqual(await rig.host.call(DEVTOOLS_A, "devtools/status", []), {
+    ok: true,
+    protocol: KERNEL_PROTOCOL,
+    value: { method: "devtools/status", args: [] },
+  });
+  assert.deepEqual(calls, [["devtools/status", []]]);
+  await assert.rejects(
+    rig.host.call(LAUNCHER_A, "devtools/status", []),
+    (error) => error.code === "METHOD_DENIED",
+  );
+  await assert.rejects(
+    dispatch(rig.host, DEVTOOLS_A, "request/devtools-dispatch-9001", "apps/install", [getAppManifest("historia")]),
+    (error) => error.code === "METHOD_DENIED",
+  );
 });

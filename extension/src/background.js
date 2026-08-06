@@ -1,5 +1,7 @@
 import { SYSTEM_APP_IDS, getAppManifest } from "./app-catalog.js";
 import { resolveAppUrl, sameManifestApproval } from "./app-launch.js";
+import { getRootApp, resolveRootAppUrl } from "./root-apps.js";
+import { DevtoolsNativeBridge } from "./devtools-bridge.js";
 import {
   CapabilityAuthority,
   createVerifiedModuleRuntimeState,
@@ -19,6 +21,14 @@ export const KERNEL_MESSAGE_TYPES = Object.freeze({
   DISPATCH: "greenways/kernel/dispatch",
 });
 
+export const DEVTOOLS_BRIDGE_MESSAGE_TYPES = Object.freeze({
+  STATUS: "greenways/devtools-bridge/status",
+  START: "greenways/devtools-bridge/start",
+  STOP: "greenways/devtools-bridge/stop",
+});
+
+export const ROOT_APP_MESSAGE_TYPE = "greenways/open-root-app";
+
 const LEGACY_APP_PATHS = new Map([
   ["greenways/open-studio", "src/studio.html#home"],
   ["greenways/open-world", "src/world.html"],
@@ -29,11 +39,14 @@ const PAGE_ROLES = new Map([
   ["/src/world.html", "world"],
   ["/src/studio.html", "home"],
   ["/src/sidepanel.html", "home"],
+  ["/src/devtools.html", "devtools"],
 ]);
 const KERNEL_TYPES = new Set(Object.values(KERNEL_MESSAGE_TYPES));
+const DEVTOOLS_BRIDGE_TYPES = new Set(Object.values(DEVTOOLS_BRIDGE_MESSAGE_TYPES));
 const ALLOWED_CONTEXT_TYPES = new Set(["TAB", "SIDE_PANEL"]);
 
 let defaultHostPromise;
+let defaultBridge;
 
 export function createInstalledAppChecker(appStore = store) {
   if (!appStore || typeof appStore.get !== "function") {
@@ -60,6 +73,7 @@ function messageUrl(message, runtime) {
   const legacyPath = LEGACY_APP_PATHS.get(message?.type);
   if (legacyPath) return extensionPageUrl(legacyPath, runtime);
   if (message?.type === "greenways/open-app") return resolveAppUrl(message.appId, runtime);
+  if (message?.type === ROOT_APP_MESSAGE_TYPE) return resolveRootAppUrl(message.appId, runtime);
   return null;
 }
 
@@ -116,7 +130,11 @@ export function createKernelHost({
     throw new TypeError("Kernel host requires a durable module repository");
   }
   return import("./greenways-runtime.js")
-    .then(async ({ createGreenwaysInvoker, restoreGreenwaysModules }) => {
+    .then(async ({
+      createGreenwaysDevtoolsRuntime,
+      createGreenwaysInvoker,
+      restoreGreenwaysModules,
+    }) => {
       const [invoke, records] = await Promise.all([
         createGreenwaysInvoker(),
         modules.values(),
@@ -130,13 +148,60 @@ export function createKernelHost({
         moduleRepository: modules,
         moduleVerification,
       });
-      return new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority });
+      const devtools = await createGreenwaysDevtoolsRuntime();
+      return new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority, devtools });
     });
 }
 
 function defaultKernelHost(options) {
   if (!defaultHostPromise) defaultHostPromise = createKernelHost(options);
   return defaultHostPromise;
+}
+
+const NATIVE_DEVTOOLS_PRINCIPAL = Object.freeze({
+  kind: "devtools",
+  clientId: "native/devtools-bridge",
+});
+
+async function handleNativeDevtoolsRequest(getKernelHost, request) {
+  const host = await getKernelHost();
+  let method;
+  let args;
+  if (request.command === "status") {
+    method = "devtools/status";
+    args = [];
+  } else if (request.command === "modules") {
+    method = "devtools/modules";
+    args = [];
+  } else if (request.command === "services") {
+    method = "core/services";
+    args = [];
+  } else if (request.command === "eval") {
+    method = "devtools/eval";
+    args = [request.payload ?? {}];
+  } else if (request.command === "call") {
+    method = "devtools/call";
+    args = [request.payload?.method, request.payload?.args ?? []];
+  } else {
+    throw new Error(`Unsupported native DevTools command: ${request.command}`);
+  }
+  const response = await host.call(NATIVE_DEVTOOLS_PRINCIPAL, method, args);
+  return response.value;
+}
+
+export function createDevtoolsBridge({
+  runtime = globalThis.chrome?.runtime,
+  getKernelHost = () => defaultKernelHost({ runtime }),
+} = {}) {
+  return new DevtoolsNativeBridge({
+    runtime,
+    handleRequest: (request) => handleNativeDevtoolsRequest(getKernelHost, request),
+  });
+}
+
+function defaultDevtoolsBridge(options) {
+  if (!defaultBridge) defaultBridge = createDevtoolsBridge(options);
+  return defaultBridge;
 }
 
 function kernelResponse(host, message, principal) {
@@ -160,21 +225,45 @@ export function createMessageHandler({
   tabs = globalThis.chrome?.tabs,
   isAppInstalled = isInstalledByDefault,
   getKernelHost = () => defaultKernelHost({ runtime, tabs }),
+  getDevtoolsBridge = () => defaultDevtoolsBridge({ runtime, getKernelHost }),
   identify = principalFromSender,
 } = {}) {
   if (typeof isAppInstalled !== "function") throw new TypeError("App installation checker must be a function");
   if (typeof getKernelHost !== "function") throw new TypeError("Kernel host resolver must be a function");
+  if (typeof getDevtoolsBridge !== "function") throw new TypeError("DevTools bridge resolver must be a function");
   return (message, sender, sendResponse) => {
     const kernel = KERNEL_TYPES.has(message?.type);
-    const legacy = LEGACY_APP_PATHS.has(message?.type) || message?.type === "greenways/open-app";
-    if (!kernel && !legacy) return false;
+    const bridgeRequest = DEVTOOLS_BRIDGE_TYPES.has(message?.type);
+    const rootNavigation = message?.type === ROOT_APP_MESSAGE_TYPE;
+    const legacyNavigation = LEGACY_APP_PATHS.has(message?.type) || message?.type === "greenways/open-app";
+    if (!kernel && !bridgeRequest && !rootNavigation && !legacyNavigation) return false;
 
     Promise.resolve()
       .then(async () => {
         const principal = await identify(sender, message, runtime);
         if (kernel) {
-          if (!['launcher', 'world'].includes(principal.kind)) throw new Error("This page cannot use the Hara kernel");
+          if (!["launcher", "world", "devtools"].includes(principal.kind)) {
+            throw new Error("This page cannot use the Hara kernel");
+          }
           return kernelResponse(await getKernelHost(), message, principal);
+        }
+        if (bridgeRequest) {
+          if (principal.kind !== "devtools") throw new Error("Only the root DevTools app can control the RESP bridge");
+          const bridge = getDevtoolsBridge();
+          if (message.type === DEVTOOLS_BRIDGE_MESSAGE_TYPES.START) {
+            return { ok: true, bridge: await bridge.start({ port: message.port }) };
+          }
+          if (message.type === DEVTOOLS_BRIDGE_MESSAGE_TYPES.STOP) {
+            return { ok: true, bridge: bridge.stop() };
+          }
+          return { ok: true, bridge: bridge.snapshot({ revealToken: true }) };
+        }
+        if (rootNavigation) {
+          if (principal.kind !== "launcher") throw new Error("Only the root shell can open a root app");
+          const rootApp = getRootApp(message.appId);
+          if (!rootApp) throw new Error(`Unknown Greenways root app: ${message.appId}`);
+          const tab = await tabs.create({ url: messageUrl(message, runtime) });
+          return { ok: true, tabId: tab?.id ?? null };
         }
         if (message.type === "greenways/open-app") {
           if (principal.kind !== "launcher") throw new Error("Only the launcher can open installed apps");

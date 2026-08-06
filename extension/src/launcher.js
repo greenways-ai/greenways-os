@@ -4,6 +4,7 @@ import {
   getAppManifest,
   validateAppManifest,
 } from "./app-catalog.js";
+import { ROOT_APPS } from "./root-apps.js";
 import {
   HestiaClient,
   requestOriginAccess,
@@ -92,6 +93,53 @@ function appCard(manifest, { installed, updateAvailable = false }) {
   </article>`;
 }
 
+function rootAppCard(app) {
+  const disabled = kernelReady ? "" : ' disabled aria-disabled="true"';
+  return `<article class="app-card root-app-card" id="root-${escapeHtml(app.id)}" data-root-app-card="${escapeHtml(app.id)}">
+    <div class="app-icon app-icon--root" aria-hidden="true">λ</div>
+    <div class="app-copy">
+      <p>ROOT APP · PREINSTALLED</p>
+      <h2>${escapeHtml(app.name)}</h2>
+      <span>${escapeHtml(app.description)}</span>
+    </div>
+    <div class="app-meta">
+      <span>Greenways OS · v${escapeHtml(app.version)}</span>
+      <small>${escapeHtml(app.authority.join(" · "))}</small>
+    </div>
+    <div class="app-actions">
+      <button class="app-open" type="button" data-open-root-app="${escapeHtml(app.id)}"${disabled}>Open DevTools</button>
+    </div>
+  </article>`;
+}
+
+function runtimeMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response?.ok) {
+        reject(new Error(response?.error || "Greenways OS request failed"));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
+async function openRootApp(appId) {
+  const app = ROOT_APPS.find(({ id }) => id === appId);
+  if (!app) return setStatus("That root app is not part of this Greenways OS build.", "error");
+  try {
+    setStatus(`Opening ${app.name}…`);
+    await runtimeMessage({ type: "greenways/open-root-app", appId });
+    setStatus(`${app.name} opened.`, "good");
+  } catch (error) {
+    setStatus(error?.message || "The root app could not be opened.", "error");
+  }
+}
+
 function mosaicMark() {
   const cells = ["0011100", "0100010", "1000001", "1001111", "1000001", "0100010", "0011100"].join("");
   return `<span class="launcher-mark" aria-hidden="true">${[...cells].map((cell, index) => `<i data-on="${cell}" style="--tone:${index % 5}"></i>`).join("")}</span>`;
@@ -104,14 +152,18 @@ function render() {
   const connected = connectorConnected;
   appRoot.innerHTML = `<div class="launcher-shell">
     <header class="launcher-header">
-      <div class="launcher-brand">${mosaicMark()}<span><strong>Greenways OS</strong><small>YOUR LOCAL PARTICIPATION KERNEL</small></span></div>
+      <div class="launcher-brand">${mosaicMark()}<span><strong>Greenways OS</strong><small>ROOT OS · BROWSER KERNEL</small></span></div>
       <span class="kernel-state"><i></i>${kernelReady ? "Local" : "Starting"}</span>
     </header>
     <section class="launcher-intro">
-      <p class="eyebrow">SOVEREIGN FIRST · SOCIAL WHEN INVITED</p>
-      <h1>Your browser,<br><em>made inhabitable.</em></h1>
-      <p>Install private tools and connectors around one locally owned kernel. Participation is something you choose—not the price of entry.</p>
+      <p class="eyebrow">ROOT KERNEL · PROGRAMMABLE BY DESIGN</p>
+      <h1>Your browser,<br><em>with an operating system.</em></h1>
+      <p>Greenways starts as a small resident Hara kernel with one preinstalled root tool. Use DevTools to inspect, evaluate, and program the OS; add ordinary apps around it when you need them.</p>
       <div class="privacy-line"><span><i></i><strong>Local state</strong> stays on this device</span><span>${connected ? "Hestia connected" : "No remote home connected"}</span></div>
+    </section>
+    <section class="app-section root-tools-section" aria-labelledby="root-tools-heading">
+      <div class="section-heading"><div><p>ROOT TOOLS</p><h2 id="root-tools-heading">Preinstalled with the OS</h2></div><span>${ROOT_APPS.length} fixed</span></div>
+      <div class="app-grid root-app-grid">${ROOT_APPS.map(rootAppCard).join("")}</div>
     </section>
     <section class="app-section" aria-labelledby="installed-heading">
       <div class="section-heading"><div><p>YOUR SPACE</p><h2 id="installed-heading">Installed apps</h2></div><span>${installed.length} local</span></div>
@@ -131,6 +183,7 @@ function render() {
     <footer class="launcher-footer"><span>GREENWAYS / OS</span><span>Local by default · network by consent</span></footer>
   </div>`;
 
+  appRoot.querySelectorAll("[data-open-root-app]").forEach((button) => button.addEventListener("click", () => openRootApp(button.dataset.openRootApp)));
   appRoot.querySelectorAll("[data-open-app]").forEach((button) => button.addEventListener("click", () => openApp(button.dataset.openApp)));
   appRoot.querySelectorAll("[data-install-app]").forEach((button) => button.addEventListener("click", () => installApp(button.dataset.installApp)));
   appRoot.querySelectorAll("[data-update-app]").forEach((button) => button.addEventListener("click", () => updateApp(button.dataset.updateApp)));
@@ -404,6 +457,11 @@ async function start() {
 window.addEventListener("beforeunload", () => session?.destroy(), { once: true });
 
 async function handleLaunchIntent() {
+  const rootMatch = location.hash.match(/^#root-([a-z0-9]+(?:[.-][a-z0-9]+)*)$/);
+  if (rootMatch?.[1] && ROOT_APPS.some(({ id }) => id === rootMatch[1])) {
+    await openRootApp(rootMatch[1]);
+    return;
+  }
   const match = location.hash.match(/^#app-([a-z0-9]+(?:[.-][a-z0-9]+)*)$/);
   const appId = match?.[1];
   const manifest = appId ? fixedManifestById(appId) : null;

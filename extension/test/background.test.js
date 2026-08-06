@@ -148,6 +148,14 @@ test("derives kernel roles from exact active packaged documents", async () => {
   };
   const sender = senderFor("src/launcher.html", "document:active-launcher");
   assert.deepEqual(
+    await principalFromSender(
+      senderFor("src/devtools.html", "document:active-devtools"),
+      { type: "greenways/kernel/attach", clientKind: "devtools" },
+      activeRuntime,
+    ),
+    { kind: "devtools", clientId: "document/document:active-devtools" },
+  );
+  assert.deepEqual(
     await principalFromSender(sender, {
       type: "greenways/kernel/attach",
       clientKind: "launcher",
@@ -183,4 +191,46 @@ test("derives kernel roles from exact active packaged documents", async () => {
     principalFromSender(sender, {}, { ...activeRuntime, getContexts: async () => [] }),
     /not an active extension context/,
   );
+});
+
+test("launcher opens the fixed root DevTools app without package installation", async () => {
+  const calls = [];
+  const handler = createMessageHandler({
+    runtime,
+    tabs: { create: async ({ url }) => { calls.push(url); return { id: 91 }; } },
+  });
+  const response = await new Promise((resolve) => {
+    assert.equal(handler(
+      { type: "greenways/open-root-app", appId: "greenways-devtools" },
+      senderFor("src/launcher.html"),
+      resolve,
+    ), true);
+  });
+  assert.deepEqual(response, { ok: true, tabId: 91 });
+  assert.deepEqual(calls, ["chrome-extension://greenways/src/devtools.html"]);
+});
+
+test("only the root DevTools page controls the native RESP bridge", async () => {
+  const calls = [];
+  const bridge = {
+    snapshot: ({ revealToken }) => ({ state: "active", token: revealToken ? "session-token" : null }),
+    start: async ({ port }) => { calls.push(["start", port]); return { state: "active", port, token: "session-token" }; },
+    stop: () => { calls.push(["stop"]); return { state: "stopped", token: null }; },
+  };
+  const handler = createMessageHandler({ runtime, getDevtoolsBridge: () => bridge });
+  const start = await new Promise((resolve) => handler(
+    { type: "greenways/devtools-bridge/start", port: 46379 },
+    senderFor("src/devtools.html"),
+    resolve,
+  ));
+  assert.equal(start.ok, true);
+  assert.equal(start.bridge.token, "session-token");
+  assert.deepEqual(calls, [["start", 46379]]);
+
+  const denied = await new Promise((resolve) => handler(
+    { type: "greenways/devtools-bridge/status" },
+    senderFor("src/launcher.html"),
+    resolve,
+  ));
+  assert.match(denied.error, /Only the root DevTools app/);
 });
