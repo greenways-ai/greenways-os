@@ -37,6 +37,8 @@ jobs:
         run: |
           set -euo pipefail
 
+          # The payload is split only to cross the connector transport boundary.
+          # Every byte is verified before source is applied to the branch.
           python3 - <<'PY'
           import base64
           import hashlib
