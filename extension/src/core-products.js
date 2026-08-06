@@ -111,7 +111,7 @@ function decorate() {
   if (installed) {
     installed.setAttribute("aria-label", "Installed apps");
     setText(installed.querySelector(".section-heading p"), "PACKAGE MANAGER");
-    setText(installed.querySelector(".section-heading h2"), "Installed packages");
+    setText(installed.querySelector(".section-heading h2"), "Installed apps");
   }
   if (catalog) {
     setText(catalog.querySelector(".section-heading p"), "PACKAGE CATALOGUE");
@@ -123,6 +123,33 @@ function decorate() {
       setText(card.querySelector(".app-copy p"), packageKindLabel(projectPackage(manifest).kind));
     }
   });
+
+  // Preserve the established Home Link controls while its card is demoted to
+  // optional migration infrastructure. Connected-state copy remains owned by
+  // the legacy surface and is not rewritten here.
+  const homeNode = shell.querySelector("[data-home-node]");
+  const homeHeading = homeNode?.querySelector("h2");
+  if (homeHeading?.textContent === "Legacy Home Link remains available for migration.") {
+    setText(homeHeading, "Give your browsers a home you control.");
+  }
+  const homeAction = homeNode?.querySelector("button");
+  if (homeAction?.textContent === "Use legacy Home Link") {
+    setText(homeAction, "Connect home");
+  }
+
+  // Keep the original Greenways Space destination explicit in the disconnected
+  // Beacon dialog as well as on its launcher card.
+  const beaconDescription = surfaceRoot
+    ?.querySelector('[role="dialog"][aria-label="Greenways Beacon"] .beacon-hero p');
+  if (beaconDescription?.textContent.includes("inert Space catalogue")) {
+    setText(
+      beaconDescription,
+      beaconDescription.textContent.replace(
+        "inert Space catalogue",
+        "inert greenways.space catalogue",
+      ),
+    );
+  }
 
   // Visual order is CSS-owned. Beacon, Home Link, app sections, and core
   // sections remain stable direct children; this decorator never reparents them.
@@ -145,6 +172,7 @@ async function refresh() {
 
 if (appRoot && surfaceRoot) {
   new MutationObserver(schedule).observe(appRoot, { childList: true, subtree: true });
+  new MutationObserver(schedule).observe(surfaceRoot, { childList: true, subtree: true });
   window.addEventListener("focus", refresh);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refresh();
