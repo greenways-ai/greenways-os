@@ -56,10 +56,11 @@ function decorate() {
   const intro = shell?.querySelector(".launcher-intro");
   if (!shell || !intro) return;
 
-  setText(intro.querySelector(".eyebrow"), "LOCAL KEYRING · REVIEWED PACKAGES · HARA KERNEL");
-  setHtml(intro.querySelector("h1"), "Your keys.<br><em>Your capabilities.</em>");
-  setText(intro.querySelector(":scope > p:not(.eyebrow)"), "Greenways OS begins as a keyring and package manager. Keep controller keys local, load model credentials for this browser session, and approve each package at an exact version and capability set.");
-  setText(intro.querySelector(".privacy-line span:last-child"), snapshot?.providerProfiles?.length ? `${snapshot.providerProfiles.length} session model profile${snapshot.providerProfiles.length === 1 ? "" : "s"} loaded` : "No session model keys loaded");
+  // The older Beacon/Home decorators retain their compatibility markup, but
+  // the first-product shell no longer renders that network-led hero. Avoid
+  // rewriting its children so independent MutationObservers cannot fight over
+  // copy or connection status.
+  if (!intro.hidden) intro.hidden = true;
   setText(shell.querySelector(".launcher-brand small"), "LOCAL KEYRING + PACKAGE MANAGER");
 
   const signature = JSON.stringify([snapshot?.controller?.keyId, snapshot?.providerProfiles?.map(({ id }) => id), Boolean(keyringError), counts(shell)]);

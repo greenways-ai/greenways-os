@@ -29,6 +29,12 @@ test("demotes network connections beneath package management without duplicating
   assert.doesNotMatch(runtime, /new HestiaClient/);
 });
 
+test("hides the legacy network-led hero without competing with its decorators", () => {
+  assert.match(runtime, /if \(!intro\.hidden\) intro\.hidden = true/);
+  assert.match(runtime, /independent MutationObservers cannot fight over/);
+  assert.doesNotMatch(runtime, /setHtml\(intro/);
+});
+
 test("documents no-key-export and no-remote-code boundaries", () => {
   assert.match(keyringProtocol, /must not receive the underlying key material/);
   assert.match(keyringProtocol, /credential\/get/);
