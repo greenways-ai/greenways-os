@@ -1,3 +1,5 @@
+import { APP_CAPABILITIES } from "./core-services.js";
+
 const IDENTIFIER = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SEMANTIC_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const SHA256 = /^sha256:[a-f0-9]{64}$/;
@@ -20,19 +22,7 @@ export const PACKAGED_SURFACE_IDS = Object.freeze([
   "hestia-connector",
 ]);
 
-export const APP_CAPABILITIES = Object.freeze([
-  "hara/evaluate",
-  "hara/module",
-  "hestia/connect",
-  "historia/import",
-  "identity/local",
-  "network/github",
-  "network/https",
-  "network/loopback",
-  "storage/local",
-  "tabs/open",
-  "worlds/browse",
-]);
+export { APP_CAPABILITIES };
 
 const PACKAGED_EXTENSION_PATHS = new Set([
   "src/studio.html#home",

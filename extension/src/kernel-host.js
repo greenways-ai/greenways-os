@@ -7,6 +7,10 @@ import {
 import { resolveAppUrl, sameManifestApproval } from "./app-launch.js";
 import { canonical, sha256 } from "./protocol.js";
 import {
+  createCapabilityGrant,
+  validateCapabilityGrant,
+} from "./core-services.js";
+import {
   kernelStore,
   store,
 } from "./storage.js";
@@ -27,11 +31,31 @@ const NON_REPLAYABLE_EFFECTS = new Set([
 
 const CLIENT_POLICY = Object.freeze({
   launcher: Object.freeze({
-    calls: new Set(),
-    dispatches: new Set(["apps/install", "apps/update", "apps/open", "apps/remove", "surface/close"]),
+    calls: new Set([
+      "core/services",
+      "capabilities/vocabulary",
+      "capabilities/list",
+      "capabilities/check",
+    ]),
+    dispatches: new Set([
+      "apps/install",
+      "apps/update",
+      "apps/open",
+      "apps/remove",
+      "capabilities/grant",
+      "capabilities/revoke",
+      "surface/close",
+    ]),
   }),
   world: Object.freeze({
-    calls: new Set(["catalog/search", "world/open", "world/render"]),
+    calls: new Set([
+      "catalog/search",
+      "world/open",
+      "world/render",
+      "core/services",
+      "capabilities/vocabulary",
+      "capabilities/check",
+    ]),
     dispatches: new Set([
       "world/touchpoint",
       "surface/close",
@@ -42,11 +66,15 @@ const CLIENT_POLICY = Object.freeze({
   }),
 });
 
+const STATEFUL_CALLS = new Set(["capabilities/list", "capabilities/check"]);
+
 const EFFECT_POLICY = Object.freeze({
   "apps/install": new Set(["storage/save-apps"]),
-  "apps/update": new Set(["storage/save-apps"]),
+  "apps/update": new Set(["storage/save-apps", "storage/save-grants"]),
+  "capabilities/grant": new Set(["storage/save-grants"]),
+  "capabilities/revoke": new Set(["storage/save-grants"]),
   "apps/open": new Set(["browser/open-app", "ui/open-surface"]),
-  "apps/remove": new Set(["storage/save-apps", "ui/close-surface"]),
+  "apps/remove": new Set(["storage/save-apps", "storage/save-grants", "ui/close-surface"]),
   "world/touchpoint": new Set(["ui/open-surface"]),
   "surface/close": new Set(["ui/close-surface"]),
   "studio/add-track": new Set(),
@@ -130,6 +158,12 @@ function validateEffects(method, effects, nextState) {
     if (key === "storage/save-apps" && !manifestsEqual(effect.args?.[0] ?? [], nextState?.apps?.installed ?? [])) {
       throw errorWithCode("Hara app persistence intent does not match its next state", "KERNEL_CONTRACT");
     }
+    if (key === "storage/save-grants" && !manifestsEqual(
+      effect.args?.[0] ?? [],
+      nextState?.capabilities?.grants ?? [],
+    )) {
+      throw errorWithCode("Hara capability persistence intent does not match its next state", "KERNEL_CONTRACT");
+    }
   }
   return effects;
 }
@@ -161,13 +195,46 @@ function requireBundledCatalogManifest(method, args) {
   }
 }
 
-function defaultGlobal(installed) {
+function capabilityDispatchArguments(method, args, state, now) {
+  if (method === "apps/update" || method === "apps/remove") {
+    return [...args, now.toISOString()];
+  }
+  if (method === "capabilities/grant") {
+    if (args.length !== 1) {
+      throw errorWithCode("Capability grant requires one request", "INVALID_REQUEST");
+    }
+    const request = plainObject(args[0], "Capability grant request");
+    const manifest = state?.apps?.installed?.find(({ id }) => id === request.appId);
+    if (!manifest) throw errorWithCode("Capability grant app is not installed", "APP_NOT_INSTALLED");
+    try {
+      return [createCapabilityGrant(request, manifest, { now: () => now })];
+    } catch (error) {
+      throw errorWithCode(error.message, "CAPABILITY_DENIED", { cause: error });
+    }
+  }
+  if (method === "capabilities/revoke") {
+    if (args.length !== 1 || typeof args[0] !== "string") {
+      throw errorWithCode("Capability revocation requires one grant id", "INVALID_REQUEST");
+    }
+    const grant = state?.capabilities?.grants?.find(({ id }) => id === args[0]);
+    if (!grant) throw errorWithCode("Capability grant does not exist", "CAPABILITY_NOT_FOUND");
+    const currentTime = now.toISOString();
+    // Browser and operating-system clocks can move backwards. A revocation is
+    // still final, so pin its recorded time to at least the grant issuance.
+    const revokedAt = grant.issuedAt > currentTime ? grant.issuedAt : currentTime;
+    return [args[0], revokedAt];
+  }
+  return args;
+}
+
+function defaultGlobal(installed, updatedAt) {
   return {
     protocol: KERNEL_GLOBAL_PROTOCOL,
     revision: 0,
     installed,
+    grants: [],
     receipts: [],
-    updatedAt: new Date().toISOString(),
+    updatedAt,
   };
 }
 
@@ -192,7 +259,17 @@ function validateGlobal(value) {
   if (new Set(ids).size !== ids.length) {
     throw errorWithCode("Stored kernel app approvals contain duplicate ids", "RECOVERY_REQUIRED");
   }
-  return { ...value, installed };
+  let grants;
+  try {
+    grants = (value.grants ?? []).map(validateCapabilityGrant);
+  } catch (error) {
+    throw errorWithCode("Stored kernel capability grant is invalid", "RECOVERY_REQUIRED", { cause: error });
+  }
+  const grantIds = grants.map(({ id }) => id);
+  if (new Set(grantIds).size !== grantIds.length) {
+    throw errorWithCode("Stored kernel capability grants contain duplicate ids", "RECOVERY_REQUIRED");
+  }
+  return { ...value, installed, grants };
 }
 
 function validateContext(value, principal) {
@@ -259,7 +336,7 @@ export class BrowserKernelHost {
         optional.push(manifest);
         seen.add(manifest.id);
       } catch {
-        // Invalid or unsupported grants are retained in IndexedDB for recovery,
+        // Invalid or unsupported approvals are retained in IndexedDB for recovery,
         // but they never enter executable kernel state.
       }
     }
@@ -280,7 +357,8 @@ export class BrowserKernelHost {
         ...BUILTIN_APPS.filter(({ id }) => SYSTEM_IDS.has(id)),
         ...global.installed.filter(({ id }) => !SYSTEM_IDS.has(id)),
       ];
-      if (!manifestsEqual(global.installed, installed)) {
+      const projectionUpgrade = stored.grants === undefined;
+      if (!manifestsEqual(global.installed, installed) || projectionUpgrade) {
         const upgraded = {
           ...global,
           installed,
@@ -290,15 +368,20 @@ export class BrowserKernelHost {
         await this.kernelRepository.replaceGlobal({
           globalEnvelope: upgraded,
           apps: installed,
+          grants: global.grants,
         });
         return upgraded;
       }
       return global;
     }
-    const global = defaultGlobal(await this.legacyInstalledApps());
+    const global = defaultGlobal(
+      await this.legacyInstalledApps(),
+      this.now().toISOString(),
+    );
     await this.kernelRepository.replaceGlobal({
       globalEnvelope: global,
       apps: global.installed,
+      grants: global.grants,
     });
     return global;
   }
@@ -328,7 +411,7 @@ export class BrowserKernelHost {
   }
 
   async compose(global, context) {
-    const state = await this.invoke("app/restore", [context.checkpoint, global.installed]);
+    const state = await this.invoke("app/restore", [context.checkpoint, global.installed, global.grants ?? []]);
     const activeId = state.apps?.active;
     const activeApprovalInvalid = Boolean(
       activeId
@@ -356,7 +439,7 @@ export class BrowserKernelHost {
       ...context.checkpoint,
       apps: { active: null },
       surface: { active: null, payload: null },
-    }, global.installed]);
+    }, global.installed, global.grants ?? []]);
   }
 
   snapshot(global, context, state) {
@@ -384,11 +467,24 @@ export class BrowserKernelHost {
     const policy = principalPolicy(principal);
     if (!policy.calls.has(method)) throw errorWithCode(`Kernel call is not available to ${principal.kind}: ${method}`, "METHOD_DENIED");
     boundedJson(args, "Kernel call arguments");
-    return this.enqueue(async () => ({
-      ok: true,
-      protocol: KERNEL_PROTOCOL,
-      value: await this.invoke(method, args),
-    }));
+    return this.enqueue(async () => {
+      let invokeArgs = args;
+      if (STATEFUL_CALLS.has(method)) {
+        const [global, context] = await Promise.all([
+          this.globalState(),
+          this.contextState(principal),
+        ]);
+        const state = await this.compose(global, context);
+        invokeArgs = method === "capabilities/check"
+          ? [state, ...args, this.now().toISOString()]
+          : [state, ...args];
+      }
+      return {
+        ok: true,
+        protocol: KERNEL_PROTOCOL,
+        value: await this.invoke(method, invokeArgs),
+      };
+    });
   }
 
   dispatch(principal, request) {
@@ -459,12 +555,29 @@ export class BrowserKernelHost {
     }
 
     const previousState = await this.compose(global, context);
-    const result = await this.invoke(request.method, [previousState, ...request.args]);
+    const operationTime = this.now();
+    const dispatchArgs = capabilityDispatchArguments(
+      request.method,
+      request.args,
+      previousState,
+      operationTime,
+    );
+    const result = await this.invoke(request.method, [previousState, ...dispatchArgs]);
     if (!result || typeof result !== "object" || !result.state) {
       throw errorWithCode(`Hara method ${request.method} did not return session state`, "KERNEL_CONTRACT");
     }
-    const effects = validateEffects(request.method, result.effects ?? [], result.state);
-    requireCurrentAppApproval(request.method, request.args, result.state);
+    let grants;
+    try {
+      grants = (result.state.capabilities?.grants ?? global.grants ?? []).map(validateCapabilityGrant);
+    } catch (error) {
+      throw errorWithCode("Hara returned an invalid capability grant", "KERNEL_CONTRACT", { cause: error });
+    }
+    const nextState = {
+      ...result.state,
+      capabilities: { grants },
+    };
+    const effects = validateEffects(request.method, result.effects ?? [], nextState);
+    requireCurrentAppApproval(request.method, request.args, nextState);
     await this.kernelRepository.prepareRequest(request.requestId, {
       protocol: KERNEL_PROTOCOL,
       status: "prepared",
@@ -484,15 +597,17 @@ export class BrowserKernelHost {
           principal,
           method: request.method,
           requestId: request.requestId,
-          state: result.state,
+          state: nextState,
         });
       }
 
-      const installed = result.state.apps?.installed ?? [];
-      const globalChanged = !manifestsEqual(global.installed, installed);
+      const installed = nextState.apps?.installed ?? [];
+      const globalChanged = !manifestsEqual(global.installed, installed)
+        || !manifestsEqual(global.grants ?? [], grants);
       const nextGlobal = {
         ...global,
         installed,
+        grants,
         revision: global.revision + (globalChanged ? 1 : 0),
         receipts: [...global.receipts, {
           id: request.requestId,
@@ -507,7 +622,7 @@ export class BrowserKernelHost {
       const nextContext = {
         ...context,
         revision: context.revision + 1,
-        checkpoint: await this.invoke("app/checkpoint", [result.state]),
+        checkpoint: await this.invoke("app/checkpoint", [nextState]),
         updatedAt: this.now().toISOString(),
       };
       await this.kernelRepository.commit({
@@ -515,14 +630,15 @@ export class BrowserKernelHost {
         contextId: principal.clientId,
         contextEnvelope: nextContext,
         apps: installed,
+        grants,
         requestId: request.requestId,
       });
-      const snapshot = this.snapshot(nextGlobal, nextContext, result.state);
+      const snapshot = this.snapshot(nextGlobal, nextContext, nextState);
       await this.broadcast(snapshot).catch(() => {});
       return {
         ok: true,
         ...snapshot,
-        result: { state: result.state, effects: [] },
+        result: { state: nextState, effects: [] },
       };
     } catch (error) {
       // Tabs and downloads cannot be compensated. Retain the prepared receipt
@@ -545,7 +661,7 @@ export class BrowserKernelHost {
 
   async executeEffect(effect, context) {
     const key = effectKey(effect);
-    if (key === "storage/save-apps") return;
+    if (key === "storage/save-apps" || key === "storage/save-grants") return;
     if (key === "browser/open-app") {
       const [appId] = effect.args ?? [];
       const approved = context.state.apps?.installed?.find((manifest) => manifest.id === appId);

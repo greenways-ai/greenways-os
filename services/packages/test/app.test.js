@@ -37,6 +37,18 @@ test("validates the same release module approval boundary used by the extension"
   });
 });
 
+test("accepts reviewed operation-grant capabilities in release offers", () => {
+  const output = validateReleaseModuleManifest(manifest({
+    capabilities: ["hara/module", "key/sign", "credential/use", "model/generate"],
+  }));
+  assert.deepEqual(output.capabilities, [
+    "hara/module",
+    "key/sign",
+    "credential/use",
+    "model/generate",
+  ]);
+});
+
 test("rejects undeclared capability, code fields, and non-registry release sources", () => {
   assert.throws(
     () => validateReleaseModuleManifest(manifest({ capabilities: ["hara/module", "device/root"] })),

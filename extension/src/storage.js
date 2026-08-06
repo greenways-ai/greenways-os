@@ -1,7 +1,7 @@
 import { createSyncEntry, validateSyncEntry } from "./sync-protocol.js";
 
 const DATABASE = "greenways-os-v1";
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 export const DATABASE_STORES = Object.freeze([
   "settings",
   "identity",
@@ -11,6 +11,7 @@ export const DATABASE_STORES = Object.freeze([
   "outbox",
   "apps",
   "modules",
+  "grants",
   "kernel",
 ]);
 
@@ -183,6 +184,20 @@ function moduleProjectionEntries(modules) {
   });
 }
 
+export function capabilityProjectionEntries(grants) {
+  if (!Array.isArray(grants)) throw new TypeError("Kernel capability projection must be an array");
+  const seen = new Set();
+  return grants.map((grant, index) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      throw new TypeError(`Kernel capability projection entry ${index} must be an object`);
+    }
+    const grantId = recordId(grant.id, `Kernel capability projection entry ${index} id`);
+    if (seen.has(grantId)) throw new Error(`Kernel capability projection contains duplicate grant id ${grantId}`);
+    seen.add(grantId);
+    return [grantId, grant];
+  });
+}
+
 export function putPreparedKernelRequest(target, requestId, requestEnvelope) {
   const key = kernelRequestKey(requestId);
   const value = envelope(requestEnvelope, "Kernel request envelope");
@@ -200,6 +215,7 @@ export async function commitKernelStores(tx, {
   contextEnvelope,
   apps,
   modules,
+  grants,
 }) {
   const pendingKey = kernelRequestKey(requestId);
   const contextKey = kernelContextKey(contextId);
@@ -207,6 +223,7 @@ export async function commitKernelStores(tx, {
   const contextValue = envelope(contextEnvelope, "Kernel context envelope");
   const appEntries = appProjectionEntries(apps);
   const moduleEntries = modules === undefined ? null : moduleProjectionEntries(modules);
+  const grantEntries = grants === undefined ? null : capabilityProjectionEntries(grants);
   const kernel = tx.objectStore("kernel");
   const appStore = tx.objectStore("apps");
   const writes = [
@@ -216,6 +233,7 @@ export async function commitKernelStores(tx, {
     requestValue(kernel.delete(pendingKey)),
   ];
   if (moduleEntries) writes.push(replaceStoreEntries(tx.objectStore("modules"), moduleEntries));
+  if (grantEntries) writes.push(replaceStoreEntries(tx.objectStore("grants"), grantEntries));
   await Promise.all(writes);
 }
 
@@ -223,15 +241,18 @@ export async function replaceKernelGlobalStores(tx, {
   globalEnvelope,
   apps,
   modules,
+  grants,
 }) {
   const globalValue = envelope(globalEnvelope, "Kernel global envelope");
   const appEntries = appProjectionEntries(apps);
   const moduleEntries = modules === undefined ? null : moduleProjectionEntries(modules);
+  const grantEntries = grants === undefined ? null : capabilityProjectionEntries(grants);
   const writes = [
     requestValue(tx.objectStore("kernel").put(globalValue, KERNEL_GLOBAL_KEY)),
     replaceStoreEntries(tx.objectStore("apps"), appEntries),
   ];
   if (moduleEntries) writes.push(replaceStoreEntries(tx.objectStore("modules"), moduleEntries));
+  if (grantEntries) writes.push(replaceStoreEntries(tx.objectStore("grants"), grantEntries));
   await Promise.all(writes);
 }
 
@@ -263,14 +284,19 @@ export function abortKernelRequest(requestId, transact = databaseTransaction) {
   ));
 }
 
+function kernelProjectionStores(change) {
+  const stores = ["kernel", "apps"];
+  if (change?.modules !== undefined) stores.push("modules");
+  if (change?.grants !== undefined) stores.push("grants");
+  return stores;
+}
+
 export function commitKernelTransition(change, transact = databaseTransaction) {
-  const stores = change?.modules === undefined ? ["kernel", "apps"] : ["kernel", "apps", "modules"];
-  return transact(stores, "readwrite", (tx) => commitKernelStores(tx, change));
+  return transact(kernelProjectionStores(change), "readwrite", (tx) => commitKernelStores(tx, change));
 }
 
 export function replaceKernelGlobal(change, transact = databaseTransaction) {
-  const stores = change?.modules === undefined ? ["kernel", "apps"] : ["kernel", "apps", "modules"];
-  return transact(stores, "readwrite", (tx) => (
+  return transact(kernelProjectionStores(change), "readwrite", (tx) => (
     replaceKernelGlobalStores(tx, change)
   ));
 }
@@ -333,4 +359,16 @@ export const moduleStore = Object.freeze({
   delete: (id) => store.delete("modules", recordId(id, "Module id")),
   values: () => store.values("modules"),
   replace: (records) => store.replace("modules", moduleProjectionEntries(records)),
+});
+
+
+export const capabilityStore = Object.freeze({
+  get: (id) => store.get("grants", recordId(id, "Capability grant id")),
+  put: (grant) => {
+    const value = envelope(grant, "Capability grant");
+    return store.put("grants", recordId(value.id, "Capability grant id"), value);
+  },
+  delete: (id) => store.delete("grants", recordId(id, "Capability grant id")),
+  values: () => store.values("grants"),
+  replace: (grants) => store.replace("grants", capabilityProjectionEntries(grants)),
 });

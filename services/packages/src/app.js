@@ -14,6 +14,11 @@ const CAPABILITIES = new Set([
   "storage/local",
   "tabs/open",
   "worlds/browse",
+  "key/public",
+  "key/sign",
+  "credential/manage",
+  "credential/use",
+  "model/generate",
 ]);
 const MANIFEST_KEYS = new Set([
   "protocol", "id", "version", "publisher", "name", "description",

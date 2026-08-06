@@ -1,5 +1,6 @@
 (ns gw.os.kernel
   (:require [gw.os.adaptor :as adaptor]
+            [gw.os.services :as services]
             [std.foundation.string :as string]
             [std.substrate :as substrate]))
 
@@ -10,7 +11,7 @@
   {"tracks" []})
 
 (def APP-LAUNCH-HANDLERS
-  ["extension-page" "packaged-surface" "native-hybrid" "web-tab"])
+  ["extension-page" "packaged-surface" "native-hybrid" "web-tab" "hal-module"])
 
 (def APP-CATEGORIES
   ["system" "installable"])
@@ -67,6 +68,8 @@
    "hestia" nil
    "surface" {"active" nil "payload" nil}
    "apps" (apps-initial-state)
+   "core" {"services" (services/core-services)}
+   "capabilities" {"grants" []}
    "studio" (studio-initial-state)
    "world" {"status" "idle" "repository" nil "graph" nil}})
 
@@ -108,7 +111,11 @@
         handler (normalize-query (get launch "handler"))
         surface-id (normalize-query (get launch "surfaceId"))
         packaged-tab-launch (get PACKAGED-TAB-LAUNCHES app-id)
-        capabilities (or (get manifest "capabilities") [])]
+        capabilities (or (get manifest "capabilities") [])
+        module-kind (normalize-query (get manifest "kind"))
+        module-channel (normalize-query (get manifest "channel"))
+        module-lock-digest (string/trim (str (or (get manifest "lockDigest") "")))
+        module-source (get manifest "source")]
     (cond
       (string/blank? app-id) (throw "App id is required")
       (not (value-present? APP-CATEGORIES category))
@@ -145,6 +152,22 @@
       (and (= handler "packaged-surface")
            (not (exact-values? HESTIA-CONNECTOR-CAPABILITIES capabilities)))
       (throw "Packaged app surface capabilities are not bound to its id")
+      (and (= handler "hal-module") (not (= category "installable")))
+      (throw "HAL modules must be installable apps")
+      (and (= handler "hal-module") (not (= module-kind "hal-module")))
+      (throw "HAL module launch requires kind hal-module")
+      (and (= handler "hal-module")
+           (not (value-present? capabilities "hara/module")))
+      (throw "HAL module apps require hara/module")
+      (and (= handler "hal-module") (string/blank? module-lock-digest))
+      (throw "HAL module lock digest is required")
+      (and (= handler "hal-module")
+           (not (value-present? ["bundled" "release" "preview"] module-channel)))
+      (throw "HAL module channel is not supported")
+      (and (= handler "hal-module") (nil? module-source))
+      (throw "HAL module source provenance is required")
+      (and (not (= handler "hal-module")) (= module-kind "hal-module"))
+      (throw "HAL module metadata requires the hal-module handler")
       (and (value-present? ["native-hybrid" "web-tab"] handler)
            (nil? packaged-tab-launch))
       (throw "Tab app is not bundled with this kernel")
@@ -178,6 +201,30 @@
 
 (defn installed-app [apps app-id]
   (first (filter (fn [manifest] (= (get manifest "id") app-id)) apps)))
+
+(defn state-capability-grants [state]
+  (or (get (or (get state "capabilities") {"grants" []}) "grants") []))
+
+(defn revoke-app-capability-grants [state app-id revoked-at]
+  (let [revoked-at (string/trim (str (or revoked-at "")))
+        grants (state-capability-grants state)
+        next-grants
+        (if (string/blank? revoked-at)
+          grants
+          (vec (map (fn [grant]
+                      (let [subject (get grant "subject")
+                            issued-at (string/trim (str (or (get grant "issuedAt") "")))
+                            effective-time (if (and (not (string/blank? issued-at))
+                                                    (> (compare issued-at revoked-at) 0))
+                                             issued-at
+                                             revoked-at)]
+                        (if (and (= (get subject "appId") app-id)
+                                 (nil? (get grant "revokedAt")))
+                          (assoc grant "revokedAt" effective-time)
+                          grant)))
+                    grants)))]
+    {"grants" next-grants
+     "changed" (not (= grants next-grants))}))
 
 (defn restore-app-manifests [manifests]
   (loop [index 0 output []]
@@ -228,7 +275,7 @@
         {"state" (assoc state "apps" (assoc apps-state "installed" installed))
          "effects" [(apps-save-effect installed)]}))))
 
-(defn apps-update [state manifest]
+(defn apps-update [state manifest revoked-at]
   (let [apps-state (or (get state "apps") (apps-initial-state))
         apps (installed-apps state)
         manifest (app-manifest manifest)
@@ -246,9 +293,17 @@
                                   (if (= (get entry "id") app-id)
                                     manifest
                                     entry))
-                                apps))]
-        {"state" (assoc state "apps" (assoc apps-state "installed" installed))
-         "effects" [(apps-save-effect installed)]}))))
+                                apps))
+            revoked (revoke-app-capability-grants state app-id revoked-at)
+            grants (get revoked "grants")
+            next-state (assoc state
+                              "apps" (assoc apps-state "installed" installed)
+                              "capabilities" {"grants" grants})]
+        {"state" next-state
+         "effects" (if (get revoked "changed")
+                     [(apps-save-effect installed)
+                      (effect "storage" "save-grants" grants)]
+                     [(apps-save-effect installed)])}))))
 
 (defn apps-open [state app-id]
   (let [app-id (normalize-query app-id)
@@ -268,7 +323,7 @@
           {"state" next-state
            "effects" [(effect "browser" "open-app" app-id)]})))))
 
-(defn apps-remove [state app-id]
+(defn apps-remove [state app-id revoked-at]
   (let [app-id (normalize-query app-id)
         apps-state (or (get state "apps") (apps-initial-state))
         apps (installed-apps state)
@@ -283,16 +338,24 @@
             active-packaged (and (= active app-id)
                                  (= (get (get manifest "launch") "handler")
                                     "packaged-surface"))
-            next-state (assoc state "apps"
-                              (assoc apps-state
-                                     "installed" installed
-                                     "active" (if (= active app-id) nil active)))]
-        {"state" (if active-packaged
-                   (assoc next-state "surface" {"active" nil "payload" nil})
-                   next-state)
+            revoked (revoke-app-capability-grants state app-id revoked-at)
+            grants (get revoked "grants")
+            base-state (assoc state
+                              "apps" (assoc apps-state
+                                            "installed" installed
+                                            "active" (if (= active app-id) nil active))
+                              "capabilities" {"grants" grants})
+            next-state (if active-packaged
+                         (assoc base-state "surface" {"active" nil "payload" nil})
+                         base-state)
+            effects (if (get revoked "changed")
+                      [(apps-save-effect installed)
+                       (effect "storage" "save-grants" grants)]
+                      [(apps-save-effect installed)])]
+        {"state" next-state
          "effects" (if active-packaged
-                     [(apps-save-effect installed) (effect "ui" "close-surface")]
-                     [(apps-save-effect installed)])}))))
+                     (conj effects (effect "ui" "close-surface"))
+                     effects)}))))
 
 (defn world-open [repository ref mode]
   {"state" {"status" "resolving"
@@ -373,7 +436,7 @@
    "surface" (or (get state "surface") {"active" nil "payload" nil})
    "studio" (or (get state "studio") (studio-initial-state))})
 
-(defn app-restore [checkpoint installed]
+(defn app-restore [checkpoint installed grants]
   (if (not (= (get checkpoint "protocol") KERNEL-CONTEXT-PROTOCOL))
     (throw "Kernel context protocol is not supported")
     (let [base (get (apps-restore (initial-state) installed) "state")
@@ -402,7 +465,67 @@
       (assoc base
              "apps" (assoc apps "active" active)
              "surface" surface
+             "capabilities" {"grants" (services/restore-grants grants)}
              "studio" studio))))
+
+(defn capability-grants [state]
+  (state-capability-grants state))
+
+(defn capability-grant-by-id [grants grant-id]
+  (first (filter (fn [grant] (= (get grant "id") grant-id)) grants)))
+
+(defn capability-save-effect [grants]
+  (effect "storage" "save-grants" grants))
+
+(defn capabilities-grant [state grant]
+  (let [grants (capability-grants state)
+        app-id (get (get grant "subject") "appId")
+        manifest (installed-app (installed-apps state) app-id)
+        grant (services/capability-grant manifest grant)
+        grant-id (get grant "id")
+        capability-id (get grant "capability")
+        active (first (filter (fn [entry]
+                                (services/current-grant? manifest entry capability-id
+                                                         (get grant "issuedAt")))
+                              grants))]
+    (cond
+      (nil? manifest) (throw "Capability grant app is not installed")
+      (capability-grant-by-id grants grant-id) (throw "Capability grant id already exists")
+      active (throw "App already has an active grant for this capability")
+      :else
+      (let [next-grants (conj grants grant)]
+        {"state" (assoc state "capabilities" {"grants" next-grants})
+         "effects" [(capability-save-effect next-grants)]}))))
+
+(defn capabilities-revoke [state grant-id revoked-at]
+  (let [grant-id (string/trim (str (or grant-id "")))
+        revoked-at (string/trim (str (or revoked-at "")))
+        grants (capability-grants state)
+        current (capability-grant-by-id grants grant-id)]
+    (cond
+      (string/blank? grant-id) (throw "Capability grant id is required")
+      (string/blank? revoked-at) (throw "Capability revocation time is required")
+      (nil? current) (throw "Capability grant does not exist")
+      (get current "revokedAt") (throw "Capability grant is already revoked")
+      :else
+      (let [next-grants (vec (map (fn [grant]
+                                    (if (= (get grant "id") grant-id)
+                                      (assoc grant "revokedAt" revoked-at)
+                                      grant))
+                                  grants))]
+        {"state" (assoc state "capabilities" {"grants" next-grants})
+         "effects" [(capability-save-effect next-grants)]}))))
+
+(defn capabilities-list [state]
+  (capability-grants state))
+
+(defn capabilities-check [state app-id capability-id now]
+  (let [app-id (normalize-query app-id)
+        capability-id (normalize-query capability-id)
+        manifest (installed-app (installed-apps state) app-id)]
+    (first (filter (fn [grant]
+                     (services/current-grant? manifest grant capability-id now))
+                   (capability-grants state)))))
 
 (defn identity-create [handle]
   (let [handle (normalize-query handle)]
@@ -472,27 +595,47 @@
 (defn host-capabilities []
   ["browser/apps" "clock/now" "crypto/identity" "crypto/sign" "files/audio-drop" "files/audio-export"
    "github/catalog" "github/world" "hestia/pair" "scene/gaussian-splat"
-   "storage/records" "ui/surfaces"])
+   "storage/records" "ui/surfaces" "security/capabilities" "system/services"])
 
 (def SURFACE
   (adaptor/surface
    "@greenways"
    {"app/bootstrap" (fn [space args request node] (initial-state))
     "app/capabilities" (fn [space args request node] (host-capabilities))
+    "core/services" (fn [space args request node] (services/core-services))
+    "capabilities/vocabulary" (fn [space args request node]
+                                (services/capability-definitions))
+    "capabilities/list" (fn [space args request node]
+                          (capabilities-list (nth args 0)))
+    "capabilities/check" (fn [space args request node]
+                           (capabilities-check (nth args 0)
+                                               (nth args 1)
+                                               (nth args 2)
+                                               (if (> (count args) 3) (nth args 3) nil)))
     "app/checkpoint" (fn [space args request node]
                        (app-checkpoint (nth args 0)))
     "app/restore" (fn [space args request node]
-                    (app-restore (nth args 0) (nth args 1)))
+                    (app-restore (nth args 0)
+                                 (nth args 1)
+                                 (if (> (count args) 2) (nth args 2) [])))
     "apps/restore" (fn [space args request node]
                      (apps-restore (nth args 0) (nth args 1)))
     "apps/install" (fn [space args request node]
                      (apps-install (nth args 0) (nth args 1)))
     "apps/update" (fn [space args request node]
-                    (apps-update (nth args 0) (nth args 1)))
+                    (apps-update (nth args 0)
+                                 (nth args 1)
+                                 (if (> (count args) 2) (nth args 2) nil)))
     "apps/open" (fn [space args request node]
                   (apps-open (nth args 0) (nth args 1)))
     "apps/remove" (fn [space args request node]
-                    (apps-remove (nth args 0) (nth args 1)))
+                    (apps-remove (nth args 0)
+                                 (nth args 1)
+                                 (if (> (count args) 2) (nth args 2) nil)))
+    "capabilities/grant" (fn [space args request node]
+                           (capabilities-grant (nth args 0) (nth args 1)))
+    "capabilities/revoke" (fn [space args request node]
+                            (capabilities-revoke (nth args 0) (nth args 1) (nth args 2)))
     "catalog/search" (fn [space args request node]
                        (catalog-search (nth args 0) (nth args 1)))
     "world/open" (fn [space args request node]
@@ -521,6 +664,8 @@
                        (hestia-connect (nth args 0)))}
    {"apps/install" {"effects" ["storage/records"]}
     "apps/update" {"effects" ["storage/records"]}
+    "capabilities/grant" {"effects" ["storage/records"]}
+    "capabilities/revoke" {"effects" ["storage/records"]}
     "apps/open" {"effects" ["browser/apps" "ui/surfaces"]}
     "apps/remove" {"effects" ["storage/records" "ui/surfaces"]}
     "world/open" {"effects" ["github/world"]}

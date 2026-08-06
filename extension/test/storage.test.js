@@ -5,6 +5,7 @@ import {
   DATABASE_VERSION,
   KERNEL_GLOBAL_KEY,
   abortKernelRequest,
+  capabilityStore,
   commitKernelStores,
   commitKernelTransition,
   databaseTransaction,
@@ -68,8 +69,8 @@ function recordingStores(initial = new Map()) {
   return { calls, values, tx };
 }
 
-test("database v4 adds durable module records without removing existing stores", () => {
-  assert.equal(DATABASE_VERSION, 4);
+test("database v5 adds durable capability grants without removing existing stores", () => {
+  assert.equal(DATABASE_VERSION, 5);
   assert.deepEqual(DATABASE_STORES, [
     "settings",
     "identity",
@@ -79,6 +80,7 @@ test("database v4 adds durable module records without removing existing stores",
     "outbox",
     "apps",
     "modules",
+    "grants",
     "kernel",
   ]);
 });
@@ -347,6 +349,31 @@ test("commits an exact module snapshot in the same two-phase transaction", async
   assert.equal(values.has("kernel:request:req-module"), false);
 });
 
+test("commits an exact capability grant snapshot in the same two-phase transaction", async () => {
+  const { calls, values, tx } = recordingStores(new Map([
+    ["grants:grant/old-grant", { id: "grant/old-grant" }],
+    ["kernel:request:req-grant", { id: "req-grant", status: "prepared" }],
+  ]));
+  const grant = {
+    protocol: "greenways-capability-grant/1",
+    id: "grant/signing-room-0001",
+    capability: "key/sign",
+  };
+  await commitKernelStores(tx, {
+    requestId: "req-grant",
+    contextId: "launcher:grants",
+    globalEnvelope: { protocol: "greenways-kernel-global/1", revision: 2 },
+    contextEnvelope: { protocol: "greenways-kernel-context/1", revision: 2 },
+    apps: [{ id: "greenways-home" }],
+    grants: [grant],
+  });
+  assert.ok(calls.some((call) => call[0] === "grants" && call[1] === "clear"));
+  assert.ok(calls.some((call) => call[0] === "grants" && call[1] === "put" && call[2] === grant.id));
+  assert.equal(values.has("grants:grant/old-grant"), false);
+  assert.equal(values.get(`grants:${grant.id}`), grant);
+  assert.equal(values.has("kernel:request:req-grant"), false);
+});
+
 test("validates a complete module snapshot before queuing kernel writes", async () => {
   const { calls, tx } = recordingStores();
   await assert.rejects(
@@ -437,6 +464,14 @@ test("kernel lifecycle helpers select one bounded transaction each", async () =>
     apps: [],
     modules: [{ id: "notes" }],
   }, transact);
+  await commitKernelTransition({
+    requestId: "req-grant-write",
+    contextId: "world:one",
+    globalEnvelope: { revision: 11 },
+    contextEnvelope: { revision: 6 },
+    apps: [],
+    grants: [{ id: "grant/signing-room-0001" }],
+  }, transact);
 
   assert.deepEqual(transactions, [
     ["kernel", "readwrite"],
@@ -446,6 +481,7 @@ test("kernel lifecycle helpers select one bounded transaction each", async () =>
     [["kernel", "apps"], "readwrite"],
     [["kernel", "apps"], "readwrite"],
     [["kernel", "apps", "modules"], "readwrite"],
+    [["kernel", "apps", "grants"], "readwrite"],
   ]);
   assert.ok(calls.some((call) => call[0] === "kernel" && call[1] === "delete" && call[2] === "request:req-new"));
 });
@@ -474,6 +510,12 @@ test("exposes a module-only durable repository facade", () => {
   assert.deepEqual(Object.keys(moduleStore), ["get", "put", "delete", "values", "replace"]);
   assert.throws(() => moduleStore.get(""), /non-empty string/);
   assert.throws(() => moduleStore.put({}), /Module record id/);
+});
+
+test("exposes a capability-only durable repository facade", () => {
+  assert.deepEqual(Object.keys(capabilityStore), ["get", "put", "delete", "values", "replace"]);
+  assert.throws(() => capabilityStore.get(""), /non-empty string/);
+  assert.throws(() => capabilityStore.put({}), /Capability grant id/);
 });
 
 test("coordinates shared state through an origin-wide exclusive lock", async () => {

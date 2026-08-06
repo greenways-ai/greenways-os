@@ -1,9 +1,9 @@
 {:document/id :greenways/os
  :document/type :hara/artifact-specification
- :document/version "0.2.0"
+ :document/version "0.3.0"
  :document/status :draft
  :document/title "Greenways OS Confidence Protocol"
- :document/summary "Portable signed creative workflows, modular HAL applications, and AI-mediated quality services backed by personal evidence chains."
+ :document/summary "Resident browser authority services, exact capability grants, modular HAL applications, and portable signed creative workflows backed by personal evidence chains."
 
  :spec/conforms-to {:spec/id :hara/artifact-metaspec
                     :spec/version "0.1.0"}
@@ -99,7 +99,24 @@
    :entity/schema
    {:schema/required [:index/protocol :index/registry
                       :index/generated-at :index/expires-at
-                      :index/packages]}}]
+                      :index/packages]}}
+  {:entity/id :greenways.core/service
+   :entity/schema
+   {:schema/required [:service/protocol :service/id :service/version
+                      :service/status :service/resident
+                      :service/removable :service/dependencies]}}
+  {:entity/id :greenways.capability/definition
+   :entity/schema
+   {:schema/required [:capability/protocol :capability/id
+                      :capability/service :capability/risk
+                      :capability/grantable
+                      :capability/trusted-publishers]}}
+  {:entity/id :greenways.capability/grant
+   :entity/schema
+   {:schema/required [:grant/protocol :grant/id :grant/subject
+                      :grant/capability :grant/constraints
+                      :grant/issued-at]
+    :schema/optional [:grant/expires-at :grant/revoked-at]}}]
 
  :spec/laws
  [{:law/id :greenways.identity/handle-is-alias
@@ -151,7 +168,17 @@
   {:law/id :greenways.registry/no-runtime-authority
    :law/expression "A registry distributes signed offers and immutable bytes but cannot extend the local runtime allowlist or trust itself."}
   {:law/id :greenways.registry/exact-signed-bytes
-   :law/expression "Registry and publisher signatures verify exact payload bytes and exact lock digests; clients do not reinterpret mutable references as signed content."}]
+   :law/expression "Registry and publisher signatures verify exact payload bytes and exact lock digests; clients do not reinterpret mutable references as signed content."}
+  {:law/id :greenways.core/resident-authority
+   :law/expression "A core service is a resident, non-removable authority boundary; its user interface may be modular but an app cannot replace the service or enlarge its authority."}
+  {:law/id :greenways.capability/declaration-is-not-authority
+   :law/expression "A manifest capability is an installation request. Every operation-grantable action also requires a current exact host-issued grant."}
+  {:law/id :greenways.capability/exact-app-binding
+   :law/expression "A capability grant binds app ID, version, publisher, and module lock digest; stale, expired, updated, removed, or revoked grants cannot authorize an operation."}
+  {:law/id :greenways.capability/no-secrets
+   :law/expression "Capability constraints contain bounded policy and opaque references, never private keys, passwords, provider credentials, bearer tokens, or authorization values."}
+  {:law/id :greenways.capability/final-revocation
+   :law/expression "Revocation is final and recorded no earlier than issuance even when the browser or operating-system clock moves backwards."}]
 
  :spec/checkers
  [{:checker/id :greenways/signature
@@ -174,6 +201,12 @@
    :checker/output :hara.artifact/finding}
   {:checker/id :greenways/registry-envelope
    :checker/input :greenways.registry/envelope
+   :checker/output :hara.artifact/finding}
+  {:checker/id :greenways/core-service
+   :checker/input :greenways.core/service
+   :checker/output :hara.artifact/finding}
+  {:checker/id :greenways/capability-grant
+   :checker/input :greenways.capability/grant
    :checker/output :hara.artifact/finding}]
 
  :spec/conformance
@@ -190,4 +223,6 @@
   {:conformance/id :greenways.os/hal-modules
    :conformance/path "conformance/hal-modules.edn"}
   {:conformance/id :greenways.os/registry
-   :conformance/path "conformance/registry.edn"}]}
+   :conformance/path "conformance/registry.edn"}
+  {:conformance/id :greenways.os/core-services
+   :conformance/path "conformance/core-services.edn"}]}

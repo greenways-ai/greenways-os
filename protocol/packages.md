@@ -111,16 +111,25 @@ sufficient for authority.
 Executable browser modules and changes to the HAL container itself must arrive
 in a reviewed Greenways OS build or a separately reviewed companion extension.
 
-## Keyring relationship
+## Core-service relationship
+
+Kernel, Store, Capability and Consent, Identity, Keyring, Package Lifecycle, and
+Surface Host are resident authority boundaries. Their management screens may be
+implemented as bundled HAL apps, but packages cannot replace those services,
+make them removable, define capabilities, or add host effects. Receipt Journal,
+Connector Broker, and Work Supervisor are reserved foundation services.
 
 A package manifest may request closed capabilities such as `key/public`,
-`key/sign`, or `model/generate` when those capabilities are introduced by a
-reviewed host update. The manifest and package may not declare or contain a
-secret. Installation grants no ambient use of a controller or provider profile.
-Every operation remains subject to caller binding, user policy, context
-disclosure, limits, and receipts.
+`key/sign`, `credential/manage`, `credential/use`, or `model/generate`.
+Installation grants no ambient use of a controller or provider profile. Each
+consequential operation requires a durable grant bound to the exact installed
+app version, publisher, and lock digest under bounded constraints. Updating or
+removing an app revokes its still-active grants so reinstall and rollback cannot
+revive old authority.
 
-DevTools, page debugging, and browser automation must not share secret storage
-merely because they appear in one package interface. Higher-risk capabilities
-may require an isolated companion extension speaking a typed Greenways module
-protocol.
+The manifest, package, grant constraints, receipts, and app state may not contain
+a secret. A System Keychain, DevTools, page-debugging, or browser-automation UI
+can be an app, but it must use the resident Keyring and Connector Broker through
+typed operations. Higher-risk native integration may require a separately
+reviewed companion host; raw keys and provider credentials are never returned to
+the HAL app. See `core-services.md`.

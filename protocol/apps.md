@@ -172,17 +172,32 @@ other non-replayable effect is never used to install module code.
 ## Capability vocabulary
 
 Capabilities describe requested authority; they do not grant it by themselves.
-The current closed vocabulary additionally includes:
+The closed installation vocabulary is owned by the resident Capability and
+Consent service and includes:
 
-| Capability | Purpose |
-| --- | --- |
-| `hara/module` | Run a digest-verified HAL module in the bounded kernel container. |
+| Capability | Purpose | Operation grant |
+| --- | --- | --- |
+| `hara/module` | Run a digest-verified HAL module in the bounded kernel container. | no |
+| `key/public` | Read public controller and key metadata only. | yes |
+| `key/sign` | Ask the Keyring to sign a bounded payload without exporting a private key. | yes |
+| `credential/manage` | Manage opaque credential profiles; initially restricted to reviewed Greenways publishers. | yes |
+| `credential/use` | Use an approved opaque profile without revealing its secret. | yes |
+| `model/generate` | Perform a bounded model request through an approved provider profile. | yes |
 
-Existing capabilities remain `identity/local`, `storage/local`,
-`network/github`, `network/loopback`, `network/https`, `tabs/open`,
-`worlds/browse`, `historia/import`, `hestia/connect`, and `hara/evaluate`.
-`hal-module` requires `hara/module`. Any further host service needs a reviewed
-Greenways OS capability and policy update; an archive cannot mint one.
+Existing non-operation-grant capabilities remain `identity/local`,
+`storage/local`, `network/github`, `network/loopback`, `network/https`,
+`tabs/open`, `worlds/browse`, `historia/import`, `hestia/connect`, and
+`hara/evaluate`. `hal-module` requires `hara/module`.
+
+A manifest declaration is only an installation request. Consequential operations
+require a separate `greenways-capability-grant/1` created by the trusted host
+and bound to the exact app ID, version, publisher, and lock digest. Expired,
+revoked, removed, updated, or stale grants cannot authorize an operation. Grant
+constraints may contain bounded policy and opaque profile references but cannot
+contain API keys, passwords, tokens, private keys, or authorization values.
+
+Any further host service or capability requires a reviewed Greenways OS policy
+update; an archive or registry cannot mint one. See `core-services.md`.
 
 ## Distribution boundary
 

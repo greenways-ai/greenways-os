@@ -2,6 +2,7 @@ import { parseEDNString } from "edn-data";
 import { start } from "./hara-vm.mjs";
 import adaptorSource from "../../src/gw/os/adaptor.hal";
 import kernelSource from "../../src/gw/os/kernel.hal";
+import servicesSource from "../../src/gw/os/services.hal";
 import { encodeHalValue } from "./hal-transport.js";
 import { createHalModuleRuntime } from "./hal-module-runtime.js";
 import {
@@ -17,6 +18,7 @@ const runtimePromise = start({
   resources: {
     "gw.os.adaptor": adaptorSource,
     "gw.os.kernel": kernelSource,
+    "gw.os.services": servicesSource,
   },
 }).then((runtime) => {
   runtime.require("gw.os.kernel");
