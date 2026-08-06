@@ -4,6 +4,7 @@ import {
   MODULE_RECORD_PROTOCOL,
   createModuleRecord,
   moduleArchiveRequest,
+  moduleRecordApproval,
   stageModuleRecord,
   validateModuleRecord,
 } from "../src/module-record.js";
@@ -78,6 +79,21 @@ test("binds record id and digest to the approved manifest", () => {
     } }),
     /duplicate archive URL/,
   );
+});
+
+
+test("projects bounded approval evidence without copying archive material", () => {
+  const record = createModuleRecord(manifest(), bundle(), {
+    now: () => new Date("2026-08-06T00:00:00.000Z"),
+  });
+  const approval = moduleRecordApproval(record);
+  assert.deepEqual(Object.keys(approval).sort(), [
+    "id", "installedAt", "lockDigest", "manifest", "protocol",
+  ]);
+  assert.equal(approval.id, record.id);
+  assert.equal(approval.lockDigest, record.lockDigest);
+  assert.equal("packages" in approval, false);
+  assert.equal("lockSource" in approval, false);
 });
 
 test("serves only exact persisted archive URLs during boot verification", async () => {

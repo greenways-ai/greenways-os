@@ -3,7 +3,9 @@
 Status: first authority implementation  
 Core service protocol: `greenways-core-service/1`  
 Capability definition protocol: `greenways-capability-definition/1`  
-Capability grant protocol: `greenways-capability-grant/1`
+Capability grant protocol: `greenways-capability-grant/1`  
+Capability authority protocol: `greenways-capability-authority/1`  
+Capability decision protocol: `greenways-capability-decision/1`
 
 ## Purpose
 
@@ -182,6 +184,36 @@ before they are journalled as revoked. Update and removal transitions also revok
 all still-active grants for the app so reinstalling or rolling back cannot revive
 old authority.
 
+## Runtime verification for HAL authority
+
+A current grant is necessary but is not, by itself, sufficient authority for a
+HAL module. Before a grant may be created or used, the host also requires all of
+the following runtime evidence:
+
+- the exact installed manifest is backed by a valid durable module record;
+- the record manifest matches the installed approval, including publisher,
+  capability set, source provenance, and lock digest;
+- the stored lock and every archive have been re-verified during the current
+  service-worker boot; and
+- that same lock digest successfully registered a fresh namespace generation in
+  the single browser-resident Hara kernel.
+
+The host keeps this evidence in an immutable runtime index. A missing record, a
+failed archive verification, a failed namespace registration, a changed digest,
+or a malformed generation makes the authority decision fail closed even when a
+matching durable grant remains in state. Restarting the service worker therefore
+cannot turn an unverified package into an authorised caller.
+
+Capability decisions expose only bounded public evidence: approval identity,
+lock digest, installation time, namespace generation, and namespace root. They
+never expose lock source, archive bytes, private keys, provider credentials, or
+secret-bearing constraints.
+
+The launcher may inspect decisions by app ID while managing approvals. A future
+consequential module call must derive its caller from host-owned invocation
+context and the active namespace generation; request-selected identity is never
+a substitute for caller binding.
+
 ## Constraints
 
 Constraints are bounded JSON/EDN data. V1 permits null, booleans, finite numbers,
@@ -264,6 +296,10 @@ operating-system keychain entries remains a separate explicit operation.
 4. Stale, expired, removed, updated, or revoked authority cannot be used.
 5. Revocation is final even if the local clock moves backwards.
 6. A grant contains constraints and opaque references, never a secret.
-7. Registry signatures and package hashes prove identity, not authority.
-8. Core service, capability, effect, and caller vocabularies change only in a
-   reviewed Greenways OS host update.
+7. A HAL grant is usable only while the exact durable module approval is present
+   in the current boot's verified runtime index.
+8. Capability decision evidence contains public verification metadata, never
+   lock source, archive bytes, private keys, or provider credentials.
+9. Registry signatures and package hashes prove identity, not authority.
+10. Core service, capability, effect, and caller vocabularies change only in a
+    reviewed Greenways OS host update.
