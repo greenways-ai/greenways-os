@@ -103,6 +103,7 @@
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "network/loopback" "service" "connectors" "risk" "high" "grantable" false "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "storage/local" "service" "store" "risk" "medium" "grantable" false "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "tabs/open" "service" "surfaces" "risk" "medium" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "userscripts/manage" "service" "surfaces" "risk" "critical" "grantable" true "trustedPublishers" ["greenways-ai"]}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "worlds/browse" "service" "connectors" "risk" "low" "grantable" false "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "key/public" "service" "keyring" "risk" "low" "grantable" true "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "key/sign" "service" "keyring" "risk" "critical" "grantable" true "trustedPublishers" []}

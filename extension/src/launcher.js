@@ -14,6 +14,7 @@ import { sameManifestApproval } from "./app-launch.js";
 import { KernelClient } from "./kernel-client.js";
 import { store, withOriginLock } from "./storage.js";
 import { SurfaceHost } from "./surface-host.js";
+import { createUserscriptsSurface } from "./userscripts-surface.js";
 import { EffectRuntime } from "./world-session.js";
 
 const appRoot = document.querySelector("#launcher-app");
@@ -43,6 +44,7 @@ function appGlyph(manifest) {
     "greenways-worlds": "◎",
     historia: "≡",
     "hestia-connector": "◇",
+    userscripts: "⌁",
     "hara-playground": "λ",
   };
   return glyphs[manifest.id] || manifest.name.slice(0, 1).toUpperCase();
@@ -428,10 +430,11 @@ async function start() {
     onRequestClose: () => session?.dispatch("surface/close").catch((error) => setStatus(error?.message || "The interface could not close.", "error")),
   });
   surfaceHost.register("hestia-connector", createHestiaConnectorSurface);
+  surfaceHost.register("userscripts", createUserscriptsSurface);
   session = new KernelClient({ clientKind: "launcher", effects });
   session.subscribe((haraState) => {
     const activeSurface = haraState?.surface?.active;
-    if (activeSurface === "hestia-connector" && surfaceHost.activeId !== activeSurface) {
+    if (activeSurface && surfaceHost.factories.has(activeSurface) && surfaceHost.activeId !== activeSurface) {
       surfaceHost.open(activeSurface, haraState.surface.payload || { appId: activeSurface }, { session });
     } else if (!activeSurface && surfaceHost.activeId) {
       surfaceHost.close();

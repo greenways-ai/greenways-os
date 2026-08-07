@@ -129,9 +129,12 @@ The required extension permissions are:
 sidePanel
 storage
 nativeMessaging
+userScripts
 ```
 
 `nativeMessaging` allows the reviewed DevTools page to connect to the separately installed `ai.greenways.devtools` companion. It does not allow an extension page to execute arbitrary native commands.
+
+`userScripts` allows the bundled Userscripts app to register user-authored scripts with Chrome's `chrome.userScripts` API. Scripts run in the isolated `USER_SCRIPT` world on their declared match patterns. Chrome additionally requires its own developer-mode **Allow User Scripts** toggle for this extension before any registration takes effect, and every management operation requires an active `userscripts/manage` capability grant bound to the exact installed app approval. Script source is entered locally and is never fetched from a remote origin; durable records stay in the profile's IndexedDB store and Chrome registration is a rebuildable projection of them. This permission raises the minimum Chrome version to 120.
 
 Loopback and HTTPS origins remain optional host permissions. They are requested only when a user activates Beacon, Hestia, Historia, GitHub Worlds, or another reviewed connector.
 

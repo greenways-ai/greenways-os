@@ -12,6 +12,7 @@ import {
   serializeKernelError,
 } from "./kernel-host.js";
 import { moduleStore, store } from "./storage.js";
+import { createUserscriptsRuntime } from "./userscripts-runtime.js";
 
 export { resolveAppUrl } from "./app-launch.js";
 
@@ -124,6 +125,7 @@ export async function principalFromSender(sender, message, runtime = globalThis.
 export function createKernelHost({
   runtime = globalThis.chrome?.runtime,
   tabs = globalThis.chrome?.tabs,
+  userScripts = globalThis.chrome?.userScripts,
   modules = moduleStore,
 } = {}) {
   if (!modules || typeof modules.values !== "function") {
@@ -149,7 +151,19 @@ export function createKernelHost({
         moduleVerification,
       });
       const devtools = await createGreenwaysDevtoolsRuntime();
-      return new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority, devtools });
+      let host;
+      const userscripts = createUserscriptsRuntime({
+        userScripts,
+        assertAuthority: () => host.assertUserscriptsAuthority(),
+      });
+      host = new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority, devtools, userscripts });
+      // chrome.userScripts registrations persist across service-worker restarts,
+      // but durable records are the source of truth: reconcile drift (for example
+      // edits made while Chrome's user-scripts toggle was off) on first use.
+      userscripts.syncRegistration().catch((error) => {
+        console.warn("Userscript registration reconciliation failed", error);
+      });
+      return host;
     });
 }
 

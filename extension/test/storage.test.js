@@ -69,8 +69,8 @@ function recordingStores(initial = new Map()) {
   return { calls, values, tx };
 }
 
-test("database v5 adds durable capability grants without removing existing stores", () => {
-  assert.equal(DATABASE_VERSION, 5);
+test("database v6 adds durable userscripts without removing existing stores", () => {
+  assert.equal(DATABASE_VERSION, 6);
   assert.deepEqual(DATABASE_STORES, [
     "settings",
     "identity",
@@ -82,6 +82,7 @@ test("database v5 adds durable capability grants without removing existing store
     "modules",
     "grants",
     "kernel",
+    "userscripts",
   ]);
 });
 

@@ -30,12 +30,13 @@ function manifest(overrides = {}) {
   };
 }
 
-test("publishes the five declarative built-in apps", () => {
+test("publishes the six declarative built-in apps", () => {
   assert.deepEqual(BUILTIN_APP_CATALOG.map(({ id }) => id), [
     "greenways-home",
     "greenways-worlds",
     "historia",
     "hestia-connector",
+    "userscripts",
     "hara-playground",
   ]);
   assert.equal(BUILTIN_APPS, BUILTIN_APP_CATALOG);
@@ -44,7 +45,7 @@ test("publishes the five declarative built-in apps", () => {
   assert.deepEqual(RUNTIME_HANDLERS, [
     "extension-page", "packaged-surface", "native-hybrid", "web-tab", "hal-module"
   ]);
-  assert.deepEqual(PACKAGED_SURFACE_IDS, ["hestia-connector"]);
+  assert.deepEqual(PACKAGED_SURFACE_IDS, ["hestia-connector", "userscripts"]);
   assert.ok(APP_CAPABILITIES.includes("network/loopback"));
   assert.ok(Object.isFrozen(BUILTIN_APP_CATALOG));
   assert.ok(BUILTIN_APP_CATALOG.every(Object.isFrozen));

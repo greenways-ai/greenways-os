@@ -183,6 +183,7 @@ Consent service and includes:
 | `credential/manage` | Manage opaque credential profiles; initially restricted to reviewed Greenways publishers. | yes |
 | `credential/use` | Use an approved opaque profile without revealing its secret. | yes |
 | `model/generate` | Perform a bounded model request through an approved provider profile. | yes |
+| `userscripts/manage` | Register, update, or remove user-authored scripts that run in matching web pages; restricted to reviewed Greenways publishers. | yes |
 
 Existing non-operation-grant capabilities remain `identity/local`,
 `storage/local`, `network/github`, `network/loopback`, `network/https`,

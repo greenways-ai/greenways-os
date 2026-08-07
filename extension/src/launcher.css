@@ -12,6 +12,7 @@
   --launcher-danger: #a53c47;
   --launcher-hestia: #9d2d3a;
   --launcher-hestia-warm: #ffcb8b;
+  --launcher-userscripts: #2b5fb4;
 }
 
 :root[data-theme="dark"] {
@@ -19,6 +20,7 @@
   --launcher-danger: #ff8993;
   --launcher-hestia: #dc4b40;
   --launcher-hestia-warm: #ffd6a2;
+  --launcher-userscripts: #7aa2e8;
 }
 
 html,
@@ -1004,4 +1006,262 @@ button:disabled {
 }
 .root-app-card .app-copy p {
   color: var(--gw-green);
+}
+
+
+/* Userscripts surface ---------------------------------------------------- */
+.userscripts-surface {
+  --userscripts-accent: var(--launcher-userscripts);
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  color: var(--gw-text);
+  background: var(--gw-canvas);
+}
+
+.userscripts-surface > header {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--gw-header);
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.userscripts-surface header p {
+  color: var(--userscripts-accent);
+}
+
+.userscripts-surface header h1 {
+  margin: 5px 0 0;
+  font: 400 29px/1 var(--gw-font-display);
+  letter-spacing: -0.025em;
+}
+
+.userscripts-surface header button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--gw-text);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font-size: 22px;
+}
+
+.userscripts-surface header button:hover {
+  background: var(--gw-control-hover);
+}
+
+.userscripts-body {
+  padding: 24px 20px;
+}
+
+.userscripts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: var(--gw-text-muted);
+  font: 700 9px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.userscripts-toolbar button,
+.userscripts-authority button,
+.userscripts-form button {
+  min-height: 41px;
+  padding: 10px 13px;
+  color: #fff8ef;
+  background: var(--userscripts-accent);
+  border: 1px solid color-mix(in srgb, var(--userscripts-accent) 78%, black);
+  border-radius: var(--launcher-radius-small);
+  font: 700 9px/1.2 var(--gw-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.userscripts-toolbar button:disabled,
+.userscripts-authority button:disabled,
+.userscripts-form button:disabled,
+.userscript-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.userscripts-authority {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--userscripts-accent) 7%, var(--gw-surface));
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.userscripts-authority p {
+  margin: 0;
+  color: var(--gw-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.userscript-list {
+  display: grid;
+  gap: 10px;
+}
+
+.userscript-card {
+  padding: 14px;
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.userscript-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.userscript-card-head strong {
+  font: 400 16px/1.2 var(--gw-font-display);
+}
+
+.userscript-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--gw-text-muted);
+  font: 700 8px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.userscript-meta {
+  margin: 6px 0 8px;
+  color: var(--gw-text-muted);
+  font: 500 9px/1.4 var(--gw-font-mono);
+}
+
+.userscript-matches {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.userscript-matches li {
+  padding: 6px 8px;
+  color: var(--gw-text-muted);
+  background: var(--gw-surface-muted);
+  border-radius: 4px;
+  font: 500 9px/1.4 var(--gw-font-mono);
+  word-break: break-all;
+}
+
+.userscript-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.userscript-actions button {
+  min-height: 34px;
+  padding: 8px 11px;
+  color: var(--gw-text);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font: 700 8px/1.2 var(--gw-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.userscript-actions button:hover {
+  background: var(--gw-control-hover);
+}
+
+.userscripts-empty {
+  margin: 0;
+  padding: 16px;
+  color: var(--gw-text-muted);
+  background: var(--gw-surface);
+  border: 1px dashed var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.userscripts-form {
+  display: grid;
+  gap: 12px;
+}
+
+.userscripts-form h2 {
+  margin: 0 0 4px;
+  font: 400 22px/1 var(--gw-font-display);
+  letter-spacing: -0.02em;
+}
+
+.userscripts-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--gw-text-muted);
+  font: 700 9px/1.3 var(--gw-font-mono);
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.userscripts-form input:not([type="checkbox"]),
+.userscripts-form select,
+.userscripts-form textarea {
+  width: 100%;
+  padding: 11px 12px;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: var(--launcher-radius-small);
+  outline: 0;
+  font: 500 11px var(--gw-font-mono);
+}
+
+.userscripts-form textarea {
+  resize: vertical;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.userscripts-form input:focus,
+.userscripts-form select:focus,
+.userscripts-form textarea:focus {
+  border-color: var(--userscripts-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--userscripts-accent) 15%, transparent);
+}
+
+.userscript-enabled-check {
+  display: flex !important;
+  grid-template-columns: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.userscripts-notice {
+  margin: 13px 0 0;
+  padding: 11px 12px;
+  color: var(--gw-text-muted);
+  background: color-mix(in srgb, var(--userscripts-accent) 7%, var(--gw-surface));
+  border-left: 3px solid var(--userscripts-accent);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.userscripts-notice--warn {
+  margin: 0 0 16px;
 }

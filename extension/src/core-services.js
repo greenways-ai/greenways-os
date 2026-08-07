@@ -65,6 +65,11 @@ export const CAPABILITY_DEFINITIONS = Object.freeze([
   capability("network/loopback", "connectors", "high"),
   capability("storage/local", "store", "medium"),
   capability("tabs/open", "surfaces", "medium"),
+  capability("userscripts/manage", "surfaces", "critical", {
+    grantable: true,
+    trustedPublishers: ["greenways-ai"],
+    description: "Register, update, or remove user-authored scripts that run in matching web pages.",
+  }),
   capability("worlds/browse", "connectors", "low"),
   capability("key/public", "keyring", "low", {
     grantable: true,

@@ -115,6 +115,7 @@ The first operation-grantable capabilities are:
 | `credential/manage` | Keyring | critical | Create, update, or remove opaque profiles; initially Greenways-publisher only |
 | `credential/use` | Keyring | critical | Use an opaque provider profile without revealing its secret |
 | `model/generate` | Connector Broker | high | Perform a bounded model request using an approved profile |
+| `userscripts/manage` | Surface and Interaction Host | critical | Register, update, or remove user-authored scripts in matching web pages; Greenways-publisher only |
 
 Existing installation capabilities remain in the same closed vocabulary but are
 not yet operation-grantable: `hara/evaluate`, `hara/module`, `hestia/connect`,

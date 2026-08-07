@@ -7,9 +7,14 @@ import {
 import { resolveAppUrl, sameManifestApproval } from "./app-launch.js";
 import { canonical, sha256 } from "./protocol.js";
 import {
+  activeCapabilityGrant,
   createCapabilityGrant,
   validateCapabilityGrant,
 } from "./core-services.js";
+import {
+  USERSCRIPTS_APP_ID,
+  USERSCRIPTS_CAPABILITY,
+} from "./userscripts-runtime.js";
 import {
   kernelStore,
   store,
@@ -36,6 +41,11 @@ const CLIENT_POLICY = Object.freeze({
       "capabilities/vocabulary",
       "capabilities/list",
       "capabilities/check",
+      "userscripts/status",
+      "userscripts/list",
+      "userscripts/save",
+      "userscripts/remove",
+      "userscripts/set-enabled",
     ]),
     dispatches: new Set([
       "apps/install",
@@ -328,6 +338,7 @@ export class BrowserKernelHost {
     runtime = globalThis.chrome?.runtime,
     tabs = globalThis.chrome?.tabs,
     devtools,
+    userscripts,
     now = () => new Date(),
   }) {
     if (typeof invoke !== "function") throw new TypeError("Kernel host requires a Hara invoker");
@@ -340,10 +351,18 @@ export class BrowserKernelHost {
     if (devtools !== undefined && typeof devtools?.call !== "function") {
       throw new TypeError("Kernel host DevTools runtime must expose call()");
     }
+    if (userscripts !== undefined && typeof userscripts?.call !== "function") {
+      throw new TypeError("Kernel host userscripts runtime must expose call()");
+    }
     this.invoke = invoke;
     this.devtools = devtools ?? Object.freeze({
       async call() {
         throw errorWithCode("Root DevTools runtime is unavailable", "DEVTOOLS_UNAVAILABLE");
+      },
+    });
+    this.userscripts = userscripts ?? Object.freeze({
+      async call() {
+        throw errorWithCode("Userscripts runtime is unavailable", "USERSCRIPTS_UNAVAILABLE");
       },
     });
     this.repository = repository;
@@ -425,6 +444,25 @@ export class BrowserKernelHost {
 
   contextKey(clientId) {
     return `context:${clientId}`;
+  }
+
+  async assertUserscriptsAuthority() {
+    const global = await this.globalState();
+    const installed = global.installed ?? [];
+    const manifest = installed.find(({ id }) => id === USERSCRIPTS_APP_ID);
+    if (!manifest) {
+      throw errorWithCode("The Userscripts app is not installed", "APP_NOT_INSTALLED");
+    }
+    await this.capabilityAuthority.assert({
+      appId: USERSCRIPTS_APP_ID,
+      capability: USERSCRIPTS_CAPABILITY,
+    }, { installed });
+    if (!activeCapabilityGrant(global.grants ?? [], manifest, USERSCRIPTS_CAPABILITY, { now: this.now })) {
+      throw errorWithCode(
+        "Userscript management requires an active userscripts/manage grant",
+        "CAPABILITY_DENIED",
+      );
+    }
   }
 
   async initialCheckpoint() {
@@ -538,7 +576,9 @@ export class BrowserKernelHost {
         protocol: KERNEL_PROTOCOL,
         value: method.startsWith("devtools/")
           ? await this.devtools.call(method, invokeArgs)
-          : await this.invoke(method, invokeArgs),
+          : method.startsWith("userscripts/")
+            ? await this.userscripts.call(method, invokeArgs)
+            : await this.invoke(method, invokeArgs),
       };
       if (authority) response.authority = authority;
       return response;

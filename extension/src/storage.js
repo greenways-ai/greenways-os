@@ -1,7 +1,7 @@
 import { createSyncEntry, validateSyncEntry } from "./sync-protocol.js";
 
 const DATABASE = "greenways-os-v1";
-export const DATABASE_VERSION = 5;
+export const DATABASE_VERSION = 6;
 export const DATABASE_STORES = Object.freeze([
   "settings",
   "identity",
@@ -13,6 +13,7 @@ export const DATABASE_STORES = Object.freeze([
   "modules",
   "grants",
   "kernel",
+  "userscripts",
 ]);
 
 export const KERNEL_GLOBAL_KEY = "global";
@@ -371,4 +372,29 @@ export const capabilityStore = Object.freeze({
   delete: (id) => store.delete("grants", recordId(id, "Capability grant id")),
   values: () => store.values("grants"),
   replace: (grants) => store.replace("grants", capabilityProjectionEntries(grants)),
+});
+
+function userscriptProjectionEntries(records) {
+  if (!Array.isArray(records)) throw new TypeError("Userscript projection must be an array");
+  const seen = new Set();
+  return records.map((record, index) => {
+    if (!record || typeof record !== "object" || Array.isArray(record)) {
+      throw new TypeError(`Userscript projection entry ${index} must be an object`);
+    }
+    const scriptId = recordId(record.id, `Userscript projection entry ${index} id`);
+    if (seen.has(scriptId)) throw new Error(`Userscript projection contains duplicate script id ${scriptId}`);
+    seen.add(scriptId);
+    return [scriptId, record];
+  });
+}
+
+export const userscriptStore = Object.freeze({
+  get: (id) => store.get("userscripts", recordId(id, "Userscript id")),
+  put: (record) => {
+    const value = envelope(record, "Userscript record");
+    return store.put("userscripts", recordId(value.id, "Userscript record id"), value);
+  },
+  delete: (id) => store.delete("userscripts", recordId(id, "Userscript id")),
+  values: () => store.values("userscripts"),
+  replace: (records) => store.replace("userscripts", userscriptProjectionEntries(records)),
 });

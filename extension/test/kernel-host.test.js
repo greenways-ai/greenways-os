@@ -346,6 +346,7 @@ function createRig({
   runtime = new FakeRuntime(),
   capabilityAuthority = ALLOW_CAPABILITY_AUTHORITY,
   devtools,
+  userscripts,
 } = {}) {
   const hara = invoker ?? createInvoker();
   const kernelRepository = new MemoryKernelRepository(repository);
@@ -365,6 +366,7 @@ function createRig({
     runtime,
     tabs,
     devtools,
+    userscripts,
     now: () => new Date(Date.UTC(2026, 7, 4, 0, 0, tick++)),
   });
   return { host, repository, kernelRepository, runtime, tabs, invoker: hara };
@@ -1189,6 +1191,63 @@ test("root DevTools has a fixed call surface and no state-changing dispatches", 
   );
   await assert.rejects(
     dispatch(rig.host, DEVTOOLS_A, "request/devtools-dispatch-9001", "apps/install", [getAppManifest("historia")]),
+    (error) => error.code === "METHOD_DENIED",
+  );
+});
+
+
+test("userscripts calls route to the host runtime only for launcher clients", async () => {
+  const calls = [];
+  const rig = createRig({
+    userscripts: {
+      async call(method, args) { calls.push([method, args]); return { method, args }; },
+    },
+  });
+  assert.deepEqual(await rig.host.call(LAUNCHER_A, "userscripts/status", []), {
+    ok: true,
+    protocol: KERNEL_PROTOCOL,
+    value: { method: "userscripts/status", args: [] },
+  });
+  assert.deepEqual(calls, [["userscripts/status", []]]);
+  await assert.rejects(
+    rig.host.call(WORLD_A, "userscripts/list", []),
+    (error) => error.code === "METHOD_DENIED",
+  );
+  await assert.rejects(
+    rig.host.call(DEVTOOLS_A, "userscripts/list", []),
+    (error) => error.code === "METHOD_DENIED",
+  );
+});
+
+test("userscripts authority requires installation and an active userscripts/manage grant", async () => {
+  const rig = createRig();
+  const manifest = getAppManifest("userscripts");
+  await assert.rejects(
+    rig.host.assertUserscriptsAuthority(),
+    (error) => error.code === "APP_NOT_INSTALLED",
+  );
+
+  await dispatch(rig.host, LAUNCHER_A, "request/install-userscripts-0001", "apps/install", [manifest]);
+  await assert.rejects(
+    rig.host.assertUserscriptsAuthority(),
+    (error) => error.code === "CAPABILITY_DENIED" && /userscripts\/manage/.test(error.message),
+  );
+
+  await dispatch(rig.host, LAUNCHER_A, "request/grant-userscripts-0002", "capabilities/grant", [{
+    id: "grant/userscripts-test-0001",
+    appId: "userscripts",
+    capability: "userscripts/manage",
+    constraints: {},
+  }]);
+  await rig.host.assertUserscriptsAuthority();
+
+  await assert.rejects(
+    dispatch(rig.host, WORLD_A, "request/grant-userscripts-0003", "capabilities/grant", [{
+      id: "grant/userscripts-test-0002",
+      appId: "userscripts",
+      capability: "userscripts/manage",
+      constraints: {},
+    }]),
     (error) => error.code === "METHOD_DENIED",
   );
 });

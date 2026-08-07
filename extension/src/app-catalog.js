@@ -20,6 +20,7 @@ export const RUNTIME_HANDLERS = Object.freeze([
 
 export const PACKAGED_SURFACE_IDS = Object.freeze([
   "hestia-connector",
+  "userscripts",
 ]);
 
 export { APP_CAPABILITIES };
@@ -50,6 +51,14 @@ const PACKAGED_SURFACE_BINDINGS = Object.freeze({
       "hestia/connect",
       "network/https",
       "network/loopback",
+      "storage/local",
+    ]),
+  }),
+  userscripts: Object.freeze({
+    appId: "userscripts",
+    publisherId: "greenways-ai",
+    capabilities: Object.freeze([
+      "userscripts/manage",
       "storage/local",
     ]),
   }),
@@ -450,6 +459,17 @@ const BUILTIN_DESCRIPTORS = [
     category: "installable",
     capabilities: ["hestia/connect", "network/https", "network/loopback", "storage/local"],
     launch: { handler: "packaged-surface", surfaceId: "hestia-connector" },
+  },
+  {
+    protocol: APP_MANIFEST_PROTOCOL,
+    id: "userscripts",
+    version: "0.1.0",
+    publisher: { id: "greenways-ai", name: "Greenways AI" },
+    name: "Userscripts",
+    description: "Run your own JavaScript in matching web pages, with durable local records and an isolated script world.",
+    category: "installable",
+    capabilities: ["userscripts/manage", "storage/local"],
+    launch: { handler: "packaged-surface", surfaceId: "userscripts" },
   },
   {
     protocol: APP_MANIFEST_PROTOCOL,
