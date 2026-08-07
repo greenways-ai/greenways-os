@@ -1,0 +1,26 @@
+.launcher-model-forge-shortcut {
+  position: fixed;
+  z-index: 20;
+  right: 7.1rem;
+  top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 2.35rem;
+  padding: 0 .9rem;
+  border: 1px solid color-mix(in srgb, var(--gw-ink, #17201d) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gw-paper, #f4f2ec) 88%, transparent);
+  color: var(--gw-ink, #17201d);
+  font: 650 .72rem/1 system-ui, sans-serif;
+  letter-spacing: .09em;
+  text-decoration: none;
+  text-transform: uppercase;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 .6rem 2rem rgba(16, 25, 22, .08);
+}
+.launcher-model-forge-shortcut::before { content: "◇"; font-size: 1rem; }
+.launcher-model-forge-shortcut:hover { transform: translateY(-1px); }
+@media (max-width: 680px) {
+  .launcher-model-forge-shortcut { right: 1rem; top: 4.1rem; }
+}
