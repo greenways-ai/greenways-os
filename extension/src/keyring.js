@@ -9,6 +9,7 @@ export const KEYRING_PROVIDERS = Object.freeze([
   Object.freeze({ id: "openrouter", name: "OpenRouter" }),
   Object.freeze({ id: "openai", name: "OpenAI" }),
   Object.freeze({ id: "anthropic", name: "Anthropic" }),
+  Object.freeze({ id: "tripo", name: "Tripo OpenAPI" }),
 ]);
 
 const PROVIDER_IDS = new Set(KEYRING_PROVIDERS.map(({ id }) => id));
@@ -89,6 +90,15 @@ function publicProfile(value) {
     createdAt: value.createdAt,
     sessionOnly: true,
   });
+}
+
+function containsSecret(value, secret, seen = new WeakSet(), depth = 0) {
+  if (typeof value === "string") return value.includes(secret);
+  if (!value || typeof value !== "object") return false;
+  if (depth > 8) return true;
+  if (seen.has(value)) return false;
+  seen.add(value);
+  return Object.values(value).some((entry) => containsSecret(entry, secret, seen, depth + 1));
 }
 
 function randomSuffix(random = globalThis.crypto) {
@@ -186,6 +196,30 @@ export class GreenwaysKeyring {
       await this.writeProfiles([...profiles, record]);
       return publicProfile(record);
     });
+  }
+
+  async withProviderCredential(id, expectedProvider, operation) {
+    if (typeof operation !== "function") throw new TypeError("Provider credential operation must be a function");
+    const requested = profileId(id);
+    const provider = providerId(expectedProvider);
+    const profile = (await this.readProfiles()).find(({ id: candidate }) => candidate === requested);
+    if (!profile) throw new Error("Provider profile does not exist");
+    if (profile.provider !== provider) {
+      throw new Error(`Provider profile ${requested} is not a ${provider} credential`);
+    }
+    let result;
+    try {
+      result = await operation(profile.secret, publicProfile(profile));
+    } catch (error) {
+      if (typeof error?.message === "string" && error.message.includes(profile.secret)) {
+        throw new Error("Provider operation failed without a safe error");
+      }
+      throw error;
+    }
+    if (containsSecret(result, profile.secret)) {
+      throw new Error("Provider operation attempted to expose credential material");
+    }
+    return result;
   }
 
   async removeProviderProfile(id) {
