@@ -21,7 +21,7 @@ Greenways Keyring
 result / signature / receipt
 ```
 
-The first implementation provides local key creation and provider-profile management. External request forwarding is deliberately deferred until origin grants, budgets, approvals, and audit receipts are implemented.
+The implementation provides local key creation, provider-profile management, and an internal credential-use callback for reviewed native connectors. Website forwarding remains deferred until exact origin grants, budgets, approvals, context disclosure, and audit receipts are implemented.
 
 ## Key classes
 
@@ -39,22 +39,24 @@ The controller is not cleared by “lock provider session”. Recovery and rotat
 
 ### Provider profile
 
-A provider profile is a session-scoped credential for a model provider.
+A provider profile is a session-scoped credential for an allowlisted service.
 
 ```json
 {
   "protocol": "greenways-keyring/1",
-  "id": "openrouter.personal.ab12cd34",
-  "provider": "openrouter",
-  "label": "Personal coding",
+  "id": "tripo.personal.ab12cd34",
+  "provider": "tripo",
+  "label": "Personal models",
   "secret": "<session-only credential>",
   "createdAt": "2026-08-06T00:00:00.000Z"
 }
 ```
 
-The current allowlist is `openrouter`, `openai`, and `anthropic`.
+The current allowlist is `openrouter`, `openai`, `anthropic`, and `tripo`.
 
-Provider records are stored only under the extension’s `chrome.storage.session` area. They are removed when the browser restarts or the extension is reloaded, disabled, updated, or explicitly cleared. They must not be copied into IndexedDB, Hara state, app manifests, URLs, logs, analytics, project files, or exports.
+Provider records are stored only under the extension’s `chrome.storage.session` area. They are removed when the browser restarts or the extension is reloaded, disabled, updated, or explicitly cleared. They must not be copied into IndexedDB, Hara state, app manifests, URLs, logs, analytics, project files, exports, receipts, or task projections.
+
+A Tripo OpenAPI profile must contain the API key, which begins with `tsk_`. A Tripo Studio browser session, cookie, Client ID, or Studio credit balance is not an API credential.
 
 ## Public status projection
 
@@ -73,9 +75,9 @@ Provider records are stored only under the extension’s `chrome.storage.session
   "providerProfiles": [
     {
       "protocol": "greenways-keyring/1",
-      "id": "openrouter.personal.ab12cd34",
-      "provider": "openrouter",
-      "label": "Personal coding",
+      "id": "tripo.personal.ab12cd34",
+      "provider": "tripo",
+      "label": "Personal models",
       "createdAt": "...",
       "sessionOnly": true
     }
@@ -88,19 +90,22 @@ The projection never includes a private `CryptoKey`, public-key storage handle, 
 
 ## Local operations
 
-The first implementation supports:
+The implementation supports:
 
 - create the controller when no controller exists;
 - inspect public keyring status;
 - add one session provider profile;
 - remove one session provider profile;
 - clear all session provider profiles;
+- run one reviewed native callback with an exact profile and expected provider.
 
-Duplicate profile IDs, unsupported providers, malformed records, multiline credentials, and replacement of an existing controller fail closed.
+`withProviderCredential(profileId, provider, operation)` is an internal trust-boundary method, not a package API. It passes the secret only to reviewed extension code, verifies that the profile belongs to the expected provider, and rejects a result or error message that attempts to return the complete credential.
 
-## Future capability operations
+Duplicate profile IDs, unsupported providers, malformed records, multiline credentials, provider mismatches, credential projection, and replacement of an existing controller fail closed.
 
-The external protocol should expose operations, not secrets:
+## Capability operations
+
+The external protocol exposes operations, not secrets:
 
 ```text
 key/public
@@ -110,7 +115,9 @@ model/generate
 model/cancel
 ```
 
-A future `model/generate` request must include an exact caller origin or package ID, selected profile, model, disclosed context summary, byte/token limits, maximum cost, timeout, and request ID. The keyring host should independently enforce provider/model allowlists, budgets, rate limits, and cancellation.
+A `model/generate` request must include an exact caller origin or package ID, selected profile, model, disclosed context summary, byte/token limits, maximum cost, timeout, and request ID. The connector host independently enforces provider/model allowlists, budgets, rate limits, cancellation, and typed request schemas.
+
+The first reviewed provider adapter is the direct Tripo OpenAPI connector described in `model-generation.md`. It is intentionally unavailable as an arbitrary Keyring HTTP call.
 
 The following operations are forbidden:
 
@@ -120,6 +127,7 @@ key/export-private
 credential/get
 credential/list-raw
 http/arbitrary-request
+provider/raw-payload
 chrome/call
 eval
 ```
@@ -129,8 +137,8 @@ eval
 All packaged extension pages share one Chrome extension principal. Internal modules and Hara contexts provide lifecycle discipline, not a browser-enforced sandbox against compromised bundled code. Therefore:
 
 - remote executable code is forbidden;
-- the keyring host and package catalogue must be reviewed together;
+- the Keyring host, native connectors, and package catalogue must be reviewed together;
 - highly privileged future DevTools may require a separate companion extension;
 - a native companion may later move durable secrets into the operating-system keychain.
 
-The website-facing bridge must use exact origin allowlists and typed messages. A website must never be able to submit an arbitrary URL, authorization header, HTTP method, or provider payload that would turn Greenways Keyring into a general cross-origin proxy.
+The website-facing bridge must use exact origin allowlists and typed messages. A website must never be able to submit an arbitrary URL, authorization header, HTTP method, provider payload, or task identifier under a different profile that would turn Greenways Keyring into a general cross-origin proxy.
