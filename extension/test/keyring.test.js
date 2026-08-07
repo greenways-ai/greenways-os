@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   GreenwaysKeyring,
   KEYRING_PROTOCOL,
+  KEYRING_PROVIDERS,
   KEYRING_SESSION_STORAGE_KEY,
   createProviderProfileId,
 } from "../src/keyring.js";
@@ -92,6 +93,45 @@ test("keeps provider credentials in session storage and redacts status", async (
 
   const raw = await keyring.sessionStorage.get(KEYRING_SESSION_STORAGE_KEY);
   assert.equal(raw[KEYRING_SESSION_STORAGE_KEY][0].secret, "sk-or-v1-secret-value");
+});
+
+test("uses a Tripo credential inside one typed operation without returning it", async () => {
+  const keyring = createKeyring();
+  assert.ok(KEYRING_PROVIDERS.some(({ id }) => id === "tripo"));
+  await keyring.addProviderProfile({
+    id: "tripo.personal.abc123",
+    provider: "tripo",
+    label: "Tripo models",
+    secret: "tsk_tripo-secret-value",
+  });
+  const result = await keyring.withProviderCredential(
+    "tripo.personal.abc123",
+    "tripo",
+    async (secret, profile) => ({
+      authorized: secret.startsWith("tsk_"),
+      profile,
+    }),
+  );
+  assert.equal(result.authorized, true);
+  assert.equal(result.profile.provider, "tripo");
+  assert.equal("secret" in result.profile, false);
+  assert.doesNotMatch(JSON.stringify(result), /tsk_tripo-secret-value/);
+  await assert.rejects(
+    () => keyring.withProviderCredential(
+      "tripo.personal.abc123",
+      "openai",
+      async () => ({ ok: true }),
+    ),
+    /is not a openai credential/,
+  );
+  await assert.rejects(
+    () => keyring.withProviderCredential(
+      "tripo.personal.abc123",
+      "tripo",
+      async (secret) => ({ leaked: secret }),
+    ),
+    /attempted to expose credential material/,
+  );
 });
 
 test("removes individual profiles and clears the entire provider session", async () => {
