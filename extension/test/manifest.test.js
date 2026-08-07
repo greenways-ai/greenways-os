@@ -6,28 +6,29 @@ const manifest = JSON.parse(
   await readFile(new URL("../manifest.json", import.meta.url), "utf8"),
 );
 
-test("extension requests only its three required root-OS permissions", () => {
+test("extension requests the reviewed root-OS and site-driver permissions", () => {
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ["sidePanel", "storage", "nativeMessaging"]);
+  assert.deepEqual(manifest.permissions, ["sidePanel", "storage", "nativeMessaging", "scripting"]);
   assert.equal(manifest.side_panel.default_path, "src/launcher.html");
   assert.equal(manifest.minimum_chrome_version, "116");
   assert.equal(manifest.background.service_worker, "dist/background.js");
   assert.equal(manifest.background.type, "module");
 });
 
-test("powerful browser permissions are absent", () => {
+test("scripting cannot operate without a separately granted host origin", () => {
   const declared = new Set([
     ...(manifest.permissions ?? []),
     ...(manifest.optional_permissions ?? []),
   ]);
 
   assert.equal(declared.has("nativeMessaging"), true);
-  for (const forbidden of ["debugger", "tabs", "scripting", "webRequest"]) {
+  assert.equal(declared.has("scripting"), true);
+  for (const forbidden of ["debugger", "tabs", "webRequest", "cookies"]) {
     assert.equal(declared.has(forbidden), false, forbidden);
   }
 });
 
-test("network access remains optional and user-granted", () => {
+test("network and site access remain optional and user-granted", () => {
   assert.equal("host_permissions" in manifest, false);
   assert.ok(manifest.optional_host_permissions.includes("https://*/*"));
 });
