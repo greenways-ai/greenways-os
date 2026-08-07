@@ -19,15 +19,15 @@ function panelMarkup(state, notice, tone, busy) {
           ? `<dl><div><dt>Handle</dt><dd>@${escapeHtml(controller.handle)}</dd></div><div><dt>Key ID</dt><dd><code>${escapeHtml(controller.keyId)}</code></dd></div><div><dt>Algorithm</dt><dd>${escapeHtml(controller.algorithm)}</dd></div></dl>`
           : `<form data-controller-form><label>Greenways handle<input name="handle" required autocomplete="nickname" placeholder="river.studio"></label><button ${busy ? "disabled" : ""}>Create non-extractable controller key</button></form>`}
       </section>
-      <section class="keyring-block"><div class="keyring-title"><div><p>MODEL PROVIDERS</p><h2>Session credentials</h2></div><span>${profiles.length} loaded</span></div>
+      <section class="keyring-block"><div class="keyring-title"><div><p>PROVIDER CREDENTIALS</p><h2>Session-only API access</h2></div><span>${profiles.length} loaded</span></div>
         ${profiles.length
           ? `<div class="profile-list">${profiles.map((profile) => `<article><span><strong>${escapeHtml(profile.label)}</strong><small>${escapeHtml(profile.provider)} · session only</small></span><button type="button" data-remove-profile="${escapeHtml(profile.id)}" ${busy ? "disabled" : ""}>Remove</button></article>`).join("")}</div>`
-          : `<p class="keyring-empty">No model credentials are loaded.</p>`}
-        <form class="provider-form" data-provider-form><label>Provider<select name="provider">${KEYRING_PROVIDERS.map(({ id, name }) => `<option value="${id}">${name}</option>`).join("")}</select></label><label>Profile label<input name="label" required maxlength="80" placeholder="Personal coding"></label><label class="secret-field">API credential<input name="secret" type="password" required autocomplete="off" placeholder="Session only"></label><button ${busy ? "disabled" : ""}>Add session credential</button></form>
+          : `<p class="keyring-empty">No provider credentials are loaded.</p>`}
+        <form class="provider-form" data-provider-form><label>Provider<select name="provider">${KEYRING_PROVIDERS.map(({ id, name }) => `<option value="${id}">${name}</option>`).join("")}</select></label><label>Profile label<input name="label" required maxlength="80" placeholder="Personal models"></label><label class="secret-field">API credential<input name="secret" type="password" required autocomplete="off" placeholder="Session only"></label><button ${busy ? "disabled" : ""}>Add session credential</button></form>
         ${profiles.length ? `<button type="button" class="clear-profiles" data-clear-profiles ${busy ? "disabled" : ""}>Clear all session credentials</button>` : ""}
       </section>
       ${notice ? `<p class="keyring-notice" data-tone="${tone}">${escapeHtml(notice)}</p>` : ""}
-      <p class="keyring-footnote">The website forwarder remains off until exact origin grants, budgets, context disclosure, and typed provider operations are implemented.</p>
+      <p class="keyring-footnote">Native connectors may use a credential only for an allowlisted, typed operation. Website forwarding, arbitrary URLs, custom authorization headers, and raw provider payloads remain unavailable.</p>
     </main>
   </section>`;
 }
