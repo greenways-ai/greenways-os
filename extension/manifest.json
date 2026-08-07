@@ -17,7 +17,8 @@
   "permissions": [
     "sidePanel",
     "storage",
-    "nativeMessaging"
+    "nativeMessaging",
+    "scripting"
   ],
   "optional_host_permissions": [
     "http://127.0.0.1/*",
