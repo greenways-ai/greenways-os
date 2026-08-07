@@ -27,14 +27,25 @@ const backgroundBuild = await build({
 
 const pageBuild = await build({
   ...common,
-  entryPoints: ["src/world.js", "src/launcher.js", "src/devtools.js"],
+  entryPoints: ["src/world.js", "src/launcher.js", "src/devtools.js", "src/model-forge.js"],
   define: { __GREENWAYS_EXTENSION_HOST__: "true" },
   metafile: true,
   // The public web build may load its own local Hara runtime. Packaged pages
   // must always use the single service-worker host instead.
 });
 
-for (const buildResult of [backgroundBuild, pageBuild]) {
+const contentScriptBuild = await build({
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  target: "chrome116",
+  entryPoints: ["src/site-drivers/tripo-studio-content.js"],
+  entryNames: "[name]",
+  outdir: "dist",
+  metafile: true,
+});
+
+for (const buildResult of [backgroundBuild, pageBuild, contentScriptBuild]) {
   for (const [outputPath, output] of Object.entries(buildResult.metafile.outputs)) {
     const unresolved = output.imports.find(({ external }) => external);
     if (unresolved) {
@@ -58,16 +69,27 @@ if (/new Worker\(URL\.createObjectURL|new Worker\(workerUrl\)|eval:\s*true/.test
   throw new Error("The MV3 world bundle still contains a dynamic worker execution path");
 }
 
-const [backgroundBundle, launcherBundle, devtoolsBundle] = await Promise.all([
+const [backgroundBundle, launcherBundle, devtoolsBundle, modelForgeBundle, tripoDriverBundle] = await Promise.all([
   readFile(new URL("../dist/background.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/launcher.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/devtools.js", import.meta.url), "utf8"),
+  readFile(new URL("../dist/model-forge.js", import.meta.url), "utf8"),
+  readFile(new URL("../dist/tripo-studio-content.js", import.meta.url), "utf8"),
 ]);
 if (!backgroundBundle.includes("gw.os.kernel") || !backgroundBundle.includes("data:application/wasm;base64")) {
   throw new Error("The MV3 background bundle does not contain the reviewed Hara kernel runtime");
 }
-for (const [name, source] of [["launcher", launcherBundle], ["world", worldBundle], ["devtools", devtoolsBundle]]) {
+for (const [name, source] of [
+  ["launcher", launcherBundle],
+  ["world", worldBundle],
+  ["devtools", devtoolsBundle],
+  ["model-forge", modelForgeBundle],
+  ["tripo-studio-content", tripoDriverBundle],
+]) {
   if (source.includes("data:application/wasm;base64") || source.includes("gw.os.kernel")) {
-    throw new Error(`The ${name} page bundle contains a second Hara kernel runtime`);
+    throw new Error(`The ${name} bundle contains a second Hara kernel runtime`);
   }
+}
+if (!tripoDriverBundle.includes("greenways/site-driver/content-command")) {
+  throw new Error("The Tripo Studio content driver bundle is missing its reviewed command protocol");
 }
