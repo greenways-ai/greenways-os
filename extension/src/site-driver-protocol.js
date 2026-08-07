@@ -220,6 +220,19 @@ export function normalizeSiteDriverContentCommand(value) {
       }),
     });
   }
+  if (operation === "observe") {
+    closedKeys(args, new Set(["submitted"]), "Site-driver content arguments");
+    if (args.submitted !== undefined && typeof args.submitted !== "boolean") {
+      throw new TypeError("Site-driver observation submitted flag must be a boolean");
+    }
+    return Object.freeze({
+      protocol: SITE_DRIVER_REQUEST_PROTOCOL,
+      driverId: exactDriverId(input.driverId),
+      operation,
+      requestId,
+      args: Object.freeze({ submitted: args.submitted === true }),
+    });
+  }
   closedKeys(args, new Set(), "Site-driver content arguments");
   return Object.freeze({
     protocol: SITE_DRIVER_REQUEST_PROTOCOL,
