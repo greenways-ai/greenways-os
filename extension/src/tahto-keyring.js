@@ -6,6 +6,7 @@ export const TAHTO_DEVICE_KEY_PROTOCOL = "greenways-tahto-device-key/1";
 export const TAHTO_DEVICE_REQUEST_PROTOCOL = "tahto.device-request/1";
 export const TAHTO_SIGNATURE_PROTOCOL = "tahto-signature/1";
 export const TAHTO_KEY_ALGORITHM = "p256-sha256";
+export const TAHTO_PAIRING_INTENT_PROTOCOL = "tahto.pairing-intent/1";
 
 const IDENTIFIER = /^[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
@@ -232,6 +233,33 @@ export class TahtoKeyring {
       if (!record) return Object.freeze({ removed: false, origin });
       await this.repository.delete("identity", this.storageKey(origin));
       return Object.freeze({ removed: true, origin, keyId: record.keyId, deviceId: record.deviceId });
+    });
+  }
+
+  async signPairingIntent(originValue, intentValue, intentDigestValue) {
+    const origin = normalizeTahtoOrigin(originValue);
+    const key = await this.get(origin);
+    if (!key) throw new Error("Tahto device key does not exist");
+    if (key.deviceId || key.nodeId) throw new Error("Tahto device key is already paired with this node");
+    const intent = plainPortable(intentValue, "Tahto pairing intent");
+    if (intent.protocol !== TAHTO_PAIRING_INTENT_PROTOCOL) throw new Error("Unsupported Tahto pairing intent protocol");
+    if (intent["public-key"] !== key.publicKey || intent.algorithm !== key.algorithm) {
+      throw new Error("Tahto pairing intent does not bind this device key");
+    }
+    const intentDigest = requiredString(intentDigestValue, "Tahto pairing intent digest", 71);
+    if (!DIGEST.test(intentDigest)) throw new Error("Tahto pairing intent digest is invalid");
+    if (await sha256(canonical(intent)) !== intentDigest) throw new Error("Tahto pairing intent digest does not match the exact intent");
+    const signature = new Uint8Array(await this.crypto.subtle.sign(
+      { name: "ECDSA", hash: "SHA-256" },
+      key.privateKey,
+      new TextEncoder().encode(`${TAHTO_PAIRING_INTENT_PROTOCOL}\n${intentDigest}`),
+    ));
+    if (signature.byteLength !== 64) throw new Error("Tahto P-256 signature must use the 64-byte P1363 profile");
+    return Object.freeze({
+      profile: TAHTO_SIGNATURE_PROTOCOL,
+      algorithm: TAHTO_KEY_ALGORITHM,
+      keyId: key.keyId,
+      value: encodeBase64Url(signature),
     });
   }
 

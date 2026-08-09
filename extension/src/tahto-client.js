@@ -3,6 +3,10 @@ export const TAHTO_HEALTH_PROTOCOL = "tahto.health/1";
 export const TAHTO_STATUS_PROTOCOL = "tahto.status/1";
 export const TAHTO_LINK_PROTOCOL = "greenways-tahto-nodes/1";
 export const TAHTO_SETTINGS_KEY = "tahto-nodes";
+export const TAHTO_PAIRING_PREPARE_PROTOCOL = "tahto.pairing-prepare/1";
+export const TAHTO_PAIRING_COMPLETE_PROTOCOL = "tahto.pairing-complete/1";
+export const TAHTO_PAIRING_INTENT_PROTOCOL = "tahto.pairing-intent/1";
+export const TAHTO_PAIRING_PREPARE_RESULT_PROTOCOL = "tahto.pairing-prepare-result/1";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const IDENTIFIER = /^[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
@@ -85,6 +89,15 @@ function timestamp(value, label) {
   return output;
 }
 
+function pairingTimestamp(value, label) {
+  const output = requiredString(value, label, 80);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(output)
+      || !Number.isFinite(Date.parse(output))) {
+    throw new Error(`${label} must be a canonical UTC timestamp`);
+  }
+  return output;
+}
+
 function privateRequestOptions(options = {}) {
   const output = {
     credentials: "omit",
@@ -133,6 +146,35 @@ function normalizePairingResult(value) {
     device: identifier(input.device, "Tahto pairing result.device"),
     administrator: exact(input.administrator, false, "Tahto pairing result.administrator"),
     grants: Object.freeze([]),
+  });
+}
+
+function normalizePairingPrepareResult(value) {
+  const input = plainObject(value, "Tahto pairing prepare result");
+  assertNoExecutableFields(input, "Tahto pairing prepare result");
+  assertKeys(input, new Set(["protocol", "intent", "intentDigest"]), "Tahto pairing prepare result");
+  const intent = plainObject(input.intent, "Tahto pairing intent");
+  const fields = new Set([
+    "protocol", "invitation", "node", "device", "public-key",
+    "algorithm", "prepared-at", "expires-at",
+  ]);
+  assertKeys(intent, fields, "Tahto pairing intent");
+  for (const field of fields) {
+    if (!(field in intent)) throw new Error(`Tahto pairing intent.${field} is required`);
+  }
+  return Object.freeze({
+    protocol: exact(input.protocol, TAHTO_PAIRING_PREPARE_RESULT_PROTOCOL, "Tahto pairing prepare result.protocol"),
+    intent: Object.freeze({
+      protocol: exact(intent.protocol, TAHTO_PAIRING_INTENT_PROTOCOL, "Tahto pairing intent.protocol"),
+      invitation: identifier(intent.invitation, "Tahto pairing intent.invitation"),
+      node: identifier(intent.node, "Tahto pairing intent.node"),
+      device: identifier(intent.device, "Tahto pairing intent.device"),
+      "public-key": requiredString(intent["public-key"], "Tahto pairing intent.public-key", 2048),
+      algorithm: exact(intent.algorithm, "p256-sha256", "Tahto pairing intent.algorithm"),
+      "prepared-at": pairingTimestamp(intent["prepared-at"], "Tahto pairing intent.prepared-at"),
+      "expires-at": pairingTimestamp(intent["expires-at"], "Tahto pairing intent.expires-at"),
+    }),
+    intentDigest: requiredString(input.intentDigest, "Tahto pairing intent digest", 71),
   });
 }
 
@@ -210,13 +252,18 @@ export function normalizeTahtoDescriptor(value) {
     if (!(key in boundaries)) throw new Error(`Tahto boundaries.${key} is required`);
   }
   const routeInput = plainObject(input.routes, "Tahto routes");
-  assertKeys(routeInput, new Set(["discovery", "health", "status", "pairing"]), "Tahto routes");
+  assertKeys(routeInput, new Set(["discovery", "health", "status", "pairingPrepare", "pairingComplete"]), "Tahto routes");
   const routes = {};
   for (const key of ["discovery", "health", "status"]) {
     if (!(key in routeInput)) throw new Error(`Tahto routes.${key} is required`);
     routes[key] = requiredString(routeInput[key], `Tahto routes.${key}`, 240);
   }
-  if ("pairing" in routeInput) routes.pairing = requiredString(routeInput.pairing, "Tahto routes.pairing", 240);
+  for (const key of ["pairingPrepare", "pairingComplete"]) {
+    if (key in routeInput) routes[key] = requiredString(routeInput[key], `Tahto routes.${key}`, 240);
+  }
+  if (("pairingPrepare" in routes) !== ("pairingComplete" in routes)) {
+    throw new Error("Tahto pairing prepare and complete routes must be advertised together");
+  }
   const components = plainObject(input.components, "Tahto components");
   if (Object.keys(components).length > 64) throw new Error("Tahto components cannot exceed 64 entries");
   const normalizedComponents = {};
@@ -240,7 +287,10 @@ export function normalizeTahtoDescriptor(value) {
       discovery: exact(routes.discovery, "/.well-known/tahto", "Tahto routes.discovery"),
       health: exact(routes.health, "/tahto/v1/health", "Tahto routes.health"),
       status: exact(routes.status, "/tahto/v1/status", "Tahto routes.status"),
-      ...(routes.pairing ? { pairing: exact(routes.pairing, "/tahto/v1/pair", "Tahto routes.pairing") } : {}),
+      ...(routes.pairingPrepare ? {
+        pairingPrepare: exact(routes.pairingPrepare, "/tahto/v1/pairing/prepare", "Tahto routes.pairingPrepare"),
+        pairingComplete: exact(routes.pairingComplete, "/tahto/v1/pairing/complete", "Tahto routes.pairingComplete"),
+      } : {}),
     }),
     components: Object.freeze(normalizedComponents),
     compatibility,
@@ -337,18 +387,38 @@ export class TahtoClient {
     if (!key) key = await this.keyring.create(this.origin);
     if (key.deviceId || key.nodeId) throw new Error("This browser key is already paired with the Tahto node");
     const device = `device.${key.keyId.slice(7, 31)}`;
-    const result = await this.postEnvelope(
-      "/tahto/v1/pair",
+    const preparedAt = new Date().toISOString();
+    const prepared = await this.postEnvelope(
+      "/tahto/v1/pairing/prepare",
       "x-tahto-pairing",
       {
-        protocol: "tahto.pairing-request/1",
+        protocol: TAHTO_PAIRING_PREPARE_PROTOCOL,
         invitation,
         device,
         publicKey: key.publicKey,
         algorithm: key.algorithm,
-        pairedAt: new Date().toISOString(),
+        preparedAt,
       },
-      "Tahto pairing",
+      "Tahto pairing prepare",
+      normalizePairingPrepareResult,
+    );
+    const invitationId = invitation.slice(0, invitation.indexOf("~"));
+    if (prepared.intent.invitation !== invitationId || prepared.intent.device !== device
+        || prepared.intent["public-key"] !== key.publicKey || prepared.intent.algorithm !== key.algorithm) {
+      throw new Error("Tahto pairing intent does not match the requested browser identity");
+    }
+    const signature = await this.keyring.signPairingIntent(this.origin, prepared.intent, prepared.intentDigest);
+    const result = await this.postEnvelope(
+      "/tahto/v1/pairing/complete",
+      "x-tahto-pairing",
+      {
+        protocol: TAHTO_PAIRING_COMPLETE_PROTOCOL,
+        invitation,
+        acceptedAt: new Date().toISOString(),
+        intent: prepared.intent,
+        signature,
+      },
+      "Tahto pairing complete",
       normalizePairingResult,
     );
     if (result.device !== device) throw new Error("Tahto paired a different device identity");

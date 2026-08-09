@@ -56,6 +56,26 @@ The current allowlist is `openrouter`, `openai`, and `anthropic`.
 
 Provider records are stored only under the extension’s `chrome.storage.session` area. They are removed when the browser restarts or the extension is reloaded, disabled, updated, or explicitly cleared. They must not be copied into IndexedDB, Hara state, app manifests, URLs, logs, analytics, project files, or exports.
 
+### Tahto device key
+
+Each approved Tahto origin has a distinct non-extractable P-256 device key in
+the durable identity store. Pairing is a two-phase ceremony:
+
+1. Greenways OS sends the one-time invitation, proposed device ID and public
+   key to `/tahto/v1/pairing/prepare`.
+2. Tahto persists and returns the exact closed `tahto.pairing-intent/1` plus
+   its canonical SHA-256 digest.
+3. The keyring verifies that the intent binds the proposed origin-specific
+   key, device and digest, then signs
+   `tahto.pairing-intent/1\n<digest>` using the same private key.
+4. Greenways OS sends the unchanged intent and signature to
+   `/tahto/v1/pairing/complete`, and binds the returned node/device identity
+   only after successful completion.
+
+The invitation token is never stored by Greenways OS. Tahto receives no private
+key, and pairing returns no administrator role or application grants. Exact
+prepare and complete retries are safe after a lost response.
+
 ## Public status projection
 
 `status()` returns:
