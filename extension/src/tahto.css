@@ -1,0 +1,188 @@
+.tahto-card {
+  margin-top: 30px;
+  overflow: hidden;
+  color: var(--gw-text);
+  background: var(--gw-surface);
+  border: 1px solid color-mix(in srgb, var(--gw-gold) 48%, var(--gw-line-strong));
+  border-radius: var(--launcher-radius);
+  box-shadow: var(--gw-shadow-soft);
+}
+
+.tahto-card > header,
+.tahto-surface > header,
+.tahto-list > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tahto-card > header {
+  min-height: 54px;
+  padding: 13px 17px;
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.tahto-card > header p,
+.tahto-surface > header p,
+.tahto-list > div:first-child p {
+  margin: 0;
+  color: var(--gw-gold);
+  font: 750 8.5px/1.35 var(--gw-font-mono);
+  letter-spacing: .145em;
+  text-transform: uppercase;
+}
+
+.tahto-card > header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gw-text-muted);
+  font: 750 8.5px/1 var(--gw-font-mono);
+  text-transform: uppercase;
+}
+
+.tahto-card > header i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gw-text-muted);
+}
+
+.tahto-card > header span[data-state="connected"] i { background: var(--gw-verdigris); }
+.tahto-card > header span[data-state="degraded"] i { background: var(--gw-gold); }
+
+.tahto-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, .75fr);
+  gap: 38px;
+  align-items: center;
+  padding: 38px clamp(18px, 4vw, 42px);
+}
+
+.tahto-card__body h2,
+.tahto-hero h2 {
+  margin: 0;
+  color: var(--gw-text);
+  font: 400 clamp(29px, 5vw, 48px)/1 var(--gw-font-display);
+  letter-spacing: -.04em;
+}
+
+.tahto-card__body p,
+.tahto-hero p,
+.tahto-boundary span {
+  margin: 16px 0 0;
+  color: var(--gw-text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.tahto-card__route {
+  min-height: 126px;
+  display: grid;
+  grid-template-columns: 1fr 30px 1.1fr 30px 1fr;
+  align-items: center;
+  padding: 16px;
+  background: var(--gw-surface-muted);
+  border: 1px solid var(--gw-line);
+  border-radius: var(--launcher-radius-small);
+}
+
+.tahto-card__route span,
+.tahto-card__route b {
+  min-height: 56px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: var(--gw-text-muted);
+  background: var(--gw-control-bg);
+  border: 1px solid var(--gw-line-strong);
+  border-radius: 8px;
+  font: 750 7.5px/1.25 var(--gw-font-mono);
+  text-align: center;
+}
+
+.tahto-card__route b {
+  min-height: 90px;
+  color: var(--gw-text);
+  border-color: color-mix(in srgb, var(--gw-gold) 60%, var(--gw-line-strong));
+}
+
+.tahto-card__route i { height: 1px; background: var(--gw-line-strong); }
+
+.tahto-card > dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  background: var(--gw-surface-muted);
+  border-block: 1px solid var(--gw-line);
+}
+
+.tahto-card > dl div { min-width: 0; padding: 14px 17px; border-right: 1px solid var(--gw-line); }
+.tahto-card > dl div:last-child { border-right: 0; }
+.tahto-card dt { margin-bottom: 7px; color: var(--gw-text-muted); font: 750 8px/1.2 var(--gw-font-mono); text-transform: uppercase; }
+.tahto-card dd { margin: 0; overflow: hidden; color: var(--gw-text); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+
+.tahto-card > footer {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 17px;
+}
+
+.tahto-card button,
+.tahto-surface button {
+  min-height: 38px;
+  padding: 0 14px;
+  color: var(--gw-on-accent);
+  background: var(--gw-verdigris);
+  border: 1px solid color-mix(in srgb, var(--gw-verdigris) 76%, black);
+  border-radius: var(--launcher-radius-small);
+  font: 750 9px/1 var(--gw-font-mono);
+}
+
+.tahto-card > footer span { color: var(--gw-text-muted); font: 700 8px/1.4 var(--gw-font-mono); text-transform: uppercase; }
+.tahto-overlay { z-index: 4; }
+.tahto-frame { width: min(780px, calc(100vw - 24px)); }
+.tahto-surface { min-height: 100%; color: var(--gw-text); background: var(--gw-canvas); }
+.tahto-surface > header { min-height: 82px; padding: 16px 20px; background: var(--gw-header); border-bottom: 1px solid var(--gw-line); }
+.tahto-surface > header h1 { margin: 5px 0 0; font: 400 29px/1 var(--gw-font-display); }
+.tahto-surface > header > button { width: 40px; padding: 0; color: var(--gw-text); background: var(--gw-control-bg); border-color: var(--gw-line-strong); font-size: 22px; }
+.tahto-body { display: grid; gap: 22px; padding: 22px; }
+.tahto-hero { display: grid; grid-template-columns: 72px 1fr; gap: 20px; align-items: center; padding: 22px; background: var(--gw-surface); border: 1px solid var(--gw-line); border-radius: var(--launcher-radius-small); }
+.tahto-hero > span { width: 64px; height: 64px; display: grid; place-items: center; color: var(--gw-gold); border: 1px solid var(--gw-gold); border-radius: 50%; font: 400 34px/1 var(--gw-font-display); }
+.tahto-hero h2 { font-size: 31px; }
+.tahto-form { display: grid; grid-template-columns: 1.2fr .8fr auto; gap: 12px; align-items: end; padding: 16px; background: var(--gw-surface); border: 1px solid var(--gw-line); border-radius: var(--launcher-radius-small); }
+.tahto-form label { display: grid; gap: 7px; color: var(--gw-text-muted); font: 750 8px/1 var(--gw-font-mono); text-transform: uppercase; }
+.tahto-form input { min-height: 40px; padding: 0 11px; color: var(--gw-text); background: var(--gw-control-bg); border: 1px solid var(--gw-line-strong); border-radius: 6px; }
+.tahto-list { overflow: hidden; background: var(--gw-surface); border: 1px solid var(--gw-line); border-radius: var(--launcher-radius-small); }
+.tahto-list > div:first-child { padding: 13px 16px; border-bottom: 1px solid var(--gw-line); }
+.tahto-list > div:first-child span { color: var(--gw-text-muted); font: 700 8px/1 var(--gw-font-mono); text-transform: uppercase; }
+.tahto-empty { margin: 0; padding: 26px 16px; color: var(--gw-text-muted); font-size: 12px; }
+.tahto-nodes article { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) auto; gap: 16px; align-items: center; padding: 15px 16px; border-bottom: 1px solid var(--gw-line); }
+.tahto-nodes article:last-child { border-bottom: 0; }
+.tahto-nodes label { display: flex; gap: 11px; align-items: center; min-width: 0; }
+.tahto-nodes label span, .tahto-nodes article > div { min-width: 0; display: grid; gap: 4px; }
+.tahto-nodes strong { font-size: 12px; }
+.tahto-nodes small { overflow: hidden; color: var(--gw-text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.tahto-nodes em { width: fit-content; color: var(--gw-verdigris); font: 750 8px/1 var(--gw-font-mono); text-transform: uppercase; }
+.tahto-nodes article > div span { color: var(--gw-text-muted); font-size: 10px; }
+.tahto-nodes footer { display: flex; gap: 8px; }
+.tahto-nodes footer button { min-height: 31px; padding-inline: 9px; }
+.tahto-nodes footer button:last-child { color: var(--gw-text); background: var(--gw-control-bg); border-color: var(--gw-line-strong); }
+.tahto-boundary { padding: 16px; background: color-mix(in srgb, var(--gw-gold) 7%, var(--gw-surface)); border: 1px solid color-mix(in srgb, var(--gw-gold) 35%, var(--gw-line)); border-radius: var(--launcher-radius-small); }
+.tahto-boundary strong { display: block; font-size: 11px; }
+.tahto-boundary span { display: block; margin-top: 7px; }
+.tahto-notice { margin: 0; padding: 12px 14px; color: var(--gw-text-muted); background: var(--gw-surface); border: 1px solid var(--gw-line); border-radius: 6px; font-size: 11px; }
+.tahto-notice[data-tone="error"] { border-color: color-mix(in srgb, var(--gw-gold) 62%, var(--gw-line)); }
+.tahto-notice[data-tone="good"] { border-color: color-mix(in srgb, var(--gw-verdigris) 62%, var(--gw-line)); }
+
+@media (max-width: 760px) {
+  .tahto-card__body, .tahto-hero { grid-template-columns: 1fr; }
+  .tahto-card__route { display: none; }
+  .tahto-card > dl { grid-template-columns: 1fr; }
+  .tahto-card > dl div { border-right: 0; border-bottom: 1px solid var(--gw-line); }
+  .tahto-form, .tahto-nodes article { grid-template-columns: 1fr; }
+}

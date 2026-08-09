@@ -92,6 +92,18 @@ export const CAPABILITY_DEFINITIONS = Object.freeze([
     grantable: true,
     description: "Run a bounded model request through an approved provider profile.",
   }),
+  capability("tahto/connect", "connectors", "high", {
+    grantable: true,
+    description: "Pair one browser device identity with an explicitly approved Tahto node.",
+  }),
+  capability("tahto/read", "connectors", "medium", {
+    grantable: true,
+    description: "Read bounded semantic state from the selected Tahto node.",
+  }),
+  capability("tahto/write", "connectors", "critical", {
+    grantable: true,
+    description: "Prepare and submit signed semantic changes to the selected Tahto node.",
+  }),
 ]);
 
 export const APP_CAPABILITIES = Object.freeze(CAPABILITY_DEFINITIONS.map(({ id }) => id));

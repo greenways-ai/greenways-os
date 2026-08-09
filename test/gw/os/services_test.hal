@@ -1,0 +1,18 @@
+(ns gw.os.services-test
+  (:require [gw.os.services :as services]
+            [std.lib.test :as test]))
+
+(test/print-results
+ [(test/check
+   "Tahto connector authority is split into connect, read and write grants"
+   (vec
+    (map
+     (fn [id]
+       (let [definition (services/capability-definition id)]
+         [(get definition "service")
+          (get definition "risk")
+          (get definition "grantable")]))
+     ["tahto/connect" "tahto/read" "tahto/write"]))
+   [["connectors" "high" true]
+    ["connectors" "medium" true]
+    ["connectors" "critical" true]])])
