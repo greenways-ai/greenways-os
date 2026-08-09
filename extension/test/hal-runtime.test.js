@@ -58,36 +58,36 @@ test("Hara owns the installed app lifecycle and emits identifier-only launch eff
   const runtime = await start({ resources });
   runtime.require("gw.os.kernel");
   const bootstrap = '(gw.os.kernel/dispatch "app/bootstrap" [])';
-  const restored = `(get (gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-home" "category" "system" "publisher" {"id" "greenways-ai"} "capabilities" ["identity/local" "storage/local"] "launch" {"handler" "extension-page" "path" "src/studio.html#home"}} {"id" "hestia-connector" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/https" "network/loopback" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}]]) "state")`;
+  const restored = `(get (gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-worlds" "category" "system" "publisher" {"id" "greenways-ai"} "capabilities" ["network/github" "worlds/browse"] "launch" {"handler" "extension-page" "path" "src/world.html"}} {"id" "chats" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["chats/capture" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "chats"}}]]) "state")`;
 
   assert.equal(
     runtime.eval(`(get (get ${bootstrap} "apps") "installed")`),
     "[]",
   );
   assert.equal(
-    runtime.eval(`(get (gw.os.kernel/dispatch "apps/open" [${restored} "greenways-home"]) "effects")`),
-    '[{"effect" "browser" "method" "open-app" "args" ["greenways-home"]}]',
+    runtime.eval(`(get (gw.os.kernel/dispatch "apps/open" [${restored} "greenways-worlds"]) "effects")`),
+    '[{"effect" "browser" "method" "open-app" "args" ["greenways-worlds"]}]',
   );
   assert.equal(
-    runtime.eval(`(get (gw.os.kernel/dispatch "apps/open" [${restored} "hestia-connector"]) "effects")`),
-    '[{"effect" "ui" "method" "open-surface" "args" ["hestia-connector" {"appId" "hestia-connector"}]}]',
+    runtime.eval(`(get (gw.os.kernel/dispatch "apps/open" [${restored} "chats"]) "effects")`),
+    '[{"effect" "ui" "method" "open-surface" "args" ["chats" {"appId" "chats"}]}]',
   );
-  const openedConnector = `(get (gw.os.kernel/dispatch "apps/open" [${restored} "hestia-connector"]) "state")`;
+  const openedConnector = `(get (gw.os.kernel/dispatch "apps/open" [${restored} "chats"]) "state")`;
   assert.equal(
     runtime.eval(`(get (get ${openedConnector} "surface") "active")`),
-    '"hestia-connector"',
+    '"chats"',
   );
   const refreshedConnector = `(get (gw.os.kernel/dispatch "apps/restore" [${openedConnector} [(first (get (get ${restored} "apps") "installed")) (nth (get (get ${restored} "apps") "installed") 1)]]) "state")`;
   assert.equal(
     runtime.eval(`(get (get ${refreshedConnector} "apps") "active")`),
-    '"hestia-connector"',
+    '"chats"',
   );
   assert.match(
     runtime.eval(`(get (gw.os.kernel/dispatch "apps/restore" [${openedConnector} [(first (get (get ${restored} "apps") "installed"))]]) "effects")`),
     /"ui" "method" "close-surface"/,
   );
   assert.match(
-    runtime.eval(`(get (gw.os.kernel/dispatch "apps/remove" [${openedConnector} "hestia-connector"]) "effects")`),
+    runtime.eval(`(get (gw.os.kernel/dispatch "apps/remove" [${openedConnector} "chats"]) "effects")`),
     /"ui" "method" "close-surface"/,
   );
   assert.equal(
@@ -95,39 +95,39 @@ test("Hara owns the installed app lifecycle and emits identifier-only launch eff
     "nil",
   );
 
-  const oldConnector = '{"id" "hestia-connector" "version" "0.2.0" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/https" "network/loopback" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}';
-  const newConnector = '{"id" "hestia-connector" "version" "0.3.0" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/https" "network/loopback" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}';
+  const oldConnector = '{"id" "chats" "version" "0.1.0" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["chats/capture" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "chats"}}';
+  const newConnector = '{"id" "chats" "version" "0.2.0" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["chats/capture" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "chats"}}';
   const oldInstalled = `(get (gw.os.kernel/dispatch "apps/install" [${bootstrap} ${oldConnector}]) "state")`;
   assert.equal(
     runtime.eval(`(get (first (get (get (get (gw.os.kernel/dispatch "apps/update" [${oldInstalled} ${newConnector}]) "state") "apps") "installed")) "version")`),
-    '"0.3.0"',
+    '"0.2.0"',
   );
 
-  const historiaManifest = '{"id" "historia" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["historia/import" "network/loopback" "tabs/open"] "launch" {"handler" "native-hybrid" "url" "http://127.0.0.1:4319/"}}';
+  const historiaManifest = '{"id" "hara-playground" "category" "installable" "publisher" {"id" "hara-lang"} "capabilities" ["hara/evaluate" "model/generate" "tabs/open"] "launch" {"handler" "web-tab" "url" "https://playground.hara-lang.org/"}}';
   const installed = `(get (gw.os.kernel/dispatch "apps/install" [${bootstrap} ${historiaManifest}]) "state")`;
   assert.equal(
     runtime.eval(`(get (get (first (get (get ${installed} "apps") "installed")) "launch") "url")`),
-    '"http://127.0.0.1:4319/"',
+    '"https://playground.hara-lang.org/"',
   );
   assert.equal(
-    runtime.eval(`(get (gw.os.kernel/dispatch "apps/open" [${installed} "historia"]) "effects")`),
-    '[{"effect" "browser" "method" "open-app" "args" ["historia"]}]',
+    runtime.eval(`(get (gw.os.kernel/dispatch "apps/open" [${installed} "hara-playground"]) "effects")`),
+    '[{"effect" "browser" "method" "open-app" "args" ["hara-playground"]}]',
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/open" [${bootstrap} "historia"])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/open" [${bootstrap} "hara-playground"])`),
     /App is not installed/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "historia" "category" "installable" "launch" {"handler" "native-hybrid" "url" "http:\/\/127.0.0.1:9999\/"}}])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "hara-playground" "category" "installable" "launch" {"handler" "web-tab" "url" "https:\/\/attacker.invalid\/"}}])`),
     /URL is not bound/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/remove" [${restored} "greenways-home"])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/remove" [${restored} "greenways-worlds"])`),
     /System apps cannot be removed/,
   );
-  const forgedSystemState = `(assoc ${bootstrap} "apps" {"installed" [{"id" "greenways-home" "category" "installable" "launch" {"handler" "web-tab"}}] "active" nil})`;
+  const forgedSystemState = `(assoc ${bootstrap} "apps" {"installed" [{"id" "greenways-worlds" "category" "installable" "launch" {"handler" "web-tab"}}] "active" nil})`;
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/remove" [${forgedSystemState} "greenways-home"])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/remove" [${forgedSystemState} "greenways-worlds"])`),
     /System apps cannot be removed/,
   );
   assert.throws(
@@ -139,23 +139,23 @@ test("Hara owns the installed app lifecycle and emits identifier-only launch eff
     /Packaged app surface is not installed/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "connector-alias" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/https" "network/loopback" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "connector-alias" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["chats/capture" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "chats"}}])`),
     /Packaged app surface does not match the app id/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "hestia-connector" "category" "installable" "publisher" {"id" "third-party"} "capabilities" ["hestia/connect" "network/https" "network/loopback" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "chats" "category" "installable" "publisher" {"id" "third-party"} "capabilities" ["chats/capture" "storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "chats"}}])`),
     /Packaged app surface publisher is not trusted/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "hestia-connector" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["hestia/connect" "network/loopback"] "launch" {"handler" "packaged-surface" "surfaceId" "hestia-connector"}}])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/install" [${bootstrap} {"id" "chats" "category" "installable" "publisher" {"id" "greenways-ai"} "capabilities" ["storage/local"] "launch" {"handler" "packaged-surface" "surfaceId" "chats"}}])`),
     /Packaged app surface capabilities are not bound/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-home" "category" "system" "publisher" {"id" "attacker"} "capabilities" ["identity/local" "storage/local"] "launch" {"handler" "extension-page" "path" "src/studio.html#home"}}]])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-worlds" "category" "system" "publisher" {"id" "attacker"} "capabilities" ["network/github" "worlds/browse"] "launch" {"handler" "extension-page" "path" "src/world.html"}}]])`),
     /System app publisher is not trusted/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-home" "category" "system" "publisher" {"id" "greenways-ai"} "capabilities" ["identity/local" "storage/local" "tabs/open"] "launch" {"handler" "extension-page" "path" "src/studio.html#home"}}]])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-worlds" "category" "system" "publisher" {"id" "greenways-ai"} "capabilities" ["network/github" "worlds/browse" "tabs/open"] "launch" {"handler" "extension-page" "path" "src/world.html"}}]])`),
     /System app capabilities are not bound to its id/,
   );
   assert.throws(
@@ -163,7 +163,7 @@ test("Hara owns the installed app lifecycle and emits identifier-only launch eff
     /Only reserved app ids can use the system category/,
   );
   assert.throws(
-    () => runtime.eval(`(gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-home" "category" "installable" "launch" {"handler" "web-tab"}}]])`),
+    () => runtime.eval(`(gw.os.kernel/dispatch "apps/restore" [${bootstrap} [{"id" "greenways-worlds" "category" "installable" "launch" {"handler" "web-tab"}}]])`),
     /Reserved system app ids must use the system category/,
   );
 });

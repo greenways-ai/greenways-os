@@ -40,13 +40,14 @@
    "userscripts" ["userscripts/manage" "storage/local"]})
 
 (def PACKAGED-TAB-LAUNCHES
-  {})
+  {"hara-playground" {"handler" "web-tab"
+                      "url" "https://playground.hara-lang.org/"}})
 
 (def PACKAGED-TAB-PUBLISHERS
-  {})
+  {"hara-playground" "hara-lang"})
 
 (def PACKAGED-TAB-CAPABILITIES
-  {})
+  {"hara-playground" ["hara/evaluate" "model/generate" "tabs/open"]})
 
 (def KERNEL-CONTEXT-PROTOCOL
   "greenways-kernel-context/1")
