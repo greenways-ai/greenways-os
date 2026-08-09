@@ -63,7 +63,8 @@ function descriptor(overrides = {}) {
       discovery: "/.well-known/tahto",
       health: "/tahto/v1/health",
       status: "/tahto/v1/status",
-      pairing: "/tahto/v1/pair",
+      pairingPrepare: "/tahto/v1/pairing/prepare",
+      pairingComplete: "/tahto/v1/pairing/complete",
     },
     components: {
       controlPlane: "ready",
@@ -147,7 +148,8 @@ test("strictly validates inert Tahto discovery", () => {
     discovery: "/.well-known/tahto",
     health: "/tahto/v1/health",
     status: "https://evil.example/status",
-    pairing: "/tahto/v1/pair",
+    pairingPrepare: "/tahto/v1/pairing/prepare",
+    pairingComplete: "/tahto/v1/pairing/complete",
   } })), /must be \/tahto\/v1\/status/);
 });
 
@@ -256,8 +258,9 @@ test("packages the Tahto status surface entirely inside Greenways OS", async () 
   assert.ok(manifest.optional_host_permissions.includes("http://[::1]/*"));
 });
 
-test("pairing sends one inert header and binds only the returned identity", async () => {
+test("pairing prepares, signs the exact intent, completes, and binds only the returned identity", async () => {
   const calls = [];
+  const signatures = [];
   const keyring = {
     status: async () => null,
     create: async () => ({
@@ -267,24 +270,45 @@ test("pairing sends one inert header and binds only the returned identity", asyn
       deviceId: null,
       nodeId: null,
     }),
+    signPairingIntent: async (origin, intent, intentDigest) => {
+      signatures.push({ origin, intent, intentDigest });
+      return { profile: "tahto-signature/1", algorithm: "p256-sha256", keyId: `sha256:${"a".repeat(64)}`, value: "signature" };
+    },
     bind: async (origin, identity) => calls.push({ origin, identity }),
   };
   const request = async (url, options) => {
     const envelope = decodeHeader(options.headers["x-tahto-pairing"]);
     assert.equal(options.method, "POST");
-    assert.equal(url, "https://tahto.example/tahto/v1/pair");
-    assert.equal(envelope.invitation, "invite.secret");
+    assert.equal(envelope.invitation, "invite.live~secret-token");
     assert.equal("privateKey" in envelope, false);
+    if (url.endsWith("/prepare")) {
+      const intent = {
+        protocol: "tahto.pairing-intent/1",
+        invitation: "invite.live",
+        node: "node.home",
+        device: envelope.device,
+        "public-key": envelope.publicKey,
+        algorithm: envelope.algorithm,
+        "prepared-at": envelope.preparedAt,
+        "expires-at": "2026-08-09T00:10:00.000Z",
+      };
+      return json({ protocol: "tahto.pairing-prepare-result/1", intent, intentDigest: `sha256:${"b".repeat(64)}` });
+    }
+    assert.equal(url, "https://tahto.example/tahto/v1/pairing/complete");
+    assert.equal(envelope.protocol, "tahto.pairing-complete/1");
+    assert.deepEqual(envelope.intent, signatures[0].intent);
     return new Response(JSON.stringify({
       protocol: "tahto.pairing-result/1",
       node: "node.home",
-      device: envelope.device,
+      device: envelope.intent.device,
       administrator: false,
       grants: [],
     }), { status: 200, headers: { "content-type": "application/json" } });
   };
-  const result = await new TahtoClient({ origin: "https://tahto.example", request, keyring }).pair("invite.secret");
+  const result = await new TahtoClient({ origin: "https://tahto.example", request, keyring }).pair("invite.live~secret-token");
   assert.equal(result.administrator, false);
+  assert.equal(signatures.length, 1);
+  assert.equal(signatures[0].intentDigest, `sha256:${"b".repeat(64)}`);
   assert.deepEqual(calls, [{
     origin: "https://tahto.example",
     identity: { deviceId: `device.${"a".repeat(24)}`, nodeId: "node.home" },

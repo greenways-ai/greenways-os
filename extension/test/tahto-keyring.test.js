@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canonical } from "../src/protocol.js";
+import { canonical, sha256 } from "../src/protocol.js";
 import {
   TAHTO_DEVICE_REQUEST_PROTOCOL,
   TAHTO_KEY_ALGORITHM,
+  TAHTO_PAIRING_INTENT_PROTOCOL,
   TAHTO_SIGNATURE_PROTOCOL,
   TahtoKeyring,
   publicJwkToSec1,
@@ -78,6 +79,35 @@ test("binds a device identity and signs the exact canonical request envelope", a
     new TextEncoder().encode(`${TAHTO_DEVICE_REQUEST_PROTOCOL}\n${signed.requestDigest}`),
   ), true);
   assert.equal(canonical(unsigned).includes("semantic.read"), true);
+});
+
+test("signs only the exact server pairing intent with the unbound device key", async () => {
+  const repo = repository();
+  const keyring = new TahtoKeyring({ repository: repo, now: () => "2026-08-09T00:00:00.000Z" });
+  const key = await keyring.create("https://tahto.example");
+  const intent = {
+    protocol: TAHTO_PAIRING_INTENT_PROTOCOL,
+    invitation: "invite.live",
+    node: "node.home",
+    device: `device.${key.keyId.slice(7, 31)}`,
+    "public-key": key.publicKey,
+    algorithm: key.algorithm,
+    "prepared-at": "2026-08-09T00:00:00.000Z",
+    "expires-at": "2026-08-09T00:10:00.000Z",
+  };
+  const intentDigest = await sha256(canonical(intent));
+  const signature = await keyring.signPairingIntent("https://tahto.example", intent, intentDigest);
+  const imported = await crypto.subtle.importKey(
+    "jwk", key.publicKeyJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"],
+  );
+  assert.equal(await crypto.subtle.verify(
+    { name: "ECDSA", hash: "SHA-256" }, imported, decodeBase64Url(signature.value),
+    new TextEncoder().encode(`${TAHTO_PAIRING_INTENT_PROTOCOL}\n${intentDigest}`),
+  ), true);
+  await assert.rejects(
+    () => keyring.signPairingIntent("https://tahto.example", { ...intent, node: "node.other" }, intentDigest),
+    /digest does not match/,
+  );
 });
 
 test("requires pairing and rejects secret-shaped or non-portable signing payloads", async () => {

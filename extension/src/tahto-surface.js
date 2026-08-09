@@ -156,7 +156,7 @@ function nodeRows(busyOrigin) {
     return `<article data-default="${selected}" data-origin="${escapeHtml(node.origin)}">
       <label><input type="radio" name="default-node" value="${escapeHtml(node.origin)}" ${selected ? "checked" : ""} ${busy ? "disabled" : ""}><span><strong>${escapeHtml(node.label)}</strong><small>${escapeHtml(node.origin)}</small></span></label>
       <div><em data-state="${escapeHtml(node.health.status)}">${escapeHtml(node.health.status)}</em><span>Semantic ${escapeHtml(semantic)}</span><small>Checked ${escapeHtml(new Date(node.checkedAt).toLocaleString())}</small></div>
-      <footer><button type="button" data-tahto-pair="${escapeHtml(node.origin)}" ${busy || !node.descriptor.routes.pairing ? "disabled" : ""}>${node.descriptor.routes.pairing ? "Pair" : "Pairing unavailable"}</button><button type="button" data-tahto-refresh="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>${busy ? "Checking…" : "Refresh"}</button><button type="button" data-tahto-forget="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>Forget</button></footer>
+      <footer><button type="button" data-tahto-pair="${escapeHtml(node.origin)}" ${busy || !node.descriptor.routes.pairingPrepare ? "disabled" : ""}>${node.descriptor.routes.pairingPrepare ? "Pair" : "Pairing unavailable"}</button><button type="button" data-tahto-refresh="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>${busy ? "Checking…" : "Refresh"}</button><button type="button" data-tahto-forget="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>Forget</button></footer>
     </article>`;
   }).join("")}</div>`;
 }
