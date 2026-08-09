@@ -382,7 +382,7 @@ function installedIds(snapshot) {
 
 test("shares global installs across launcher clients while keeping their surfaces isolated", async () => {
   const rig = createRig();
-  const hestia = getAppManifest("hestia-connector");
+  const hestia = getAppManifest("chats");
   const effects = [];
   rig.runtime.onEffect(LAUNCHER_A.clientId, async (message) => {
     effects.push(["a", message]);
@@ -412,10 +412,10 @@ test("shares global installs across launcher clients while keeping their surface
   const reattachedA = await rig.host.attach(LAUNCHER_A);
 
   assert.ok(installedIds(attachedB).includes(hestia.id));
-  assert.equal(openedA.state.surface.active, "hestia-connector");
+  assert.equal(openedA.state.surface.active, "chats");
   assert.equal(attachedB.state.surface.active, null);
-  assert.equal(openedB.state.surface.active, "hestia-connector");
-  assert.equal(reattachedA.state.surface.active, "hestia-connector");
+  assert.equal(openedB.state.surface.active, "chats");
+  assert.equal(reattachedA.state.surface.active, "chats");
   assert.deepEqual(effects.map(([client, message]) => [client, message.contextId]), [
     ["a", LAUNCHER_A.clientId],
     ["b", LAUNCHER_B.clientId],
@@ -428,7 +428,7 @@ test("shares global installs across launcher clients while keeping their surface
 
 test("serializes concurrent installs from different clients against the latest global state", async () => {
   const rig = createRig();
-  const historia = getAppManifest("historia");
+  const historia = getAppManifest("userscripts");
   const playground = getAppManifest("hara-playground");
 
   const [first, second] = await Promise.all([
@@ -452,7 +452,7 @@ test("serializes concurrent installs from different clients against the latest g
 test("rehydrates global and client context state after a host restart", async () => {
   const repository = new MemoryRepository();
   const first = createRig({ repository });
-  const hestia = getAppManifest("hestia-connector");
+  const hestia = getAppManifest("chats");
   first.runtime.onEffect(LAUNCHER_A.clientId, async () => ({ protocol: KERNEL_PROTOCOL, ok: true }));
   await dispatch(first.host, LAUNCHER_A, "request/restart-install-0201", "apps/install", [hestia]);
   await dispatch(first.host, LAUNCHER_A, "request/restart-open-0202", "apps/open", [hestia.id]);
@@ -464,13 +464,13 @@ test("rehydrates global and client context state after a host restart", async ()
   assert.equal(attached.globalRevision, 1);
   assert.equal(attached.contextRevision, 2);
   assert.equal(attached.state.apps.active, hestia.id);
-  assert.equal(attached.state.surface.active, "hestia-connector");
+  assert.equal(attached.state.surface.active, "chats");
   assert.equal(restarted.kernelRepository.commits.length, 0);
 });
 
 test("requires reapproval before opening a changed packaged-surface manifest", async () => {
   const repository = new MemoryRepository();
-  const hestia = getAppManifest("hestia-connector");
+  const hestia = getAppManifest("chats");
   await repository.put("kernel", "global", {
     protocol: KERNEL_GLOBAL_PROTOCOL,
     revision: 1,
@@ -495,11 +495,11 @@ test("requires reapproval before opening a changed packaged-surface manifest", a
 
 test("does not restore an active packaged surface after its approval becomes stale", async () => {
   const repository = new MemoryRepository();
-  const hestia = getAppManifest("hestia-connector");
+  const hestia = getAppManifest("chats");
   await repository.put("kernel", "global", {
     protocol: KERNEL_GLOBAL_PROTOCOL,
     revision: 1,
-    installed: [{ ...hestia, version: "0.2.0" }],
+    installed: [{ ...hestia, version: "0.1.0" }],
     receipts: [],
     updatedAt: "2026-08-04T00:00:00.000Z",
   });
@@ -511,7 +511,7 @@ test("does not restore an active packaged surface after its approval becomes sta
     checkpoint: {
       protocol: CONTEXT_PROTOCOL,
       apps: { active: hestia.id },
-      surface: { active: "hestia-connector", payload: { appId: hestia.id } },
+      surface: { active: "chats", payload: { appId: hestia.id } },
       studio: { tracks: [] },
     },
     updatedAt: "2026-08-04T00:00:00.000Z",
@@ -525,7 +525,7 @@ test("does not restore an active packaged surface after its approval becomes sta
 test("removing a packaged app clears its surface in other contexts and after restart", async () => {
   const repository = new MemoryRepository();
   const rig = createRig({ repository });
-  const hestia = getAppManifest("hestia-connector");
+  const hestia = getAppManifest("chats");
   rig.runtime.onEffect(LAUNCHER_B.clientId, async () => ({
     protocol: KERNEL_PROTOCOL,
     ok: true,
@@ -549,7 +549,7 @@ test("removing a packaged app clears its surface in other contexts and after res
 
 test("approves only the exact bundled manifest when updating an installed app", async () => {
   const repository = new MemoryRepository();
-  const hestia = getAppManifest("hestia-connector");
+  const hestia = getAppManifest("chats");
   await repository.put("kernel", "global", {
     protocol: KERNEL_GLOBAL_PROTOCOL,
     revision: 1,
@@ -585,7 +585,7 @@ test("approves only the exact bundled manifest when updating an installed app", 
 test("retains an uncertain browser-effect receipt when commit fails", async () => {
   const repository = new MemoryRepository();
   const rig = createRig({ repository });
-  const historia = getAppManifest("historia");
+  const historia = getAppManifest("hara-playground");
   await dispatch(
     rig.host,
     LAUNCHER_A,
@@ -684,7 +684,7 @@ test("retains an uncertain export receipt when its commit fails", async () => {
 test("durably replays an identical request and rejects changed content with the same id", async () => {
   const repository = new MemoryRepository();
   const first = createRig({ repository });
-  const historia = getAppManifest("historia");
+  const historia = getAppManifest("userscripts");
   const playground = getAppManifest("hara-playground");
   const requestId = "request/durable-replay-0301";
   const committed = await dispatch(first.host, LAUNCHER_A, requestId, "apps/install", [historia]);
@@ -717,7 +717,7 @@ test("enforces caller-specific call and dispatch allowlists", async () => {
     (error) => error.code === "METHOD_DENIED",
   );
   await assert.rejects(
-    dispatch(rig.host, WORLD_A, "request/world-install-denied-0401", "apps/install", [getAppManifest("historia")]),
+    dispatch(rig.host, WORLD_A, "request/world-install-denied-0401", "apps/install", [getAppManifest("hara-playground")]),
     (error) => error.code === "METHOD_DENIED",
   );
   await assert.rejects(
@@ -784,7 +784,7 @@ test("rejects an unexpected Hara effect before preparing or committing", async (
       LAUNCHER_A,
       "request/unexpected-effect-0601",
       "apps/install",
-      [getAppManifest("historia")],
+      [getAppManifest("hara-playground")],
     ),
     (error) => error.code === "KERNEL_CONTRACT" && /unauthorized effect/.test(error.message),
   );
@@ -795,7 +795,7 @@ test("rejects an unexpected Hara effect before preparing or committing", async (
 
 test("does not commit tentative state when the target client rejects an effect", async () => {
   const rig = createRig();
-  const hestia = getAppManifest("hestia-connector");
+  const hestia = getAppManifest("chats");
   await dispatch(rig.host, LAUNCHER_A, "request/failure-install-0701", "apps/install", [hestia]);
   const beforeGlobal = await rig.repository.get("kernel", "global");
   const beforeContext = await rig.repository.get("kernel", `context:${LAUNCHER_A.clientId}`);
@@ -842,8 +842,8 @@ test("host persistence records use the versioned global and context protocols", 
 test("migrates pre-grant global envelopes into an explicit empty grant projection", async () => {
   const repository = new MemoryRepository();
   const installed = [
-    getAppManifest("greenways-home"),
     getAppManifest("greenways-worlds"),
+    getAppManifest("chats"),
   ];
   await repository.put("kernel", "global", {
     protocol: KERNEL_GLOBAL_PROTOCOL,
@@ -1190,7 +1190,7 @@ test("root DevTools has a fixed call surface and no state-changing dispatches", 
     (error) => error.code === "METHOD_DENIED",
   );
   await assert.rejects(
-    dispatch(rig.host, DEVTOOLS_A, "request/devtools-dispatch-9001", "apps/install", [getAppManifest("historia")]),
+    dispatch(rig.host, DEVTOOLS_A, "request/devtools-dispatch-9001", "apps/install", [getAppManifest("hara-playground")]),
     (error) => error.code === "METHOD_DENIED",
   );
 });

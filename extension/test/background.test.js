@@ -23,7 +23,7 @@ test("generic app launches resolve only through the fixed bundled catalog", () =
     "chrome-extension://greenways/src/world.html",
   );
   assert.throws(() => resolveAppUrl("historia", runtime), /Unknown Greenways app/);
-  assert.throws(() => resolveAppUrl("hara-playground", runtime), /Unknown Greenways app/);
+  assert.equal(resolveAppUrl("hara-playground", runtime), "https://playground.hara-lang.org/");
   assert.throws(() => resolveAppUrl("https://attacker.example", runtime), /lowercase app identifier/);
   assert.throws(() => resolveAppUrl("not-installed", runtime), /Unknown Greenways app/);
   assert.throws(() => resolveAppUrl("chats", runtime), /opens inside/);

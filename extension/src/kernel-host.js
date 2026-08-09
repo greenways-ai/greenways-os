@@ -33,7 +33,7 @@ const REQUEST_ID = /^[a-z0-9][a-z0-9._:/-]{15,127}$/i;
 const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const MAX_RECEIPTS = 128;
 const SYSTEM_IDS = new Set(SYSTEM_APP_IDS);
-const RETIRED_APP_IDS = new Set(["greenways-home", "hestia-connector", "hara-playground", "historia"]);
+const RETIRED_APP_IDS = new Set(["greenways-home", "hestia-connector", "historia"]);
 const NON_REPLAYABLE_EFFECTS = new Set([
   "browser/open-app",
   "export/studio-project",
