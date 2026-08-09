@@ -347,6 +347,7 @@ function createRig({
   capabilityAuthority = ALLOW_CAPABILITY_AUTHORITY,
   devtools,
   userscripts,
+  applicationServices,
 } = {}) {
   const hara = invoker ?? createInvoker();
   const kernelRepository = new MemoryKernelRepository(repository);
@@ -367,6 +368,7 @@ function createRig({
     tabs,
     devtools,
     userscripts,
+    applicationServices,
     now: () => new Date(Date.UTC(2026, 7, 4, 0, 0, tick++)),
   });
   return { host, repository, kernelRepository, runtime, tabs, invoker: hara };
@@ -1248,6 +1250,38 @@ test("userscripts authority requires installation and an active userscripts/mana
       capability: "userscripts/manage",
       constraints: {},
     }]),
+    (error) => error.code === "METHOD_DENIED",
+  );
+});
+
+test("application HAL service requests pass through the kernel-owned router", async () => {
+  const calls = [];
+  const rig = createRig({
+    applicationServices: {
+      async call(...args) {
+        calls.push(args);
+        return { source: "hestia" };
+      },
+    },
+  });
+  const chats = getAppManifest("chats");
+  rig.runtime.onEffect(LAUNCHER_A.clientId, async () => ({ ok: true }));
+  await dispatch(rig.host, LAUNCHER_A, "request/install-service-app-0001", "apps/install", [chats]);
+  await dispatch(rig.host, LAUNCHER_A, "request/open-service-app-0002", "apps/open", [chats.id]);
+  const result = await rig.host.call(LAUNCHER_A, "applications/call", [{
+    service: "hestia.control",
+    operation: "propose",
+    arguments: [{ "intent/id": "share-1" }],
+  }]);
+  assert.deepEqual(result.value, { source: "hestia" });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "chats");
+  assert.equal(
+    calls[0][2].installed.find(({ id }) => id === "chats").project.coordinate,
+    "greenways-ai/chats",
+  );
+  await assert.rejects(
+    rig.host.call(WORLD_A, "applications/call", [{}]),
     (error) => error.code === "METHOD_DENIED",
   );
 });

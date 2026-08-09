@@ -12,7 +12,7 @@ const common = {
   format: "esm",
   platform: "browser",
   target: "chrome116",
-  loader: { ".hal": "text" },
+  loader: { ".hal": "text", ".edn": "text" },
   external: ["node:worker_threads"],
   entryNames: "[name]",
   outdir: "dist",

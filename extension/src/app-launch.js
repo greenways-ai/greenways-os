@@ -43,6 +43,7 @@ export function appApprovalIdentity(manifest) {
     path: manifest.launch?.path,
     url: manifest.launch?.url,
     surfaceId: manifest.launch?.surfaceId,
+    projectDigest: manifest.project?.digest,
   });
 }
 

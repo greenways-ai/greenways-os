@@ -130,6 +130,7 @@ export function createKernelHost({
   userScripts = globalThis.chrome?.userScripts,
   scripting = globalThis.chrome?.scripting,
   modules = moduleStore,
+  applicationServices,
 } = {}) {
   if (!modules || typeof modules.values !== "function") {
     throw new TypeError("Kernel host requires a durable module repository");
@@ -163,7 +164,16 @@ export function createKernelHost({
         scripting,
         assertAuthority: () => host.assertChatsAuthority(),
       });
-      host = new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority, devtools, userscripts, chats });
+      host = new BrowserKernelHost({
+        invoke,
+        runtime,
+        tabs,
+        capabilityAuthority,
+        devtools,
+        userscripts,
+        chats,
+        applicationServices,
+      });
       // chrome.userScripts registrations persist across service-worker restarts,
       // but durable records are the source of truth: reconcile drift (for example
       // edits made while Chrome's user-scripts toggle was off) on first use.

@@ -1,0 +1,105 @@
+(ns userscripts.app
+  (:require [std.foundation :refer :all]))
+
+(defn app-call
+  [service operation arguments]
+  {:service service
+   :operation operation
+   :arguments arguments})
+
+(defn initial-state
+  []
+  {:scripts/by-id {}
+   :scripts/order []
+   :scripts/proposals {}})
+
+(defn save-draft
+  [state script]
+  (let [script-id (get script :script/id)
+        root (get script :script/root)]
+    (if (nil? script-id)
+      {:ok false :state state :error :userscripts/script-invalid}
+      (if (nil? root)
+        {:ok false :state state :error :userscripts/script-invalid}
+        {:ok true
+         :state
+         (assoc
+          (assoc state
+                 :scripts/by-id
+                 (assoc (get state :scripts/by-id) script-id script))
+          :scripts/order
+          (conj (get state :scripts/order) script-id))
+         :call
+         (app-call
+          "tahto.semantic"
+          "transact"
+          [{:collection "userscripts/drafts"
+            :put {script-id script}}])}))))
+
+(defn propose-enable
+  [state proposal-id script-id match-pattern]
+  (let [script (get (get state :scripts/by-id) script-id)]
+    (if (nil? script)
+      {:ok false :state state :error :userscripts/script-not-found}
+      {:ok true
+       :state
+       (assoc state
+              :scripts/proposals
+              (assoc (get state :scripts/proposals)
+                     proposal-id script-id))
+       :call
+       (app-call
+        "hestia.control"
+        "propose"
+        [{:intent/protocol "hestia.control-intent/1"
+          :intent/id proposal-id
+          :intent/application "userscripts"
+          :intent/action :userscript/enable
+          :intent/subject-root (get script :script/root)
+          :intent/capabilities [:userscripts/manage]
+          :intent/arguments
+          {:script/id script-id
+           :match match-pattern}}])})))
+
+(defn execute-approved
+  [state proposal-id]
+  (if (nil? (get (get state :scripts/proposals) proposal-id))
+    {:ok false :state state :error :userscripts/proposal-not-found}
+    {:ok true
+     :state state
+     :call
+     (app-call
+      "hestia.control"
+      "execute"
+      [{:proposal/id proposal-id}])}))
+
+(defn view
+  [state]
+  {:view/type :column
+   :view/title "Userscripts"
+   :view/items
+   (vec
+    (map
+     (fn [script-id]
+       (let [script (get (get state :scripts/by-id) script-id)]
+         {:item/id script-id
+          :item/title (get script :script/title)
+          :item/root (get script :script/root)}))
+     (get state :scripts/order)))})
+
+(defn main
+  [state event]
+  (let [kind (get event :event/type)]
+    (if (= :userscript/draft-save kind)
+      (save-draft state (get event :event/script))
+      (if (= :userscript/enable-propose kind)
+        (propose-enable
+         state
+         (get event :event/proposal-id)
+         (get event :event/script-id)
+         (get event :event/match))
+        (if (= :userscript/execute-approved kind)
+          (execute-approved state (get event :event/proposal-id))
+          {:ok false
+           :state state
+           :error :userscripts/event-unsupported})))))

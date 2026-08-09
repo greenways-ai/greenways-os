@@ -58,6 +58,7 @@ const CLIENT_POLICY = Object.freeze({
       "chats/capture",
       "chats/remove",
       "chats/set-capture",
+      "applications/call",
     ]),
     dispatches: new Set([
       "apps/install",
@@ -368,6 +369,7 @@ export class BrowserKernelHost {
     devtools,
     userscripts,
     chats,
+    applicationServices,
     now = () => new Date(),
   }) {
     if (typeof invoke !== "function") throw new TypeError("Kernel host requires a Hara invoker");
@@ -386,6 +388,9 @@ export class BrowserKernelHost {
     if (chats !== undefined && typeof chats?.call !== "function") {
       throw new TypeError("Kernel host Chats runtime must expose call()");
     }
+    if (applicationServices !== undefined && typeof applicationServices?.call !== "function") {
+      throw new TypeError("Kernel host application services must expose call()");
+    }
     this.invoke = invoke;
     this.devtools = devtools ?? Object.freeze({
       async call() {
@@ -400,6 +405,11 @@ export class BrowserKernelHost {
     this.chats = chats ?? Object.freeze({
       async call() {
         throw errorWithCode("Chats runtime is unavailable", "CHATS_UNAVAILABLE");
+      },
+    });
+    this.applicationServices = applicationServices ?? Object.freeze({
+      async call() {
+        throw errorWithCode("Application services are unavailable", "APPLICATION_SERVICES_UNAVAILABLE");
       },
     });
     this.repository = repository;
@@ -609,6 +619,29 @@ export class BrowserKernelHost {
     if (!policy.calls.has(method)) throw errorWithCode(`Kernel call is not available to ${principal.kind}: ${method}`, "METHOD_DENIED");
     boundedJson(args, "Kernel call arguments");
     return this.enqueue(async () => {
+      if (method === "applications/call") {
+        if (args.length !== 1) {
+          throw errorWithCode("Application call requires one service request", "INVALID_REQUEST");
+        }
+        const [global, context] = await Promise.all([
+          this.globalState(),
+          this.contextState(principal),
+        ]);
+        const state = await this.compose(global, context);
+        const appId = state.apps?.active;
+        const approved = global.installed.find((manifest) => manifest.id === appId);
+        if (!approved?.project || !sameManifestApproval(approved, getAppManifest(appId))) {
+          throw errorWithCode("No approved HAL application is active", "APP_NOT_ACTIVE");
+        }
+        return {
+          ok: true,
+          protocol: KERNEL_PROTOCOL,
+          value: await this.applicationServices.call(appId, args[0], {
+            installed: global.installed,
+            grants: global.grants ?? [],
+          }),
+        };
+      }
       let invokeArgs = args;
       let authority = null;
       if (STATEFUL_CALLS.has(method)) {

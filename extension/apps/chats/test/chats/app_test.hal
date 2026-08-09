@@ -1,0 +1,43 @@
+(ns chats.app-test
+  (:require [std.foundation :refer :all]
+            [std.lib.test :as test]
+            [chats.app :as app]))
+
+(def captured
+  (app/main
+   (app/initial-state)
+   {:event/type :chat/capture
+    :event/chat
+    {:chat/id "chat-1"
+     :chat/root "sha256:chat"
+     :chat/title "Architecture"}}))
+
+(def shared
+  (app/main
+   (get captured :state)
+   {:event/type :chat/share-propose
+    :event/proposal-id "share-1"
+    :event/chat-id "chat-1"
+    :event/recipients ["person/bob"]}))
+
+(test/print-results
+ [(test/check
+   "local capture is an inert Tahto semantic transaction"
+   [(get-in captured [:call :service])
+    (get-in captured [:call :operation])
+    (get-in captured [:call :arguments 0 :collection])]
+   ["tahto.semantic" "transact" "chats"])
+
+  (test/check
+   "sharing is an exact-root Hestia proposal"
+   [(get-in shared [:call :service])
+    (get-in shared [:call :operation])
+    (get-in shared [:call :arguments 0 :intent/subject-root])
+    (get-in shared [:call :arguments 0 :intent/capabilities])]
+   ["hestia.control" "propose" "sha256:chat" [:network/share]])
+
+  (test/check
+   "the HAL app returns a bounded declarative view"
+   [(get-in (app/view (get captured :state)) [:view/type])
+    (count (get-in (app/view (get captured :state)) [:view/items]))]
+   [:column 1])])

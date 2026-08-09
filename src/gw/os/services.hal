@@ -96,6 +96,9 @@
   [{"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hara/evaluate" "service" "kernel" "risk" "medium" "grantable" false "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hara/module" "service" "kernel" "risk" "high" "grantable" false "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hestia/connect" "service" "connectors" "risk" "high" "grantable" false "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hestia/propose" "service" "work" "risk" "high" "grantable" true "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hestia/approve" "service" "work" "risk" "critical" "grantable" true "trustedPublishers" []}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "hestia/execute" "service" "work" "risk" "critical" "grantable" true "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "historia/import" "service" "connectors" "risk" "medium" "grantable" false "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "chats/capture" "service" "surfaces" "risk" "critical" "grantable" true "trustedPublishers" ["greenways-ai"]}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "identity/local" "service" "identity" "risk" "high" "grantable" false "trustedPublishers" ["greenways-ai"]}

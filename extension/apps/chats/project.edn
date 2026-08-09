@@ -1,0 +1,26 @@
+{:hara/type :project
+ :hara/version "1.0.0"
+ :project/id greenways-ai/chats
+ :project/version "0.3.0"
+ :project/source-paths ["src"]
+ :project/test-paths ["test"]
+ :project/extension-paths []
+ :project/dependencies {}
+ :project/capabilities
+ #{:hara/module
+   :storage/local
+   :chats/capture
+   :tahto/read
+   :tahto/write
+   :hestia/propose
+   :hestia/execute}
+ :project/main chats.app/main
+ :project/application
+ {:application/publisher-name "Greenways AI"
+  :application/name "Chats"
+  :application/description
+  "Privately capture and organise conversations, with sharing and agent work controlled by Hestia."
+  :application/category :installable
+  :application/launch
+  {:launch/handler :packaged-surface
+   :launch/surface-id :chats}}}

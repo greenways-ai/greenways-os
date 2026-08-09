@@ -50,11 +50,21 @@ test("publishes the ordinary apps beside fixed Kernel DevTools", () => {
   assert.ok(BUILTIN_APP_CATALOG.every(({ publisher }) => Object.isFrozen(publisher)));
 });
 
-test("Chats is a browser-first packaged app", () => {
+test("Chats is derived from its HAL project and keeps its packaged surface", () => {
   const chats = getAppManifest("chats");
   assert.deepEqual(chats.launch, { handler: "packaged-surface", surfaceId: "chats" });
   assert.equal(chats.requirement, undefined);
-  assert.deepEqual(chats.capabilities, ["chats/capture", "storage/local"]);
+  assert.deepEqual(chats.capabilities, [
+    "hara/module",
+    "storage/local",
+    "chats/capture",
+    "tahto/read",
+    "tahto/write",
+    "hestia/propose",
+    "hestia/execute",
+  ]);
+  assert.equal(chats.project.coordinate, "greenways-ai/chats");
+  assert.match(chats.project.digest, /^sha256:[a-f0-9]{64}$/);
 });
 
 test("resolves only normalized catalog launches", () => {

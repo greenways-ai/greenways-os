@@ -1,0 +1,82 @@
+(ns chats.app
+  (:require [std.foundation :refer :all]))
+
+(defn app-call
+  [service operation arguments]
+  {:service service
+   :operation operation
+   :arguments arguments})
+
+(defn initial-state
+  []
+  {:chats/by-id {}
+   :chats/order []})
+
+(defn capture-chat
+  [state chat]
+  (let [chat-id (get chat :chat/id)
+        root (get chat :chat/root)]
+    (if (nil? chat-id)
+      {:ok false :state state :error :chats/chat-invalid}
+      (if (nil? root)
+        {:ok false :state state :error :chats/chat-invalid}
+        {:ok true
+         :state
+         (assoc
+          (assoc state
+                 :chats/by-id
+                 (assoc (get state :chats/by-id) chat-id chat))
+          :chats/order
+          (conj (get state :chats/order) chat-id))
+         :call
+         (app-call
+          "tahto.semantic"
+          "transact"
+          [{:collection "chats"
+            :put {chat-id chat}}])}))))
+
+(defn propose-chat-share
+  [state proposal-id chat-id recipients]
+  (let [chat (get (get state :chats/by-id) chat-id)]
+    (if (nil? chat)
+      {:ok false :state state :error :chats/chat-not-found}
+      {:ok true
+       :state state
+       :call
+       (app-call
+        "hestia.control"
+        "propose"
+        [{:intent/protocol "hestia.control-intent/1"
+          :intent/id proposal-id
+          :intent/application "chats"
+          :intent/action :chat/share
+          :intent/subject-root (get chat :chat/root)
+          :intent/capabilities [:network/share]
+          :intent/arguments {:recipients recipients}}])})))
+
+(defn view
+  [state]
+  {:view/type :column
+   :view/title "Chats"
+   :view/items
+   (vec
+    (map
+     (fn [chat-id]
+       (let [chat (get (get state :chats/by-id) chat-id)]
+         {:item/id chat-id
+          :item/title (get chat :chat/title)
+          :item/root (get chat :chat/root)}))
+     (get state :chats/order)))})
+
+(defn main
+  [state event]
+  (let [kind (get event :event/type)]
+    (if (= :chat/capture kind)
+      (capture-chat state (get event :event/chat))
+      (if (= :chat/share-propose kind)
+        (propose-chat-share
+         state
+         (get event :event/proposal-id)
+         (get event :event/chat-id)
+         (get event :event/recipients))
+        {:ok false :state state :error :chats/event-unsupported}))))

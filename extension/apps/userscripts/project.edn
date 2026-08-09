@@ -1,0 +1,27 @@
+{:hara/type :project
+ :hara/version "1.0.0"
+ :project/id greenways-ai/userscripts
+ :project/version "0.2.0"
+ :project/source-paths ["src"]
+ :project/test-paths ["test"]
+ :project/extension-paths []
+ :project/dependencies {}
+ :project/capabilities
+ #{:hara/module
+   :storage/local
+   :userscripts/manage
+   :tahto/read
+   :tahto/write
+   :hestia/propose
+   :hestia/approve
+   :hestia/execute}
+ :project/main userscripts.app/main
+ :project/application
+ {:application/publisher-name "Greenways AI"
+  :application/name "Userscripts"
+  :application/description
+  "Author portable browser automations whose installation and execution are controlled by Hestia."
+  :application/category :installable
+  :application/launch
+  {:launch/handler :packaged-surface
+   :launch/surface-id :userscripts}}}

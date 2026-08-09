@@ -1,4 +1,7 @@
 import { APP_CAPABILITIES } from "./core-services.js";
+import { applicationDescriptorWithDigest } from "./project-app.js";
+import chatsProject from "../apps/chats/project.edn";
+import userscriptsProject from "../apps/userscripts/project.edn";
 
 const IDENTIFIER = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SEMANTIC_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
@@ -72,7 +75,7 @@ const FORBIDDEN_CODE_FIELD = /^(?:remote[-_])?(?:executable|module|source|script
 const MANIFEST_KEYS = new Set([
   "protocol", "id", "version", "publisher", "name", "description",
   "category", "capabilities", "launch", "requirement",
-  "kind", "channel", "lockDigest", "source",
+  "kind", "channel", "lockDigest", "source", "project",
 ]);
 const PUBLISHER_KEYS = new Set(["id", "name"]);
 const LAUNCH_KEYS = Object.freeze({
@@ -83,6 +86,7 @@ const LAUNCH_KEYS = Object.freeze({
   "hal-module": new Set(["handler"]),
 });
 const REQUIREMENT_KEYS = new Set(["kind", "id", "name", "description"]);
+const PROJECT_KEYS = new Set(["coordinate", "main", "digest"]);
 const MODULE_SOURCE_KEYS = Object.freeze({
   registry: new Set(["kind", "registry", "coordinate"]),
   github: new Set(["kind", "owner", "repo", "sha"]),
@@ -211,6 +215,25 @@ function normalizeRequirement(value, label) {
   });
 }
 
+function normalizeProject(value, label) {
+  if (value === undefined) return null;
+  const input = plainObject(value, label);
+  assertKeys(input, PROJECT_KEYS, label);
+  const coordinate = nonEmptyString(input.coordinate, `${label}.coordinate`, 160);
+  if (!/^[a-z0-9]+(?:[.-][a-z0-9]+)*\/[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(coordinate)) {
+    throw new Error(`${label}.coordinate is invalid`);
+  }
+  const main = nonEmptyString(input.main, `${label}.main`, 160);
+  if (!/^[a-z][a-z0-9.-]*\/[a-zA-Z*+!_?<>=$%&.-][a-zA-Z0-9*+!_?<>=$%&.-]*$/.test(main)) {
+    throw new Error(`${label}.main must be a qualified HAL var`);
+  }
+  return Object.freeze({
+    coordinate,
+    main,
+    digest: sha256Digest(input.digest, `${label}.digest`),
+  });
+}
+
 function normalizeCapabilities(value, label) {
   if (!Array.isArray(value)) throw new TypeError(`${label} must be an array`);
   const capabilities = value.map((entry, index) => nonEmptyString(entry, `${label}[${index}]`, 80));
@@ -318,6 +341,7 @@ export function normalizeAppDescriptor(value, label = "app manifest") {
   }
   const capabilities = normalizeCapabilities(input.capabilities, `${label}.capabilities`);
   const launch = normalizeLaunch(input.launch, `${label}.launch`);
+  const project = normalizeProject(input.project, `${label}.project`);
   const requirement = input.requirement === undefined
     ? null
     : normalizeRequirement(input.requirement, `${label}.requirement`);
@@ -384,6 +408,7 @@ export function normalizeAppDescriptor(value, label = "app manifest") {
     capabilities,
     launch,
   };
+  if (project) output.project = project;
   if (requirement) output.requirement = requirement;
   if (moduleMetadata) Object.assign(output, moduleMetadata);
   return Object.freeze(output);
@@ -413,28 +438,8 @@ const BUILTIN_DESCRIPTORS = [
     capabilities: ["network/github", "worlds/browse"],
     launch: { handler: "extension-page", path: "src/world.html" },
   },
-  {
-    protocol: APP_MANIFEST_PROTOCOL,
-    id: "chats",
-    version: "0.2.0",
-    publisher: { id: "greenways-ai", name: "Greenways AI" },
-    name: "Chats",
-    description: "Privately import, capture, search, and revisit your AI conversations in this browser.",
-    category: "installable",
-    capabilities: ["chats/capture", "storage/local"],
-    launch: { handler: "packaged-surface", surfaceId: "chats" },
-  },
-  {
-    protocol: APP_MANIFEST_PROTOCOL,
-    id: "userscripts",
-    version: "0.1.0",
-    publisher: { id: "greenways-ai", name: "Greenways AI" },
-    name: "Userscripts",
-    description: "Run your own JavaScript in matching web pages, with durable local records and an isolated script world.",
-    category: "installable",
-    capabilities: ["userscripts/manage", "storage/local"],
-    launch: { handler: "packaged-surface", surfaceId: "userscripts" },
-  },
+  await applicationDescriptorWithDigest(chatsProject),
+  await applicationDescriptorWithDigest(userscriptsProject),
   {
     protocol: APP_MANIFEST_PROTOCOL,
     id: "hara-playground",

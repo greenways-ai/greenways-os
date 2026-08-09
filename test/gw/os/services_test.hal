@@ -15,4 +15,18 @@
      ["tahto/connect" "tahto/read" "tahto/write"]))
    [["connectors" "high" true]
     ["connectors" "medium" true]
-    ["connectors" "critical" true]])])
+    ["connectors" "critical" true]])
+
+  (test/check
+   "Hestia control authority is split across proposal, approval and execution"
+   (vec
+    (map
+     (fn [id]
+       (let [definition (services/capability-definition id)]
+         [(get definition "service")
+          (get definition "risk")
+          (get definition "grantable")]))
+     ["hestia/propose" "hestia/approve" "hestia/execute"]))
+   [["work" "high" true]
+    ["work" "critical" true]
+    ["work" "critical" true]])])

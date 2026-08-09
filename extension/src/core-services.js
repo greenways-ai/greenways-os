@@ -58,6 +58,18 @@ export const CAPABILITY_DEFINITIONS = Object.freeze([
   capability("hara/evaluate", "kernel", "medium"),
   capability("hara/module", "kernel", "high"),
   capability("hestia/connect", "connectors", "high"),
+  capability("hestia/propose", "work", "high", {
+    grantable: true,
+    description: "Submit an exact-root consequential intent to the Hestia controller.",
+  }),
+  capability("hestia/approve", "work", "critical", {
+    grantable: true,
+    description: "Approve an exact Hestia proposal under the current application mandate.",
+  }),
+  capability("hestia/execute", "work", "critical", {
+    grantable: true,
+    description: "Execute an approved Hestia proposal through the supervised work service.",
+  }),
   capability("historia/import", "connectors", "medium"),
   capability("chats/capture", "surfaces", "critical", {
     grantable: true,
