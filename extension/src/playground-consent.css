@@ -1,0 +1,87 @@
+.playground-consent-shell {
+  width: min(100%, 920px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 30px) 30px;
+  color: var(--gw-text);
+}
+
+.playground-consent-header,
+.playground-consent-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--gw-line);
+}
+
+.playground-consent-header { min-height: 82px; }
+.playground-consent-header > div { display: flex; align-items: center; gap: 12px; }
+.playground-consent-header > div > span:last-child { display: grid; gap: 3px; }
+.playground-consent-header strong { font: 400 15px/1 var(--gw-font-display); }
+.playground-consent-header small,
+.playground-consent-footer { color: var(--gw-text-muted); font: 700 8px/1.3 var(--gw-font-mono); letter-spacing: .1em; }
+.playground-consent-header a { color: var(--gw-text); font: 700 9px/1 var(--gw-font-mono); text-decoration: none; }
+.consent-mark { width: 42px; height: 42px; display: grid; place-items: center; color: var(--gw-canvas); background: var(--gw-verdigris); border-radius: 10px; font: 800 11px/1 var(--gw-font-mono); }
+
+.playground-consent-main { display: grid; gap: 14px; padding: 48px 0; }
+.consent-hero { padding: 18px 0 28px; }
+.consent-hero > p:first-child,
+.consent-card header p { margin: 0; color: var(--gw-gold); font: 700 9px/1.3 var(--gw-font-mono); letter-spacing: .14em; }
+.consent-hero h1 { margin: 18px 0; font: 400 clamp(44px, 9vw, 76px)/.92 var(--gw-font-display); letter-spacing: -.055em; }
+.consent-hero h1 em { color: var(--gw-verdigris); font-weight: 400; }
+.consent-hero > p:not(:first-child) { max-width: 650px; color: var(--gw-text-muted); font-size: 13px; line-height: 1.7; }
+
+.consent-state { display: grid; grid-template-columns: 8px auto 1fr; align-items: center; gap: 10px; margin-top: 26px; padding: 13px 14px; background: var(--gw-surface); border: 1px solid var(--gw-line); border-radius: 10px; }
+.consent-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--gw-text-muted); }
+.consent-state[data-tone="good"] i { background: var(--gw-verdigris); }
+.consent-state[data-tone="warn"] i { background: var(--gw-gold); }
+.consent-state strong { font: 700 10px/1 var(--gw-font-mono); }
+.consent-state span { color: var(--gw-text-muted); font-size: 11px; }
+
+.consent-card { padding: 18px; background: var(--gw-surface); border: 1px solid var(--gw-line); border-radius: 12px; box-shadow: var(--gw-shadow-soft); }
+.consent-card > header { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--gw-line); }
+.consent-card h2 { margin: 6px 0 0; font: 400 28px/1 var(--gw-font-display); }
+.consent-card header > span { color: var(--gw-text-muted); font: 650 8px/1.3 var(--gw-font-mono); }
+
+.consent-capability { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 0; }
+.consent-capability > div { display: grid; gap: 5px; }
+.consent-capability strong { font: 700 12px/1 var(--gw-font-mono); }
+.consent-capability span { color: var(--gw-text-muted); font-size: 11px; }
+.consent-primary,
+.consent-secondary,
+.consent-profile button { min-height: 36px; padding: 9px 13px; border: 1px solid var(--gw-line-strong); border-radius: 8px; color: var(--gw-text); background: var(--gw-control-bg); font: 700 9px/1 var(--gw-font-mono); }
+.consent-primary { color: var(--gw-canvas); background: var(--gw-verdigris); border-color: var(--gw-verdigris); }
+.consent-boundaries { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 18px; margin: 0; padding: 13px 0 0; color: var(--gw-text-muted); border-top: 1px solid var(--gw-line); font-size: 10px; }
+
+.consent-profiles { display: grid; gap: 8px; padding: 15px 0; }
+.consent-profile { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 10px; background: var(--gw-surface-muted); border: 1px solid var(--gw-line); border-radius: 9px; }
+.consent-profile__mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--gw-line-strong); border-radius: 8px; color: var(--gw-verdigris); font: 700 11px/1 var(--gw-font-mono); }
+.consent-profile > div { display: grid; gap: 4px; }
+.consent-profile strong { font-size: 11px; }
+.consent-profile small { color: var(--gw-text-muted); font: 600 8px/1.3 var(--gw-font-mono); }
+.consent-profile button { min-height: 30px; padding: 7px 9px; }
+.consent-empty { color: var(--gw-text-muted); font-size: 11px; }
+
+.consent-provider-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 14px; border-top: 1px solid var(--gw-line); }
+.consent-provider-form label { display: grid; gap: 6px; color: var(--gw-text-muted); font: 700 8px/1 var(--gw-font-mono); letter-spacing: .07em; text-transform: uppercase; }
+.consent-provider-form input,
+.consent-provider-form select { min-height: 40px; padding: 9px 11px; color: var(--gw-text); background: var(--gw-control-bg); border: 1px solid var(--gw-line-strong); border-radius: 8px; font: 500 11px/1.2 var(--gw-font-sans); }
+.consent-secret { grid-column: 1 / -1; }
+.consent-provider-form button { justify-self: start; }
+.consent-notice { margin: 0; padding: 12px 14px; color: var(--gw-text-muted); background: var(--gw-surface); border: 1px solid var(--gw-line); border-radius: 9px; font-size: 11px; }
+.consent-notice[data-tone="good"] { border-color: color-mix(in srgb, var(--gw-verdigris) 45%, var(--gw-line)); }
+.consent-notice[data-tone="error"] { border-color: #a53c47; }
+.playground-consent-footer { min-height: 54px; border-top: 1px solid var(--gw-line); border-bottom: 0; }
+
+@media (max-width: 640px) {
+  .playground-consent-header { align-items: flex-start; padding: 18px 0; }
+  .playground-consent-header a { margin-top: 10px; }
+  .consent-card > header,
+  .consent-capability { align-items: flex-start; flex-direction: column; }
+  .consent-boundaries,
+  .consent-provider-form { grid-template-columns: 1fr; }
+  .consent-secret { grid-column: auto; }
+  .consent-state { grid-template-columns: 8px 1fr; }
+  .consent-state span { grid-column: 2; }
+}
