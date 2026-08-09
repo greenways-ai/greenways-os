@@ -474,12 +474,12 @@ const BUILTIN_DESCRIPTORS = [
   {
     protocol: APP_MANIFEST_PROTOCOL,
     id: "hara-playground",
-    version: "0.1.0",
+    version: "0.2.0",
     publisher: { id: "hara-lang", name: "Hara Lang" },
     name: "Hara Playground",
     description: "Open the browser-native Hara playground in a separate web tab.",
     category: "installable",
-    capabilities: ["hara/evaluate", "tabs/open"],
+    capabilities: ["hara/evaluate", "model/generate", "tabs/open"],
     launch: { handler: "web-tab", url: "https://playground.hara-lang.org/" },
   },
 ];
