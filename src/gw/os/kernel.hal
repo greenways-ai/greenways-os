@@ -17,42 +17,36 @@
   ["system" "installable"])
 
 (def SYSTEM-APP-IDS
-  ["greenways-home" "greenways-worlds"])
+  ["greenways-worlds"])
 
 (def SYSTEM-APP-PUBLISHER-ID
   "greenways-ai")
 
 (def SYSTEM-APP-PATHS
-  {"greenways-home" "src/studio.html#home"
-   "greenways-worlds" "src/world.html"})
+  {"greenways-worlds" "src/world.html"})
 
 (def SYSTEM-APP-CAPABILITIES
-  {"greenways-home" ["identity/local" "storage/local"]
-   "greenways-worlds" ["network/github" "worlds/browse"]})
+  {"greenways-worlds" ["network/github" "worlds/browse"]})
 
 (def PACKAGED-SURFACES
-  ["hestia-connector"])
+  ["chats" "userscripts"])
+
+(def PACKAGED-SURFACE-PUBLISHERS
+  {"chats" "greenways-ai"
+   "userscripts" "greenways-ai"})
+
+(def PACKAGED-SURFACE-CAPABILITIES
+  {"chats" ["chats/capture" "storage/local"]
+   "userscripts" ["userscripts/manage" "storage/local"]})
 
 (def PACKAGED-TAB-LAUNCHES
-  {"historia" {"handler" "native-hybrid" "url" "http://127.0.0.1:4319/"}
-   "hara-playground" {"handler" "web-tab" "url" "https://playground.hara-lang.org/"}})
+  {})
 
 (def PACKAGED-TAB-PUBLISHERS
-  {"historia" "greenways-ai"
-   "hara-playground" "hara-lang"})
+  {})
 
 (def PACKAGED-TAB-CAPABILITIES
-  {"historia" ["historia/import" "network/loopback" "tabs/open"]
-   "hara-playground" ["hara/evaluate" "tabs/open"]})
-
-(def HESTIA-CONNECTOR-APP-ID
-  "hestia-connector")
-
-(def HESTIA-CONNECTOR-PUBLISHER-ID
-  "greenways-ai")
-
-(def HESTIA-CONNECTOR-CAPABILITIES
-  ["hestia/connect" "network/https" "network/loopback" "storage/local"])
+  {})
 
 (def KERNEL-CONTEXT-PROTOCOL
   "greenways-kernel-context/1")
@@ -144,13 +138,13 @@
            (not (value-present? PACKAGED-SURFACES surface-id)))
       (throw "Packaged app surface is not installed")
       (and (= handler "packaged-surface")
-           (not (= app-id HESTIA-CONNECTOR-APP-ID)))
+           (not (= app-id surface-id)))
       (throw "Packaged app surface does not match the app id")
       (and (= handler "packaged-surface")
-           (not (= publisher-id HESTIA-CONNECTOR-PUBLISHER-ID)))
+           (not (= publisher-id (get PACKAGED-SURFACE-PUBLISHERS app-id))))
       (throw "Packaged app surface publisher is not trusted")
       (and (= handler "packaged-surface")
-           (not (exact-values? HESTIA-CONNECTOR-CAPABILITIES capabilities)))
+           (not (exact-values? (get PACKAGED-SURFACE-CAPABILITIES app-id) capabilities)))
       (throw "Packaged app surface capabilities are not bound to its id")
       (and (= handler "hal-module") (not (= category "installable")))
       (throw "HAL modules must be installable apps")

@@ -69,8 +69,8 @@ function recordingStores(initial = new Map()) {
   return { calls, values, tx };
 }
 
-test("database v6 adds durable userscripts without removing existing stores", () => {
-  assert.equal(DATABASE_VERSION, 6);
+test("database v7 adds durable chats and fabric state without removing existing stores", () => {
+  assert.equal(DATABASE_VERSION, 7);
   assert.deepEqual(DATABASE_STORES, [
     "settings",
     "identity",
@@ -83,6 +83,8 @@ test("database v6 adds durable userscripts without removing existing stores", ()
     "grants",
     "kernel",
     "userscripts",
+    "chats",
+    "fabric",
   ]);
 });
 

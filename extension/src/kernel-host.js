@@ -16,6 +16,10 @@ import {
   USERSCRIPTS_CAPABILITY,
 } from "./userscripts-runtime.js";
 import {
+  CHATS_APP_ID,
+  CHATS_CAPABILITY,
+} from "./chats-runtime.js";
+import {
   kernelStore,
   store,
 } from "./storage.js";
@@ -29,6 +33,7 @@ const REQUEST_ID = /^[a-z0-9][a-z0-9._:/-]{15,127}$/i;
 const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const MAX_RECEIPTS = 128;
 const SYSTEM_IDS = new Set(SYSTEM_APP_IDS);
+const RETIRED_APP_IDS = new Set(["greenways-home", "hestia-connector", "hara-playground", "historia"]);
 const NON_REPLAYABLE_EFFECTS = new Set([
   "browser/open-app",
   "export/studio-project",
@@ -46,6 +51,13 @@ const CLIENT_POLICY = Object.freeze({
       "userscripts/save",
       "userscripts/remove",
       "userscripts/set-enabled",
+      "chats/status",
+      "chats/list",
+      "chats/search",
+      "chats/import",
+      "chats/capture",
+      "chats/remove",
+      "chats/set-capture",
     ]),
     dispatches: new Set([
       "apps/install",
@@ -303,6 +315,22 @@ function validateGlobal(value) {
   return { ...value, installed, grants };
 }
 
+function migrateInstalledApprovals(values) {
+  const input = Array.isArray(values) ? values : [];
+  const hadHistoria = input.some((candidate) => candidate?.id === "historia");
+  const output = input.filter((candidate) => !RETIRED_APP_IDS.has(candidate?.id));
+  if (hadHistoria && !output.some(({ id }) => id === CHATS_APP_ID)) output.push(getAppManifest(CHATS_APP_ID));
+  return output;
+}
+
+function revokeRetiredGrants(values, revokedAt) {
+  return (Array.isArray(values) ? values : []).map((grant) => (
+    RETIRED_APP_IDS.has(grant?.subject?.appId) && !grant.revokedAt
+      ? { ...grant, revokedAt: grant.issuedAt > revokedAt ? grant.issuedAt : revokedAt }
+      : grant
+  ));
+}
+
 function validateContext(value, principal) {
   plainObject(value, "Kernel context state");
   if (value.protocol !== KERNEL_CONTEXT_RECORD_PROTOCOL
@@ -339,6 +367,7 @@ export class BrowserKernelHost {
     tabs = globalThis.chrome?.tabs,
     devtools,
     userscripts,
+    chats,
     now = () => new Date(),
   }) {
     if (typeof invoke !== "function") throw new TypeError("Kernel host requires a Hara invoker");
@@ -354,6 +383,9 @@ export class BrowserKernelHost {
     if (userscripts !== undefined && typeof userscripts?.call !== "function") {
       throw new TypeError("Kernel host userscripts runtime must expose call()");
     }
+    if (chats !== undefined && typeof chats?.call !== "function") {
+      throw new TypeError("Kernel host Chats runtime must expose call()");
+    }
     this.invoke = invoke;
     this.devtools = devtools ?? Object.freeze({
       async call() {
@@ -363,6 +395,11 @@ export class BrowserKernelHost {
     this.userscripts = userscripts ?? Object.freeze({
       async call() {
         throw errorWithCode("Userscripts runtime is unavailable", "USERSCRIPTS_UNAVAILABLE");
+      },
+    });
+    this.chats = chats ?? Object.freeze({
+      async call() {
+        throw errorWithCode("Chats runtime is unavailable", "CHATS_UNAVAILABLE");
       },
     });
     this.repository = repository;
@@ -386,6 +423,7 @@ export class BrowserKernelHost {
     const optional = [];
     const seen = new Set(SYSTEM_APP_IDS);
     for (const candidate of stored) {
+      if (RETIRED_APP_IDS.has(candidate?.id)) continue;
       try {
         const manifest = validateAppManifest(candidate);
         if (SYSTEM_IDS.has(manifest.id) || seen.has(manifest.id)) continue;
@@ -400,6 +438,9 @@ export class BrowserKernelHost {
       ...BUILTIN_APPS.filter(({ id }) => SYSTEM_IDS.has(id)),
       ...optional,
     ];
+    if (stored.some(({ id } = {}) => id === "historia") && !installed.some(({ id }) => id === CHATS_APP_ID)) {
+      installed.push(getAppManifest(CHATS_APP_ID));
+    }
     const initial = await this.invoke("app/bootstrap", []);
     const restored = await this.invoke("apps/restore", [initial, installed]);
     return restored.state.apps.installed;
@@ -408,13 +449,22 @@ export class BrowserKernelHost {
   async globalState() {
     const stored = await this.repository.get("kernel", "global");
     if (stored) {
-      const global = validateGlobal(stored);
+      const needsRetiredMigration = stored.installed?.some((candidate) => RETIRED_APP_IDS.has(candidate?.id))
+        || stored.grants?.some((grant) => RETIRED_APP_IDS.has(grant?.subject?.appId) && !grant.revokedAt);
+      const migrationTime = needsRetiredMigration ? this.now().toISOString() : stored.updatedAt;
+      const global = validateGlobal({
+        ...stored,
+        installed: migrateInstalledApprovals(stored.installed),
+        grants: revokeRetiredGrants(stored.grants, migrationTime),
+      });
       const installed = [
         ...BUILTIN_APPS.filter(({ id }) => SYSTEM_IDS.has(id)),
         ...global.installed.filter(({ id }) => !SYSTEM_IDS.has(id)),
       ];
       const projectionUpgrade = stored.grants === undefined;
-      if (!manifestsEqual(global.installed, installed) || projectionUpgrade) {
+      const migrated = !manifestsEqual(stored.installed, installed)
+        || !manifestsEqual(stored.grants ?? [], global.grants);
+      if (!manifestsEqual(global.installed, installed) || projectionUpgrade || migrated) {
         const upgraded = {
           ...global,
           installed,
@@ -463,6 +513,22 @@ export class BrowserKernelHost {
         "CAPABILITY_DENIED",
       );
     }
+  }
+
+  async assertChatsAuthority() {
+    const global = await this.globalState();
+    const installed = global.installed ?? [];
+    const manifest = installed.find(({ id }) => id === CHATS_APP_ID);
+    if (!manifest) throw errorWithCode("The Chats app is not installed", "APP_NOT_INSTALLED");
+    await this.capabilityAuthority.assert({ appId: CHATS_APP_ID, capability: CHATS_CAPABILITY }, { installed });
+    if (!activeCapabilityGrant(global.grants ?? [], manifest, CHATS_CAPABILITY, { now: this.now })) {
+      throw errorWithCode("Chat capture requires an active chats/capture grant", "CAPABILITY_DENIED");
+    }
+  }
+
+  async captureChatObservation(observation) {
+    await this.assertChatsAuthority();
+    return this.chats.capture(observation);
   }
 
   async initialCheckpoint() {
@@ -578,6 +644,8 @@ export class BrowserKernelHost {
           ? await this.devtools.call(method, invokeArgs)
           : method.startsWith("userscripts/")
             ? await this.userscripts.call(method, invokeArgs)
+            : method.startsWith("chats/")
+              ? await this.chats.call(method, invokeArgs)
             : await this.invoke(method, invokeArgs),
       };
       if (authority) response.authority = authority;

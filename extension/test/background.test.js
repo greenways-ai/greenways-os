@@ -19,14 +19,14 @@ const senderFor = (path, documentId = `document:${path}`) => ({
 
 test("generic app launches resolve only through the fixed bundled catalog", () => {
   assert.equal(
-    resolveAppUrl("greenways-home", runtime),
-    "chrome-extension://greenways/src/studio.html#home",
+    resolveAppUrl("greenways-worlds", runtime),
+    "chrome-extension://greenways/src/world.html",
   );
-  assert.equal(resolveAppUrl("historia", runtime), "http://127.0.0.1:4319/");
-  assert.equal(resolveAppUrl("hara-playground", runtime), "https://playground.hara-lang.org/");
+  assert.throws(() => resolveAppUrl("historia", runtime), /Unknown Greenways app/);
+  assert.throws(() => resolveAppUrl("hara-playground", runtime), /Unknown Greenways app/);
   assert.throws(() => resolveAppUrl("https://attacker.example", runtime), /lowercase app identifier/);
   assert.throws(() => resolveAppUrl("not-installed", runtime), /Unknown Greenways app/);
-  assert.throws(() => resolveAppUrl("hestia-connector", runtime), /opens inside/);
+  assert.throws(() => resolveAppUrl("chats", runtime), /opens inside/);
 });
 
 test("Chrome 116 message listener responds asynchronously and keeps legacy routes", async () => {
@@ -76,12 +76,12 @@ test("generic routes allow system apps but reject optional apps until installed"
   const handler = createMessageHandler({
     runtime,
     tabs: { create: async ({ url }) => { calls.push(url); return { id: calls.length }; } },
-    isAppInstalled: async (appId) => appId === "hara-playground",
+    isAppInstalled: async (appId) => appId === "chats",
   });
 
   const systemResponse = new Promise((resolve) => {
     assert.equal(handler(
-      { type: "greenways/open-app", appId: "greenways-home" },
+      { type: "greenways/open-app", appId: "greenways-worlds" },
       senderFor("src/launcher.html"),
       resolve,
     ), true);
@@ -90,12 +90,12 @@ test("generic routes allow system apps but reject optional apps until installed"
 
   const installedResponse = new Promise((resolve) => {
     assert.equal(handler(
-      { type: "greenways/open-app", appId: "hara-playground" },
+      { type: "greenways/open-app", appId: "chats" },
       senderFor("src/launcher.html"),
       resolve,
     ), true);
   });
-  assert.equal((await installedResponse).ok, true);
+  assert.match((await installedResponse).error, /opens inside/);
 
   const deniedResponse = new Promise((resolve) => {
     assert.equal(handler(
@@ -104,11 +104,8 @@ test("generic routes allow system apps but reject optional apps until installed"
       resolve,
     ), true);
   });
-  assert.match((await deniedResponse).error, /Historia is not installed/);
-  assert.deepEqual(calls, [
-    "chrome-extension://greenways/src/studio.html#home",
-    "https://playground.hara-lang.org/",
-  ]);
+  assert.match((await deniedResponse).error, /Unknown Greenways app/);
+  assert.deepEqual(calls, ["chrome-extension://greenways/src/world.html"]);
 });
 
 test("default installation checker reads optional apps from the durable apps store", async () => {
@@ -116,25 +113,25 @@ test("default installation checker reads optional apps from the durable apps sto
   const checker = createInstalledAppChecker({
     get: async (storeName, appId) => {
       reads.push([storeName, appId]);
-      return appId === "historia" ? getAppManifest(appId) : undefined;
+      return appId === "chats" ? getAppManifest(appId) : undefined;
     },
   });
 
   assert.equal(await checker("greenways-worlds"), true);
   assert.deepEqual(reads, []);
-  assert.equal(await checker("historia"), true);
-  assert.equal(await checker("hara-playground"), false);
+  assert.equal(await checker("chats"), true);
+  assert.equal(await checker("userscripts"), false);
   assert.deepEqual(reads, [
-    ["apps", "historia"],
-    ["apps", "hara-playground"],
+    ["apps", "chats"],
+    ["apps", "userscripts"],
   ]);
 });
 
 test("legacy optional-app launches require the exact approved manifest", async () => {
   const checker = createInstalledAppChecker({
-    get: async () => ({ ...getAppManifest("historia"), version: "0.0.1" }),
+    get: async () => ({ ...getAppManifest("chats"), version: "0.0.1" }),
   });
-  assert.equal(await checker("historia"), false);
+  assert.equal(await checker("chats"), false);
 });
 
 test("derives kernel roles from exact active packaged documents", async () => {

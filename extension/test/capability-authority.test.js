@@ -63,7 +63,7 @@ function runtimeState(manifest = moduleManifest(), overrides = {}) {
 }
 
 test("accepts an exact bundled approval but not a stale or undeclared one", async () => {
-  const historia = getAppManifest("historia");
+  const historia = getAppManifest("chats");
   const authority = new CapabilityAuthority({
     moduleRepository: repository(null),
     moduleVerification: createVerifiedModuleRuntimeState([]),
@@ -71,7 +71,7 @@ test("accepts an exact bundled approval but not a stale or undeclared one", asyn
 
   const allowed = await authority.check({
     appId: historia.id,
-    capability: "historia/import",
+    capability: "chats/capture",
   }, { installed: [historia] });
   assert.equal(allowed.protocol, CAPABILITY_DECISION_PROTOCOL);
   assert.equal(allowed.allowed, true);
@@ -87,7 +87,7 @@ test("accepts an exact bundled approval but not a stale or undeclared one", asyn
 
   const stale = await authority.check({
     appId: historia.id,
-    capability: "historia/import",
+    capability: "chats/capture",
   }, { installed: [{ ...historia, version: "0.0.1" }] });
   assert.equal(stale.allowed, false);
   assert.equal(stale.reason, "catalog-approval-stale");

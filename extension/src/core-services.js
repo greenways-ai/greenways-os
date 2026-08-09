@@ -59,6 +59,11 @@ export const CAPABILITY_DEFINITIONS = Object.freeze([
   capability("hara/module", "kernel", "high"),
   capability("hestia/connect", "connectors", "high"),
   capability("historia/import", "connectors", "medium"),
+  capability("chats/capture", "surfaces", "critical", {
+    grantable: true,
+    trustedPublishers: ["greenways-ai"],
+    description: "Observe rendered conversations on an explicitly approved AI chat origin.",
+  }),
   capability("identity/local", "identity", "high", { trustedPublishers: ["greenways-ai"] }),
   capability("network/github", "connectors", "medium"),
   capability("network/https", "connectors", "high"),

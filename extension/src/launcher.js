@@ -15,6 +15,7 @@ import { KernelClient } from "./kernel-client.js";
 import { store, withOriginLock } from "./storage.js";
 import { SurfaceHost } from "./surface-host.js";
 import { createUserscriptsSurface } from "./userscripts-surface.js";
+import { createChatsSurface } from "./chats-surface.js";
 import { EffectRuntime } from "./world-session.js";
 
 const appRoot = document.querySelector("#launcher-app");
@@ -40,12 +41,9 @@ function escapeHtml(value) {
 
 function appGlyph(manifest) {
   const glyphs = {
-    "greenways-home": "⌂",
     "greenways-worlds": "◎",
-    historia: "≡",
-    "hestia-connector": "◇",
+    chats: "≡",
     userscripts: "⌁",
-    "hara-playground": "λ",
   };
   return glyphs[manifest.id] || manifest.name.slice(0, 1).toUpperCase();
 }
@@ -429,7 +427,7 @@ async function start() {
   surfaceHost = new SurfaceHost(surfaceRoot, {
     onRequestClose: () => session?.dispatch("surface/close").catch((error) => setStatus(error?.message || "The interface could not close.", "error")),
   });
-  surfaceHost.register("hestia-connector", createHestiaConnectorSurface);
+  surfaceHost.register("chats", createChatsSurface);
   surfaceHost.register("userscripts", createUserscriptsSurface);
   session = new KernelClient({ clientKind: "launcher", effects });
   session.subscribe((haraState) => {
@@ -446,12 +444,6 @@ async function start() {
 
   render();
   await session.start();
-  await withOriginLock(APP_LIFECYCLE_LOCK, async () => {
-    const hestia = await store.get("settings", "hestia");
-    const connectorInstalled = installedManifests().some(({ id }) => id === "hestia-connector");
-    if (hestia && !connectorInstalled) await clearHestiaConnection(hestia);
-    else connectorConnected = Boolean(hestia);
-  });
   kernelReady = true;
   setStatus("Local kernel ready. Network participation is off until you choose it.", "good");
   await handleLaunchIntent();

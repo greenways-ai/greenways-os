@@ -19,14 +19,13 @@ export const RUNTIME_HANDLERS = Object.freeze([
 ]);
 
 export const PACKAGED_SURFACE_IDS = Object.freeze([
-  "hestia-connector",
+  "chats",
   "userscripts",
 ]);
 
 export { APP_CAPABILITIES };
 
 const PACKAGED_EXTENSION_PATHS = new Set([
-  "src/studio.html#home",
   "src/world.html",
 ]);
 const NATIVE_HYBRID_URLS = new Set([
@@ -44,13 +43,11 @@ const SURFACE_SET = new Set(PACKAGED_SURFACE_IDS);
 const CAPABILITY_SET = new Set(APP_CAPABILITIES);
 const CHANNEL_SET = new Set(APP_CHANNELS);
 const PACKAGED_SURFACE_BINDINGS = Object.freeze({
-  "hestia-connector": Object.freeze({
-    appId: "hestia-connector",
+  chats: Object.freeze({
+    appId: "chats",
     publisherId: "greenways-ai",
     capabilities: Object.freeze([
-      "hestia/connect",
-      "network/https",
-      "network/loopback",
+      "chats/capture",
       "storage/local",
     ]),
   }),
@@ -64,11 +61,6 @@ const PACKAGED_SURFACE_BINDINGS = Object.freeze({
   }),
 });
 const SYSTEM_APP_BINDINGS = Object.freeze({
-  "greenways-home": Object.freeze({
-    publisherId: "greenways-ai",
-    path: "src/studio.html#home",
-    capabilities: Object.freeze(["identity/local", "storage/local"]),
-  }),
   "greenways-worlds": Object.freeze({
     publisherId: "greenways-ai",
     path: "src/world.html",
@@ -412,17 +404,6 @@ export function validateAppCatalog(value) {
 const BUILTIN_DESCRIPTORS = [
   {
     protocol: APP_MANIFEST_PROTOCOL,
-    id: "greenways-home",
-    version: "0.3.0",
-    publisher: { id: "greenways-ai", name: "Greenways AI" },
-    name: "Greenways Home",
-    description: "Your private, locally held home for identity, ideas, projects, and receipts.",
-    category: "system",
-    capabilities: ["identity/local", "storage/local"],
-    launch: { handler: "extension-page", path: "src/studio.html#home" },
-  },
-  {
-    protocol: APP_MANIFEST_PROTOCOL,
     id: "greenways-worlds",
     version: "0.3.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },
@@ -434,31 +415,14 @@ const BUILTIN_DESCRIPTORS = [
   },
   {
     protocol: APP_MANIFEST_PROTOCOL,
-    id: "historia",
-    version: "0.1.0",
+    id: "chats",
+    version: "0.2.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },
-    name: "Historia",
-    description: "Collect and inspect your AI conversation history through a local Historia companion.",
+    name: "Chats",
+    description: "Privately import, capture, search, and revisit your AI conversations in this browser.",
     category: "installable",
-    capabilities: ["historia/import", "network/loopback", "tabs/open"],
-    launch: { handler: "native-hybrid", url: "http://127.0.0.1:4319/" },
-    requirement: {
-      kind: "companion",
-      id: "historia-local",
-      name: "Historia local companion",
-      description: "Historia must be installed and listening locally on 127.0.0.1:4319 before this app can open.",
-    },
-  },
-  {
-    protocol: APP_MANIFEST_PROTOCOL,
-    id: "hestia-connector",
-    version: "0.3.0",
-    publisher: { id: "greenways-ai", name: "Greenways AI" },
-    name: "Hestia Connector",
-    description: "Pair a private Hestia home node for backup and signed personal-chain receipts.",
-    category: "installable",
-    capabilities: ["hestia/connect", "network/https", "network/loopback", "storage/local"],
-    launch: { handler: "packaged-surface", surfaceId: "hestia-connector" },
+    capabilities: ["chats/capture", "storage/local"],
+    launch: { handler: "packaged-surface", surfaceId: "chats" },
   },
   {
     protocol: APP_MANIFEST_PROTOCOL,

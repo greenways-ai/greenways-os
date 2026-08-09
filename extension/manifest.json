@@ -18,6 +18,7 @@
     "sidePanel",
     "storage",
     "nativeMessaging",
+    "scripting",
     "userScripts"
   ],
   "optional_host_permissions": [

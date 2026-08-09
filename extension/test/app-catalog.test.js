@@ -30,47 +30,37 @@ function manifest(overrides = {}) {
   };
 }
 
-test("publishes the six declarative built-in apps", () => {
+test("publishes the ordinary apps beside fixed Kernel DevTools", () => {
   assert.deepEqual(BUILTIN_APP_CATALOG.map(({ id }) => id), [
-    "greenways-home",
     "greenways-worlds",
-    "historia",
-    "hestia-connector",
+    "chats",
     "userscripts",
     "hara-playground",
   ]);
   assert.equal(BUILTIN_APPS, BUILTIN_APP_CATALOG);
   assert.equal(APP_MANIFEST_PROTOCOL, "greenways-app/1");
-  assert.deepEqual(SYSTEM_APP_IDS, ["greenways-home", "greenways-worlds"]);
+  assert.deepEqual(SYSTEM_APP_IDS, ["greenways-worlds"]);
   assert.deepEqual(RUNTIME_HANDLERS, [
     "extension-page", "packaged-surface", "native-hybrid", "web-tab", "hal-module"
   ]);
-  assert.deepEqual(PACKAGED_SURFACE_IDS, ["hestia-connector", "userscripts"]);
+  assert.deepEqual(PACKAGED_SURFACE_IDS, ["chats", "userscripts"]);
   assert.ok(APP_CAPABILITIES.includes("network/loopback"));
   assert.ok(Object.isFrozen(BUILTIN_APP_CATALOG));
   assert.ok(BUILTIN_APP_CATALOG.every(Object.isFrozen));
   assert.ok(BUILTIN_APP_CATALOG.every(({ publisher }) => Object.isFrozen(publisher)));
 });
 
-test("Historia is an explicit local native-hybrid app", () => {
-  const historia = getAppManifest("historia");
-  assert.deepEqual(historia.launch, {
-    handler: "native-hybrid",
-    url: "http://127.0.0.1:4319/",
-  });
-  assert.equal(historia.requirement.kind, "companion");
-  assert.equal(historia.requirement.id, "historia-local");
-  assert.ok(historia.capabilities.includes("network/loopback"));
+test("Chats is a browser-first packaged app", () => {
+  const chats = getAppManifest("chats");
+  assert.deepEqual(chats.launch, { handler: "packaged-surface", surfaceId: "chats" });
+  assert.equal(chats.requirement, undefined);
+  assert.deepEqual(chats.capabilities, ["chats/capture", "storage/local"]);
 });
 
 test("resolves only normalized catalog launches", () => {
-  assert.equal(resolveAppById("hestia-connector").launch.surfaceId, "hestia-connector");
+  assert.equal(resolveAppById("chats").launch.surfaceId, "chats");
   assert.equal(resolveAppById("missing-app"), null);
-  assert.deepEqual(resolveAppLaunch("hara-playground"), {
-    appId: "hara-playground",
-    handler: "web-tab",
-    url: "https://playground.hara-lang.org/",
-  });
+  assert.deepEqual(resolveAppLaunch("chats"), { appId: "chats", handler: "packaged-surface", surfaceId: "chats" });
   assert.throws(() => resolveAppLaunch("missing-app"), /Unknown app id/);
   assert.throws(() => resolveAppById("../../unsafe"), /lowercase app identifier/);
 });
@@ -210,55 +200,55 @@ test("requires native-hybrid companion disclosure and handler capabilities", () 
   );
 });
 
-test("binds the Hestia packaged surface to its app, publisher, and capabilities", () => {
-  const hestia = {
+test("binds the Chats packaged surface to its app, publisher, and capabilities", () => {
+  const chats = {
     protocol: APP_MANIFEST_PROTOCOL,
-    id: "hestia-connector",
+    id: "chats",
     version: "0.2.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },
-    name: "Hestia Connector",
-    description: "Pair a local Hestia node.",
+    name: "Chats",
+    description: "Search local AI conversations.",
     category: "installable",
-    capabilities: ["hestia/connect", "network/https", "network/loopback", "storage/local"],
-    launch: { handler: "packaged-surface", surfaceId: "hestia-connector" },
+    capabilities: ["chats/capture", "storage/local"],
+    launch: { handler: "packaged-surface", surfaceId: "chats" },
   };
-  assert.equal(validateAppManifest(hestia).launch.surfaceId, "hestia-connector");
+  assert.equal(validateAppManifest(chats).launch.surfaceId, "chats");
   assert.throws(
-    () => validateAppManifest({ ...hestia, id: "hestia-alias" }),
-    /bound to app hestia-connector from publisher greenways-ai/
+    () => validateAppManifest({ ...chats, id: "chats-alias" }),
+    /bound to app chats from publisher greenways-ai/
   );
   assert.throws(
-    () => validateAppManifest({ ...hestia, publisher: { id: "other-publisher", name: "Other" } }),
-    /bound to app hestia-connector from publisher greenways-ai/
+    () => validateAppManifest({ ...chats, publisher: { id: "other-publisher", name: "Other" } }),
+    /bound to app chats from publisher greenways-ai/
   );
-  for (const capability of ["hestia/connect", "network/https", "network/loopback", "storage/local"]) {
+  for (const capability of ["chats/capture", "storage/local"]) {
     assert.throws(
       () => validateAppManifest({
-        ...hestia,
-        capabilities: hestia.capabilities.filter((entry) => entry !== capability),
+        ...chats,
+        capabilities: chats.capabilities.filter((entry) => entry !== capability),
       }),
-      new RegExp(`hestia-connector requires ${capability.replace("/", "\\/")}`)
+      new RegExp(`chats requires ${capability.replace("/", "\\/")}`)
     );
   }
 });
 
 test("binds system IDs to their publisher, path, and exact capabilities", () => {
-  const home = getAppManifest("greenways-home");
-  assert.equal(validateAppManifest(home).launch.path, "src/studio.html#home");
+  const worlds = getAppManifest("greenways-worlds");
+  assert.equal(validateAppManifest(worlds).launch.path, "src/world.html");
   assert.throws(
     () => validateAppManifest({
-      ...home,
+      ...worlds,
       id: "fake-system",
       publisher: { id: "attacker", name: "Attacker" },
     }),
     /system app id, publisher, and packaged path are not bound together/,
   );
   assert.throws(
-    () => validateAppManifest({ ...home, category: "installable" }),
+    () => validateAppManifest({ ...worlds, category: "installable" }),
     /reserved system app ids must use their packaged system binding/,
   );
   assert.throws(
-    () => validateAppManifest({ ...home, capabilities: [...home.capabilities, "hestia/connect"] }),
+    () => validateAppManifest({ ...worlds, capabilities: [...worlds.capabilities, "storage/local"] }),
     /capabilities must match the packaged binding/,
   );
 });

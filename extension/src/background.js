@@ -13,6 +13,7 @@ import {
 } from "./kernel-host.js";
 import { moduleStore, store } from "./storage.js";
 import { createUserscriptsRuntime } from "./userscripts-runtime.js";
+import { createChatsRuntime } from "./chats-runtime.js";
 
 export { resolveAppUrl } from "./app-launch.js";
 
@@ -29,6 +30,7 @@ export const DEVTOOLS_BRIDGE_MESSAGE_TYPES = Object.freeze({
 });
 
 export const ROOT_APP_MESSAGE_TYPE = "greenways/open-root-app";
+export const CHATS_CAPTURE_MESSAGE_TYPE = "greenways/chats-observation";
 
 const LEGACY_APP_PATHS = new Map([
   ["greenways/open-studio", "src/studio.html#home"],
@@ -126,6 +128,7 @@ export function createKernelHost({
   runtime = globalThis.chrome?.runtime,
   tabs = globalThis.chrome?.tabs,
   userScripts = globalThis.chrome?.userScripts,
+  scripting = globalThis.chrome?.scripting,
   modules = moduleStore,
 } = {}) {
   if (!modules || typeof modules.values !== "function") {
@@ -156,7 +159,11 @@ export function createKernelHost({
         userScripts,
         assertAuthority: () => host.assertUserscriptsAuthority(),
       });
-      host = new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority, devtools, userscripts });
+      const chats = createChatsRuntime({
+        scripting,
+        assertAuthority: () => host.assertChatsAuthority(),
+      });
+      host = new BrowserKernelHost({ invoke, runtime, tabs, capabilityAuthority, devtools, userscripts, chats });
       // chrome.userScripts registrations persist across service-worker restarts,
       // but durable records are the source of truth: reconcile drift (for example
       // edits made while Chrome's user-scripts toggle was off) on first use.
@@ -249,11 +256,19 @@ export function createMessageHandler({
     const kernel = KERNEL_TYPES.has(message?.type);
     const bridgeRequest = DEVTOOLS_BRIDGE_TYPES.has(message?.type);
     const rootNavigation = message?.type === ROOT_APP_MESSAGE_TYPE;
+    const chatObservation = message?.type === CHATS_CAPTURE_MESSAGE_TYPE;
     const legacyNavigation = LEGACY_APP_PATHS.has(message?.type) || message?.type === "greenways/open-app";
-    if (!kernel && !bridgeRequest && !rootNavigation && !legacyNavigation) return false;
+    if (!kernel && !bridgeRequest && !rootNavigation && !legacyNavigation && !chatObservation) return false;
 
     Promise.resolve()
       .then(async () => {
+        if (chatObservation) {
+          const origin = new URL(sender?.url ?? "about:blank").origin;
+          if (!["https://chatgpt.com", "https://www.chatgpt.com", "https://chat.openai.com"].includes(origin)) {
+            throw new Error("Chats observations are accepted only from an approved ChatGPT origin");
+          }
+          return { ok: true, value: await (await getKernelHost()).captureChatObservation(message.observation) };
+        }
         const principal = await identify(sender, message, runtime);
         if (kernel) {
           if (!["launcher", "world", "devtools"].includes(principal.kind)) {

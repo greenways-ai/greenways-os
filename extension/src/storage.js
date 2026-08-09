@@ -1,7 +1,7 @@
 import { createSyncEntry, validateSyncEntry } from "./sync-protocol.js";
 
 const DATABASE = "greenways-os-v1";
-export const DATABASE_VERSION = 6;
+export const DATABASE_VERSION = 7;
 export const DATABASE_STORES = Object.freeze([
   "settings",
   "identity",
@@ -14,6 +14,8 @@ export const DATABASE_STORES = Object.freeze([
   "grants",
   "kernel",
   "userscripts",
+  "chats",
+  "fabric",
 ]);
 
 export const KERNEL_GLOBAL_KEY = "global";
@@ -333,6 +335,13 @@ export const store = {
     (target) => deleteStoreEntries(target, keys),
   ),
   values: (name) => transaction(name, "readonly", (target) => requestValue(target.getAll())),
+  entries: (name) => transaction(name, "readonly", async (target) => {
+    const [keys, values] = await Promise.all([
+      requestValue(target.getAllKeys()),
+      requestValue(target.getAll()),
+    ]);
+    return keys.map((key, index) => [key, values[index]]);
+  }),
   replace: (name, entries) => transaction(
     name,
     "readwrite",
@@ -397,4 +406,37 @@ export const userscriptStore = Object.freeze({
   delete: (id) => store.delete("userscripts", recordId(id, "Userscript id")),
   values: () => store.values("userscripts"),
   replace: (records) => store.replace("userscripts", userscriptProjectionEntries(records)),
+});
+
+function chatProjectionEntries(records) {
+  if (!Array.isArray(records)) throw new TypeError("Chat projection must be an array");
+  const seen = new Set();
+  return records.map((record, index) => {
+    const value = envelope(record, `Chat projection entry ${index}`);
+    const id = recordId(value.id, `Chat projection entry ${index} id`);
+    if (seen.has(id)) throw new Error(`Chat projection contains duplicate id ${id}`);
+    seen.add(id);
+    return [id, value];
+  });
+}
+
+export const chatStore = Object.freeze({
+  get: (id) => store.get("chats", recordId(id, "Chat id")),
+  put: (record) => {
+    const value = envelope(record, "Chat record");
+    return store.put("chats", recordId(value.id, "Chat record id"), value);
+  },
+  delete: (id) => store.delete("chats", recordId(id, "Chat id")),
+  values: () => store.values("chats"),
+  replace: (records) => store.replace("chats", chatProjectionEntries(records)),
+});
+
+export const fabricStore = Object.freeze({
+  get: (id) => store.get("fabric", recordId(id, "Fabric record id")),
+  put: (record) => {
+    const value = envelope(record, "Fabric record");
+    return store.put("fabric", recordId(value.id, "Fabric record id"), value);
+  },
+  delete: (id) => store.delete("fabric", recordId(id, "Fabric record id")),
+  values: () => store.values("fabric"),
 });
