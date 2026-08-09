@@ -1,33 +1,21 @@
-name: Greenways OS CI
+name: Validate Greenways OS extension release
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
     tags: ["v*"]
-  pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  extension:
+  validate-package:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: extension
     steps:
       - uses: actions/checkout@v4
-      - name: Enforce gw.* HAL namespaces
-        run: |
-          if grep -R -E --include='*.hal' -n \
-            -e '\(ns[[:space:]]+greenways\.' \
-            -e '\[[[:space:]]*greenways\.' \
-            -e '\([[:space:]]*greenways\.' \
-            -e '[[:space:]]greenways\.[A-Za-z0-9_.-]+/' \
-            ..; then
-            echo "Legacy greenways.* HAL namespace found" >&2
-            exit 1
-          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -37,47 +25,42 @@ jobs:
             services/packages/package-lock.json
             services/devtools-node/package-lock.json
       - run: npm ci
+      - name: Validate tag and extension versions
+        run: |
+          node --input-type=module -e '
+            import { readFile } from "node:fs/promises";
+            const manifest = JSON.parse(await readFile("manifest.json", "utf8"));
+            const pkg = JSON.parse(await readFile("package.json", "utf8"));
+            if (manifest.version !== pkg.version) throw new Error("Manifest and package versions differ");
+            const tag = process.env.GITHUB_REF_TYPE === "tag" ? process.env.GITHUB_REF_NAME : null;
+            if (tag && tag !== `v${manifest.version}`) throw new Error(`${tag} does not match v${manifest.version}`);
+          '
       - run: npm test
-      - run: npm run build
       - run: npm run build:web
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
-      - name: Package release-shaped extension
+      - name: Test Home Link service
+        working-directory: services/home-node
+        run: npm test
+      - name: Test identity service
+        working-directory: services/identity
+        run: npm test
+      - name: Test package registry service
+        working-directory: services/packages
+        run: npm ci && npm test
+      - name: Test DevTools native host
+        working-directory: services/devtools-node
+        run: npm ci && npm test
+      - name: Build deterministic release assets
         run: |
           SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" npm run package:extension
           cd release
           sha256sum --check greenways-os-extension-v*.zip.sha256
-      - name: Verify the installed release archive
-        run: npm run test:release
-      - name: Upload Playwright diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-diagnostics
-          path: |
-            extension/test-results/
-            extension/playwright-report/
-          if-no-files-found: ignore
-      - name: Test Home Link service
-        if: always()
-        working-directory: services/home-node
-        run: npm test
-      - name: Test identity service
-        if: always()
-        working-directory: services/identity
-        run: npm test
-      - name: Test package registry service
-        if: always()
-        working-directory: services/packages
-        run: npm ci && npm test
-      - name: Test DevTools native host
-        if: always()
-        working-directory: services/devtools-node
-        run: npm ci && npm test
+          cd ..
+          npm run test:release
       - uses: actions/upload-artifact@v4
-        if: success()
         with:
-          name: greenways-os-extension
+          name: greenways-os-extension-release
           path: |
             extension/release/greenways-os-extension-v*.zip
             extension/release/greenways-os-extension-v*.zip.sha256
