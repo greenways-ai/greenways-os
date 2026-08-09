@@ -15,6 +15,7 @@ import { moduleStore, store } from "./storage.js";
 import { createUserscriptsRuntime } from "./userscripts-runtime.js";
 import { createChatsRuntime } from "./chats-runtime.js";
 import { TAHTO_MONITOR_ALARM, createTahtoMonitor } from "./tahto-monitor.js";
+import { TahtoKeyring } from "./tahto-keyring.js";
 
 export { resolveAppUrl } from "./app-launch.js";
 
@@ -331,7 +332,7 @@ export function createMessageHandler({
 export function installTahtoMonitoring({
   runtime = globalThis.chrome?.runtime,
   alarms = globalThis.chrome?.alarms,
-  monitor = createTahtoMonitor({ alarms }),
+  monitor = createTahtoMonitor({ alarms, keyring: new TahtoKeyring() }),
   report = (error) => console.warn("Tahto monitor check failed", error),
 } = {}) {
   const check = (source) => monitor.check(source).catch(report);

@@ -18,7 +18,7 @@ const surfaceRoot = document.querySelector("#launcher-surfaces");
 const TAHTO_LOCK = "tahto-nodes";
 const DEFAULT_TAHTO_ORIGIN = "http://127.0.0.1:58100";
 const keyring = new TahtoKeyring();
-const monitor = createTahtoMonitor();
+const monitor = createTahtoMonitor({ keyring });
 
 let state = normalizeTahtoNodeState(null);
 let monitorRecords = new Map();
@@ -82,6 +82,7 @@ function cardModel() {
     defaultLabel: selected.origin,
     semantic: semantic === "ready" ? "Ready" : "Pending production gates",
     monitored: observed ? new Date(observed.checkedAt).toLocaleString() : "Not sampled",
+    revision: observed?.diagnostics?.checks?.metadata?.revision ?? "Paired detail unavailable",
     action: "Manage Tahto",
   };
 }
@@ -93,7 +94,7 @@ function cardMarkup(model) {
       <div><h2 id="tahto-heading">${escapeHtml(model.title)}</h2><p>${escapeHtml(model.description)}</p></div>
       <div class="tahto-card__route" aria-label="Greenways OS retains authority while Tahto holds application state"><span>GREENWAYS OS</span><i></i><b>TAHTO</b><i></i><span>STATE</span></div>
     </div>
-    <dl><div><dt>Saved nodes</dt><dd>${escapeHtml(model.nodes)}</dd></div><div><dt>Default</dt><dd title="${escapeHtml(model.defaultLabel)}">${escapeHtml(model.defaultLabel)}</dd></div><div><dt>Semantic service</dt><dd>${escapeHtml(model.semantic)}</dd></div><div><dt>Last monitor</dt><dd>${escapeHtml(model.monitored ?? "Not sampled")}</dd></div></dl>
+    <dl><div><dt>Saved nodes</dt><dd>${escapeHtml(model.nodes)}</dd></div><div><dt>Default</dt><dd title="${escapeHtml(model.defaultLabel)}">${escapeHtml(model.defaultLabel)}</dd></div><div><dt>Semantic service</dt><dd>${escapeHtml(model.semantic)}</dd></div><div><dt>Metadata revision</dt><dd>${escapeHtml(model.revision ?? "Paired detail unavailable")}</dd></div><div><dt>Last monitor</dt><dd>${escapeHtml(model.monitored ?? "Not sampled")}</dd></div></dl>
     <footer><button type="button" data-tahto-open>${escapeHtml(model.action)}</button><span>Origin permission is not application authority.</span></footer>
   </section>`;
 }
@@ -163,10 +164,11 @@ function nodeRows(busyOrigin) {
     const semantic = semanticReadiness(node);
     const observed = monitorRecords.get(node.origin);
     const latest = observed?.latest;
+    const diagnostics = latest?.diagnostics;
     const openIncidents = observed?.incidents?.filter(({ closedAt }) => closedAt === null).length ?? 0;
     return `<article data-default="${selected}" data-origin="${escapeHtml(node.origin)}">
       <label><input type="radio" name="default-node" value="${escapeHtml(node.origin)}" ${selected ? "checked" : ""} ${busy ? "disabled" : ""}><span><strong>${escapeHtml(node.label)}</strong><small>${escapeHtml(node.origin)}</small></span></label>
-      <div><em data-state="${escapeHtml(latest?.state ?? node.health.status)}">${escapeHtml(latest?.state ?? node.health.status)}</em><span>Semantic ${escapeHtml(semantic)}</span><small>${latest ? `Monitored ${escapeHtml(new Date(latest.checkedAt).toLocaleString())} · ${escapeHtml(observed.samples.length)} samples · ${escapeHtml(openIncidents)} open incidents` : `Checked ${escapeHtml(new Date(node.checkedAt).toLocaleString())}`}</small></div>
+      <div><em data-state="${escapeHtml(latest?.state ?? node.health.status)}">${escapeHtml(latest?.state ?? node.health.status)}</em><span>Semantic ${escapeHtml(semantic)}</span><small>${latest ? `Monitored ${escapeHtml(new Date(latest.checkedAt).toLocaleString())} · ${escapeHtml(observed.samples.length)} samples · ${escapeHtml(openIncidents)} open incidents${diagnostics ? ` · revision ${escapeHtml(diagnostics.checks.metadata.revision)} · ${escapeHtml(diagnostics.counts.objects)} objects · ${escapeHtml(diagnostics.counts.heads)} heads` : latest.diagnosticError ? ` · paired detail denied` : ""}` : `Checked ${escapeHtml(new Date(node.checkedAt).toLocaleString())}`}</small></div>
       <footer><button type="button" data-tahto-pair="${escapeHtml(node.origin)}" ${busy || !node.descriptor.routes.pairingPrepare ? "disabled" : ""}>${node.descriptor.routes.pairingPrepare ? "Pair" : "Pairing unavailable"}</button><button type="button" data-tahto-refresh="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>${busy ? "Checking…" : "Refresh"}</button><button type="button" data-tahto-forget="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>Forget</button></footer>
     </article>`;
   }).join("")}</div>`;
@@ -226,7 +228,7 @@ function createSurface() {
       const inspected = await client.inspect();
       const record = createTahtoNodeRecord({ origin, label, ...inspected });
       await saveState(upsertTahtoNode(state, record));
-      const monitored = await monitor.record(origin, { inspection: inspected, source: "manual" });
+      const monitored = await monitor.recordInspection(origin, inspected, { source: "manual" });
       monitorRecords.set(origin, monitored);
       notice = `${record.label} is available. Pairing and semantic authority were not granted.`;
       noticeTone = "good";
@@ -266,8 +268,7 @@ function createSurface() {
       const inspected = await new TahtoClient({ origin }).inspect();
       const record = createTahtoNodeRecord({ origin, label: previous.label, ...inspected });
       await saveState(upsertTahtoNode(state, record));
-      const monitored = await monitor.record(origin, {
-        inspection: inspected,
+      const monitored = await monitor.recordInspection(origin, inspected, {
         source: "manual",
         latencyMs: Date.now() - started,
       });

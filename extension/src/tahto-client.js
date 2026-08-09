@@ -252,13 +252,13 @@ export function normalizeTahtoDescriptor(value) {
     if (!(key in boundaries)) throw new Error(`Tahto boundaries.${key} is required`);
   }
   const routeInput = plainObject(input.routes, "Tahto routes");
-  assertKeys(routeInput, new Set(["discovery", "health", "status", "pairingPrepare", "pairingComplete"]), "Tahto routes");
+  assertKeys(routeInput, new Set(["discovery", "health", "status", "diagnostics", "pairingPrepare", "pairingComplete"]), "Tahto routes");
   const routes = {};
   for (const key of ["discovery", "health", "status"]) {
     if (!(key in routeInput)) throw new Error(`Tahto routes.${key} is required`);
     routes[key] = requiredString(routeInput[key], `Tahto routes.${key}`, 240);
   }
-  for (const key of ["pairingPrepare", "pairingComplete"]) {
+  for (const key of ["diagnostics", "pairingPrepare", "pairingComplete"]) {
     if (key in routeInput) routes[key] = requiredString(routeInput[key], `Tahto routes.${key}`, 240);
   }
   if (("pairingPrepare" in routes) !== ("pairingComplete" in routes)) {
@@ -287,6 +287,9 @@ export function normalizeTahtoDescriptor(value) {
       discovery: exact(routes.discovery, "/.well-known/tahto", "Tahto routes.discovery"),
       health: exact(routes.health, "/tahto/v1/health", "Tahto routes.health"),
       status: exact(routes.status, "/tahto/v1/status", "Tahto routes.status"),
+      ...(routes.diagnostics ? {
+        diagnostics: exact(routes.diagnostics, "/tahto/v1/diagnostics", "Tahto routes.diagnostics"),
+      } : {}),
       ...(routes.pairingPrepare ? {
         pairingPrepare: exact(routes.pairingPrepare, "/tahto/v1/pairing/prepare", "Tahto routes.pairingPrepare"),
         pairingComplete: exact(routes.pairingComplete, "/tahto/v1/pairing/complete", "Tahto routes.pairingComplete"),
@@ -300,12 +303,48 @@ export function normalizeTahtoDescriptor(value) {
 export function normalizeTahtoHealth(value) {
   const input = plainObject(value, "Tahto health");
   assertNoExecutableFields(input, "Tahto health");
-  assertKeys(input, new Set(["protocol", "status", "runtime", "scope"]), "Tahto health");
+  assertKeys(input, new Set(["protocol", "status", "runtime", "scope", "metadata"]), "Tahto health");
   return Object.freeze({
     protocol: exact(input.protocol, TAHTO_HEALTH_PROTOCOL, "Tahto health.protocol"),
     status: identifier(input.status, "Tahto health.status"),
     runtime: identifier(input.runtime, "Tahto health.runtime"),
     scope: requiredString(input.scope, "Tahto health.scope", 160),
+    ...(input.metadata === undefined ? {} : {
+      metadata: identifier(input.metadata, "Tahto health.metadata"),
+    }),
+  });
+}
+
+export function normalizeTahtoDiagnostics(value) {
+  const input = plainObject(value, "Tahto diagnostics");
+  assertNoExecutableFields(input, "Tahto diagnostics");
+  assertKeys(input, new Set(["protocol", "checkedAt", "state", "checks", "counts"]), "Tahto diagnostics");
+  const checks = plainObject(input.checks, "Tahto diagnostics.checks");
+  assertKeys(checks, new Set(["metadata"]), "Tahto diagnostics.checks");
+  const metadata = plainObject(checks.metadata, "Tahto diagnostics.checks.metadata");
+  assertKeys(metadata, new Set(["state", "revision", "error"]), "Tahto diagnostics.checks.metadata");
+  const counts = plainObject(input.counts, "Tahto diagnostics.counts");
+  assertKeys(counts, new Set(["devices", "objects", "commits", "heads", "backups"]), "Tahto diagnostics.counts");
+  const normalizedCounts = {};
+  for (const [key, count] of Object.entries(counts)) {
+    if (!Number.isSafeInteger(count) || count < 0) throw new Error(`Tahto diagnostics.counts.${key} must be a non-negative safe integer`);
+    normalizedCounts[key] = count;
+  }
+  return Object.freeze({
+    protocol: exact(input.protocol, "tahto.diagnostics/1", "Tahto diagnostics.protocol"),
+    checkedAt: timestamp(input.checkedAt, "Tahto diagnostics.checkedAt"),
+    state: identifier(input.state, "Tahto diagnostics.state"),
+    checks: Object.freeze({
+      metadata: Object.freeze({
+        state: identifier(metadata.state, "Tahto diagnostics metadata state"),
+        revision: metadata.revision === null || metadata.revision === undefined ? null : (() => {
+          if (!Number.isSafeInteger(metadata.revision) || metadata.revision < 0) throw new Error("Tahto diagnostics metadata revision must be a non-negative safe integer");
+          return metadata.revision;
+        })(),
+        error: metadata.error === null ? null : requiredString(metadata.error, "Tahto diagnostics metadata error", 160),
+      }),
+    }),
+    counts: Object.freeze(normalizedCounts),
   });
 }
 
@@ -366,6 +405,24 @@ export class TahtoClient {
     const descriptor = await this.discover();
     const [health, status] = await Promise.all([this.health(), this.status()]);
     return Object.freeze({ descriptor, health, status });
+  }
+
+  async diagnostics(options) {
+    if (!this.keyring) throw new Error("Tahto diagnostics require a device keyring");
+    const signed = await this.keyring.signRequest(this.origin, {
+      operation: "monitor.diagnostics",
+      application: "greenways.os",
+      namespace: "tahto.monitor",
+      collection: "diagnostics",
+      payload: {},
+    }, options);
+    return this.postEnvelope(
+      "/tahto/v1/diagnostics",
+      "x-tahto-request",
+      signed,
+      "Tahto diagnostics",
+      normalizeTahtoDiagnostics,
+    );
   }
 
   async postEnvelope(path, header, envelope, label, normalize) {

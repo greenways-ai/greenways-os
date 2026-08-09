@@ -44,7 +44,9 @@ function boundedError(error) {
   return message.slice(0, 240);
 }
 
-export function createTahtoMonitorSample({ origin, checkedAt, latencyMs, source, inspection, error }) {
+export function createTahtoMonitorSample({
+  origin, checkedAt, latencyMs, source, inspection, diagnostics = null, diagnosticError = null, error,
+}) {
   const classified = error
     ? { state: "unreachable", checks: {} }
     : classifyTahtoInspection(inspection);
@@ -56,6 +58,8 @@ export function createTahtoMonitorSample({ origin, checkedAt, latencyMs, source,
     source,
     state: classified.state,
     checks: classified.checks,
+    diagnostics,
+    diagnosticError: diagnosticError ? boundedError(diagnosticError) : null,
     error: error ? boundedError(error) : null,
   });
 }
@@ -67,7 +71,7 @@ export function applyTahtoMonitorSample(previous, sample, nowMs = Date.parse(sam
     .slice(-TAHTO_MONITOR_MAX_SAMPLES);
   const runtimeFailure = sample.state === "degraded" || sample.state === "unreachable";
   const consecutiveFailures = runtimeFailure ? (previous?.consecutiveFailures ?? 0) + 1 : 0;
-  const incidents = [...(previous?.incidents ?? [])];
+  const incidents = (previous?.incidents ?? []).map((incident) => ({ ...incident }));
   const open = incidents.findLast?.((incident) => incident.closedAt === null)
     ?? [...incidents].reverse().find((incident) => incident.closedAt === null);
   if (runtimeFailure && consecutiveFailures >= 2 && !open) {
@@ -77,7 +81,7 @@ export function applyTahtoMonitorSample(previous, sample, nowMs = Date.parse(sam
       closedAt: null,
       state: sample.state,
     });
-  } else if (!runtimeFailure && open) {
+  } else if (sample.state === "ready" && open) {
     open.closedAt = sample.checkedAt;
   }
   return {
@@ -107,15 +111,24 @@ export function createTahtoMonitor({
   settings = store,
   records = fabricStore,
   alarms = globalThis.chrome?.alarms,
+  keyring = null,
   clientFactory = (origin, signal) => new TahtoClient({
     origin,
+    keyring,
     request: (url, options) => fetch(url, { ...options, signal }),
   }),
   now = () => new Date(),
   normalizeState = normalizeTahtoNodeState,
   timeoutMs = TAHTO_MONITOR_TIMEOUT_MS,
 } = {}) {
-  async function record(origin, { inspection = null, error = null, source = "manual", latencyMs = 0 } = {}) {
+  async function record(origin, {
+    inspection = null,
+    diagnostics = null,
+    diagnosticError = null,
+    error = null,
+    source = "manual",
+    latencyMs = 0,
+  } = {}) {
     const checkedAt = now().toISOString();
     const sample = createTahtoMonitorSample({
       origin,
@@ -123,6 +136,8 @@ export function createTahtoMonitor({
       latencyMs,
       source,
       inspection,
+      diagnostics,
+      diagnosticError,
       error,
     });
     const id = `tahto-monitor:${origin}`;
@@ -131,14 +146,42 @@ export function createTahtoMonitor({
     return next;
   }
 
+  async function pairedObservation(origin, inspection, signal) {
+    let diagnostics = null;
+    let diagnosticError = null;
+    if (keyring && inspection.descriptor.routes.diagnostics) {
+      const device = await keyring.status(origin);
+      if (device?.deviceId) {
+        try {
+          diagnostics = await clientFactory(origin, signal).diagnostics();
+        } catch (error) {
+          diagnosticError = error;
+        }
+      }
+    }
+    return { inspection, diagnostics, diagnosticError };
+  }
+
+  async function recordInspection(origin, inspection, { source = "manual", latencyMs = 0 } = {}) {
+    const observed = await withTimeout(
+      (signal) => pairedObservation(origin, inspection, signal),
+      timeoutMs,
+    );
+    return record(origin, { ...observed, source, latencyMs });
+  }
+
   async function checkOrigin(origin, source = "manual") {
     const started = Date.now();
     try {
-      const inspection = await withTimeout(
-        (signal) => clientFactory(origin, signal).inspect(),
+      const observed = await withTimeout(
+        async (signal) => {
+          const client = clientFactory(origin, signal);
+          const inspection = await client.inspect();
+          return pairedObservation(origin, inspection, signal);
+        },
         timeoutMs,
       );
-      return record(origin, { inspection, source, latencyMs: Date.now() - started });
+      return record(origin, { ...observed, source, latencyMs: Date.now() - started });
     } catch (error) {
       return record(origin, { error, source, latencyMs: Date.now() - started });
     }
@@ -156,5 +199,5 @@ export function createTahtoMonitor({
     return true;
   }
 
-  return Object.freeze({ check, checkOrigin, record, schedule });
+  return Object.freeze({ check, checkOrigin, record, recordInspection, schedule });
 }

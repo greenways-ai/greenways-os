@@ -45,6 +45,8 @@ test("opens an incident after two runtime failures and closes it on recovery", (
   assert.equal(record.incidents.length, 0);
   record = applyTahtoMonitorSample(record, sample("2026-08-09T00:05:00.000Z", "unreachable"));
   assert.equal(record.incidents.length, 1);
+  record = applyTahtoMonitorSample(record, sample("2026-08-09T00:07:00.000Z", "not-ready"));
+  assert.equal(record.incidents[0].closedAt, null);
   record = applyTahtoMonitorSample(record, sample("2026-08-09T00:10:00.000Z", "ready"));
   assert.equal(record.incidents[0].closedAt, "2026-08-09T00:10:00.000Z");
 });
@@ -109,6 +111,34 @@ test("schedules one five-minute Chrome alarm", async () => {
   const monitor = createTahtoMonitor({ alarms: { async create(...args) { calls.push(args); } } });
   assert.equal(await monitor.schedule(), true);
   assert.deepEqual(calls, [[TAHTO_MONITOR_ALARM, { periodInMinutes: 5 }]]);
+});
+
+test("adds paired diagnostics without turning a diagnostic denial into node failure", async () => {
+  const settings = {
+    async get() {
+      return { defaultOrigin: "https://tahto.example", nodes: [{ origin: "https://tahto.example" }] };
+    },
+  };
+  let stored = null;
+  const monitor = createTahtoMonitor({
+    settings,
+    records: { async get() { return null; }, async put(value) { stored = value; } },
+    normalizeState: (value) => value,
+    keyring: { async status() { return { deviceId: "device.a" }; } },
+    clientFactory() {
+      return {
+        async inspect() {
+          return { ...inspection(), descriptor: { routes: { diagnostics: "/tahto/v1/diagnostics" } } };
+        },
+        async diagnostics() { throw new Error("tahto.monitor/device-not-authorized"); },
+      };
+    },
+    now: () => new Date("2026-08-09T00:05:00.000Z"),
+  });
+  await monitor.check();
+  assert.equal(stored.latest.state, "ready");
+  assert.equal(stored.latest.diagnostics, null);
+  assert.equal(stored.latest.diagnosticError, "tahto.monitor/device-not-authorized");
 });
 
 test("unreachable samples retain only a bounded error", () => {

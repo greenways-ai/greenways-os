@@ -63,6 +63,7 @@ function descriptor(overrides = {}) {
       discovery: "/.well-known/tahto",
       health: "/tahto/v1/health",
       status: "/tahto/v1/status",
+      diagnostics: "/tahto/v1/diagnostics",
       pairingPrepare: "/tahto/v1/pairing/prepare",
       pairingComplete: "/tahto/v1/pairing/complete",
     },
@@ -142,6 +143,7 @@ test("strictly validates inert Tahto discovery", () => {
   assert.equal(value.authority.privateKeys, "greenways-os");
   assert.equal(value.boundaries.remoteExecutableCatalogue, false);
   assert.equal(value.routes.status, "/tahto/v1/status");
+  assert.equal(value.routes.diagnostics, "/tahto/v1/diagnostics");
   assert.equal(value.components.semanticFabric, "planned:T-SF-01");
   assert.throws(() => normalizeTahtoDescriptor(descriptor({ script: "https://evil.example/a.js" })), /executable field script/);
   assert.throws(() => normalizeTahtoDescriptor(descriptor({ routes: {
@@ -338,4 +340,37 @@ test("semantic read signs the operation and rejects executable response fields",
   assert.equal(result.value.stableId, "document/main");
   executable = true;
   await assert.rejects(() => client.read(coordinate), /executable field script/);
+});
+
+test("paired diagnostics signs only the closed monitor scope", async () => {
+  const signed = [];
+  const keyring = {
+    async signRequest(origin, request) {
+      signed.push({ origin, request });
+      return { protocol: "tahto.device-request/1", ...request };
+    },
+  };
+  const request = async (url, options) => {
+    assert.equal(url, "https://tahto.example/tahto/v1/diagnostics");
+    assert.equal(decodeHeader(options.headers["x-tahto-request"]).operation, "monitor.diagnostics");
+    return json({
+      protocol: "tahto.diagnostics/1",
+      checkedAt: "2026-08-09T00:00:00.000Z",
+      state: "ready",
+      checks: { metadata: { state: "ready", revision: 4, error: null } },
+      counts: { devices: 1, objects: 2, commits: 3, heads: 1, backups: 0 },
+    });
+  };
+  const result = await new TahtoClient({ origin: "https://tahto.example", request, keyring }).diagnostics();
+  assert.equal(result.checks.metadata.revision, 4);
+  assert.deepEqual(signed[0], {
+    origin: "https://tahto.example",
+    request: {
+      operation: "monitor.diagnostics",
+      application: "greenways.os",
+      namespace: "tahto.monitor",
+      collection: "diagnostics",
+      payload: {},
+    },
+  });
 });
