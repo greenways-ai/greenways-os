@@ -16,6 +16,7 @@
   },
   "permissions": [
     "sidePanel",
+    "alarms",
     "storage",
     "nativeMessaging",
     "scripting",

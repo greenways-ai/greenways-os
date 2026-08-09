@@ -10,15 +10,18 @@ import {
   upsertTahtoNode,
 } from "./tahto-client.js";
 import { TahtoKeyring } from "./tahto-keyring.js";
-import { store, withOriginLock } from "./storage.js";
+import { createTahtoMonitor } from "./tahto-monitor.js";
+import { fabricStore, store, withOriginLock } from "./storage.js";
 
 const appRoot = document.querySelector("#launcher-app");
 const surfaceRoot = document.querySelector("#launcher-surfaces");
 const TAHTO_LOCK = "tahto-nodes";
 const DEFAULT_TAHTO_ORIGIN = "http://127.0.0.1:58100";
 const keyring = new TahtoKeyring();
+const monitor = createTahtoMonitor();
 
 let state = normalizeTahtoNodeState(null);
+let monitorRecords = new Map();
 let mountedSurface = null;
 let decorateScheduled = false;
 let stateError = null;
@@ -41,6 +44,7 @@ function semanticReadiness(node) {
 
 function cardModel() {
   const selected = defaultNode();
+  const observed = selected ? monitorRecords.get(selected.origin)?.latest : null;
   if (stateError) {
     return {
       state: "degraded",
@@ -65,11 +69,11 @@ function cardModel() {
       action: "Connect Tahto",
     };
   }
-  const healthy = selected.health.status === "ready";
+  const healthy = (observed?.state ?? selected.health.status) === "ready";
   const semantic = semanticReadiness(selected);
   return {
     state: healthy ? "connected" : "degraded",
-    label: healthy ? "Control plane ready" : "Node degraded",
+    label: observed ? `Monitor ${observed.state}` : (healthy ? "Control plane ready" : "Node degraded"),
     title: `${selected.label} is the default state fabric.`,
     description: healthy
       ? "Discovery, health and component readiness were validated as inert data. This connection is transport consent only; it is not pairing or application authority."
@@ -77,6 +81,7 @@ function cardModel() {
     nodes: state.nodes.length,
     defaultLabel: selected.origin,
     semantic: semantic === "ready" ? "Ready" : "Pending production gates",
+    monitored: observed ? new Date(observed.checkedAt).toLocaleString() : "Not sampled",
     action: "Manage Tahto",
   };
 }
@@ -88,7 +93,7 @@ function cardMarkup(model) {
       <div><h2 id="tahto-heading">${escapeHtml(model.title)}</h2><p>${escapeHtml(model.description)}</p></div>
       <div class="tahto-card__route" aria-label="Greenways OS retains authority while Tahto holds application state"><span>GREENWAYS OS</span><i></i><b>TAHTO</b><i></i><span>STATE</span></div>
     </div>
-    <dl><div><dt>Saved nodes</dt><dd>${escapeHtml(model.nodes)}</dd></div><div><dt>Default</dt><dd title="${escapeHtml(model.defaultLabel)}">${escapeHtml(model.defaultLabel)}</dd></div><div><dt>Semantic service</dt><dd>${escapeHtml(model.semantic)}</dd></div></dl>
+    <dl><div><dt>Saved nodes</dt><dd>${escapeHtml(model.nodes)}</dd></div><div><dt>Default</dt><dd title="${escapeHtml(model.defaultLabel)}">${escapeHtml(model.defaultLabel)}</dd></div><div><dt>Semantic service</dt><dd>${escapeHtml(model.semantic)}</dd></div><div><dt>Last monitor</dt><dd>${escapeHtml(model.monitored ?? "Not sampled")}</dd></div></dl>
     <footer><button type="button" data-tahto-open>${escapeHtml(model.action)}</button><span>Origin permission is not application authority.</span></footer>
   </section>`;
 }
@@ -125,6 +130,9 @@ function scheduleDecoration() {
 async function loadState() {
   try {
     state = normalizeTahtoNodeState(await store.get("settings", TAHTO_SETTINGS_KEY));
+    monitorRecords = new Map((await fabricStore.values())
+      .filter((record) => record?.protocol === "greenways-tahto-monitor/1")
+      .map((record) => [record.origin, record]));
     stateError = null;
   } catch (error) {
     state = normalizeTahtoNodeState(null);
@@ -153,9 +161,12 @@ function nodeRows(busyOrigin) {
     const selected = node.origin === state.defaultOrigin;
     const busy = busyOrigin === node.origin;
     const semantic = semanticReadiness(node);
+    const observed = monitorRecords.get(node.origin);
+    const latest = observed?.latest;
+    const openIncidents = observed?.incidents?.filter(({ closedAt }) => closedAt === null).length ?? 0;
     return `<article data-default="${selected}" data-origin="${escapeHtml(node.origin)}">
       <label><input type="radio" name="default-node" value="${escapeHtml(node.origin)}" ${selected ? "checked" : ""} ${busy ? "disabled" : ""}><span><strong>${escapeHtml(node.label)}</strong><small>${escapeHtml(node.origin)}</small></span></label>
-      <div><em data-state="${escapeHtml(node.health.status)}">${escapeHtml(node.health.status)}</em><span>Semantic ${escapeHtml(semantic)}</span><small>Checked ${escapeHtml(new Date(node.checkedAt).toLocaleString())}</small></div>
+      <div><em data-state="${escapeHtml(latest?.state ?? node.health.status)}">${escapeHtml(latest?.state ?? node.health.status)}</em><span>Semantic ${escapeHtml(semantic)}</span><small>${latest ? `Monitored ${escapeHtml(new Date(latest.checkedAt).toLocaleString())} · ${escapeHtml(observed.samples.length)} samples · ${escapeHtml(openIncidents)} open incidents` : `Checked ${escapeHtml(new Date(node.checkedAt).toLocaleString())}`}</small></div>
       <footer><button type="button" data-tahto-pair="${escapeHtml(node.origin)}" ${busy || !node.descriptor.routes.pairingPrepare ? "disabled" : ""}>${node.descriptor.routes.pairingPrepare ? "Pair" : "Pairing unavailable"}</button><button type="button" data-tahto-refresh="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>${busy ? "Checking…" : "Refresh"}</button><button type="button" data-tahto-forget="${escapeHtml(node.origin)}" ${busy ? "disabled" : ""}>Forget</button></footer>
     </article>`;
   }).join("")}</div>`;
@@ -215,6 +226,8 @@ function createSurface() {
       const inspected = await client.inspect();
       const record = createTahtoNodeRecord({ origin, label, ...inspected });
       await saveState(upsertTahtoNode(state, record));
+      const monitored = await monitor.record(origin, { inspection: inspected, source: "manual" });
+      monitorRecords.set(origin, monitored);
       notice = `${record.label} is available. Pairing and semantic authority were not granted.`;
       noticeTone = "good";
     } catch (error) {
@@ -246,15 +259,28 @@ function createSurface() {
     notice = "Refreshing Tahto discovery and readiness…";
     noticeTone = "quiet";
     render();
+    const started = Date.now();
     try {
       const previous = state.nodes.find((node) => node.origin === origin);
       if (!previous) throw new Error("Tahto node is not stored");
       const inspected = await new TahtoClient({ origin }).inspect();
       const record = createTahtoNodeRecord({ origin, label: previous.label, ...inspected });
       await saveState(upsertTahtoNode(state, record));
+      const monitored = await monitor.record(origin, {
+        inspection: inspected,
+        source: "manual",
+        latencyMs: Date.now() - started,
+      });
+      monitorRecords.set(origin, monitored);
       notice = `${record.label} is ${record.health.status}.`;
       noticeTone = "good";
     } catch (error) {
+      const monitored = await monitor.record(origin, {
+        error,
+        source: "manual",
+        latencyMs: Date.now() - started,
+      }).catch(() => null);
+      if (monitored) monitorRecords.set(origin, monitored);
       notice = error?.message || "Tahto could not be refreshed.";
       noticeTone = "error";
     } finally {

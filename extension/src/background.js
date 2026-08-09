@@ -14,6 +14,7 @@ import {
 import { moduleStore, store } from "./storage.js";
 import { createUserscriptsRuntime } from "./userscripts-runtime.js";
 import { createChatsRuntime } from "./chats-runtime.js";
+import { TAHTO_MONITOR_ALARM, createTahtoMonitor } from "./tahto-monitor.js";
 
 export { resolveAppUrl } from "./app-launch.js";
 
@@ -327,9 +328,30 @@ export function createMessageHandler({
   };
 }
 
+export function installTahtoMonitoring({
+  runtime = globalThis.chrome?.runtime,
+  alarms = globalThis.chrome?.alarms,
+  monitor = createTahtoMonitor({ alarms }),
+  report = (error) => console.warn("Tahto monitor check failed", error),
+} = {}) {
+  const check = (source) => monitor.check(source).catch(report);
+  runtime?.onStartup?.addListener(() => {
+    void monitor.schedule().catch(report);
+    void check("startup");
+  });
+  alarms?.onAlarm?.addListener((alarm) => {
+    if (alarm?.name === TAHTO_MONITOR_ALARM) void check("background");
+  });
+  return Object.freeze({ check, schedule: monitor.schedule });
+}
+
+const tahtoMonitoring = installTahtoMonitoring();
+
 if (globalThis.chrome?.runtime?.onInstalled) {
   chrome.runtime.onInstalled.addListener(async () => {
     await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    await tahtoMonitoring.schedule();
+    await tahtoMonitoring.check("installed");
   });
 }
 

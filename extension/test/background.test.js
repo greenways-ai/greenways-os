@@ -4,9 +4,32 @@ import { getAppManifest } from "../src/app-catalog.js";
 import {
   createInstalledAppChecker,
   createMessageHandler,
+  installTahtoMonitoring,
   principalFromSender,
   resolveAppUrl,
 } from "../src/background.js";
+
+test("Tahto monitoring checks on startup and only on its named alarm", async () => {
+  const startup = [];
+  const alarm = [];
+  const checks = [];
+  let schedules = 0;
+  installTahtoMonitoring({
+    runtime: { onStartup: { addListener(listener) { startup.push(listener); } } },
+    alarms: { onAlarm: { addListener(listener) { alarm.push(listener); } } },
+    monitor: {
+      async check(source) { checks.push(source); },
+      async schedule() { schedules += 1; },
+    },
+    report(error) { throw error; },
+  });
+  startup[0]();
+  alarm[0]({ name: "not-tahto" });
+  alarm[0]({ name: "greenways:tahto-monitor" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(schedules, 1);
+  assert.deepEqual(checks, ["startup", "background"]);
+});
 
 const runtime = { id: "greenways", getURL: (path) => `chrome-extension://greenways/${path}` };
 const senderFor = (path, documentId = `document:${path}`) => ({
