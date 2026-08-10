@@ -4,11 +4,11 @@ import test from "node:test";
 
 const source = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-const [html, theme, themeRuntime, launcher, greenwaysMark, hestiaMark, historiaMark] =
+const [html, theme, appShell, launcher, greenwaysMark, hestiaMark, historiaMark] =
   await Promise.all([
     source("../src/launcher.html"),
     source("../src/visual-language.css"),
-    source("../src/visual-language.js"),
+    source("../src/app-shell.css"),
     source("../src/launcher.css"),
     source("../src/assets/brand/greenways-small.svg"),
     source("../src/assets/brand/hestia-small.svg"),
@@ -18,9 +18,9 @@ const [html, theme, themeRuntime, launcher, greenwaysMark, hestiaMark, historiaM
 test("launcher declares the Greenways visual-language shell", () => {
   assert.match(html, /data-project="greenways"/);
   assert.match(html, /href="visual-language\.css"/);
-  assert.match(html, /src="visual-language\.js"/);
+  assert.match(html, /href="app-shell\.css"/);
   assert.match(html, /href="assets\/brand\/greenways-small\.svg"/);
-  assert.match(html, /data-theme-toggle/);
+  assert.doesNotMatch(html, /data-theme-toggle/);
 });
 
 test("shared extension tokens provide adaptive day and night material", () => {
@@ -31,14 +31,11 @@ test("shared extension tokens provide adaptive day and night material", () => {
   assert.match(theme, /prefers-reduced-motion/);
 });
 
-test("theme control switches day and night in one click", () => {
-  assert.match(themeRuntime, /const THEME_KEY = "gw-theme"/);
-  assert.match(
-    themeRuntime,
-    /resolvedTheme === "dark" \? "light" : "dark"/,
-  );
-  assert.match(themeRuntime, /event\.shiftKey \? "auto"/);
-  assert.match(themeRuntime, /localStorage\.setItem\(THEME_KEY/);
+test("app shell follows the operating-system appearance", () => {
+  assert.match(appShell, /color-scheme: light dark/);
+  assert.match(appShell, /prefers-color-scheme: dark/);
+  assert.match(appShell, /--mac-accent/);
+  assert.doesNotMatch(appShell, /localStorage|data-theme/);
 });
 
 test("launcher uses canonical project sigils and no legacy forest palette", () => {

@@ -149,11 +149,8 @@ function placeSection() {
     section = replacement;
   }
 
-  // The legacy Home Link decorator is asynchronous. Keep Beacon immediately
-  // above it whenever that compatibility surface appears or is re-rendered.
-  const legacy = shell.querySelector("[data-home-node]");
-  if (legacy && section.nextElementSibling !== legacy) legacy.before(section);
-  else if (!legacy && intro.nextElementSibling !== section) intro.after(section);
+  // Visual ordering belongs to core-order.css. Moving this section in response
+  // to subtree mutations can fight other decorators and starve the main thread.
 }
 
 function scheduleDecoration() {

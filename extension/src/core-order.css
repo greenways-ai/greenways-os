@@ -13,12 +13,10 @@
 .launcher-shell > .app-section:not(.catalog-section) { order: 3; }
 .launcher-shell > .catalog-section { order: 4; }
 .launcher-shell > .core-connections { order: 5; }
-.launcher-shell > .beacon-card { order: 6; }
 .launcher-shell > .home-node { order: 7; }
 .launcher-shell > .launcher-status { order: 8; }
 .launcher-shell > .launcher-footer { order: 9; }
 
-.launcher-shell > .beacon-card,
 .launcher-shell > .home-node {
   margin-top: 14px;
 }

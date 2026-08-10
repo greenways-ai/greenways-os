@@ -102,7 +102,6 @@ function cardMarkup(model) {
 function placeCard() {
   decorateScheduled = false;
   const shell = appRoot?.querySelector(".launcher-shell");
-  const beacon = shell?.querySelector("[data-beacon]");
   const intro = shell?.querySelector(".launcher-intro");
   if (!shell || !intro) return;
   const model = cardModel();
@@ -115,11 +114,11 @@ function placeCard() {
     replacement.dataset.signature = signature;
     replacement.querySelector("[data-tahto-open]")?.addEventListener("click", openSurface);
     if (card) card.replaceWith(replacement);
-    else if (beacon) beacon.insertAdjacentElement("afterend", replacement);
     else intro.insertAdjacentElement("afterend", replacement);
     card = replacement;
   }
-  if (beacon && beacon.nextElementSibling !== card) beacon.after(card);
+  // Visual ordering belongs to core-order.css. Do not move cards from an
+  // observer callback: the legacy decorators observe the same tree.
 }
 
 function scheduleDecoration() {

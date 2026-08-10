@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAppManifest, validateAppManifest } from "../src/app-catalog.js";
+import { getAppManifest, getBuiltinAppCatalog, validateAppManifest } from "../src/app-catalog.js";
 import {
   BrowserKernelHost,
   KERNEL_CONTEXT_RECORD_PROTOCOL,
   KERNEL_GLOBAL_PROTOCOL,
   KERNEL_PROTOCOL,
 } from "../src/kernel-host.js";
+
+const builtinApps = await getBuiltinAppCatalog();
 
 const CONTEXT_PROTOCOL = "greenways-kernel-context/1";
 const LAUNCHER_A = Object.freeze({ kind: "launcher", clientId: "launcher/client-alpha-0001" });
@@ -369,6 +371,7 @@ function createRig({
     devtools,
     userscripts,
     applicationServices,
+    builtinApps,
     now: () => new Date(Date.UTC(2026, 7, 4, 0, 0, tick++)),
   });
   return { host, repository, kernelRepository, runtime, tabs, invoker: hara };

@@ -1,4 +1,5 @@
 import {
+  getBuiltinAppCatalog,
   getAppManifest,
 } from "./app-catalog.js";
 import { sameManifestApproval } from "./app-launch.js";
@@ -297,6 +298,7 @@ function bindEvents() {
 async function start() {
   if (!root) throw new Error("Greenways launcher root is unavailable");
   root.innerHTML = '<section class="launcher-fatal"><p>GREENWAYS KEYRING</p><h1>Opening Playground access…</h1></section>';
+  await getBuiltinAppCatalog();
   await session.start();
   keyringStatus = await keyring.status();
   await render();

@@ -3,17 +3,21 @@ import test from "node:test";
 import {
   APP_MANIFEST_PROTOCOL,
   APP_CAPABILITIES,
-  BUILTIN_APP_CATALOG,
-  BUILTIN_APPS,
   PACKAGED_SURFACE_IDS,
   RUNTIME_HANDLERS,
   SYSTEM_APP_IDS,
+  getBuiltinAppCatalog,
   getAppManifest,
   resolveAppById,
   resolveAppLaunch,
   validateAppCatalog,
   validateAppManifest,
 } from "../src/app-catalog.js";
+
+const catalogPromise = getBuiltinAppCatalog();
+assert.equal(getBuiltinAppCatalog(), catalogPromise);
+const BUILTIN_APP_CATALOG = await catalogPromise;
+const BUILTIN_APPS = await getBuiltinAppCatalog();
 
 function manifest(overrides = {}) {
   return {
@@ -64,7 +68,11 @@ test("Chats is derived from its HAL project and keeps its packaged surface", () 
     "hestia/execute",
   ]);
   assert.equal(chats.project.coordinate, "greenways-ai/chats");
-  assert.match(chats.project.digest, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(chats.project.digest, "sha256:d9d493664a082fe4d95bca4d924d7560c9fcba5b928971254f65a8bb3bbe9429");
+  assert.equal(
+    getAppManifest("userscripts").project.digest,
+    "sha256:3144e69d0417738ee5e3fb4268e6543b7596443468d5d60d232f466134f058dd",
+  );
 });
 
 test("resolves only normalized catalog launches", () => {

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-theme-preference="auto" data-project="greenways">
+<html lang="en" data-project="greenways">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,27 +9,19 @@
   <link rel="icon" href="assets/brand/greenways-small.svg" type="image/svg+xml">
   <link rel="stylesheet" href="visual-language.css">
   <link rel="stylesheet" href="launcher.css">
-  <link rel="stylesheet" href="core-products.css">
-  <link rel="stylesheet" href="beacon.css">
   <link rel="stylesheet" href="tahto.css">
   <link rel="stylesheet" href="home-node.css">
   <link rel="stylesheet" href="home-link-surface.css">
-  <link rel="stylesheet" href="core-order.css">
+  <link rel="stylesheet" href="app-shell.css">
+  <link rel="stylesheet" href="keyring-surface.css">
   <script src="browser-runtime.js"></script>
-  <script type="module" src="visual-language.js"></script>
 </head>
 <body>
-  <button class="launcher-theme-toggle" type="button" data-theme-toggle>
-    <span class="launcher-theme-toggle__icon" data-theme-icon aria-hidden="true">◐</span>
-    <span class="launcher-theme-toggle__label" data-theme-label>Auto</span>
-  </button>
   <main id="launcher-app" aria-live="polite"></main>
   <div id="launcher-surfaces" class="launcher-surface-root"></div>
   <script type="module" src="../dist/launcher.js"></script>
   <script type="module" src="home-node.js"></script>
-  <script type="module" src="beacon-surface.js"></script>
   <script type="module" src="tahto-surface.js"></script>
   <script type="module" src="home-link-surface.js"></script>
-  <script type="module" src="core-products.js"></script>
 </body>
 </html>

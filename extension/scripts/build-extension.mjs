@@ -78,6 +78,9 @@ const [backgroundBundle, launcherBundle, devtoolsBundle, playgroundBridgeBundle]
 if (!backgroundBundle.includes("gw.os.kernel") || !backgroundBundle.includes("data:application/wasm;base64")) {
   throw new Error("The MV3 background bundle does not contain the reviewed Hara kernel runtime");
 }
+if (/^await\b/m.test(backgroundBundle)) {
+  throw new Error("The MV3 background bundle contains top-level await");
+}
 for (const [name, source] of [["launcher", launcherBundle], ["world", worldBundle], ["devtools", devtoolsBundle], ["playground-bridge", playgroundBridgeBundle]]) {
   if (source.includes("data:application/wasm;base64") || source.includes("gw.os.kernel")) {
     throw new Error(`The ${name} page bundle contains a second Hara kernel runtime`);

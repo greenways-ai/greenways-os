@@ -1,4 +1,4 @@
-import { SYSTEM_APP_IDS, getAppManifest } from "./app-catalog.js";
+import { SYSTEM_APP_IDS, getAppManifest, getBuiltinAppCatalog } from "./app-catalog.js";
 import { resolveAppUrl, sameManifestApproval } from "./app-launch.js";
 import { getRootApp, resolveRootAppUrl } from "./root-apps.js";
 import { DevtoolsNativeBridge } from "./devtools-bridge.js";
@@ -16,6 +16,7 @@ import { createUserscriptsRuntime } from "./userscripts-runtime.js";
 import { createChatsRuntime } from "./chats-runtime.js";
 import { TAHTO_MONITOR_ALARM, createTahtoMonitor } from "./tahto-monitor.js";
 import { TahtoKeyring } from "./tahto-keyring.js";
+import { createAppWindowCoordinator } from "./app-window.js";
 
 export { resolveAppUrl } from "./app-launch.js";
 
@@ -49,6 +50,7 @@ const PAGE_ROLES = new Map([
 const KERNEL_TYPES = new Set(Object.values(KERNEL_MESSAGE_TYPES));
 const DEVTOOLS_BRIDGE_TYPES = new Set(Object.values(DEVTOOLS_BRIDGE_MESSAGE_TYPES));
 const ALLOWED_CONTEXT_TYPES = new Set(["TAB", "SIDE_PANEL"]);
+const FALLBACK_CONTEXT_ID = /^context\/[A-Za-z0-9._:-]{8,200}$/;
 
 let defaultHostPromise;
 let defaultBridge;
@@ -58,6 +60,7 @@ export function createInstalledAppChecker(appStore = store) {
     throw new TypeError("Installed app checker requires an app store");
   }
   return async (appId) => {
+    await getBuiltinAppCatalog();
     const manifest = getAppManifest(appId);
     if (!manifest) return false;
     if (SYSTEM_IDS.has(manifest.id)) return true;
@@ -95,27 +98,53 @@ function sameExtensionUrl(value, runtime) {
   return senderUrl;
 }
 
+function sameExtensionDocument(value, expected, runtime) {
+  const contextUrl = sameExtensionUrl(value, runtime);
+  return Boolean(contextUrl && contextUrl.pathname === expected.pathname);
+}
+
 export async function principalFromSender(sender, message, runtime = globalThis.chrome?.runtime) {
   if (!runtime || sender?.id !== runtime.id) throw new Error("Kernel caller is not this extension");
   if (sender.frameId !== undefined && sender.frameId !== 0) throw new Error("Kernel calls require a top-level extension page");
   if (sender.tab?.incognito) throw new Error("Greenways OS does not share a kernel with incognito pages");
-  if (typeof sender.documentId !== "string" || !sender.documentId) throw new Error("Kernel caller has no active document identity");
   const url = sameExtensionUrl(sender.url, runtime);
   const kind = url && PAGE_ROLES.get(url.pathname);
   if (!kind) throw new Error("This packaged page is not a kernel caller");
+  let documentId = typeof sender.documentId === "string" && sender.documentId
+    ? sender.documentId
+    : null;
   if (runtime.getContexts) {
-    const contexts = await runtime.getContexts({ documentIds: [sender.documentId] });
+    const filter = documentId
+      ? { documentIds: [documentId] }
+      : {
+        contextTypes: [...ALLOWED_CONTEXT_TYPES],
+        documentUrls: [url.href],
+        ...(Number.isInteger(sender.tab?.id) ? { tabIds: [sender.tab.id] } : {}),
+      };
+    const contexts = await runtime.getContexts(filter);
     const current = contexts.filter((context) => (
-      context.documentId === sender.documentId
+      (!documentId || context.documentId === documentId)
       && ALLOWED_CONTEXT_TYPES.has(context.contextType)
       && !context.incognito
+      && (!Number.isInteger(sender.tab?.id) || context.tabId === sender.tab.id)
+      // A hash route does not create another document. Arc can report the URL
+      // captured at document creation while sender.url reflects the current
+      // in-document route, so bind authority to the packaged path and the
+      // browser-issued document id rather than to a mutable fragment.
+      && (!context.documentUrl || sameExtensionDocument(context.documentUrl, url, runtime))
     ));
     if (current.length !== 1) throw new Error("Kernel caller is not an active extension context");
+    documentId = current[0].documentId;
   }
+  const fallbackContextId = typeof message?.contextId === "string"
+    && FALLBACK_CONTEXT_ID.test(message.contextId)
+    ? message.contextId
+    : null;
+  if (!documentId && !fallbackContextId) throw new Error("Kernel caller has no active document identity");
   if (message?.clientKind !== undefined && message.clientKind !== kind) {
     throw new Error("Kernel client role does not match its packaged page");
   }
-  const clientId = `document/${sender.documentId}`;
+  const clientId = documentId ? `document/${documentId}` : fallbackContextId;
   if (
     KERNEL_TYPES.has(message?.type)
     && message.type !== KERNEL_MESSAGE_TYPES.ATTACH
@@ -137,12 +166,12 @@ export function createKernelHost({
   if (!modules || typeof modules.values !== "function") {
     throw new TypeError("Kernel host requires a durable module repository");
   }
-  return import("./greenways-runtime.js")
-    .then(async ({
+  return Promise.all([getBuiltinAppCatalog(), import("./greenways-runtime.js")])
+    .then(async ([builtinApps, {
       createGreenwaysDevtoolsRuntime,
       createGreenwaysInvoker,
       restoreGreenwaysModules,
-    }) => {
+    }]) => {
       const [invoke, records] = await Promise.all([
         createGreenwaysInvoker(),
         modules.values(),
@@ -175,6 +204,7 @@ export function createKernelHost({
         userscripts,
         chats,
         applicationServices,
+        builtinApps,
       });
       // chrome.userScripts registrations persist across service-worker restarts,
       // but durable records are the source of truth: reconcile drift (for example
@@ -274,6 +304,7 @@ export function createMessageHandler({
 
     Promise.resolve()
       .then(async () => {
+        await getBuiltinAppCatalog();
         if (chatObservation) {
           const origin = new URL(sender?.url ?? "about:blank").origin;
           if (!["https://chatgpt.com", "https://www.chatgpt.com", "https://chat.openai.com"].includes(origin)) {
@@ -348,9 +379,28 @@ export function installTahtoMonitoring({
 
 const tahtoMonitoring = installTahtoMonitoring();
 
+export function installActionAccess({
+  runtime = globalThis.chrome?.runtime,
+  action = globalThis.chrome?.action,
+  sidePanel = globalThis.chrome?.sidePanel,
+  windows = globalThis.chrome?.windows,
+  tabs = globalThis.chrome?.tabs,
+  sessionStorage = globalThis.chrome?.storage?.session,
+  report = (error) => console.warn("Greenways toolbar setup failed", error),
+} = {}) {
+  const coordinator = createAppWindowCoordinator({ runtime, windows, tabs, sessionStorage });
+  const openLauncher = () => coordinator.open();
+  action?.onClicked?.addListener(() => void openLauncher().catch(report));
+  Promise.resolve(sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: false })).catch(report);
+  return Object.freeze({ openLauncher });
+}
+
+if (globalThis.chrome?.runtime && globalThis.chrome?.action && globalThis.chrome?.tabs) {
+  installActionAccess();
+}
+
 if (globalThis.chrome?.runtime?.onInstalled) {
   chrome.runtime.onInstalled.addListener(async () => {
-    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
     await tahtoMonitoring.schedule();
     await tahtoMonitoring.check("installed");
   });

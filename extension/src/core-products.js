@@ -1,4 +1,4 @@
-import { getAppManifest } from "./app-catalog.js";
+import { getAppManifest, getBuiltinAppCatalog } from "./app-catalog.js";
 import { GreenwaysKeyring } from "./keyring.js";
 import { openKeyringSurface } from "./keyring-surface.js";
 import { packageKindLabel, projectPackage } from "./package-manager.js";
@@ -49,7 +49,7 @@ function coreMarkup(shell) {
 function connectionsMarkup() {
   return `<section class="core-connections" data-core-connections>
     <header class="core-heading"><div><p>OPTIONAL CONNECTIONS</p><h2>Homes, gateways, and migration</h2></div><span>Network by consent</span></header>
-    <p>Beacon, Hestia, and legacy Home Link extend Greenways OS. They do not sit above local keys or package approvals.</p>
+    <p>Hestia, Tahto, and legacy Home Link extend Greenways OS. They do not sit above local keys or package approvals.</p>
   </section>`;
 }
 
@@ -79,7 +79,7 @@ function decorate() {
   const intro = shell?.querySelector(".launcher-intro");
   if (!shell || !intro) return;
 
-  // Legacy Beacon/Home decorators retain their compatibility surfaces, but the
+  // Legacy connection decorators retain their compatibility surfaces, but the
   // first-product shell no longer renders their network-led hero. We never
   // rewrite its children, so independent observers converge instead of fighting.
   if (!intro.hidden) intro.hidden = true;
@@ -124,21 +124,7 @@ function decorate() {
     }
   });
 
-  // Keep the original Greenways Space destination explicit in the disconnected
-  // Beacon dialog as well as on its launcher card.
-  const beaconDescription = surfaceRoot
-    ?.querySelector('[role="dialog"][aria-label="Greenways Beacon"] .beacon-hero p');
-  if (beaconDescription?.textContent.includes("inert Space catalogue")) {
-    setText(
-      beaconDescription,
-      beaconDescription.textContent.replace(
-        "inert Space catalogue",
-        "inert greenways.space catalogue",
-      ),
-    );
-  }
-
-  // Visual order is CSS-owned. Beacon, Home Link, app sections, and core
+  // Visual order is CSS-owned. Home Link, app sections, and core
   // sections remain stable direct children; this decorator never reparents them.
 }
 
@@ -164,6 +150,10 @@ if (appRoot && surfaceRoot) {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refresh();
   });
-  refresh();
-  schedule();
+  getBuiltinAppCatalog().then(() => {
+    refresh();
+    schedule();
+  }).catch((error) => {
+    keyringError = error;
+  });
 }

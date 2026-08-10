@@ -10,6 +10,9 @@ test("extension requests only its required root-OS permissions", () => {
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["sidePanel", "alarms", "storage", "nativeMessaging", "scripting", "userScripts"]);
   assert.equal(manifest.side_panel.default_path, "src/launcher.html");
+  assert.equal(manifest.action.default_title, "Open Greenways OS");
+  assert.equal(manifest.action.default_icon["32"], "src/assets/icons/greenways-32.png");
+  assert.equal(manifest.icons["128"], "src/assets/icons/greenways-128.png");
   assert.equal(manifest.minimum_chrome_version, "120");
   assert.equal(manifest.background.service_worker, "dist/background.js");
   assert.equal(manifest.background.type, "module");

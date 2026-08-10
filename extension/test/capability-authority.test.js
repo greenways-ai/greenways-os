@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAppManifest, validateAppManifest } from "../src/app-catalog.js";
+import { getAppManifest, getBuiltinAppCatalog, validateAppManifest } from "../src/app-catalog.js";
 import {
   CAPABILITY_DECISION_PROTOCOL,
   CapabilityAuthority,
   createVerifiedModuleRuntimeState,
 } from "../src/capability-authority.js";
 import { MODULE_RECORD_PROTOCOL } from "../src/module-record.js";
+
+await getBuiltinAppCatalog();
 
 const LOCK = `sha256:${"a".repeat(64)}`;
 

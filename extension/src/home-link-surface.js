@@ -77,7 +77,7 @@ function homeNodeModel() {
       state: "local",
       label: "Compatibility only",
       title: "Legacy Home Link remains available for migration.",
-      description: "Pair this browser only when preserving the first Greenways Home Node protocol. New local gateway and Space discovery work belongs in Greenways Beacon.",
+      description: "Pair this browser only when preserving the first Greenways Home Node protocol.",
       action: "Use legacy Home Link",
       browser: "Local kernel",
       address: "Not paired",
@@ -91,7 +91,7 @@ function homeNodeModel() {
     state: "connected",
     label: "Legacy link",
     title: "This browser retains its original signed Home Link.",
-    description: "The device key remains available while identity and recovery migrate to Greenways Beacon. This compatibility node is not the new route to greenways.space.",
+    description: "The device key remains available for identity export and recovery. This compatibility node is not a default network route.",
     action: "Manage legacy link",
     browser: connection.device.name,
     address: homeAddress(connection),
@@ -215,8 +215,8 @@ function createSurface() {
         <section class="home-link-hero">
           <span class="home-link-hero-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <div><h2>${linked ? "Your original browser link remains active." : "Pair only when preserving an existing Home Link."}</h2><p>${linked
-            ? "This browser still proves signed presence with the first Greenways Home Node protocol. Keep it only while exporting, recovering or deliberately migrating its device identity to Beacon."
-            : "Enter a one-time code from the compatibility Home Node. New installations should connect Greenways Beacon instead; this flow exists so old browser keys and signed records are not abandoned."}</p></div>
+            ? "This browser still proves signed presence with the first Greenways Home Node protocol. Keep it only while exporting or recovering its device identity."
+            : "Enter a one-time code from the compatibility Home Node. This flow exists so old browser keys and signed records are not abandoned."}</p></div>
         </section>
         ${linked ? `<div class="home-link-metrics">
           <div><strong>${escapeHtml(homeStatus?.browsers?.length ?? "—")}</strong><span>legacy browsers</span></div>
@@ -233,7 +233,7 @@ function createSurface() {
           <label>One-time pairing code<input name="code" type="text" inputmode="text" maxlength="9" autocomplete="one-time-code" required placeholder="ABCD-EFGH"></label>
           <button type="submit" ${busy ? "disabled" : ""}>${busy ? "Pairing legacy browser…" : "Pair legacy Home Link"}</button>
         </form>
-        <div class="home-link-boundary"><strong>Compatibility is not the new architecture.</strong><span>The original Home Link remains isolated so existing browser keys can be recovered or migrated. Greenways Beacon is the Hoplite gateway to greenways.space.</span></div>`}
+        <div class="home-link-boundary"><strong>Compatibility is not the new architecture.</strong><span>The original Home Link remains isolated so existing browser keys can be recovered or migrated.</span></div>`}
         ${notice ? `<p class="home-link-notice" data-tone="${escapeHtml(noticeTone)}" role="status">${escapeHtml(notice)}</p>` : ""}
         <p class="home-link-footnote">Legacy service descriptors remain inert data. Greenways OS never evaluates remote JavaScript, Wasm, HAL, HTML or executable UI supplied by the compatibility node.</p>
       </div>
@@ -350,7 +350,7 @@ function createSurface() {
         ? `The legacy link was removed, but Chrome origin access still needs attention: ${permissionError.message}`
         : remoteError
           ? "The local legacy link was removed. The unreachable compatibility node may retain a stale public device entry."
-          : "The legacy Home Link was removed. Local Greenways records and Beacon settings were not changed.";
+          : "The legacy Home Link was removed. Other local Greenways records were not changed.";
       noticeTone = permissionError ? "error" : remoteError ? "quiet" : "good";
       scheduleDecoration();
     } catch (error) {

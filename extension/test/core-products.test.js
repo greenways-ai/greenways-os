@@ -1,56 +1,55 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import {
+  DEVTOOLS_ROUTES,
+  LAUNCHER_ROUTES,
+  routeFromHash,
+  sidebarMarkup,
+} from "../src/app-shell.js";
 
-const [html, runtime, order, theme, keyringProtocol, packageProtocol] = await Promise.all([
+const [html, launcher, shell, keyringSurface, devtools, keyringProtocol, packageProtocol] = await Promise.all([
   readFile(new URL("../src/launcher.html", import.meta.url), "utf8"),
-  readFile(new URL("../src/core-products.js", import.meta.url), "utf8"),
-  readFile(new URL("../src/core-order.css", import.meta.url), "utf8"),
-  readFile(new URL("../src/core-products.css", import.meta.url), "utf8"),
+  readFile(new URL("../src/launcher.js", import.meta.url), "utf8"),
+  readFile(new URL("../src/app-shell.css", import.meta.url), "utf8"),
+  readFile(new URL("../src/keyring-surface.css", import.meta.url), "utf8"),
+  readFile(new URL("../src/devtools.js", import.meta.url), "utf8"),
   readFile(new URL("../../protocol/keyring.md", import.meta.url), "utf8"),
   readFile(new URL("../../protocol/packages.md", import.meta.url), "utf8"),
 ]);
 
-test("loads the keyring/package hierarchy after connection decorators", () => {
-  assert.match(html, /href="core-products\.css"/);
-  assert.match(html, /href="core-order\.css"/);
-  const home = html.indexOf('src="home-node.js"');
-  const beacon = html.indexOf('src="beacon-surface.js"');
-  const core = html.indexOf('src="core-products.js"');
-  assert.ok(home >= 0 && beacon > home && core > beacon);
-  assert.match(runtime, /Keys first\. Packages second\./);
-  assert.match(runtime, /data-open-keyring/);
-  assert.match(runtime, /data-manage-packages/);
-  assert.match(runtime, /data-core-connections/);
+test("launcher and DevTools share one compact settings navigation", () => {
+  assert.match(html, /href="app-shell\.css"/);
+  assert.match(html, /href="keyring-surface\.css"/);
+  assert.doesNotMatch(html, /core-products|core-order|beacon-surface/);
+  const navigation = sidebarMarkup("developer");
+  for (const label of ["Home", "Apps", "Connections", "General", "Keyring", "Kernel", "Developer", "RESP Bridge", "About"]) {
+    assert.match(navigation, new RegExp(`>${label}<`));
+  }
+  assert.match(navigation, /data-route="developer" aria-current="page"/);
+  assert.equal(routeFromHash("#apps", LAUNCHER_ROUTES, "home"), "apps");
+  assert.equal(routeFromHash("#bridge", DEVTOOLS_ROUTES, "kernel"), "bridge");
 });
 
-test("demotes network connections through stable CSS order without reparenting them", () => {
-  assert.match(runtime, /Visual order is CSS-owned/);
-  assert.match(runtime, /never reparents them/);
-  assert.match(runtime, /OPTIONAL CONNECTIONS/);
-  assert.doesNotMatch(runtime, /append\(legacy\)/);
-  assert.doesNotMatch(runtime, /anchor\.after/);
-  assert.match(order, /\.core-products \{ order: 2; \}/);
-  assert.match(order, /\.app-section:not\(\.catalog-section\) \{ order: 3; \}/);
-  assert.match(order, /\.core-connections \{ order: 5; \}/);
-  assert.match(order, /\.beacon-card \{ order: 6; \}/);
-  assert.match(order, /\.home-node \{ order: 7; \}/);
-  assert.doesNotMatch(runtime, /new BeaconClient/);
-  assert.doesNotMatch(runtime, /new HestiaClient/);
+test("uses compact system-adaptive groups instead of website heroes", () => {
+  assert.match(shell, /grid-template-columns: 210px/);
+  assert.match(shell, /prefers-color-scheme: dark/);
+  assert.match(shell, /@media \(max-width: 720px\)/);
+  assert.match(shell, /-apple-system/);
+  assert.match(keyringSurface, /\.keyring-overlay/);
+  assert.match(launcher, /renderedRoute !== route/);
+  assert.match(launcher, /function homePage/);
+  assert.match(launcher, /function appsPage/);
+  assert.match(launcher, /function connectionsPage/);
+  assert.doesNotMatch(launcher, /Program the OS|Your browser,<br>/);
+  assert.doesNotMatch(devtools, /devtools-hero|PREINSTALLED ROOT APP/);
 });
 
-test("yields between legacy observer passes and hides their network-led hero", () => {
-  assert.match(runtime, /if \(!intro\.hidden\) intro\.hidden = true/);
-  assert.match(runtime, /independent observers converge instead of fighting/);
-  assert.match(runtime, /setTimeout\(decorate, 0\)/);
-  assert.doesNotMatch(runtime, /queueMicrotask/);
-});
-
-test("documents no-key-export and no-remote-code boundaries", () => {
+test("keeps keyring, package, and privileged developer boundaries explicit", () => {
+  assert.match(launcher, /openKeyringSurface/);
+  assert.match(launcher, /data-install-app/);
+  assert.match(devtools, /clientKind: "devtools"/);
+  assert.match(devtools, /devtools\/eval/);
   assert.match(keyringProtocol, /must not receive the underlying key material/);
-  assert.match(keyringProtocol, /credential\/get/);
   assert.match(packageProtocol, /cannot be installed as remote extension logic/);
-  assert.match(packageProtocol, /Keyring and Package Manager are core host services/);
-  assert.match(theme, /var\(--gw-canvas\)/);
-  assert.doesNotMatch(theme, /https?:\/\//);
 });

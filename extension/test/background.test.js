@@ -1,13 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAppManifest } from "../src/app-catalog.js";
+import { getAppManifest, getBuiltinAppCatalog } from "../src/app-catalog.js";
 import {
   createInstalledAppChecker,
   createMessageHandler,
+  installActionAccess,
   installTahtoMonitoring,
   principalFromSender,
   resolveAppUrl,
 } from "../src/background.js";
+
+await getBuiltinAppCatalog();
+
+test("toolbar action opens the launcher in a browser tab", async () => {
+  let listener;
+  const calls = [];
+  const access = installActionAccess({
+    runtime: { getURL: (path) => `chrome-extension://greenways/${path}` },
+    action: { onClicked: { addListener(value) { listener = value; } } },
+    sidePanel: { setPanelBehavior: async (options) => calls.push(["behavior", options]) },
+    tabs: { create: async (options) => calls.push(["tab", options]) },
+  });
+  await access.openLauncher({ id: 7 });
+  assert.equal(typeof listener, "function");
+  assert.deepEqual(calls, [
+    ["behavior", { openPanelOnActionClick: false }],
+    ["tab", { url: "chrome-extension://greenways/src/launcher.html#home" }],
+  ]);
+});
 
 test("Tahto monitoring checks on startup and only on its named alarm", async () => {
   const startup = [];
@@ -175,6 +195,42 @@ test("derives kernel roles from exact active packaged documents", async () => {
     ),
     { kind: "devtools", clientId: "document/document:active-devtools" },
   );
+  const routedDevtoolsSender = {
+    ...senderFor("src/devtools.html", "document:routed-devtools"),
+    url: runtime.getURL("src/devtools.html#developer"),
+  };
+  assert.deepEqual(
+    await principalFromSender(
+      routedDevtoolsSender,
+      { type: "greenways/kernel/attach", clientKind: "devtools" },
+      {
+        ...runtime,
+        getContexts: async () => [{
+          documentId: "document:routed-devtools",
+          documentUrl: runtime.getURL("src/devtools.html#kernel"),
+          contextType: "TAB",
+          incognito: false,
+        }],
+      },
+    ),
+    { kind: "devtools", clientId: "document/document:routed-devtools" },
+  );
+  await assert.rejects(
+    principalFromSender(
+      routedDevtoolsSender,
+      { type: "greenways/kernel/attach", clientKind: "devtools" },
+      {
+        ...runtime,
+        getContexts: async () => [{
+          documentId: "document:routed-devtools",
+          documentUrl: runtime.getURL("src/launcher.html#developer"),
+          contextType: "TAB",
+          incognito: false,
+        }],
+      },
+    ),
+    /not an active extension context/,
+  );
   assert.deepEqual(
     await principalFromSender(sender, {
       type: "greenways/kernel/attach",
@@ -182,6 +238,51 @@ test("derives kernel roles from exact active packaged documents", async () => {
       contextId: "context/launcher-auth-0001",
     }, activeRuntime),
     { kind: "launcher", clientId: "document/document:active-launcher" },
+  );
+  const arcSender = {
+    ...sender,
+    documentId: undefined,
+    tab: { id: 42 },
+  };
+  const arcRuntime = {
+    ...runtime,
+    getContexts: async (filter) => {
+      assert.deepEqual(filter, {
+        contextTypes: ["TAB", "SIDE_PANEL"],
+        documentUrls: [runtime.getURL("src/launcher.html")],
+        tabIds: [42],
+      });
+      return [{
+        documentId: "document:arc-launcher",
+        documentUrl: runtime.getURL("src/launcher.html"),
+        contextType: "TAB",
+        tabId: 42,
+        incognito: false,
+      }];
+    },
+  };
+  assert.deepEqual(
+    await principalFromSender(arcSender, {
+      type: "greenways/kernel/attach",
+      clientKind: "launcher",
+    }, arcRuntime),
+    { kind: "launcher", clientId: "document/document:arc-launcher" },
+  );
+  assert.deepEqual(
+    await principalFromSender(arcSender, {
+      type: "greenways/kernel/attach",
+      clientKind: "launcher",
+      contextId: "context/arc-launcher-0001",
+    }, runtime),
+    { kind: "launcher", clientId: "context/arc-launcher-0001" },
+  );
+  await assert.rejects(
+    principalFromSender(arcSender, {
+      type: "greenways/kernel/attach",
+      clientKind: "launcher",
+      contextId: "attacker-selected",
+    }, runtime),
+    /no active document identity/,
   );
   await assert.rejects(
     principalFromSender(sender, {

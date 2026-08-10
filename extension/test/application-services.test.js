@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAppManifest } from "../src/app-catalog.js";
+import { getAppManifest, getBuiltinAppCatalog } from "../src/app-catalog.js";
 import { createApplicationServiceRouter } from "../src/application-services.js";
 import { createCapabilityGrant } from "../src/core-services.js";
+
+await getBuiltinAppCatalog();
 
 function grant(manifest, capability, index) {
   return createCapabilityGrant({

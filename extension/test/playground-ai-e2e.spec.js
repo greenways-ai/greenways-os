@@ -27,7 +27,7 @@ async function testExtension() {
     format: "esm",
     platform: "browser",
     target: "chrome120",
-    loader: { ".hal": "text" },
+    loader: { ".hal": "text", ".edn": "text" },
     external: ["node:worker_threads"],
   });
   return { path, dispose: () => rm(root, { recursive: true, force: true }) };

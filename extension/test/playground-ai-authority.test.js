@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAppManifest } from "../src/app-catalog.js";
+import { getAppManifest, getBuiltinAppCatalog } from "../src/app-catalog.js";
 import { createCapabilityGrant } from "../src/core-services.js";
 import { PlaygroundAiAuthority } from "../src/playground-ai-authority.js";
+
+await getBuiltinAppCatalog();
 
 const now = () => new Date("2026-08-09T00:00:00.000Z");
 const manifest = getAppManifest("hara-playground");

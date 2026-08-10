@@ -1,10 +1,9 @@
 import {
-  BUILTIN_APPS,
   SYSTEM_APP_IDS,
+  getBuiltinAppCatalog,
   getAppManifest,
   validateAppManifest,
 } from "./app-catalog.js";
-import { ROOT_APPS } from "./root-apps.js";
 import {
   HestiaClient,
   requestOriginAccess,
@@ -17,21 +16,28 @@ import { SurfaceHost } from "./surface-host.js";
 import { createUserscriptsSurface } from "./userscripts-surface.js";
 import { createChatsSurface } from "./chats-surface.js";
 import { EffectRuntime } from "./world-session.js";
+import { GreenwaysKeyring } from "./keyring.js";
+import { openKeyringSurface } from "./keyring-surface.js";
+import {
+  LAUNCHER_ROUTES,
+  appShellMarkup,
+  routeFromHash,
+} from "./app-shell.js";
 
 const appRoot = document.querySelector("#launcher-app");
 const surfaceRoot = document.querySelector("#launcher-surfaces");
 const systemIds = new Set(SYSTEM_APP_IDS);
 const APP_LIFECYCLE_LOCK = "app-lifecycle";
-const catalog = BUILTIN_APPS.map((manifest) => {
-  validateAppManifest(manifest);
-  return manifest;
-});
+let catalog = [];
 
 let session;
 let surfaceHost;
 let status = { tone: "quiet", message: "Starting the local kernel…" };
 let connectorConnected = false;
 let kernelReady = false;
+const keyring = new GreenwaysKeyring();
+let keyringSnapshot = { controller: null, providerProfiles: [] };
+let renderedRoute;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -69,125 +75,136 @@ function requirementLabel(manifest) {
   return manifest.requirement.name;
 }
 
-function appCard(manifest, { installed, updateAvailable = false }) {
+function appRow(manifest, { installed, updateAvailable = false }) {
   const system = isSystemApp(manifest);
   const disabled = kernelReady ? "" : ' disabled aria-disabled="true"';
-  return `<article class="app-card" id="app-${escapeHtml(manifest.id)}" data-app-card="${escapeHtml(manifest.id)}">
-    <div class="app-icon app-icon--${escapeHtml(manifest.id)}" aria-hidden="true">${escapeHtml(appGlyph(manifest))}</div>
-    <div class="app-copy">
-      <p>${system ? "SYSTEM" : escapeHtml(manifest.category || "APP")}</p>
-      <h2>${escapeHtml(manifest.name)}</h2>
-      <span>${escapeHtml(manifest.description)}</span>
-    </div>
-    <div class="app-meta">
-      <span>${escapeHtml(manifest.publisher.name)} · v${escapeHtml(manifest.version)}</span>
-      <small>${escapeHtml(requirementLabel(manifest))}</small>
-    </div>
-    <div class="app-actions">
+  return `<article class="gw-row" id="app-${escapeHtml(manifest.id)}" data-app-card="${escapeHtml(manifest.id)}">
+    <div class="gw-row__main"><span class="gw-row__icon" aria-hidden="true">${escapeHtml(appGlyph(manifest))}</span><div class="gw-row__copy">
+      <h3>${escapeHtml(manifest.name)}</h3>
+      <span>${escapeHtml(manifest.publisher.name)} · ${escapeHtml(requirementLabel(manifest))} · v${escapeHtml(manifest.version)}</span>
+    </div></div>
+    <div class="gw-row__actions">
       ${updateAvailable
-        ? `<button class="app-install" type="button" data-update-app="${escapeHtml(manifest.id)}"${disabled}>Approve v${escapeHtml(manifest.version)}</button><button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}"${disabled}>Remove</button>`
+        ? `<button class="gw-button gw-button--primary" type="button" data-update-app="${escapeHtml(manifest.id)}"${disabled}>Approve v${escapeHtml(manifest.version)}</button><button class="gw-button gw-button--danger" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}"${disabled}>Remove</button>`
         : installed
-        ? `<button class="app-open" type="button" data-open-app="${escapeHtml(manifest.id)}"${disabled}>Open</button>${system ? "" : `<button class="app-more" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}"${disabled}>Remove</button>`}`
-        : `<button class="app-install" type="button" data-install-app="${escapeHtml(manifest.id)}"${disabled}>Install locally</button>`}
+        ? `<button class="gw-button" type="button" data-open-app="${escapeHtml(manifest.id)}"${disabled}>Open</button>${system ? "" : `<button class="gw-button gw-button--danger" type="button" data-remove-app="${escapeHtml(manifest.id)}" aria-label="Remove ${escapeHtml(manifest.name)}"${disabled}>Remove</button>`}`
+        : `<button class="gw-button gw-button--primary" type="button" data-install-app="${escapeHtml(manifest.id)}"${disabled}>Install locally</button>`}
     </div>
   </article>`;
 }
 
-function rootAppCard(app) {
-  const disabled = kernelReady ? "" : ' disabled aria-disabled="true"';
-  return `<article class="app-card root-app-card" id="root-${escapeHtml(app.id)}" data-root-app-card="${escapeHtml(app.id)}">
-    <div class="app-icon app-icon--root" aria-hidden="true">λ</div>
-    <div class="app-copy">
-      <p>ROOT APP · PREINSTALLED</p>
-      <h2>${escapeHtml(app.name)}</h2>
-      <span>${escapeHtml(app.description)}</span>
-    </div>
-    <div class="app-meta">
-      <span>Greenways OS · v${escapeHtml(app.version)}</span>
-      <small>${escapeHtml(app.authority.join(" · "))}</small>
-    </div>
-    <div class="app-actions">
-      <button class="app-open" type="button" data-open-root-app="${escapeHtml(app.id)}"${disabled}>Open DevTools</button>
-    </div>
-  </article>`;
+function pageHeader(title, description) {
+  return `<header class="gw-page__header"><h2>${title}</h2><p>${description}</p></header>`;
 }
 
-function runtimeMessage(message) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (!response?.ok) {
-        reject(new Error(response?.error || "Greenways OS request failed"));
-        return;
-      }
-      resolve(response);
-    });
-  });
+function homePage(installed, available) {
+  return `${pageHeader("Greenways OS", "Your local browser system at a glance.")}<div class="gw-settings">
+    <section><h3>System</h3><div class="gw-group">
+      <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">λ</span><div class="gw-row__copy"><strong>Kernel</strong><span>Resident Hara runtime</span></div></div><span class="gw-row__value">${kernelReady ? "Ready" : "Starting…"}</span></div>
+      <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">▦</span><div class="gw-row__copy"><strong>Apps</strong><span>${installed.length} installed · ${available.length} available</span></div></div><a class="gw-button" href="launcher.html#apps">Manage</a></div>
+      <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">⌁</span><div class="gw-row__copy"><strong>Keyring</strong><span>Local signing identity and session credentials</span></div></div><a class="gw-button" href="launcher.html#keyring">Open</a></div>
+    </div></section>
+    <section><h3>Privacy</h3><div class="gw-group"><div class="gw-row"><div class="gw-row__copy"><strong>Local by default</strong><span>Network services remain off until you explicitly connect them.</span></div><span class="gw-row__value">${connectorConnected ? "Hestia connected" : "No remote home"}</span></div></div></section>
+  </div>`;
 }
 
-async function openRootApp(appId) {
-  const app = ROOT_APPS.find(({ id }) => id === appId);
-  if (!app) return setStatus("That root app is not part of this Greenways OS build.", "error");
-  try {
-    setStatus(`Opening ${app.name}…`);
-    await runtimeMessage({ type: "greenways/open-root-app", appId });
-    setStatus(`${app.name} opened.`, "good");
-  } catch (error) {
-    setStatus(error?.message || "The root app could not be opened.", "error");
-  }
+function appsPage(installed, available) {
+  return `${pageHeader("Apps", "Install and manage capabilities bundled with this build.")}<div class="gw-settings">
+    <section aria-label="Installed apps"><h3>Installed</h3><div class="gw-group">${installed.length ? installed.map((approved) => {
+      const current = fixedManifestById(approved.id);
+      const updateAvailable = !isSystemApp(approved) && Boolean(current) && !sameManifestApproval(approved, current);
+      return appRow(updateAvailable ? current : approved, { installed: true, updateAvailable });
+    }).join("") : '<p class="gw-empty">No apps are installed.</p>'}</div></section>
+    <section aria-label="Available apps"><h3>Available</h3><div class="gw-group">${available.length ? available.map((manifest) => appRow(manifest, { installed: false })).join("") : '<p class="gw-empty">Every bundled app is installed.</p>'}</div></section>
+  </div>`;
 }
 
-function mosaicMark() {
-  const cells = ["0011100", "0100010", "1000001", "1001111", "1000001", "0100010", "0011100"].join("");
-  return `<span class="launcher-mark" aria-hidden="true">${[...cells].map((cell, index) => `<i data-on="${cell}" style="--tone:${index % 5}"></i>`).join("")}</span>`;
+function connectionsPage(installedIds) {
+  const disabled = kernelReady ? "" : " disabled";
+  const hestiaInstalled = installedIds.has("hestia-connector");
+  return `${pageHeader("Connections", "Optional services require explicit permission and remain subordinate to local keys.")}<div class="gw-settings"><section><h3>Services</h3><div class="gw-group">
+    <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">T</span><div class="gw-row__copy"><strong>Tahto</strong><span>Application-state fabric</span></div></div><button class="gw-button" data-open-tahto${disabled}>Configure</button></div>
+    <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">H</span><div class="gw-row__copy"><strong>Hestia</strong><span>Private signed-record synchronization</span></div></div>${hestiaInstalled ? `<button class="gw-button" data-open-app="hestia-connector"${disabled}>${connectorConnected ? "Manage" : "Connect"}</button>` : `<button class="gw-button" data-install-app="hestia-connector"${disabled}>Install</button>`}</div>
+    <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">↺</span><div class="gw-row__copy"><strong>Legacy Home Link</strong><span>Compatibility and identity migration only</span></div></div><button class="gw-button" data-open-home-link${disabled}>Configure</button></div>
+  </div></section></div>`;
+}
+
+function generalPage() {
+  return `${pageHeader("General", "Greenways follows the browser profile and macOS appearance.")}<div class="gw-settings"><section><h3>Appearance</h3><div class="gw-group">
+    <div class="gw-row"><div class="gw-row__copy"><strong>Appearance</strong><span>Automatically follows the operating system</span></div><span class="gw-row__value">System</span></div>
+    <div class="gw-row"><div class="gw-row__copy"><strong>App window</strong><span>Compact standalone browser utility</span></div><span class="gw-row__value">920 × 680</span></div>
+  </div></section><section><h3>Storage</h3><div class="gw-group"><div class="gw-row"><div class="gw-row__copy"><strong>Browser-local data</strong><span>Packages, keys, and application records stay in this profile.</span></div><span class="gw-row__value">On this Mac</span></div></div></section></div>`;
+}
+
+function keyringPage() {
+  const controller = keyringSnapshot.controller;
+  const profiles = keyringSnapshot.providerProfiles ?? [];
+  return `${pageHeader("Keyring", "Manage local identity and temporary provider credentials.")}<div class="gw-settings"><section><h3>Identity</h3><div class="gw-group">
+    <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">⌁</span><div class="gw-row__copy"><strong>Controller key</strong><span>${controller ? `@${escapeHtml(controller.handle)} · ${escapeHtml(controller.algorithm)}` : "No controller identity has been created"}</span></div></div><button class="gw-button" data-open-keyring>${controller ? "Manage" : "Set Up"}</button></div>
+    <div class="gw-row"><div class="gw-row__copy"><strong>Model credentials</strong><span>Credentials are held only for this browser session.</span></div><span class="gw-row__value">${profiles.length} loaded</span></div>
+  </div></section></div>`;
+}
+
+function aboutPage() {
+  const manifest = chrome.runtime.getManifest();
+  return `${pageHeader("About", "Greenways OS is a programmable, browser-resident local system.")}<div class="gw-settings"><section><div class="gw-group">
+    <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon"><img src="assets/brand/greenways-small.svg" alt="" width="20" height="20"></span><div class="gw-row__copy"><strong>Greenways OS</strong><span>Resident Hara kernel and bundled applications</span></div></div><span class="gw-row__value">Version ${escapeHtml(manifest.version)}</span></div>
+    <div class="gw-row"><div class="gw-row__copy"><strong>Security model</strong><span>Local state, exact package approval, and network access by consent.</span></div><span class="gw-row__value">Manifest V3</span></div>
+  </div></section></div>`;
+}
+
+function activeLauncherRoute() {
+  return location.hash.startsWith("#app-") || location.hash.startsWith("#root-")
+    ? "apps"
+    : routeFromHash(location.hash, LAUNCHER_ROUTES, "home");
 }
 
 function render() {
   const installed = installedManifests();
   const installedIds = new Set(installed.map(({ id }) => id));
   const available = catalog.filter(({ id }) => !installedIds.has(id));
-  const connected = connectorConnected;
-  appRoot.innerHTML = `<div class="launcher-shell">
-    <header class="launcher-header">
-      <div class="launcher-brand">${mosaicMark()}<span><strong>Greenways OS</strong><small>ROOT OS · BROWSER KERNEL</small></span></div>
-      <span class="kernel-state"><i></i>${kernelReady ? "Local" : "Starting"}</span>
-    </header>
-    <section class="launcher-intro">
-      <p class="eyebrow">ROOT KERNEL · PROGRAMMABLE BY DESIGN</p>
-      <h1>Your browser,<br><em>with an operating system.</em></h1>
-      <p>Greenways starts as a small resident Hara kernel with one preinstalled root tool. Use DevTools to inspect, evaluate, and program the OS; add ordinary apps around it when you need them.</p>
-      <div class="privacy-line"><span><i></i><strong>Local state</strong> stays on this device</span><span>${connected ? "Hestia connected" : "No remote home connected"}</span></div>
-    </section>
-    <section class="app-section root-tools-section" aria-labelledby="root-tools-heading">
-      <div class="section-heading"><div><p>ROOT TOOLS</p><h2 id="root-tools-heading">Preinstalled with the OS</h2></div><span>${ROOT_APPS.length} fixed</span></div>
-      <div class="app-grid root-app-grid">${ROOT_APPS.map(rootAppCard).join("")}</div>
-    </section>
-    <section class="app-section" aria-labelledby="installed-heading">
-      <div class="section-heading"><div><p>YOUR SPACE</p><h2 id="installed-heading">Installed apps</h2></div><span>${installed.length} local</span></div>
-      <div class="app-grid">${installed.map((approved) => {
-        const current = fixedManifestById(approved.id);
-        const updateAvailable = !isSystemApp(approved)
-          && Boolean(current)
-          && !sameManifestApproval(approved, current);
-        return appCard(updateAvailable ? current : approved, { installed: true, updateAvailable });
-      }).join("")}</div>
-    </section>
-    <section class="app-section catalog-section" aria-labelledby="catalog-heading">
-      <div class="section-heading"><div><p>OPTIONAL SERVICES</p><h2 id="catalog-heading">Add to your browser</h2></div><span>${available.length} available</span></div>
-      ${available.length ? `<div class="app-grid">${available.map((manifest) => appCard(manifest, { installed: false })).join("")}</div>` : `<p class="catalog-empty">Every bundled app is installed. Nothing was fetched from a remote store.</p>`}
-    </section>
-    <p class="launcher-status" data-tone="${escapeHtml(status.tone)}" role="status"><i></i>${escapeHtml(status.message)}</p>
-    <footer class="launcher-footer"><span>GREENWAYS / OS</span><span>Local by default · network by consent</span></footer>
-  </div>`;
+  const route = activeLauncherRoute();
+  if (renderedRoute && renderedRoute !== route) {
+    surfaceRoot.querySelector("[data-keyring-overlay]")?.remove();
+  }
+  renderedRoute = route;
+  const pages = {
+    home: ["Home", "Overview", homePage(installed, available)],
+    apps: ["Apps", `${installed.length} installed`, appsPage(installed, available)],
+    connections: ["Connections", "Network by consent", connectionsPage(installedIds)],
+    general: ["General", "System settings", generalPage()],
+    keyring: ["Keyring", "Local authority", keyringPage()],
+    about: ["About", `Version ${chrome.runtime.getManifest().version}`, aboutPage()],
+  };
+  const [title, detail, content] = pages[route] ?? pages.home;
+  appRoot.innerHTML = appShellMarkup({
+    activeRoute: route,
+    title,
+    detail,
+    content: `<div class="launcher-shell">${content}<div class="launcher-intro" hidden></div></div><p class="gw-inline-status" data-tone="${escapeHtml(status.tone)}" role="status">${escapeHtml(status.message)}</p>`,
+    state: kernelReady ? "Local" : "Starting",
+    tone: kernelReady ? "good" : status.tone,
+  });
 
-  appRoot.querySelectorAll("[data-open-root-app]").forEach((button) => button.addEventListener("click", () => openRootApp(button.dataset.openRootApp)));
   appRoot.querySelectorAll("[data-open-app]").forEach((button) => button.addEventListener("click", () => openApp(button.dataset.openApp)));
   appRoot.querySelectorAll("[data-install-app]").forEach((button) => button.addEventListener("click", () => installApp(button.dataset.installApp)));
   appRoot.querySelectorAll("[data-update-app]").forEach((button) => button.addEventListener("click", () => updateApp(button.dataset.updateApp)));
   appRoot.querySelectorAll("[data-remove-app]").forEach((button) => button.addEventListener("click", () => removeApp(button.dataset.removeApp)));
+  appRoot.querySelector("[data-open-keyring]")?.addEventListener("click", () => openKeyringSurface({
+    root: surfaceRoot,
+    keyring,
+    onChanged(next) { keyringSnapshot = next; render(); },
+  }).catch((error) => setStatus(error?.message || "The keyring could not open.", "error")));
+  appRoot.querySelector("[data-open-tahto]")?.addEventListener("click", () => {
+    const delegate = appRoot.querySelector("[data-tahto-open]");
+    if (delegate) delegate.click();
+    else setStatus("Tahto settings are still loading.", "error");
+  });
+  appRoot.querySelector("[data-open-home-link]")?.addEventListener("click", () => {
+    const delegate = appRoot.querySelector("[data-home-node-action]");
+    if (delegate && !delegate.disabled) delegate.click();
+    else setStatus("Legacy Home Link is still loading.", "error");
+  });
 }
 
 function setStatus(message, tone = "quiet") {
@@ -418,6 +435,10 @@ function createHestiaConnectorSurface({ root, close }) {
 }
 
 async function start() {
+  catalog = (await getBuiltinAppCatalog()).map((manifest) => {
+    validateAppManifest(manifest);
+    return manifest;
+  });
   const effects = new EffectRuntime()
     .register("ui", "open-surface", ([surfaceId, payload], context) => {
       surfaceHost.open(surfaceId, payload || { appId: surfaceId }, { session: context.session });
@@ -444,17 +465,27 @@ async function start() {
 
   render();
   await session.start();
+  const [hestiaConnection, nextKeyringSnapshot] = await Promise.all([
+    store.get("settings", "hestia"),
+    keyring.status(),
+  ]);
+  connectorConnected = Boolean(hestiaConnection);
+  keyringSnapshot = nextKeyringSnapshot;
   kernelReady = true;
   setStatus("Local kernel ready. Network participation is off until you choose it.", "good");
   await handleLaunchIntent();
 }
 
 window.addEventListener("beforeunload", () => session?.destroy(), { once: true });
+window.addEventListener("hashchange", () => {
+  render();
+  void handleLaunchIntent();
+});
 
 async function handleLaunchIntent() {
   const rootMatch = location.hash.match(/^#root-([a-z0-9]+(?:[.-][a-z0-9]+)*)$/);
-  if (rootMatch?.[1] && ROOT_APPS.some(({ id }) => id === rootMatch[1])) {
-    await openRootApp(rootMatch[1]);
+  if (rootMatch?.[1] === "greenways-devtools") {
+    location.assign("devtools.html#kernel");
     return;
   }
   const match = location.hash.match(/^#app-([a-z0-9]+(?:[.-][a-z0-9]+)*)$/);

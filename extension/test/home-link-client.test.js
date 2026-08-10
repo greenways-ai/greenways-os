@@ -151,7 +151,7 @@ test("launcher packages legacy Home Link locally as a migration surface", async 
   assert.match(entry, /LEGACY SERVICE DESCRIPTORS/);
   assert.match(entry, /Compatibility only/);
   assert.match(entry, /never evaluates remote JavaScript, Wasm, HAL/);
-  assert.match(entry, /Greenways Beacon is the Hoplite gateway/);
+  assert.doesNotMatch(entry, /Greenways Beacon/);
   assert.doesNotMatch(entry, /innerHTML\s*=\s*await\s+fetch/);
   assert.match(css, /var\(--gw-canvas\)/);
   assert.match(entry, /stopImmediatePropagation/);

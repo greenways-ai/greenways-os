@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BUILTIN_APP_CATALOG } from "../src/app-catalog.js";
+import { getBuiltinAppCatalog } from "../src/app-catalog.js";
 import {
   PACKAGE_MANAGER_PROTOCOL,
   PACKAGE_PROTOCOL,
@@ -8,6 +8,8 @@ import {
   packageKindLabel,
   projectPackageCatalog,
 } from "../src/package-manager.js";
+
+const BUILTIN_APP_CATALOG = await getBuiltinAppCatalog();
 
 test("projects the reviewed app catalogue as Greenways packages", () => {
   const packages = projectPackageCatalog(BUILTIN_APP_CATALOG);

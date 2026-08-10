@@ -1,5 +1,4 @@
 import {
-  BUILTIN_APPS,
   SYSTEM_APP_IDS,
   getAppManifest,
   validateAppManifest,
@@ -370,6 +369,7 @@ export class BrowserKernelHost {
     userscripts,
     chats,
     applicationServices,
+    builtinApps,
     now = () => new Date(),
   }) {
     if (typeof invoke !== "function") throw new TypeError("Kernel host requires a Hara invoker");
@@ -391,6 +391,7 @@ export class BrowserKernelHost {
     if (applicationServices !== undefined && typeof applicationServices?.call !== "function") {
       throw new TypeError("Kernel host application services must expose call()");
     }
+    if (!Array.isArray(builtinApps)) throw new TypeError("Kernel host requires the built-in app catalog");
     this.invoke = invoke;
     this.devtools = devtools ?? Object.freeze({
       async call() {
@@ -412,6 +413,7 @@ export class BrowserKernelHost {
         throw errorWithCode("Application services are unavailable", "APPLICATION_SERVICES_UNAVAILABLE");
       },
     });
+    this.builtinApps = builtinApps;
     this.repository = repository;
     this.kernelRepository = kernelRepository;
     this.capabilityAuthority = capabilityAuthority;
@@ -445,7 +447,7 @@ export class BrowserKernelHost {
       }
     }
     const installed = [
-      ...BUILTIN_APPS.filter(({ id }) => SYSTEM_IDS.has(id)),
+      ...this.builtinApps.filter(({ id }) => SYSTEM_IDS.has(id)),
       ...optional,
     ];
     if (stored.some(({ id } = {}) => id === "historia") && !installed.some(({ id }) => id === CHATS_APP_ID)) {
@@ -468,7 +470,7 @@ export class BrowserKernelHost {
         grants: revokeRetiredGrants(stored.grants, migrationTime),
       });
       const installed = [
-        ...BUILTIN_APPS.filter(({ id }) => SYSTEM_IDS.has(id)),
+        ...this.builtinApps.filter(({ id }) => SYSTEM_IDS.has(id)),
         ...global.installed.filter(({ id }) => !SYSTEM_IDS.has(id)),
       ];
       const projectionUpgrade = stored.grants === undefined;
@@ -573,7 +575,7 @@ export class BrowserKernelHost {
       )
     );
     const surfaceId = state.surface?.active;
-    const packagedSurface = BUILTIN_APPS.find((manifest) => (
+    const packagedSurface = this.builtinApps.find((manifest) => (
       manifest.launch?.handler === "packaged-surface"
       && manifest.launch.surfaceId === surfaceId
     ));

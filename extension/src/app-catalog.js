@@ -426,7 +426,7 @@ export function validateAppCatalog(value) {
   return Object.freeze(catalog);
 }
 
-const BUILTIN_DESCRIPTORS = [
+const STATIC_BUILTIN_DESCRIPTORS = [
   {
     protocol: APP_MANIFEST_PROTOCOL,
     id: "greenways-worlds",
@@ -438,8 +438,6 @@ const BUILTIN_DESCRIPTORS = [
     capabilities: ["network/github", "worlds/browse"],
     launch: { handler: "extension-page", path: "src/world.html" },
   },
-  await applicationDescriptorWithDigest(chatsProject),
-  await applicationDescriptorWithDigest(userscriptsProject),
   {
     protocol: APP_MANIFEST_PROTOCOL,
     id: "hara-playground",
@@ -453,15 +451,39 @@ const BUILTIN_DESCRIPTORS = [
   },
 ];
 
-export const BUILTIN_APP_CATALOG = validateAppCatalog(BUILTIN_DESCRIPTORS);
-export const BUILTIN_APPS = BUILTIN_APP_CATALOG;
-export const SYSTEM_APP_IDS = Object.freeze(
-  BUILTIN_APP_CATALOG.filter(({ category }) => category === "system").map(({ id }) => id)
-);
+let builtinAppCatalog;
+let builtinAppCatalogPromise;
 
-export function resolveAppById(id, catalog = BUILTIN_APP_CATALOG) {
+export const SYSTEM_APP_IDS = Object.freeze(["greenways-worlds"]);
+
+export function getBuiltinAppCatalog() {
+  if (!builtinAppCatalogPromise) {
+    builtinAppCatalogPromise = Promise.all([
+      applicationDescriptorWithDigest(chatsProject),
+      applicationDescriptorWithDigest(userscriptsProject),
+    ]).then(([chats, userscripts]) => {
+      builtinAppCatalog = validateAppCatalog([
+        STATIC_BUILTIN_DESCRIPTORS[0],
+        chats,
+        userscripts,
+        STATIC_BUILTIN_DESCRIPTORS[1],
+      ]);
+      return builtinAppCatalog;
+    });
+  }
+  return builtinAppCatalogPromise;
+}
+
+function currentBuiltinAppCatalog() {
+  if (!builtinAppCatalog) {
+    throw new Error("The built-in app catalog has not been initialized");
+  }
+  return builtinAppCatalog;
+}
+
+export function resolveAppById(id, catalog = currentBuiltinAppCatalog()) {
   const requestedId = identifier(id, "app id");
-  const safeCatalog = catalog === BUILTIN_APP_CATALOG ? catalog : validateAppCatalog(catalog);
+  const safeCatalog = catalog === builtinAppCatalog ? catalog : validateAppCatalog(catalog);
   return safeCatalog.find((app) => app.id === requestedId) ?? null;
 }
 
@@ -469,7 +491,7 @@ export function getAppManifest(id) {
   return resolveAppById(id);
 }
 
-export function resolveAppLaunch(id, catalog = BUILTIN_APP_CATALOG) {
+export function resolveAppLaunch(id, catalog = currentBuiltinAppCatalog()) {
   const app = resolveAppById(id, catalog);
   if (!app) throw new Error(`Unknown app id: ${id}`);
   return Object.freeze({ appId: app.id, ...app.launch });

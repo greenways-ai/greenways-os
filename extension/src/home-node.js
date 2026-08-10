@@ -3,9 +3,9 @@ import { store } from "./storage.js";
 const appRoot = document.querySelector("#launcher-app");
 const HOME_APP_ID = "hestia-connector";
 const COPY = {
-  eyebrow: "LOCAL KERNEL · GREENWAYS BEACON · SPACE BY CONSENT",
+  eyebrow: "LOCAL KERNEL · OPTIONAL SERVICES BY CONSENT",
   heading: "One browser.<br><em>Connected worlds.</em>",
-  description: "Greenways OS keeps a sovereign Hara kernel inside each browser profile. Greenways Beacon adds a local Hoplite gateway to greenways.space, where Hestia, Ignatius and other services appear only through explicit consent.",
+  description: "Greenways OS keeps a sovereign Hara kernel inside each browser profile. Optional services such as Hestia and Ignatius appear only through explicit consent.",
 };
 
 let decorateScheduled = false;
@@ -74,7 +74,7 @@ function homeModel({ connection, installed, available }) {
       state: "connected",
       label: "Legacy link",
       title: "This browser retains its original Home Link.",
-      description: "The signed browser relationship remains available while device identity migrates to Greenways Beacon. It is compatibility infrastructure, not the new route to Greenways Space.",
+      description: "The signed browser relationship remains available while device identity is exported or recovered. It is compatibility infrastructure, not a default network route.",
       action: "Open legacy link",
       address: homeAddress(connection),
       route: routeLabel(connection),
@@ -87,7 +87,7 @@ function homeModel({ connection, installed, available }) {
       state: "ready",
       label: "Legacy connector",
       title: "Use Home Link only for compatibility.",
-      description: "The bundled Hestia connector can still pair with the first Home Node protocol. New gateway and service discovery work belongs in Greenways Beacon.",
+      description: "The bundled Hestia connector can still pair with the first Home Node protocol for compatibility.",
       action: "Pair legacy Home Link",
       address: "Awaiting origin",
       route: "Local only",
@@ -99,7 +99,7 @@ function homeModel({ connection, installed, available }) {
     state: "local",
     label: "Compatibility only",
     title: "Legacy Home Link remains available for migration.",
-    description: "Enable the old connector only when preserving or exporting an existing browser-to-home relationship. Beacon is the primary local gateway for new installations.",
+    description: "Enable the old connector only when preserving or exporting an existing browser-to-home relationship.",
     action: "Enable legacy connector",
     address: "Not configured",
     route: "Local only",
@@ -113,7 +113,7 @@ function operatingLayers() {
   register.setAttribute("aria-label", "Greenways operating layers");
   register.innerHTML = `
     <span><b>01</b> Local browser kernel</span>
-    <span><b>02</b> Greenways Beacon</span>
+    <span><b>02</b> Optional local services</span>
     <span><b>03</b> Space services by consent</span>
   `;
   return register;
@@ -243,7 +243,7 @@ async function decorateLauncher() {
     privacy,
     connection
       ? `Legacy Home Link paired with ${homeAddress(connection)}`
-      : "Beacon and Space remain optional",
+      : "Network services remain optional",
   );
 }
 

@@ -202,14 +202,14 @@ test("discovers Space only through the selected local Beacon origin", async () =
   ]);
 });
 
-test("launcher packages the Beacon visual and discovery surfaces locally", async () => {
+test("launcher no longer loads the Beacon visual surface", async () => {
   const [html, surface, css] = await Promise.all([
     readFile(new URL("../src/launcher.html", import.meta.url), "utf8"),
     readFile(new URL("../src/beacon-surface.js", import.meta.url), "utf8"),
     readFile(new URL("../src/beacon.css", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /href="beacon\.css"/);
-  assert.match(html, /src="beacon-surface\.js"/);
+  assert.doesNotMatch(html, /href="beacon\.css"/);
+  assert.doesNotMatch(html, /src="beacon-surface\.js"/);
   assert.match(surface, /Greenways Beacon/);
   assert.match(surface, /Private capabilities remain disabled/);
   assert.match(surface, /requestBeaconOriginAccess/);
