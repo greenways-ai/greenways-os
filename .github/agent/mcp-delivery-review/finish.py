@@ -61,9 +61,17 @@ replace_once(
 )
 replace_once(
     "services/mcp-gateway/src/mcp-delivery.js",
-    '''    consumerId: normalizeMcpDeliveryRouteId(input.consumerId),
+    '''  const lease = normalizeMcpDeliveryLease({
+    protocol: MCP_DELIVERY_LEASE_PROTOCOL,
+    id: normalizeMcpDeliveryLeaseId(input.leaseId),
+    consumerId: normalizeMcpDeliveryRouteId(input.consumerId),
+    claimedAt: observed.toISOString(),
 ''',
-    '''    consumerId,
+    '''  const lease = normalizeMcpDeliveryLease({
+    protocol: MCP_DELIVERY_LEASE_PROTOCOL,
+    id: normalizeMcpDeliveryLeaseId(input.leaseId),
+    consumerId,
+    claimedAt: observed.toISOString(),
 ''',
 )
 replace_once(
