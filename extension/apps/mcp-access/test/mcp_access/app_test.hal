@@ -1,0 +1,28 @@
+(ns mcp-access.app-test
+  (:require [mcp-access.app :as app]
+            [std.lib.test :as test]))
+
+(def enabled
+  (app/main
+   (app/initial-state)
+   {:event/type :mcp/set-enabled
+    :event/enabled true}))
+
+(def approved
+  (app/main
+   (get enabled :state)
+   {:event/type :mcp/approved}))
+
+(test/print-results
+ [(test/check
+   "MCP access begins disabled and read-only"
+   [(get (app/initial-state) :mcp/origin)
+    (get (app/initial-state) :mcp/scope)
+    (get (app/initial-state) :mcp/enabled)]
+   ["https://mcp.greenways.ai" "greenways.read" false])
+
+  (test/check
+   "an explicit approval is counted without storing an assertion"
+   [(get-in approved [:state :mcp/enabled])
+    (get-in approved [:state :mcp/approvals])]
+   [true 1])])
