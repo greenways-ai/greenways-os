@@ -262,7 +262,10 @@ export class GreenwaysMcpGateway {
     this.inflight = new Map();
   }
 
-  async execute(value) {
+  async execute(value, transport = {}) {
+    const transportClientId = transport?.clientId === undefined
+      ? null
+      : publicString(transport.clientId, "MCP transport client id", 200);
     let request;
     try {
       request = normalizeRequest(value, { now: this.now });
@@ -271,7 +274,7 @@ export class GreenwaysMcpGateway {
     }
     let digest;
     try {
-      digest = await sha256(canonical(request));
+      digest = await sha256(canonical({ request, transportClientId }));
     } catch (cause) {
       fail(500, cause?.code ?? "runtime-unavailable", "MCP request digesting failed", { cause });
     }
@@ -289,7 +292,7 @@ export class GreenwaysMcpGateway {
       return running.promise;
     }
 
-    const promise = this.executeFresh(request, digest);
+    const promise = this.executeFresh(request, digest, transportClientId);
     this.inflight.set(request.requestId, { digest, promise });
     try {
       return await promise;
@@ -329,7 +332,7 @@ export class GreenwaysMcpGateway {
     }
   }
 
-  async executeFresh(request, digest) {
+  async executeFresh(request, digest, transportClientId) {
     let rawConnection;
     try {
       rawConnection = await this.connectionStore.get(request.connectionId);
@@ -344,6 +347,9 @@ export class GreenwaysMcpGateway {
       fail(500, "gateway-recovery", "Stored MCP connection is invalid", { cause });
     }
     if (connection.id !== request.connectionId) fail(401, "connection-mismatch", "The MCP connection does not match the request");
+    if (transportClientId !== null && connection.client.id !== transportClientId) {
+      fail(401, "client-mismatch", "The authenticated MCP client does not match the Greenways connection");
+    }
     const current = this.now();
     activeConnection(connection, current);
     if (!connection.tools.includes(request.tool)) {

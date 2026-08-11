@@ -57,15 +57,17 @@ Read results are bounded, attributable records. Resources may be represented as 
 
 ## Implemented read authority core
 
-The transport-neutral first slice is implemented in [`services/mcp-gateway`](../services/mcp-gateway/). It establishes the authority and replay boundary that the remote MCP and OAuth layers must use rather than giving either layer a raw kernel call surface.
+The authority and replay core is implemented in [`services/mcp-gateway`](../services/mcp-gateway/). Remote transport and OAuth must use this boundary rather than giving either layer a raw kernel call surface.
 
-The core currently provides:
+The core provides:
 
 - closed `greenways-mcp-connection/1`, `greenways-mcp-request/1`, and `greenways-mcp-result/1` records;
 - an exact per-connection read-tool allowlist with expiry and final revocation;
 - a second, independent Greenways authorization decision for every semantic read;
 - bounded and closed arguments for each of the nine read tools;
 - content-digested request-ID idempotency, concurrent duplicate suppression, and collision rejection;
+- validation of stored results before replay;
+- stable, non-leaking storage, authority, and semantic-handler failure boundaries;
 - distinct replicated, hybrid, and device-bound availability;
 - explicit `device-offline` results for browser-local reads that were not queued;
 - bounded public values and attributable provenance; and
@@ -73,7 +75,33 @@ The core currently provides:
 
 A transport access token identifies the paired MCP connection. It does not grant Greenways capability authority, enlarge the connection's tool set, or make an offline browser appear available.
 
-The next slice will map MCP Streamable HTTP tools onto this core and add interactive, revocable pairing. Transport adapters remain replaceable; these semantic request and result records remain the protocol boundary.
+## Implemented Streamable HTTP transport
+
+The nine read tools are projected through the stateless MCP `2026-07-28` lane using Cloudflare's `createMcpHandler` and the MCP SDK v2 server. The handler serves the exact `/mcp` route and rejects the legacy MCP lane.
+
+Each OAuth grant exposes only this application context:
+
+```json
+{
+  "protocol": "greenways-mcp-auth-context/1",
+  "connectionId": "mcp/connection/..."
+}
+```
+
+The transport independently requires the verified OAuth `clientId` and exact `greenways.read` scope. It binds that client ID into the request digest and requires it to match the durable connection's client identity. OAuth therefore cannot transfer one Greenways connection to another dynamically registered MCP client.
+
+Every tool is advertised as:
+
+```text
+read-only
+non-destructive
+idempotent
+closed-world
+```
+
+Tool input is validated by exact Zod schemas before the existing semantic request validation. Errors are returned as stable `greenways-mcp-tool-error/1` values and never include provider, bearer, storage, or authority exception details. Browser CORS projection is disabled by default; deployment wrappers must configure exact host and origin policy.
+
+OAuth authorization and Greenways pairing remain a separate layer. The authorization screen will consume a short-lived Beacon/Home Node pairing assertion and issue the minimal context above; it must not use a static demo user or receive a controller private key.
 
 ## Consequential tools
 
@@ -118,7 +146,7 @@ The gateway forwards a closed request envelope:
 }
 ```
 
-The local result contains the exact request ID, outcome, bounded value or error, and receipt/provenance references. Retried request IDs are idempotent.
+The local result contains the exact request ID, outcome, bounded value or error, and receipt/provenance references. Retried request IDs are idempotent for the same authenticated OAuth client; reuse from another client collides.
 
 ## Availability model
 
@@ -133,8 +161,9 @@ The gateway must not imply that browser-local state is online when no paired dev
 
 ## Release order
 
-1. Remote read-only MCP server with `greenways.status`, app/work/resource reads, OAuth pairing, request bounds, and receipts.
-2. Home Node/Beacon pairing and durable delivery with idempotent request IDs.
-3. Hestia proposal tools for write intent; no direct execution.
-4. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
-5. Optional publication after security, privacy, and tool-description review.
+1. Read authority core and stateless Streamable HTTP tool projection.
+2. OAuth authorization with Greenways pairing and durable connection/request storage.
+3. Home Node/Beacon delivery with idempotent request IDs.
+4. Hestia proposal tools for write intent; no direct execution.
+5. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
+6. Optional publication after security, privacy, and tool-description review.

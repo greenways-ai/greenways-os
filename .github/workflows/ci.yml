@@ -34,6 +34,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             extension/package-lock.json
+            services/mcp-gateway/package-lock.json
             services/packages/package-lock.json
             services/devtools-node/package-lock.json
       - run: npm ci
@@ -65,7 +66,7 @@ jobs:
       - name: Test MCP gateway
         if: always()
         working-directory: services/mcp-gateway
-        run: npm test
+        run: npm ci && npm test
       - name: Test identity service
         if: always()
         working-directory: services/identity

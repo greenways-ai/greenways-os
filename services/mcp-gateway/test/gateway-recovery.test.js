@@ -120,3 +120,23 @@ test("contains authority and semantic-handler failures behind stable gateway err
       && !error.message.includes("provider-secret-must-not-leak"),
   );
 });
+
+
+test("binds replay and execution to the authenticated MCP client", async () => {
+  const rig = gateway({
+    handlers: {
+      "greenways.status": async () => ({ availability: "replicated", value: {}, provenance: [] }),
+    },
+  });
+  const input = request("greenways.status");
+  await assert.rejects(
+    rig.gateway.execute(input, { clientId: "other.client" }),
+    (error) => hasCode(error, "client-mismatch"),
+  );
+  const accepted = await rig.gateway.execute(input, { clientId: "chatgpt.greenways" });
+  assert.equal(accepted.outcome, "ok");
+  await assert.rejects(
+    rig.gateway.execute(input, { clientId: "other.client" }),
+    (error) => hasCode(error, "request-id-collision"),
+  );
+});
