@@ -55,6 +55,26 @@ chats.search
 
 Read results are bounded, attributable records. Resources may be represented as MCP resources where that improves navigation, but the server does not need to force every operation through generic search/fetch wrappers.
 
+## Implemented read authority core
+
+The transport-neutral first slice is implemented in [`services/mcp-gateway`](../services/mcp-gateway/). It establishes the authority and replay boundary that the remote MCP and OAuth layers must use rather than giving either layer a raw kernel call surface.
+
+The core currently provides:
+
+- closed `greenways-mcp-connection/1`, `greenways-mcp-request/1`, and `greenways-mcp-result/1` records;
+- an exact per-connection read-tool allowlist with expiry and final revocation;
+- a second, independent Greenways authorization decision for every semantic read;
+- bounded and closed arguments for each of the nine read tools;
+- content-digested request-ID idempotency, concurrent duplicate suppression, and collision rejection;
+- distinct replicated, hybrid, and device-bound availability;
+- explicit `device-offline` results for browser-local reads that were not queued;
+- bounded public values and attributable provenance; and
+- recursive rejection of credential-, token-, cookie-, password-, and private-key-shaped result fields.
+
+A transport access token identifies the paired MCP connection. It does not grant Greenways capability authority, enlarge the connection's tool set, or make an offline browser appear available.
+
+The next slice will map MCP Streamable HTTP tools onto this core and add interactive, revocable pairing. Transport adapters remain replaceable; these semantic request and result records remain the protocol boundary.
+
 ## Consequential tools
 
 The first write-capable tools should prepare proposals rather than directly execute effects:
