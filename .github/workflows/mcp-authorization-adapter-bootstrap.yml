@@ -1,0 +1,59 @@
+name: MCP authorization adapter bootstrap
+
+on:
+  push:
+    branches:
+      - agent/mcp-authorization-adapter-33
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Run MCP authorization adapter bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Apply the reviewed adapter integration
+        run: python .github/agent/mcp-authorization-adapter/apply.py
+
+      - name: Install extension dependencies
+        working-directory: extension
+        run: npm ci
+
+      - name: Run extension unit and HAL gates
+        working-directory: extension
+        run: npm test
+
+      - name: Build extension and public projections
+        working-directory: extension
+        run: |
+          npm run build
+          npm run build:web
+
+      - name: Verify syntax and whitespace
+        run: |
+          node --check extension/src/*.js
+          git diff --check
+
+      - name: Remove bootstrap files
+        run: |
+          rm -rf .github/agent/mcp-authorization-adapter
+          rm -f .github/workflows/mcp-authorization-adapter-bootstrap.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name "ChatGPT Codex Connector"
+          git config user.email "chatgpt-codex-connector@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Greenways MCP authorization adapter"
+          git push origin HEAD:${GITHUB_REF_NAME}
