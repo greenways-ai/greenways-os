@@ -92,7 +92,7 @@ function rows(cursor) {
   try {
     return cursor.toArray();
   } catch (cause) {
-    fail("request-store-recovery", "MCP SQLite request-store row read failed", { cause });
+    fail("request-store-unavailable", "MCP SQLite request-store row read is unavailable", { cause });
   }
 }
 
@@ -205,7 +205,7 @@ export class SqliteMcpRequestRepository {
     try {
       this.sql.exec(CREATE_SCHEMA);
     } catch (cause) {
-      fail("request-store-recovery", "MCP SQLite request-store schema setup failed", { cause });
+      fail("request-store-unavailable", "MCP SQLite request-store schema setup is unavailable", { cause });
     }
   }
 
@@ -214,7 +214,7 @@ export class SqliteMcpRequestRepository {
     try {
       cursor = this.sql.exec(SELECT_STATE);
     } catch (cause) {
-      fail("request-store-recovery", "MCP SQLite request-store read failed", { cause });
+      fail("request-store-unavailable", "MCP SQLite request-store read is unavailable", { cause });
     }
     const values = rows(cursor);
     if (values.length === 0) return null;
@@ -229,7 +229,7 @@ export class SqliteMcpRequestRepository {
       this.sql.exec(UPSERT_STATE, ...encodedState(state));
     } catch (cause) {
       if (cause instanceof McpRequestStoreError) throw cause;
-      fail("request-store-recovery", "MCP SQLite request-store write failed", { cause });
+      fail("request-store-unavailable", "MCP SQLite request-store write is unavailable", { cause });
     }
   }
 
@@ -237,7 +237,7 @@ export class SqliteMcpRequestRepository {
     try {
       this.sql.exec(DELETE_STATE);
     } catch (cause) {
-      fail("request-store-recovery", "MCP SQLite request-store release failed", { cause });
+      fail("request-store-unavailable", "MCP SQLite request-store release is unavailable", { cause });
     }
   }
 
