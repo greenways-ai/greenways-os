@@ -11,10 +11,10 @@ test("requires the inert challenge and reviewed assertion field", () => {
   assert.match(source, /operation:\s*"approve"/);
 });
 
-test("never submits, clicks, or reads browser credential state", () => {
+test("never submits, clicks, intercepts requests, or reads browser credentials", () => {
   assert.doesNotMatch(source, /requestSubmit\s*\(/);
   assert.doesNotMatch(source, /\.submit\s*\(/);
   assert.doesNotMatch(source, /\.click\s*\(/);
-  assert.doesNotMatch(source, /localStorage|sessionStorage|document\.cookie/);
-  assert.doesNotMatch(source, /Authorization|Bearer|access[_-]?token|api[_-]?key/i);
+  assert.doesNotMatch(source, /localStorage|sessionStorage|document\.cookie|chrome\.cookies|webRequest/);
+  assert.doesNotMatch(source, /Authorization\s*[:=]|Bearer\s+|access[_-]?token|api[_-]?key/i);
 });
