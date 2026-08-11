@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, open, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { requireHydratedGitLfsObject } from "./git-lfs.js";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 const EXTENSION = /^[a-z0-9]{1,10}$/;
@@ -54,22 +55,26 @@ export class FileObjectStore {
       return { key, created: true, bytes: value.byteLength };
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
-      const existing = await readFile(target);
+      const existing = requireHydratedGitLfsObject(await readFile(target), {
+        key,
+        digest,
+        size: value.byteLength,
+      });
       if (sha256(existing) !== digest) throw new Error(`Content-addressed object is corrupt: ${key}`);
       return { key, created: false, bytes: existing.byteLength };
     }
   }
 
   async read(key) {
-    return readFile(this.path(key));
+    return requireHydratedGitLfsObject(await readFile(this.path(key)), { key });
   }
 
   async verify({ key, digest, bytes }) {
     const target = this.path(key);
     const info = await stat(target);
     if (!info.isFile()) throw new Error(`Asset object is not a file: ${key}`);
-    if (Number.isSafeInteger(bytes) && info.size !== bytes) throw new Error(`Asset object size mismatch: ${key}`);
-    const value = await readFile(target);
+    const value = requireHydratedGitLfsObject(await readFile(target), { key, digest, size: bytes });
+    if (Number.isSafeInteger(bytes) && value.byteLength !== bytes) throw new Error(`Asset object size mismatch: ${key}`);
     if (sha256(value) !== validateDigest(digest)) throw new Error(`Asset object digest mismatch: ${key}`);
     return { key, digest, bytes: value.byteLength };
   }
