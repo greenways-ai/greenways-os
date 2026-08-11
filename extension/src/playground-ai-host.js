@@ -167,6 +167,13 @@ function cancelTarget(payload) {
   return requestId(payload.requestId, "Cancelled model request id");
 }
 
+function requireAiMethod(aiService, method) {
+  if (!aiService || typeof aiService[method] !== "function") {
+    throw errorWithCode("Resident AI service is unavailable", "AI_SERVICE_UNAVAILABLE");
+  }
+  return aiService[method].bind(aiService);
+}
+
 export function createPlaygroundAiMessageHandler({
   runtime = globalThis.chrome?.runtime,
   tabs = globalThis.chrome?.tabs,
@@ -218,19 +225,13 @@ export function createPlaygroundAiMessageHandler({
       if (!authority || typeof authority.status !== "function" || typeof authority.assert !== "function") {
         throw errorWithCode("Playground capability authority is unavailable", "CAPABILITY_UNAVAILABLE");
       }
-      if (!aiService
-          || typeof aiService.status !== "function"
-          || typeof aiService.generate !== "function"
-          || typeof aiService.result !== "function"
-          || typeof aiService.cancel !== "function") {
-        throw errorWithCode("Resident AI service is unavailable", "AI_SERVICE_UNAVAILABLE");
-      }
 
       if (normalized.operation === "status") {
         ensureEmptyPayload(normalized.payload, "status");
+        const status = requireAiMethod(aiService, "status");
         const [capability, ai] = await Promise.all([
           authority.status(),
-          aiService.status(),
+          status(),
         ]);
         return {
           ok: true,
@@ -251,19 +252,19 @@ export function createPlaygroundAiMessageHandler({
           grant: capability.grant,
         };
         const target = cancelTarget(normalized.payload);
+        const operation = requireAiMethod(aiService, normalized.operation);
         return {
           ok: true,
           protocol: PLAYGROUND_AI_PROTOCOL,
           requestId: normalized.requestId,
           operation: normalized.operation,
-          result: normalized.operation === "cancel"
-            ? await aiService.cancel(target, context)
-            : await aiService.result(target, context),
+          result: await operation(target, context),
         };
       }
 
       const capability = await authority.assert();
-      const result = await aiService.generate({
+      const generate = requireAiMethod(aiService, "generate");
+      const result = await generate({
         ...normalized.payload,
         requestId: normalized.requestId,
       }, {
