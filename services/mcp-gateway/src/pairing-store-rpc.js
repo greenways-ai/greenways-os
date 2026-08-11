@@ -1,6 +1,6 @@
 import { McpPairingError } from "./mcp-pairing.js";
 
-export const MCP_PAIRING_STORE_RPC_PROTOCOL = "greenways-mcp-pairing-store-rpc/1";
+export const MCP_PAIRING_STORE_RPC_PROTOCOL = "greenways-mcp-pairing-store-rpc/0-alpha";
 
 const ERROR_CODE = /^[a-z][a-z0-9-]{2,80}$/;
 const MAX_ERROR_MESSAGE = 400;

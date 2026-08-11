@@ -253,7 +253,7 @@ test("keeps interrupted claim connections inactive and permits a lease-fenced re
   const stored = await repository.getSession(challenge.id);
   const interruptedClaim = "01234567-89ab-4def-8123-000000000099";
   const interruptedConnection = {
-    protocol: "greenways-mcp-connection/1",
+    protocol: "greenways-mcp-connection/0-alpha",
     id: mcpConnectionIdForClaim(challenge.id, interruptedClaim),
     identity: { id: actor.record.id, keyId: actor.record.keyId },
     client: { id: challenge.client.id, name: challenge.client.name },
