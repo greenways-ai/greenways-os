@@ -175,7 +175,7 @@ async function enablePlayground() {
           origins: [PLAYGROUND_AI_ORIGIN],
           maxInputBytes: 256 * 1024,
           maxOutputTokens: 4096,
-          timeoutMs: 120000,
+          timeoutMs: 15 * 60_000,
         },
       }]);
     }

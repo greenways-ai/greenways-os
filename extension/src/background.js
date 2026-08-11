@@ -232,6 +232,10 @@ function defaultKernelHost(options) {
   return defaultHostPromise;
 }
 
+export function getDefaultKernelHost(options) {
+  return defaultKernelHost(options);
+}
+
 const NATIVE_DEVTOOLS_PRINCIPAL = Object.freeze({
   kind: "devtools",
   clientId: "native/devtools-bridge",

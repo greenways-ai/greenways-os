@@ -18,7 +18,7 @@ export {
 } from "./playground-ai-protocol.js";
 
 const REQUEST_ID = /^[a-z0-9][a-z0-9._:/-]{15,127}$/i;
-const OPERATIONS = new Set(["status", "open", "generate", "cancel"]);
+const OPERATIONS = new Set(["status", "open", "generate", "result", "cancel"]);
 const MESSAGE_KEYS = new Set(["type", "protocol", "requestId", "operation", "payload"]);
 const MAX_MESSAGE_BYTES = 320 * 1024;
 
@@ -221,6 +221,7 @@ export function createPlaygroundAiMessageHandler({
       if (!aiService
           || typeof aiService.status !== "function"
           || typeof aiService.generate !== "function"
+          || typeof aiService.result !== "function"
           || typeof aiService.cancel !== "function") {
         throw errorWithCode("Resident AI service is unavailable", "AI_SERVICE_UNAVAILABLE");
       }
@@ -242,13 +243,22 @@ export function createPlaygroundAiMessageHandler({
         };
       }
 
-      if (normalized.operation === "cancel") {
+      if (normalized.operation === "cancel" || normalized.operation === "result") {
+        const capability = await authority.assert();
+        const context = {
+          origin: principal.origin,
+          appId: principal.appId,
+          grant: capability.grant,
+        };
+        const target = cancelTarget(normalized.payload);
         return {
           ok: true,
           protocol: PLAYGROUND_AI_PROTOCOL,
           requestId: normalized.requestId,
           operation: normalized.operation,
-          result: aiService.cancel(cancelTarget(normalized.payload)),
+          result: normalized.operation === "cancel"
+            ? await aiService.cancel(target, context)
+            : await aiService.result(target, context),
         };
       }
 
