@@ -74,6 +74,7 @@ The core provides:
 - bounded and closed arguments for each of the nine read tools;
 - atomic exact-digest request claims, cross-isolate duplicate waiting, stale-claim fencing, and collision rejection;
 - one SQLite Durable Object coordination atom per request ID, with closed RPC errors and restart-safe replay;
+- one lease-fenced SQLite pairing atom per challenge, with provisional connections hidden until consumption;
 - validation of stored results before replay;
 - stable, non-leaking storage, authority, and semantic-handler failure boundaries;
 - distinct replicated, hybrid, and device-bound availability;
@@ -219,7 +220,8 @@ The gateway does not imply that browser-local state is online when no paired dev
 3. Reviewed Greenways OS authorization-page adapter and controller signing flow — implemented.
 4. Atomic request-claim seam and repository conformance — implemented.
 5. Cloudflare SQLite Durable Object request repository — implemented.
-6. Durable pairing repository plus Home Node/Beacon delivery.
-7. Hestia proposal tools for write intent; no direct execution.
-8. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
-9. Optional publication after security, privacy, and tool-description review.
+6. Durable lease-fenced pairing repository — implemented.
+7. Verified Home Node/Beacon delivery.
+8. Hestia proposal tools for write intent; no direct execution.
+9. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
+10. Optional publication after security, privacy, and tool-description review.

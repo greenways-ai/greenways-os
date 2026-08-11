@@ -6,7 +6,7 @@
   "license": "EPL-2.0",
   "scripts": {
     "test": "node --test",
-    "test:core": "node --test test/gateway.test.js test/gateway-recovery.test.js test/mcp-transport.test.js test/request-store.test.js test/sqlite-request-store.test.js test/cloudflare-request-store.test.js",
+    "test:core": "node --test test/gateway.test.js test/gateway-recovery.test.js test/mcp-transport.test.js test/request-store.test.js test/sqlite-request-store.test.js test/cloudflare-request-store.test.js test/mcp-pairing.test.js test/sqlite-pairing-store.test.js test/cloudflare-pairing-store.test.js",
     "check": "node --check src/*.js && node --test && npm run check:worker",
     "check:worker": "wrangler deploy --dry-run --outdir .wrangler-dist"
   },

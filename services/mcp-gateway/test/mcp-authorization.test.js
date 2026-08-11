@@ -81,7 +81,7 @@ function oauthHelpers(overrides = {}) {
 }
 
 function createRig(oauth = oauthHelpers()) {
-  const repository = new MemoryMcpPairingRepository();
+  const repository = new MemoryMcpPairingRepository({ now: () => new Date(NOW) });
   const pairingService = new GreenwaysMcpPairingService({
     repository,
     now: () => new Date(NOW),
@@ -213,7 +213,7 @@ test("contains OAuth provider failures and leaves the challenge retryable", asyn
   assert.equal(failed.status, 502);
   assert.doesNotMatch(await failed.text(), /oauth-storage-secret/);
   assert.equal((await repository.getSession(challenge.id)).state, "open");
-  assert.equal(repository.connections.size, 0);
+  assert.equal((await repository.getSession(challenge.id)).connection, null);
 
   fail = false;
   const retried = await handler.fetch(new Request("https://mcp.greenways.ai/authorize", {

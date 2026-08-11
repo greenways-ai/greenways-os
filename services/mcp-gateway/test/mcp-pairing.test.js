@@ -9,6 +9,7 @@ import {
   McpPairingError,
   MemoryMcpPairingRepository,
   createMcpPairingAssertion,
+  mcpConnectionIdForClaim,
 } from "../src/mcp-pairing.js";
 import { canonical, sha256 } from "../src/protocol.js";
 
@@ -87,7 +88,7 @@ async function assertion(challenge, identityValue, overrides = {}) {
 }
 
 function createRig(overrides = {}) {
-  const repository = new MemoryMcpPairingRepository();
+  const repository = new MemoryMcpPairingRepository({ now: () => new Date(NOW) });
   const service = new GreenwaysMcpPairingService({
     repository,
     now: () => new Date(NOW),
@@ -129,6 +130,7 @@ test("accepts one locally signed identity assertion and exposes only a connectio
     assertion: signed,
     completeAuthorization: async (value) => {
       completion = value;
+      assert.equal(await repository.getConnection(value.connection.id), null);
       return {
         redirectTo: "https://chatgpt.com/aip/callback?code=example",
         props: {
@@ -223,7 +225,7 @@ test("releases the one-time claim and removes its connection when OAuth completi
   const session = await repository.getSession(challenge.id);
   assert.equal(session.state, "open");
   assert.equal(session.claimId, null);
-  assert.equal(repository.connections.size, 0);
+  assert.equal(session.connection, null);
 
   const retried = await service.authorize({
     challengeId: challenge.id,
@@ -231,6 +233,63 @@ test("releases the one-time claim and removes its connection when OAuth completi
     completeAuthorization: async () => ({ redirectTo: "https://chatgpt.com/" }),
   });
   assert.equal(retried.connection.identity.id, actor.record.id);
+});
+
+test("keeps interrupted claim connections inactive and permits a lease-fenced retry", async () => {
+  let repositoryNow = new Date(NOW);
+  const repository = new MemoryMcpPairingRepository({
+    now: () => new Date(repositoryNow),
+    claimLifetimeMs: 30_000,
+  });
+  const service = new GreenwaysMcpPairingService({
+    repository,
+    now: () => new Date(repositoryNow),
+    randomUUID: uuidSequence(),
+    cryptoProvider,
+  });
+  const actor = await identity();
+  const challenge = await service.begin({ oauthRequest: oauthRequest(), clientInfo: clientInfo() });
+  const signed = await assertion(challenge, actor);
+  const stored = await repository.getSession(challenge.id);
+  const interruptedClaim = "01234567-89ab-4def-8123-000000000099";
+  const interruptedConnection = {
+    protocol: "greenways-mcp-connection/1",
+    id: mcpConnectionIdForClaim(challenge.id, interruptedClaim),
+    identity: { id: actor.record.id, keyId: actor.record.keyId },
+    client: { id: challenge.client.id, name: challenge.client.name },
+    tools: challenge.tools,
+    route: { kind: "replica", id: `replica/${actor.record.id}`, status: "unknown" },
+    issuedAt: NOW.toISOString(),
+    expiresAt: "2026-09-10T05:00:00.000Z",
+    revokedAt: null,
+  };
+  await repository.claimSession(
+    challenge.id,
+    stored.challenge.root,
+    interruptedClaim,
+    interruptedConnection,
+  );
+  assert.equal(await repository.getConnection(interruptedConnection.id), null);
+  await assert.rejects(
+    service.authorize({
+      challengeId: challenge.id,
+      assertion: signed,
+      completeAuthorization: async () => ({}),
+    }),
+    (error) => hasCode(error, "pairing-session-used"),
+  );
+
+  repositoryNow = new Date("2026-08-11T05:00:31.000Z");
+  const retried = await service.authorize({
+    challengeId: challenge.id,
+    assertion: signed,
+    completeAuthorization: async ({ connection }) => {
+      assert.equal(await repository.getConnection(connection.id), null);
+      return { redirectTo: "https://chatgpt.com/" };
+    },
+  });
+  assert.equal(await repository.getConnection(interruptedConnection.id), null);
+  assert.deepEqual(await repository.getConnection(retried.connection.id), retried.connection);
 });
 
 test("fails closed for extra OAuth scopes and expired pairing evidence", async () => {

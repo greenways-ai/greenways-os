@@ -1,4 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
+import { executeMcpPairingStoreRpc } from "./pairing-store-rpc.js";
+import { SqliteMcpPairingRepository } from "./sqlite-pairing-store.js";
 import { executeMcpRequestStoreRpc } from "./request-store-rpc.js";
 import { SqliteMcpRequestRepository } from "./sqlite-request-store.js";
 
@@ -30,6 +32,58 @@ export class McpRequestDurableObject extends DurableObject {
 
   release(value) {
     return executeMcpRequestStoreRpc(() => this.store().release(value));
+  }
+}
+
+export class McpPairingDurableObject extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.repository = null;
+    ctx.blockConcurrencyWhile(async () => {
+      this.repository = new SqliteMcpPairingRepository(ctx.storage.sql);
+    });
+  }
+
+  store() {
+    if (!this.repository) throw new Error("MCP pairing repository is not initialized");
+    return this.repository;
+  }
+
+  put(value) {
+    return executeMcpPairingStoreRpc(() => this.store().putSession(value));
+  }
+
+  read(challengeId) {
+    return executeMcpPairingStoreRpc(() => this.store().getSession(challengeId));
+  }
+
+  claim(value) {
+    return executeMcpPairingStoreRpc(() => this.store().claimSession(
+      value.id,
+      value.root,
+      value.claimId,
+      value.connection,
+    ));
+  }
+
+  release(value) {
+    return executeMcpPairingStoreRpc(() => this.store().releaseSession(
+      value.id,
+      value.claimId,
+      value.connectionId,
+    ));
+  }
+
+  consume(value) {
+    return executeMcpPairingStoreRpc(() => this.store().consumeSession(
+      value.id,
+      value.claimId,
+      value.connectionId,
+    ));
+  }
+
+  connection(connectionId) {
+    return executeMcpPairingStoreRpc(() => this.store().getConnection(connectionId));
   }
 }
 
