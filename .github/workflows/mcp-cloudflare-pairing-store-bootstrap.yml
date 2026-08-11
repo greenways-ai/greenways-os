@@ -27,6 +27,7 @@ jobs:
         run: |
           python .github/agent/mcp-cloudflare-pairing-store/apply.py
           python .github/agent/mcp-cloudflare-pairing-store/finish.py
+          python .github/agent/mcp-cloudflare-pairing-store/fixture.py
 
       - name: Install MCP gateway dependencies
         working-directory: services/mcp-gateway
