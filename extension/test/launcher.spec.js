@@ -136,8 +136,6 @@ async function restartExtensionWorker(context, extensionId, page, wake) {
     expect(targets, "one CDP target for the running extension worker").toHaveLength(1);
     [target] = targets;
 
-    // Enabling this CDP domain emits the current versions. Subscribe first so
-    // an immediate workerVersionUpdated event cannot race past the test.
     session.on("ServiceWorker.workerVersionUpdated", captureVersion);
     await session.send("ServiceWorker.enable");
     domainEnabled = true;
@@ -168,25 +166,37 @@ async function restartExtensionWorker(context, extensionId, page, wake) {
   }
 }
 
-test("launcher restores system apps and installs the local Hestia surface", async ({ context, extensionId }) => {
+test("launcher restores Worlds and manages the current Chats surface", async ({
+  context,
+  extensionId,
+}) => {
   const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/launcher.html#app-hestia-connector`);
+  await page.goto(`chrome-extension://${extensionId}/src/launcher.html#app-chats`);
 
   const installed = page.getByRole("region", { name: "Installed apps" });
-  await expect(installed.getByRole("heading", { name: "Greenways Home" })).toBeVisible();
+  const available = page.getByRole("region", { name: "Available apps" });
   await expect(installed.getByRole("heading", { name: "Worlds" })).toBeVisible();
-  await expect(page.getByText("Install Hestia Connector locally to continue")).toBeVisible();
+  for (const name of ["Chats", "Greenways for ChatGPT", "Userscripts", "Hara Playground"]) {
+    await expect(available.getByRole("heading", { name })).toBeVisible();
+  }
+  await expect(page.getByText("Install Chats locally to continue")).toBeVisible();
 
-  const hestiaCard = page.locator('[data-app-card="hestia-connector"]');
-  await hestiaCard.getByRole("button", { name: "Install locally" }).click();
-  await expect(hestiaCard.getByRole("button", { name: "Open" })).toBeVisible();
-  await hestiaCard.getByRole("button", { name: "Open" }).click();
-  await expect(page.getByRole("region", { name: "Hestia connector" })).toBeVisible();
-  await expect(page.getByText("Origin access is requested when you pair")).toBeVisible();
-  await page.getByRole("button", { name: "Close Hestia connector" }).click();
-  await expect(page.getByRole("region", { name: "Hestia connector" })).toBeHidden();
-  await hestiaCard.getByRole("button", { name: "Remove Hestia Connector" }).click();
-  await expect(hestiaCard.getByRole("button", { name: "Install locally" })).toBeVisible();
+  const chatsCard = page.locator('[data-app-card="chats"]');
+  const install = chatsCard.getByRole("button", { name: "Install locally" });
+  await expect(install).toBeEnabled();
+  await install.click();
+  await expect(page.getByRole("status").last()).toContainText("Chats was installed");
+  await expect(chatsCard.getByRole("button", { name: "Open" })).toBeVisible();
+  await chatsCard.getByRole("button", { name: "Open" }).click();
+
+  const surface = page.getByRole("region", { name: "Chats" });
+  await expect(surface).toBeVisible();
+  await expect(surface).toContainText("Conversation content stays in this browser");
+  await surface.getByRole("button", { name: "Close Chats" }).click();
+  await expect(surface).toBeHidden();
+
+  await chatsCard.getByRole("button", { name: "Remove Chats" }).click();
+  await expect(chatsCard.getByRole("button", { name: "Install locally" })).toBeVisible();
 });
 
 test("packaged Worlds boots through the browser-wide kernel host", async ({ context, extensionId }) => {
@@ -200,28 +210,35 @@ test("packaged Worlds boots through the browser-wide kernel host", async ({ cont
   expect(pageErrors).toEqual([]);
 });
 
-test("two launchers converge globally, isolate surfaces, and survive a cold worker restart", async ({ context, extensionId }) => {
+test("two launchers converge globally, isolate provider surfaces, and survive a cold worker restart", async ({
+  context,
+  extensionId,
+}) => {
   const first = await context.newPage();
   const second = await context.newPage();
   await Promise.all([
-    first.goto(`chrome-extension://${extensionId}/src/launcher.html`),
-    second.goto(`chrome-extension://${extensionId}/src/launcher.html`),
+    first.goto(`chrome-extension://${extensionId}/src/launcher.html#apps`),
+    second.goto(`chrome-extension://${extensionId}/src/launcher.html#apps`),
   ]);
   await Promise.all([
-    expect(first.getByRole("status")).toContainText("Local kernel ready"),
-    expect(second.getByRole("status")).toContainText("Local kernel ready"),
+    expect(first.getByRole("status").last()).toContainText("Local kernel ready"),
+    expect(second.getByRole("status").last()).toContainText("Local kernel ready"),
   ]);
 
-  const firstCard = first.locator('[data-app-card="hestia-connector"]');
-  const secondCard = second.locator('[data-app-card="hestia-connector"]');
+  const firstCard = first.locator('[data-app-card="chatgpt-provider"]');
+  const secondCard = second.locator('[data-app-card="chatgpt-provider"]');
   await firstCard.getByRole("button", { name: "Install locally" }).click();
-  await expect(first.getByRole("status")).toContainText("Hestia Connector was installed");
+  await expect(first.getByRole("status").last()).toContainText(
+    "Greenways for ChatGPT was installed",
+  );
   await expect(secondCard.getByRole("button", { name: "Open" })).toBeVisible();
 
   await firstCard.getByRole("button", { name: "Open" }).click();
-  await expect(first.getByRole("status")).toContainText("Hestia Connector opened");
-  await expect(first.getByRole("region", { name: "Hestia connector" })).toBeVisible();
-  await expect(second.getByRole("region", { name: "Hestia connector" })).toBeHidden();
+  await expect(first.getByRole("status").last()).toContainText(
+    "Greenways for ChatGPT opened",
+  );
+  await expect(first.getByRole("region", { name: "Greenways for ChatGPT" })).toBeVisible();
+  await expect(second.getByRole("region", { name: "Greenways for ChatGPT" })).toBeHidden();
 
   const { stoppedVersion, restartedVersion } = await restartExtensionWorker(
     context,
@@ -231,7 +248,9 @@ test("two launchers converge globally, isolate surfaces, and survive a cold work
   );
 
   expect(restartedVersion.versionId).toBe(stoppedVersion.versionId);
-  await expect(second.getByRole("status")).toContainText("Hestia Connector opened");
-  await expect(second.getByRole("region", { name: "Hestia connector" })).toBeVisible();
-  await expect(first.getByRole("region", { name: "Hestia connector" })).toBeVisible();
+  await expect(second.getByRole("status").last()).toContainText(
+    "Greenways for ChatGPT opened",
+  );
+  await expect(second.getByRole("region", { name: "Greenways for ChatGPT" })).toBeVisible();
+  await expect(first.getByRole("region", { name: "Greenways for ChatGPT" })).toBeVisible();
 });

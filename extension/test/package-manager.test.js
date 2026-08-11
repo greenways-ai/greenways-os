@@ -13,10 +13,11 @@ const BUILTIN_APP_CATALOG = await getBuiltinAppCatalog();
 
 test("projects the reviewed app catalogue as Greenways packages", () => {
   const packages = projectPackageCatalog(BUILTIN_APP_CATALOG);
-  assert.equal(packages.length, 4);
+  assert.equal(packages.length, 5);
   assert.ok(packages.every(({ protocol }) => protocol === PACKAGE_PROTOCOL));
   assert.deepEqual(packages.map(({ kind }) => kind), [
     "system",
+    "bundled-module",
     "bundled-module",
     "bundled-module",
     "web-application",
@@ -35,7 +36,7 @@ test("reports installed, available, and update approval states", () => {
   assert.equal(inventory.protocol, PACKAGE_MANAGER_PROTOCOL);
   assert.equal(inventory.installed, 1);
   assert.equal(inventory.updates, 1);
-  assert.equal(inventory.available, 2);
+  assert.equal(inventory.available, 3);
   assert.equal(inventory.entries.find(({ id }) => id === "chats").status, "update-available");
 });
 

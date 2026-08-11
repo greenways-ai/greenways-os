@@ -187,7 +187,9 @@
   {:law/id :greenways.capability/runtime-verified-module
    :law/expression "A HAL capability grant can authorize an operation only while the exact durable module approval and lock digest are present in host-owned runtime evidence produced after current-boot archive verification and successful namespace registration."}
   {:law/id :greenways.capability/no-secret-evidence
-   :law/expression "A capability decision may expose bounded public approval and runtime metadata but never lock source, archive bytes, private keys, provider credentials, bearer tokens, or other secret material."}]
+   :law/expression "A capability decision may expose bounded public approval and runtime metadata but never lock source, archive bytes, private keys, provider credentials, bearer tokens, or other secret material."}
+  {:law/id :greenways.provider/foreground-user-mediated
+   :law/expression "A foreground AI web provider keeps kernel authority outside the provider page, never submits a prompt on the user's behalf, and returns output only after an explicit user selection."}]
 
  :spec/checkers
  [{:checker/id :greenways/signature

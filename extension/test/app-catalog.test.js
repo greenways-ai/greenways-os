@@ -38,6 +38,7 @@ test("publishes the ordinary apps beside fixed Kernel DevTools", () => {
   assert.deepEqual(BUILTIN_APP_CATALOG.map(({ id }) => id), [
     "greenways-worlds",
     "chats",
+    "chatgpt-provider",
     "userscripts",
     "hara-playground",
   ]);
@@ -47,7 +48,7 @@ test("publishes the ordinary apps beside fixed Kernel DevTools", () => {
   assert.deepEqual(RUNTIME_HANDLERS, [
     "extension-page", "packaged-surface", "native-hybrid", "web-tab", "hal-module"
   ]);
-  assert.deepEqual(PACKAGED_SURFACE_IDS, ["chats", "userscripts"]);
+  assert.deepEqual(PACKAGED_SURFACE_IDS, ["chats", "chatgpt-provider", "userscripts"]);
   assert.ok(APP_CAPABILITIES.includes("network/loopback"));
   assert.ok(Object.isFrozen(BUILTIN_APP_CATALOG));
   assert.ok(BUILTIN_APP_CATALOG.every(Object.isFrozen));
@@ -73,6 +74,19 @@ test("Chats is derived from its HAL project and keeps its packaged surface", () 
     getAppManifest("userscripts").project.digest,
     "sha256:3144e69d0417738ee5e3fb4268e6543b7596443468d5d60d232f466134f058dd",
   );
+});
+
+test("Greenways for ChatGPT is a bound foreground provider surface", () => {
+  const provider = getAppManifest("chatgpt-provider");
+  assert.deepEqual(provider.launch, { handler: "packaged-surface", surfaceId: "chatgpt-provider" });
+  assert.deepEqual(provider.capabilities, [
+    "hara/module",
+    "storage/local",
+    "model/provide",
+    "tabs/open",
+  ]);
+  assert.equal(provider.project.coordinate, "greenways-ai/chatgpt-provider");
+  assert.equal(provider.project.digest, "sha256:a5b68c916745dbd67fa830b31e7a745a4e597ea7c1d31dca60ca66d54cdfe0c0");
 });
 
 test("resolves only normalized catalog launches", () => {
@@ -246,6 +260,24 @@ test("binds the Chats packaged surface to its app, publisher, and capabilities",
         capabilities: chats.capabilities.filter((entry) => entry !== capability),
       }),
       new RegExp(`chats requires ${capability.replace("/", "\\/")}`)
+    );
+  }
+});
+
+test("binds the ChatGPT provider surface to reviewed authority", () => {
+  const provider = getAppManifest("chatgpt-provider");
+  assert.equal(validateAppManifest(provider).launch.surfaceId, "chatgpt-provider");
+  assert.throws(
+    () => validateAppManifest({ ...provider, id: "chatgpt-provider-alias" }),
+    /bound to app chatgpt-provider from publisher greenways-ai/,
+  );
+  for (const capability of ["model/provide", "storage/local", "tabs/open"]) {
+    assert.throws(
+      () => validateAppManifest({
+        ...provider,
+        capabilities: provider.capabilities.filter((entry) => entry !== capability),
+      }),
+      new RegExp(`chatgpt-provider requires ${capability}`),
     );
   }
 });

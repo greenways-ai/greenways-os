@@ -109,6 +109,11 @@ export const CAPABILITY_DEFINITIONS = Object.freeze([
     grantable: true,
     description: "Run a bounded model request through an approved provider profile.",
   }),
+  capability("model/provide", "surfaces", "critical", {
+    grantable: true,
+    trustedPublishers: ["greenways-ai"],
+    description: "Project one foreground model request into a reviewed AI web application and return an explicitly selected response.",
+  }),
   capability("tahto/connect", "connectors", "high", {
     grantable: true,
     description: "Pair one browser device identity with an explicitly approved Tahto node.",

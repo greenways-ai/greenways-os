@@ -37,3 +37,9 @@ pairing, pinned node identity, presence, unpairing, and bounded local-service
 discovery—is specified in [`home-link.md`](home-link.md). That Node-based
 implementation is now a compatibility path while browser device grants migrate
 to Beacon and Hoplite.
+
+The foreground ChatGPT web-provider boundary is specified in
+[`chatgpt-provider.md`](chatgpt-provider.md). The Hara kernel remains in the
+extension service worker; the ChatGPT page receives only a reviewed,
+request-scoped adapter. The complementary remote interface for ChatGPT apps is
+specified in [`mcp-gateway.md`](mcp-gateway.md).

@@ -69,8 +69,8 @@ function recordingStores(initial = new Map()) {
   return { calls, values, tx };
 }
 
-test("database v7 adds durable chats and fabric state without removing existing stores", () => {
-  assert.equal(DATABASE_VERSION, 7);
+test("database v8 adds durable foreground model sessions without removing existing stores", () => {
+  assert.equal(DATABASE_VERSION, 8);
   assert.deepEqual(DATABASE_STORES, [
     "settings",
     "identity",
@@ -84,6 +84,7 @@ test("database v7 adds durable chats and fabric state without removing existing 
     "kernel",
     "userscripts",
     "chats",
+    "modelSessions",
     "fabric",
   ]);
 });

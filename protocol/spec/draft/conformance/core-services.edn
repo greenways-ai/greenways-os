@@ -30,6 +30,16 @@
           :capability/trusted-publishers []}
   :expect :valid}
 
+ {:case/id :greenways.os.case/capability-definition-model-provide
+  :case/type :capability-definition
+  :input {:capability/protocol :greenways-capability-definition/1
+          :capability/id :model/provide
+          :capability/service :surfaces
+          :capability/risk :critical
+          :capability/grantable true
+          :capability/trusted-publishers [:greenways-ai]}
+  :expect :valid}
+
  {:case/id :greenways.os.case/capability-grant-exact-module
   :case/type :capability-grant
   :input {:grant/protocol :greenways-capability-grant/1

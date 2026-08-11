@@ -12,6 +12,20 @@
                        :launch/url "https://playground.hara-lang.org/"}}
   :expect :valid}
 
+ {:case/id :greenways.os.case/app-chatgpt-provider
+  :case/type :app-manifest
+  :input {:app/protocol :greenways-app/1
+          :app/id :chatgpt-provider
+          :app/version "0.1.0"
+          :app/publisher {:publisher/id :greenways-ai :publisher/name "Greenways AI"}
+          :app/name "Greenways for ChatGPT"
+          :app/description "Use ChatGPT as a foreground, user-mediated model provider."
+          :app/category :installable
+          :app/capabilities [:hara/module :storage/local :model/provide :tabs/open]
+          :app/launch {:launch/handler :packaged-surface
+                       :launch/surface-id :chatgpt-provider}}
+  :expect :valid}
+
  {:case/id :greenways.os.case/app-native-companion
   :case/type :app-manifest
   :input {:app/protocol :greenways-app/1

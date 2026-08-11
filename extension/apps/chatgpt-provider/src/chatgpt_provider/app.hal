@@ -1,0 +1,41 @@
+(ns chatgpt-provider.app
+  (:require [std.foundation :refer :all]))
+
+(defn initial-state
+  []
+  {:provider/id "webapp.chatgpt"
+   :provider/mode :foreground
+   :provider/enabled false
+   :provider/sessions {}})
+
+(defn set-enabled
+  [state enabled]
+  {:ok true
+   :state (assoc state :provider/enabled (= enabled true))})
+
+(defn register-session
+  [state session]
+  (let [session-id (get session :session/id)]
+    (if (nil? session-id)
+      {:ok false :state state :error :provider/session-invalid}
+      {:ok true
+       :state (assoc state
+                     :provider/sessions
+                     (assoc (get state :provider/sessions) session-id session))})))
+
+(defn view
+  [state]
+  {:view/type :column
+   :view/title "Greenways for ChatGPT"
+   :view/provider (get state :provider/id)
+   :view/enabled (get state :provider/enabled)
+   :view/session-count (count (get state :provider/sessions))})
+
+(defn main
+  [state event]
+  (let [kind (get event :event/type)]
+    (if (= :provider/set-enabled kind)
+      (set-enabled state (get event :event/enabled))
+      (if (= :provider/session kind)
+        (register-session state (get event :event/session))
+        {:ok false :state state :error :provider/event-unsupported}))))

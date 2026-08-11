@@ -41,7 +41,10 @@ const pageBuild = await build({
 const contentBuild = await build({
   ...common,
   format: "iife",
-  entryPoints: { "playground-bridge": "src/playground-bridge.js" },
+  entryPoints: {
+    "playground-bridge": "src/playground-bridge.js",
+    "chatgpt-provider-bridge": "src/chatgpt-provider-bridge.js",
+  },
   metafile: true,
 });
 
@@ -69,11 +72,18 @@ if (/new Worker\(URL\.createObjectURL|new Worker\(workerUrl\)|eval:\s*true/.test
   throw new Error("The MV3 world bundle still contains a dynamic worker execution path");
 }
 
-const [backgroundBundle, launcherBundle, devtoolsBundle, playgroundBridgeBundle] = await Promise.all([
+const [
+  backgroundBundle,
+  launcherBundle,
+  devtoolsBundle,
+  playgroundBridgeBundle,
+  chatgptProviderBridgeBundle,
+] = await Promise.all([
   readFile(new URL("../dist/background.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/launcher.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/devtools.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/playground-bridge.js", import.meta.url), "utf8"),
+  readFile(new URL("../dist/chatgpt-provider-bridge.js", import.meta.url), "utf8"),
 ]);
 if (!backgroundBundle.includes("gw.os.kernel") || !backgroundBundle.includes("data:application/wasm;base64")) {
   throw new Error("The MV3 background bundle does not contain the reviewed Hara kernel runtime");
@@ -81,7 +91,13 @@ if (!backgroundBundle.includes("gw.os.kernel") || !backgroundBundle.includes("da
 if (/^await\b/m.test(backgroundBundle)) {
   throw new Error("The MV3 background bundle contains top-level await");
 }
-for (const [name, source] of [["launcher", launcherBundle], ["world", worldBundle], ["devtools", devtoolsBundle], ["playground-bridge", playgroundBridgeBundle]]) {
+for (const [name, source] of [
+  ["launcher", launcherBundle],
+  ["world", worldBundle],
+  ["devtools", devtoolsBundle],
+  ["playground-bridge", playgroundBridgeBundle],
+  ["chatgpt-provider-bridge", chatgptProviderBridgeBundle],
+]) {
   if (source.includes("data:application/wasm;base64") || source.includes("gw.os.kernel")) {
     throw new Error(`The ${name} page bundle contains a second Hara kernel runtime`);
   }

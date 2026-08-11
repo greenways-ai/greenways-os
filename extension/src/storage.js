@@ -1,7 +1,7 @@
 import { createSyncEntry, validateSyncEntry } from "./sync-protocol.js";
 
 const DATABASE = "greenways-os-v1";
-export const DATABASE_VERSION = 7;
+export const DATABASE_VERSION = 8;
 export const DATABASE_STORES = Object.freeze([
   "settings",
   "identity",
@@ -15,6 +15,7 @@ export const DATABASE_STORES = Object.freeze([
   "kernel",
   "userscripts",
   "chats",
+  "modelSessions",
   "fabric",
 ]);
 
@@ -429,6 +430,29 @@ export const chatStore = Object.freeze({
   delete: (id) => store.delete("chats", recordId(id, "Chat id")),
   values: () => store.values("chats"),
   replace: (records) => store.replace("chats", chatProjectionEntries(records)),
+});
+
+function modelSessionProjectionEntries(records) {
+  if (!Array.isArray(records)) throw new TypeError("Model-session projection must be an array");
+  const seen = new Set();
+  return records.map((record, index) => {
+    const value = envelope(record, `Model-session projection entry ${index}`);
+    const id = recordId(value.id, `Model-session projection entry ${index} id`);
+    if (seen.has(id)) throw new Error(`Model-session projection contains duplicate id ${id}`);
+    seen.add(id);
+    return [id, value];
+  });
+}
+
+export const modelSessionStore = Object.freeze({
+  get: (id) => store.get("modelSessions", recordId(id, "Model session id")),
+  put: (record) => {
+    const value = envelope(record, "Model session record");
+    return store.put("modelSessions", recordId(value.id, "Model session record id"), value);
+  },
+  delete: (id) => store.delete("modelSessions", recordId(id, "Model session id")),
+  values: () => store.values("modelSessions"),
+  replace: (records) => store.replace("modelSessions", modelSessionProjectionEntries(records)),
 });
 
 export const fabricStore = Object.freeze({

@@ -355,3 +355,32 @@ test("only the root DevTools page controls the native RESP bridge", async () => 
   ));
   assert.match(denied.error, /Only the root DevTools app/);
 });
+
+test("routes ChatGPT provider page events without granting the page kernel identity", async () => {
+  const calls = [];
+  const handler = createMessageHandler({
+    runtime,
+    getKernelHost: async () => ({
+      async handleChatgptProviderPageMessage(message, sender) {
+        calls.push([message.operation, sender.url]);
+        return { ok: true, protocol: "greenways-chatgpt-provider/1", command: null };
+      },
+    }),
+  });
+  const response = await new Promise((resolve) => {
+    assert.equal(handler({
+      type: "greenways/chatgpt-provider",
+      protocol: "greenways-chatgpt-provider/1",
+      operation: "hello",
+      sessionId: null,
+      payload: {},
+    }, {
+      id: runtime.id,
+      url: "https://chatgpt.com/",
+      frameId: 0,
+      tab: { id: 7, incognito: false },
+    }, resolve), true);
+  });
+  assert.equal(response.ok, true);
+  assert.deepEqual(calls, [["hello", "https://chatgpt.com/"]]);
+});
