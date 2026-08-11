@@ -174,7 +174,10 @@ test("rejects changed challenges, invalid signatures, and replayed approvals", a
     (error) => hasCode(error, "pairing-challenge-mismatch"),
   );
 
-  const changedSignature = `${signed.signature.slice(0, -1)}${signed.signature.endsWith("A") ? "B" : "A"}`;
+  // Change a high-order base64url sextet. Mutating the final character can
+  // affect only unused padding bits for some 64-byte ECDSA signatures and may
+  // therefore decode to the original bytes.
+  const changedSignature = `${signed.signature.startsWith("A") ? "B" : "A"}${signed.signature.slice(1)}`;
   await assert.rejects(
     service.authorize({
       challengeId: challenge.id,
@@ -255,7 +258,6 @@ test("fails closed for extra OAuth scopes and expired pairing evidence", async (
     (error) => hasCode(error, "pairing-assertion-expired"),
   );
 });
-
 
 test("refuses to sign altered challenge content before the controller key is used", async () => {
   const { service } = createRig();
