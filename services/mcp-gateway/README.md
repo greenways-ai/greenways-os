@@ -177,6 +177,10 @@ pretending a local read was queued.
 - `src/sqlite-pairing-store.js` — one-session SQLite Durable Object repository and consumed-only connection view.
 - `src/pairing-store-rpc.js` — closed non-leaking pairing repository RPC envelopes.
 - `src/cloudflare-pairing-store.js` — challenge/connection routing through one pairing atom.
+- `src/mcp-delivery.js` — closed device-read record, lease, result, and memory conformance repository.
+- `src/sqlite-delivery-store.js` — multi-record SQLite mailbox for one Home Node or Beacon route.
+- `src/delivery-store-rpc.js` — closed non-leaking route mailbox RPC envelopes.
+- `src/cloudflare-delivery-store.js` — exact route-atom routing and bounded result polling.
 - `src/mcp-authorization.js` — hardened OAuth authorization GET/POST handler.
 - `src/request-store.js` — shared request validation, state transitions, and in-memory conformance store.
 - `src/sqlite-request-store.js` — one-row SQLite Durable Object repository.
@@ -199,9 +203,24 @@ real SQLite persistence through Node's SQLite engine, Durable Object routing,
 and rejection of the legacy MCP lane. The check also performs a Wrangler
 dry-run build against `wrangler.jsonc`.
 
-## Next delivery slice
+## Durable Home Node / Beacon route mailbox
 
-Request and signed-pairing repositories now survive isolate replacement. The
-next PR attaches a verified Home Node or Beacon route behind the existing
-connection and Greenways capability checks. Remote OAuth credentials still
-cannot substitute for resident Greenways authority.
+The first delivery atom is now implemented for device-bound reads. Each exact
+`chats.search` request can be projected into a closed
+`greenways-mcp-delivery/1` record and placed into one SQLite Durable Object per
+Home Node or Beacon route.
+
+The mailbox is deliberately not a general job queue. Records bind the exact MCP
+request, paired identity and client, route, authority evidence, digest, expiry,
+and one claim lease. A route consumer can claim only unexpired work. Lease
+replacement is repository-clock-owned, stale consumers cannot complete or
+release replacement ownership, and completed results are bounded public values
+with attributable provenance.
+
+Offline device reads are still not queued by the gateway: its existing route
+status check returns `device-offline` before a delivery handler runs. The
+mailbox exists only for a route already represented as online.
+
+The Worker still exposes no delivery HTTP route. The next PR adds an
+authenticated pull/complete transport for a Home Node or Beacon and then binds
+`chats.search` to this mailbox without adding arbitrary HTTP or kernel RPC.

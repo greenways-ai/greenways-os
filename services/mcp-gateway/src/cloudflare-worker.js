@@ -1,4 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
+import { executeMcpDeliveryStoreRpc } from "./delivery-store-rpc.js";
+import { SqliteMcpDeliveryRepository } from "./sqlite-delivery-store.js";
 import { executeMcpPairingStoreRpc } from "./pairing-store-rpc.js";
 import { SqliteMcpPairingRepository } from "./sqlite-pairing-store.js";
 import { executeMcpRequestStoreRpc } from "./request-store-rpc.js";
@@ -84,6 +86,45 @@ export class McpPairingDurableObject extends DurableObject {
 
   connection(connectionId) {
     return executeMcpPairingStoreRpc(() => this.store().getConnection(connectionId));
+  }
+}
+
+export class McpDeliveryDurableObject extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.repository = null;
+    ctx.blockConcurrencyWhile(async () => {
+      this.repository = new SqliteMcpDeliveryRepository(ctx.storage.sql);
+    });
+  }
+
+  store() {
+    if (!this.repository) throw new Error("MCP delivery repository is not initialized");
+    return this.repository;
+  }
+
+  enqueue(value) {
+    return executeMcpDeliveryStoreRpc(() => this.store().enqueue(value));
+  }
+
+  read(value) {
+    return executeMcpDeliveryStoreRpc(() => this.store().read(value.routeId, value.deliveryId));
+  }
+
+  claim(value) {
+    return executeMcpDeliveryStoreRpc(() => this.store().claimNext(
+      value.routeId,
+      value.consumerId,
+      value.leaseId,
+    ));
+  }
+
+  complete(value) {
+    return executeMcpDeliveryStoreRpc(() => this.store().complete(value));
+  }
+
+  release(value) {
+    return executeMcpDeliveryStoreRpc(() => this.store().release(value));
   }
 }
 
