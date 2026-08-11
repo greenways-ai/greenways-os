@@ -72,7 +72,7 @@ The core provides:
 - an exact per-connection read-tool allowlist with expiry and final revocation;
 - a second, independent Greenways authorization decision for every semantic read;
 - bounded and closed arguments for each of the nine read tools;
-- content-digested request-ID idempotency, concurrent duplicate suppression, and collision rejection;
+- atomic exact-digest request claims, cross-isolate duplicate waiting, stale-claim fencing, and collision rejection;
 - validation of stored results before replay;
 - stable, non-leaking storage, authority, and semantic-handler failure boundaries;
 - distinct replicated, hybrid, and device-bound availability;
@@ -215,8 +215,9 @@ The gateway does not imply that browser-local state is online when no paired dev
 
 1. Read authority core and stateless Streamable HTTP tool projection — implemented.
 2. Signed OAuth challenge/assertion and hardened authorization page — implemented.
-3. Reviewed Greenways OS authorization-page adapter and controller signing flow.
-4. Durable Cloudflare repository plus Home Node/Beacon delivery with idempotent request IDs.
-5. Hestia proposal tools for write intent; no direct execution.
-6. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
-7. Optional publication after security, privacy, and tool-description review.
+3. Reviewed Greenways OS authorization-page adapter and controller signing flow — implemented.
+4. Atomic request-claim seam and repository conformance — implemented.
+5. Cloudflare SQLite Durable Object repositories plus Home Node/Beacon delivery.
+6. Hestia proposal tools for write intent; no direct execution.
+7. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
+8. Optional publication after security, privacy, and tool-description review.

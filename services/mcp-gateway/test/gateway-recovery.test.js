@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GreenwaysMcpGateway, McpGatewayError } from "../src/gateway.js";
 import { MemoryRecordStore } from "../src/memory-store.js";
+import { MemoryMcpRequestStore } from "../src/request-store.js";
 import {
   MCP_CONNECTION_PROTOCOL,
   MCP_REQUEST_PROTOCOL,
@@ -38,7 +39,7 @@ function request(tool, argumentsValue = {}) {
 }
 
 function gateway({ handlers, authorize } = {}) {
-  const requestStore = new MemoryRecordStore();
+  const requestStore = new MemoryMcpRequestStore([], { now: () => new Date(NOW) });
   return {
     requestStore,
     gateway: new GreenwaysMcpGateway({
@@ -76,14 +77,14 @@ test("rejects a corrupted stored result instead of replaying unverified bytes", 
   const input = request("apps.get", { appId: "chats" });
   await rig.gateway.execute(input);
   const record = await rig.requestStore.get(input.requestId);
-  await rig.requestStore.put({
+  rig.requestStore.records.set(input.requestId, structuredClone({
     ...record,
     result: {
       ...record.result,
       tool: "work.get",
       value: { apiKey: "must-not-replay" },
     },
-  });
+  }));
 
   await assert.rejects(
     rig.gateway.execute(input),

@@ -54,6 +54,19 @@ The gateway does not expose `kernel/eval`, arbitrary kernel methods, arbitrary
 HTTP, browser calls, private keys, provider credentials, cookies, OAuth bearer
 tokens, or session secrets.
 
+## Atomic request coordination
+
+The gateway now requires an atomic request-store contract rather than relying
+on a process-local `get → execute → put` sequence. Each request ID receives one
+short-lived `greenways-mcp-request-claim/1` owner. Other gateway isolates either
+wait for the exact-digest result or reject changed content immediately.
+
+The current claimant alone can complete the durable request record. Expired
+claims can be replaced, while the former claim ID is fenced from publishing a
+late result. Transient authority or handler failures release the claim so the
+same request may be retried. The in-process promise map remains only a latency
+optimization; repository claims own correctness across isolates.
+
 ## Signed pairing
 
 `GreenwaysMcpPairingService` creates a short-lived
@@ -134,7 +147,8 @@ pretending a local read was queued.
 - `src/mcp-handler.js` — stateless Streamable HTTP handler factory.
 - `src/mcp-pairing.js` — signed challenge/assertion protocol and one-time state.
 - `src/mcp-authorization.js` — hardened OAuth authorization GET/POST handler.
-- `src/memory-store.js` — test-only in-memory request record store.
+- `src/request-store.js` — atomic claim, wait, completion, release, and in-memory conformance store.
+- `src/memory-store.js` — test-only generic connection record store.
 
 ## Test
 
@@ -148,10 +162,10 @@ client binding, tool schemas, stateless tool calls, safe errors, route policy,
 signed identity pairing, OAuth retry behavior, authorization-page hardening,
 and rejection of the legacy MCP lane.
 
-## Next browser slice
+## Next durable slice
 
-The next layer installs a reviewed adapter for the Greenways MCP authorization
-origin. It reads only the inert challenge, asks the resident Greenways OS
-kernel for explicit approval, signs the challenge without exporting the
-controller key, places the assertion in the authorization form, and submits it
-only after the user approves.
+The next PR maps the atomic request and pairing repository contracts onto
+Cloudflare SQLite Durable Objects, one coordination atom per request or pairing
+session. The stateless MCP handler remains stateless. A later delivery adapter
+then attaches verified Home Node or Beacon routes without letting remote OAuth
+credentials substitute for local Greenways capability authority.
