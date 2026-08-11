@@ -1,0 +1,37 @@
+(ns mcp-access.app
+  (:require [std.foundation :refer :all]))
+
+(defn initial-state
+  []
+  {:mcp/origin "https://mcp.greenways.ai"
+   :mcp/scope "greenways.read"
+   :mcp/enabled false
+   :mcp/approvals 0})
+
+(defn set-enabled
+  [state enabled]
+  {:ok true
+   :state (assoc state :mcp/enabled (= enabled true))})
+
+(defn record-approval
+  [state]
+  {:ok true
+   :state (assoc state :mcp/approvals (+ 1 (get state :mcp/approvals)))})
+
+(defn view
+  [state]
+  {:view/type :column
+   :view/title "Greenways MCP Access"
+   :view/origin (get state :mcp/origin)
+   :view/scope (get state :mcp/scope)
+   :view/enabled (get state :mcp/enabled)
+   :view/approvals (get state :mcp/approvals)})
+
+(defn main
+  [state event]
+  (let [kind (get event :event/type)]
+    (if (= :mcp/set-enabled kind)
+      (set-enabled state (get event :event/enabled))
+      (if (= :mcp/approved kind)
+        (record-approval state)
+        {:ok false :state state :error :mcp/event-unsupported}))))
