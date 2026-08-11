@@ -24,7 +24,9 @@ jobs:
           cache-dependency-path: services/mcp-gateway/package-lock.json
 
       - name: Finish delivery mailbox integration
-        run: python .github/agent/mcp-delivery-mailbox/finish.py
+        run: |
+          python .github/agent/mcp-delivery-mailbox/finish.py
+          python .github/agent/mcp-delivery-mailbox/clock.py
 
       - name: Install MCP gateway dependencies
         working-directory: services/mcp-gateway
