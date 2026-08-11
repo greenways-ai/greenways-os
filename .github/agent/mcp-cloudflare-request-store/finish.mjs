@@ -42,20 +42,6 @@ packageValue.scripts["check:worker"] = "wrangler deploy --dry-run --outdir .wran
 packageValue.scripts.check = "node --check src/*.js && node --test && npm run check:worker";
 writeFileSync(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`);
 
-replaceOnce(
-  ".github/workflows/ci.yml",
-  `      - name: Test MCP gateway
-        if: always()
-        working-directory: services/mcp-gateway
-        run: npm ci && npm test
-`,
-  `      - name: Test MCP gateway and Worker build
-        if: always()
-        working-directory: services/mcp-gateway
-        run: npm ci && npm run check
-`,
-);
-
 const ignorePath = ".gitignore";
 const ignored = readFileSync(ignorePath, "utf8");
 if (!ignored.includes(".wrangler/")) {
