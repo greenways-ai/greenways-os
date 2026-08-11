@@ -270,6 +270,12 @@ export function normalizeMcpPairingChallenge(value) {
   if (!DIGEST.test(requestDigest) || !DIGEST.test(root)) {
     fail(500, "pairing-recovery", "Stored MCP pairing challenge digest is invalid");
   }
+  let scopes;
+  try {
+    scopes = normalizeScopes(input.scopes);
+  } catch (cause) {
+    fail(500, "pairing-recovery", "Stored MCP pairing challenge scopes are invalid", { cause });
+  }
   return Object.freeze({
     protocol: MCP_PAIRING_CHALLENGE_PROTOCOL,
     id: id(input.id, "MCP pairing challenge id", CHALLENGE_ID, 500),
@@ -278,7 +284,7 @@ export function normalizeMcpPairingChallenge(value) {
       name: string(input.client?.name, "MCP pairing client name", 120, 500),
       uri: input.client?.uri === null ? null : string(input.client?.uri, "MCP pairing client URI", 2048, 500),
     }),
-    scopes: normalizeScopes(input.scopes),
+    scopes,
     tools: Object.freeze([...input.tools]),
     requestDigest,
     nonce: string(input.nonce, "MCP pairing challenge nonce", 80, 500),
@@ -788,7 +794,7 @@ export class GreenwaysMcpPairingService {
     const clientId = id(request.clientId, "OAuth authorization client id");
     const scopes = normalizeScopes(request.scope);
     const client = normalizeClient(clientInfo, clientId);
-    const issued = this.now();
+    const issued = pairingRepositoryDate(this.now());
     const body = {
       protocol: MCP_PAIRING_CHALLENGE_PROTOCOL,
       id: `mcp/challenge/${secureUuid(this.randomUUID, "MCP pairing challenge")}`,
@@ -825,7 +831,8 @@ export class GreenwaysMcpPairingService {
     const stored = await this.repository.getSession(requestedId);
     if (!stored) fail(404, "pairing-session-missing", "MCP pairing session does not exist");
     const session = normalizeMcpPairingSession(stored);
-    const observedAt = this.now().getTime();
+    const observed = pairingRepositoryDate(this.now());
+    const observedAt = observed.getTime();
     if (session.state === "consumed"
         || (session.state === "claimed" && Date.parse(session.claimExpiresAt) > observedAt)) {
       fail(409, "pairing-session-used", "MCP pairing session is already in use");
@@ -840,11 +847,11 @@ export class GreenwaysMcpPairingService {
       fail(500, "pairing-recovery", "Stored OAuth authorization request changed");
     }
     const verified = await verifyAssertion(assertion, session.challenge, {
-      now: this.now,
+      now: () => new Date(observed),
       cryptoProvider: this.cryptoProvider,
     });
     const claimId = secureUuid(this.randomUUID, "MCP pairing claim");
-    const issued = this.now();
+    const issued = pairingRepositoryDate(this.now());
     const connection = normalizeConnection({
       protocol: "greenways-mcp-connection/1",
       id: mcpConnectionIdForClaim(session.id, claimId),
@@ -880,7 +887,6 @@ export class GreenwaysMcpPairingService {
         device: verified.device,
         connection,
       });
-      await this.repository.consumeSession(session.id, claimId, connection.id);
       const receipt = Object.freeze({
         protocol: MCP_PAIRING_RECEIPT_PROTOCOL,
         challengeId: session.id,
@@ -892,9 +898,10 @@ export class GreenwaysMcpPairingService {
         }),
         client: connection.client,
         tools: connection.tools,
-        pairedAt: this.now().toISOString(),
+        pairedAt: pairingRepositoryDate(this.now()).toISOString(),
       });
       validateBoundedPublicValue(receipt, "MCP pairing receipt");
+      await this.repository.consumeSession(session.id, claimId, connection.id);
       return Object.freeze({ connection, receipt, oauthResult });
     } catch (cause) {
       await this.repository.releaseSession(session.id, claimId, connection.id).catch(() => {});

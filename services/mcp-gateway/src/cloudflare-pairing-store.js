@@ -34,7 +34,19 @@ export class CloudflareMcpPairingRepository {
         `MCP pairing Durable Object method is unavailable: ${method}`,
       );
     }
-    return unwrapMcpPairingStoreRpc(await stub[method](value));
+    let response;
+    try {
+      response = await stub[method](value);
+    } catch (cause) {
+      if (cause instanceof McpPairingError) throw cause;
+      throw new McpPairingError(
+        503,
+        "pairing-store-unavailable",
+        "MCP pairing storage is unavailable",
+        { cause },
+      );
+    }
+    return unwrapMcpPairingStoreRpc(response);
   }
 
   async putSession(sessionValue) {

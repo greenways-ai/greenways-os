@@ -153,6 +153,22 @@ test("reconstructs stable pairing errors from Durable Object RPC envelopes", asy
   );
 });
 
+test("contains raw Durable Object failures behind a retryable storage error", async () => {
+  const repository = new CloudflareMcpPairingRepository({
+    getByName: () => ({
+      read: async () => {
+        throw new Error("durable-object-secret-must-not-leak");
+      },
+    }),
+  });
+  await assert.rejects(
+    repository.getSession(CHALLENGE_ID),
+    (error) => hasCode(error, "pairing-store-unavailable")
+      && error.status === 503
+      && !error.message.includes("durable-object-secret-must-not-leak"),
+  );
+});
+
 test("rejects malformed pairing RPC responses as recovery failures", async () => {
   const repository = new CloudflareMcpPairingRepository({
     getByName: () => ({

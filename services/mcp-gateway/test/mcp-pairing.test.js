@@ -292,6 +292,45 @@ test("keeps interrupted claim connections inactive and permits a lease-fenced re
   assert.deepEqual(await repository.getConnection(retried.connection.id), retried.connection);
 });
 
+test("fails closed when the pairing service clock is invalid", async () => {
+  const repository = new MemoryMcpPairingRepository({ now: () => new Date(NOW) });
+  const beginFailure = new GreenwaysMcpPairingService({
+    repository,
+    now: () => new Date(Number.NaN),
+    randomUUID: uuidSequence(),
+    cryptoProvider,
+  });
+  await assert.rejects(
+    beginFailure.begin({ oauthRequest: oauthRequest(), clientInfo: clientInfo() }),
+    (error) => hasCode(error, "pairing-recovery"),
+  );
+
+  const healthy = new GreenwaysMcpPairingService({
+    repository,
+    now: () => new Date(NOW),
+    randomUUID: uuidSequence(),
+    cryptoProvider,
+  });
+  const actor = await identity();
+  const challenge = await healthy.begin({ oauthRequest: oauthRequest(), clientInfo: clientInfo() });
+  const signed = await assertion(challenge, actor);
+  const authorizeFailure = new GreenwaysMcpPairingService({
+    repository,
+    now: () => new Date(Number.NaN),
+    randomUUID: uuidSequence(),
+    cryptoProvider,
+  });
+  await assert.rejects(
+    authorizeFailure.authorize({
+      challengeId: challenge.id,
+      assertion: signed,
+      completeAuthorization: async () => ({}),
+    }),
+    (error) => hasCode(error, "pairing-recovery"),
+  );
+  assert.equal((await repository.getSession(challenge.id)).state, "open");
+});
+
 test("fails closed for extra OAuth scopes and expired pairing evidence", async () => {
   const { service } = createRig();
   await assert.rejects(
