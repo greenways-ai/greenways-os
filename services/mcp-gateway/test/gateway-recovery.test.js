@@ -39,7 +39,7 @@ function request(tool, argumentsValue = {}) {
 }
 
 function gateway({ handlers, authorize } = {}) {
-  const requestStore = new MemoryMcpRequestStore();
+  const requestStore = new MemoryMcpRequestStore([], { now: () => new Date(NOW) });
   return {
     requestStore,
     gateway: new GreenwaysMcpGateway({

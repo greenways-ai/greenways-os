@@ -54,7 +54,7 @@ function request(tool, argumentsValue = {}, overrides = {}) {
 function rig({
   connectionValue = connection(),
   connectionStore = new MemoryRecordStore([connectionValue]),
-  requestStore = new MemoryMcpRequestStore(),
+  requestStore = new MemoryMcpRequestStore([], { now: () => new Date(NOW) }),
   handlers = {},
   authorize,
 } = {}) {
@@ -181,7 +181,7 @@ test("coordinates duplicate delivery and collision fencing across independent ga
   let releaseHandler;
   const released = new Promise((resolve) => { releaseHandler = resolve; });
   const connectionStore = new MemoryRecordStore([connection()]);
-  const requestStore = new MemoryMcpRequestStore();
+  const requestStore = new MemoryMcpRequestStore([], { now: () => new Date(NOW) });
   const handlers = {
     "apps.get": async ({ appId }) => {
       calls += 1;

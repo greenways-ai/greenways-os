@@ -9,6 +9,7 @@ import {
   MCP_REQUEST_RECORD_PROTOCOL,
 } from "../src/protocol.js";
 
+const NOW = new Date("2026-08-11T05:00:00.000Z");
 const DIGEST_A = `sha256:${"a".repeat(64)}`;
 const DIGEST_B = `sha256:${"b".repeat(64)}`;
 
@@ -29,7 +30,7 @@ function hasCode(error, code) {
 }
 
 test("admits one claim owner, fences collisions, and wakes duplicate waiters with the completed record", async () => {
-  const store = new MemoryMcpRequestStore();
+  const store = new MemoryMcpRequestStore([], { now: () => new Date(NOW) });
   const first = await store.claim(claim());
   assert.equal(first.disposition, "acquired");
 
@@ -63,14 +64,22 @@ test("admits one claim owner, fences collisions, and wakes duplicate waiters wit
   assert.deepEqual(replay.record, completed);
 });
 
-test("replaces an expired claim and rejects completion from the fenced owner", async () => {
-  const store = new MemoryMcpRequestStore();
+test("uses repository time to replace an expired claim and fences the former owner", async () => {
+  let now = new Date(NOW);
+  const store = new MemoryMcpRequestStore([], { now: () => new Date(now) });
   const stale = await store.claim(claim({ expiresAt: "2026-08-11T05:00:10.000Z" }));
-  const replacement = await store.claim(claim({
+  const replacementValue = claim({
     claimId: "mcp/claim/01234567-89ab-4def-8123-000000000002",
     claimedAt: "2026-08-11T05:00:11.000Z",
     expiresAt: "2026-08-11T05:00:41.000Z",
-  }));
+  });
+
+  const premature = await store.claim(replacementValue);
+  assert.equal(premature.disposition, "pending");
+  assert.equal(premature.record.claimId, stale.record.claimId);
+
+  now = new Date("2026-08-11T05:00:11.000Z");
+  const replacement = await store.claim(replacementValue);
   assert.equal(replacement.disposition, "acquired");
 
   await assert.rejects(
