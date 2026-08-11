@@ -176,9 +176,9 @@ function rowRecord(row) {
       || row.state !== record.state
       || row.created_at !== record.createdAt
       || row.expires_at !== record.expiresAt
-      || row.lease_id !== record.lease?.id
-      || row.consumer_id !== record.lease?.consumerId
-      || row.lease_expires_at !== record.lease?.expiresAt
+      || row.lease_id !== (record.lease?.id ?? null)
+      || row.consumer_id !== (record.lease?.consumerId ?? null)
+      || row.lease_expires_at !== (record.lease?.expiresAt ?? null)
       || row.completed_at !== record.completedAt) {
     fail(500, "delivery-recovery", "Stored MCP delivery row does not match its record bytes");
   }

@@ -12,6 +12,10 @@
       {
         "name": "MCP_PAIRINGS",
         "class_name": "McpPairingDurableObject"
+      },
+      {
+        "name": "MCP_DELIVERIES",
+        "class_name": "McpDeliveryDurableObject"
       }
     ]
   },
@@ -23,6 +27,10 @@
     {
       "tag": "v2",
       "new_sqlite_classes": ["McpPairingDurableObject"]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["McpDeliveryDurableObject"]
     }
   ],
   "observability": {
