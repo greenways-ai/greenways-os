@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GreenwaysMcpGateway, McpGatewayError } from "../src/gateway.js";
 import { MemoryRecordStore } from "../src/memory-store.js";
+import { MemoryMcpRequestStore } from "../src/request-store.js";
 import {
   MCP_CONNECTION_PROTOCOL,
   MCP_REQUEST_PROTOCOL,
@@ -50,9 +51,13 @@ function request(tool, argumentsValue = {}, overrides = {}) {
   };
 }
 
-function rig({ connectionValue = connection(), handlers = {}, authorize } = {}) {
-  const connectionStore = new MemoryRecordStore([connectionValue]);
-  const requestStore = new MemoryRecordStore();
+function rig({
+  connectionValue = connection(),
+  connectionStore = new MemoryRecordStore([connectionValue]),
+  requestStore = new MemoryMcpRequestStore(),
+  handlers = {},
+  authorize,
+} = {}) {
   const authorityCalls = [];
   const gateway = new GreenwaysMcpGateway({
     connectionStore,
@@ -167,6 +172,46 @@ test("replays identical request IDs, rejects collisions, and deduplicates concur
     gateway.execute(request("apps.get", { appId: "userscripts" })),
     (error) => assertGatewayError(error, "request-id-collision"),
   );
+});
+
+test("coordinates duplicate delivery and collision fencing across independent gateway isolates", async () => {
+  let calls = 0;
+  let markStarted;
+  const started = new Promise((resolve) => { markStarted = resolve; });
+  let releaseHandler;
+  const released = new Promise((resolve) => { releaseHandler = resolve; });
+  const connectionStore = new MemoryRecordStore([connection()]);
+  const requestStore = new MemoryMcpRequestStore();
+  const handlers = {
+    "apps.get": async ({ appId }) => {
+      calls += 1;
+      markStarted();
+      await released;
+      return {
+        availability: "replicated",
+        value: { id: appId, name: "Chats" },
+        provenance: [],
+      };
+    },
+  };
+  const left = rig({ connectionStore, requestStore, handlers }).gateway;
+  const right = rig({ connectionStore, requestStore, handlers }).gateway;
+  const collision = rig({ connectionStore, requestStore, handlers }).gateway;
+  const input = request("apps.get", { appId: "chats" });
+
+  const first = left.execute(input);
+  await started;
+  await assert.rejects(
+    collision.execute(request("apps.get", { appId: "userscripts" })),
+    (error) => assertGatewayError(error, "request-id-collision"),
+  );
+  const second = right.execute(input);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls, 1);
+  releaseHandler();
+  const [leftResult, rightResult] = await Promise.all([first, second]);
+  assert.deepEqual(leftResult, rightResult);
+  assert.equal(calls, 1);
 });
 
 test("represents an offline device-bound read without pretending it was queued", async () => {
