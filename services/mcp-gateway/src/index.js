@@ -1,5 +1,7 @@
 export * from "./gateway.js";
+export * from "./mcp-authorization.js";
 export * from "./mcp-handler.js";
+export * from "./mcp-pairing.js";
 export * from "./mcp-server.js";
 export * from "./mcp-transport.js";
 export * from "./memory-store.js";

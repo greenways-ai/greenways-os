@@ -1,23 +1,30 @@
 # Greenways MCP gateway
 
-Status: architecture boundary for a ChatGPT app  
+Status: implemented read, transport, and signed-pairing boundary for a ChatGPT app  
 Transport: remote MCP over authenticated HTTPS
 
 ## Purpose
 
 Expose capability-scoped Greenways OS tools and resources to ChatGPT without exposing the resident Hara kernel, browser-extension internals, or local secrets.
 
-ChatGPT connects to a remote MCP server. A browser extension service worker is not itself a remote server, so the supported path is:
-
 ```text
 ChatGPT app
-    │ authenticated MCP
+    │ OAuth 2.1 authorization
+    ▼
+Greenways MCP authorization page
+    │ one-time signed pairing challenge
+    ▼
+Greenways OS browser authority
+    │ controller key remains local
+    ▼
+revocable MCP connection
+    │ authenticated Streamable HTTP
     ▼
 Greenways MCP gateway
-    │ paired, encrypted command and result channel
+    │ paired semantic command/result route
     ▼
-Greenways Home Node / Beacon
-    │ capability-checked local request
+Greenways Home Node / Beacon / replicated state
+    │ independent capability decision
     ▼
 resident Greenways OS kernel
 ```
@@ -26,7 +33,7 @@ For a single developer machine, a secure MCP tunnel may replace the hosted gatew
 
 ## The gateway is a projection, not kernel RPC
 
-The gateway must never expose general methods such as:
+The gateway never exposes general methods such as:
 
 ```text
 kernel/eval
@@ -53,11 +60,11 @@ receipts.get
 chats.search
 ```
 
-Read results are bounded, attributable records. Resources may be represented as MCP resources where that improves navigation, but the server does not need to force every operation through generic search/fetch wrappers.
+Read results are bounded, attributable records. Resources may also be represented as MCP resources where that improves navigation, but the server does not force every operation through generic search/fetch wrappers.
 
 ## Implemented read authority core
 
-The authority and replay core is implemented in [`services/mcp-gateway`](../services/mcp-gateway/). Remote transport and OAuth must use this boundary rather than giving either layer a raw kernel call surface.
+The authority and replay core is implemented in [`services/mcp-gateway`](../services/mcp-gateway/). Remote transport and OAuth use this boundary rather than receiving a raw kernel call surface.
 
 The core provides:
 
@@ -99,13 +106,73 @@ idempotent
 closed-world
 ```
 
-Tool input is validated by exact Zod schemas before the existing semantic request validation. Errors are returned as stable `greenways-mcp-tool-error/1` values and never include provider, bearer, storage, or authority exception details. Browser CORS projection is disabled by default; deployment wrappers must configure exact host and origin policy.
+Tool input is validated by exact Zod schemas before semantic request validation. Errors are returned as stable `greenways-mcp-tool-error/1` values and never include provider, bearer, storage, or authority exception details. Browser CORS projection is disabled by default; deployment wrappers configure exact host and origin policy.
 
-OAuth authorization and Greenways pairing remain a separate layer. The authorization screen will consume a short-lived Beacon/Home Node pairing assertion and issue the minimal context above; it must not use a static demo user or receive a controller private key.
+## Implemented signed OAuth pairing
+
+The authorization flow does not use a static gateway account or ask Greenways OS to export a controller key.
+
+### Challenge
+
+A GET to `/authorize` parses the server-side OAuth request, looks up the dynamically registered client, and creates a short-lived `greenways-mcp-pairing-challenge/1` containing:
+
+```text
+challenge ID and nonce
+exact OAuth request digest
+client ID, display name, and URI
+exact greenways.read scope
+exact nine-tool catalogue
+issued-at and expiry
+content root
+```
+
+The raw OAuth request, including OAuth state and PKCE material, remains server-side. The page publishes only the inert challenge as `application/json` for the reviewed Greenways browser adapter.
+
+### Local approval
+
+Greenways OS recomputes the complete challenge root before signing. It then creates a `greenways-mcp-pairing-assertion/1` containing the challenge ID/root, public Greenways identity card, reviewed browser-device identity, and bounded timestamps. The assertion is signed with the local non-extractable P-256 controller key.
+
+The gateway:
+
+- validates the exact assertion fields and byte limit;
+- recalculates the identity public-key digest;
+- verifies the P-256 signature;
+- enforces challenge and assertion expiry;
+- rejects changed challenge roots and unsupported devices;
+- atomically claims the one-time challenge; and
+- creates a connection bound to the signed identity and exact OAuth client.
+
+The pairing state is:
+
+```text
+open → claimed → consumed
+          │
+          └── OAuth failure → open
+```
+
+A concurrent or replayed approval cannot create another connection. If OAuth completion fails, the provisional connection is removed and the signed assertion remains retryable only while its original expiry is valid.
+
+### OAuth grant
+
+`completeAuthorization()` receives:
+
+```text
+userId = Greenways identity ID
+scope = [greenways.read]
+props = {protocol, connectionId}
+```
+
+No public key, controller key, browser credential, bearer token, provider key, OAuth request state, or arbitrary application data is placed in the access-token context.
+
+A new pairing initially receives an honest replicated route with status `unknown`. Identity proof does not claim that a Beacon or Home Node will remain online. Verified route attachment is a separate delivery transition.
+
+### Authorization-page boundary
+
+The page escapes client metadata, lists every requested tool, reflects no raw OAuth state, and applies no-store, no-referrer, no-frame, no-script, and same-origin form restrictions. The POST accepts only the challenge ID and bounded signed assertion. Actionable input errors may be shown; provider, storage, and authority failures remain opaque.
 
 ## Consequential tools
 
-The first write-capable tools should prepare proposals rather than directly execute effects:
+The first write-capable tools prepare proposals rather than directly executing effects:
 
 ```text
 work.submit-result
@@ -114,21 +181,6 @@ hestia.cancel-proposal
 ```
 
 A proposal records the requesting ChatGPT app, user identity, exact arguments, capability, subject root, expiry, and provenance. Approval and execution remain separate Greenways/Hestia transitions. ChatGPT may present the proposal, but it cannot silently grant itself authority.
-
-## Pairing and identity
-
-The MCP gateway authenticates a Greenways identity through an interactive browser pairing flow. The gateway receives a revocable device/session credential, never the controller private key.
-
-A connection is bound to:
-
-- Greenways identity ID and public key;
-- gateway client/application ID;
-- allowed MCP tools;
-- selected Home Node or device route;
-- expiry and revocation state;
-- optional workspace or organization scope.
-
-The local device independently verifies every request. A valid gateway access token is transport identity, not sufficient Greenways capability authority.
 
 ## Request envelope
 
@@ -150,20 +202,21 @@ The local result contains the exact request ID, outcome, bounded value or error,
 
 ## Availability model
 
-A local device can be offline. The gateway therefore distinguishes:
+A local device can be offline. The gateway distinguishes:
 
 - immediate reads backed by remotely replicated Tahto state;
 - device-bound reads that require an online Home Node;
-- queued proposals that may await delivery;
+- queued proposals that may await delivery; and
 - operations that must fail closed rather than queue.
 
-The gateway must not imply that browser-local state is online when no paired device can serve it.
+The gateway does not imply that browser-local state is online when no paired device can serve it.
 
 ## Release order
 
-1. Read authority core and stateless Streamable HTTP tool projection.
-2. OAuth authorization with Greenways pairing and durable connection/request storage.
-3. Home Node/Beacon delivery with idempotent request IDs.
-4. Hestia proposal tools for write intent; no direct execution.
-5. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
-6. Optional publication after security, privacy, and tool-description review.
+1. Read authority core and stateless Streamable HTTP tool projection — implemented.
+2. Signed OAuth challenge/assertion and hardened authorization page — implemented.
+3. Reviewed Greenways OS authorization-page adapter and controller signing flow.
+4. Durable Cloudflare repository plus Home Node/Beacon delivery with idempotent request IDs.
+5. Hestia proposal tools for write intent; no direct execution.
+6. ChatGPT Apps SDK interface for reviewing work, resources, and proposals inside ChatGPT.
+7. Optional publication after security, privacy, and tool-description review.
