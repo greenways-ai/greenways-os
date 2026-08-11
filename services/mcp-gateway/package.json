@@ -1,0 +1,10 @@
+{
+  "name": "@greenways-ai/mcp-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "EPL-2.0",
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -62,6 +62,10 @@ jobs:
         if: always()
         working-directory: services/home-node
         run: npm test
+      - name: Test MCP gateway
+        if: always()
+        working-directory: services/mcp-gateway
+        run: npm test
       - name: Test identity service
         if: always()
         working-directory: services/identity
