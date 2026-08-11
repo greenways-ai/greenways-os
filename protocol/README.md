@@ -43,3 +43,8 @@ The foreground ChatGPT web-provider boundary is specified in
 extension service worker; the ChatGPT page receives only a reviewed,
 request-scoped adapter. The complementary remote interface for ChatGPT apps is
 specified in [`mcp-gateway.md`](mcp-gateway.md).
+
+The local-first image identity, exact-byte storage, lineage, curation, and
+publishing boundary is specified in [`assets.md`](assets.md). Asset bytes are
+inert data: generation providers may submit candidates, but they cannot grant
+approval or publication authority.
