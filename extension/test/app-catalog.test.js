@@ -39,6 +39,7 @@ test("publishes the ordinary apps beside fixed Kernel DevTools", () => {
     "greenways-worlds",
     "chats",
     "chatgpt-provider",
+    "mcp-access",
     "userscripts",
     "hara-playground",
   ]);
@@ -48,7 +49,7 @@ test("publishes the ordinary apps beside fixed Kernel DevTools", () => {
   assert.deepEqual(RUNTIME_HANDLERS, [
     "extension-page", "packaged-surface", "native-hybrid", "web-tab", "hal-module"
   ]);
-  assert.deepEqual(PACKAGED_SURFACE_IDS, ["chats", "chatgpt-provider", "userscripts"]);
+  assert.deepEqual(PACKAGED_SURFACE_IDS, ["chats", "chatgpt-provider", "mcp-access", "userscripts"]);
   assert.ok(APP_CAPABILITIES.includes("network/loopback"));
   assert.ok(Object.isFrozen(BUILTIN_APP_CATALOG));
   assert.ok(BUILTIN_APP_CATALOG.every(Object.isFrozen));
@@ -87,6 +88,13 @@ test("Greenways for ChatGPT is a bound foreground provider surface", () => {
   ]);
   assert.equal(provider.project.coordinate, "greenways-ai/chatgpt-provider");
   assert.equal(provider.project.digest, "sha256:a5b68c916745dbd67fa830b31e7a745a4e597ea7c1d31dca60ca66d54cdfe0c0");
+});
+
+test("Greenways MCP Access is a bound pairing surface", () => {
+  const access = getAppManifest("mcp-access");
+  assert.deepEqual(access.launch, { handler: "packaged-surface", surfaceId: "mcp-access" });
+  assert.deepEqual(access.capabilities, ["hara/module", "mcp/pair"]);
+  assert.equal(access.project.coordinate, "greenways-ai/mcp-access");
 });
 
 test("resolves only normalized catalog launches", () => {

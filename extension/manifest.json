@@ -36,12 +36,17 @@
     "http://127.0.0.1/*",
     "http://localhost/*",
     "http://[::1]/*",
-    "https://*/*"
+    "https://*/*",
+    "https://mcp.greenways.ai/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://playground.hara-lang.org/*"],
-      "js": ["dist/playground-bridge.js"],
+      "matches": [
+        "https://playground.hara-lang.org/*"
+      ],
+      "js": [
+        "dist/playground-bridge.js"
+      ],
       "run_at": "document_start",
       "all_frames": false
     }

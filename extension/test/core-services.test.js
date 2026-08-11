@@ -38,7 +38,7 @@ test("publishes a closed, resident core service graph", () => {
   assert.equal(getCoreService("work").status, "foundation");
 });
 
-test("adds opaque key and model operations to the closed app capability vocabulary", () => {
+test("adds opaque key, model, and MCP operations to the closed app capability vocabulary", () => {
   for (const capability of [
     "key/public",
     "key/sign",
@@ -46,11 +46,14 @@ test("adds opaque key and model operations to the closed app capability vocabula
     "credential/use",
     "model/generate",
     "model/provide",
+    "mcp/pair",
   ]) {
     assert.ok(APP_CAPABILITIES.includes(capability));
     assert.equal(getCapabilityDefinition(capability).grantable, true);
   }
   assert.deepEqual(getCapabilityDefinition("model/provide").trustedPublishers, ["greenways-ai"]);
+  assert.equal(getCapabilityDefinition("mcp/pair").service, "keyring");
+  assert.deepEqual(getCapabilityDefinition("mcp/pair").trustedPublishers, ["greenways-ai"]);
   assert.equal(getCapabilityDefinition("hara/module").grantable, false);
 });
 

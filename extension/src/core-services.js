@@ -114,6 +114,11 @@ export const CAPABILITY_DEFINITIONS = Object.freeze([
     trustedPublishers: ["greenways-ai"],
     description: "Project one foreground model request into a reviewed AI web application and return an explicitly selected response.",
   }),
+  capability("mcp/pair", "keyring", "critical", {
+    grantable: true,
+    trustedPublishers: ["greenways-ai"],
+    description: "Approve and sign one exact remote MCP read connection without exporting controller key material.",
+  }),
   capability("tahto/connect", "connectors", "high", {
     grantable: true,
     description: "Pair one browser device identity with an explicitly approved Tahto node.",

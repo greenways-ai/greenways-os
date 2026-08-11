@@ -44,6 +44,7 @@ const contentBuild = await build({
   entryPoints: {
     "playground-bridge": "src/playground-bridge.js",
     "chatgpt-provider-bridge": "src/chatgpt-provider-bridge.js",
+    "mcp-authorization-bridge": "src/mcp-authorization-bridge.js",
   },
   metafile: true,
 });
@@ -78,12 +79,14 @@ const [
   devtoolsBundle,
   playgroundBridgeBundle,
   chatgptProviderBridgeBundle,
+  mcpAuthorizationBridgeBundle,
 ] = await Promise.all([
   readFile(new URL("../dist/background.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/launcher.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/devtools.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/playground-bridge.js", import.meta.url), "utf8"),
   readFile(new URL("../dist/chatgpt-provider-bridge.js", import.meta.url), "utf8"),
+  readFile(new URL("../dist/mcp-authorization-bridge.js", import.meta.url), "utf8"),
 ]);
 if (!backgroundBundle.includes("gw.os.kernel") || !backgroundBundle.includes("data:application/wasm;base64")) {
   throw new Error("The MV3 background bundle does not contain the reviewed Hara kernel runtime");
@@ -97,6 +100,7 @@ for (const [name, source] of [
   ["devtools", devtoolsBundle],
   ["playground-bridge", playgroundBridgeBundle],
   ["chatgpt-provider-bridge", chatgptProviderBridgeBundle],
+  ["mcp-authorization-bridge", mcpAuthorizationBridgeBundle],
 ]) {
   if (source.includes("data:application/wasm;base64") || source.includes("gw.os.kernel")) {
     throw new Error(`The ${name} page bundle contains a second Hara kernel runtime`);
