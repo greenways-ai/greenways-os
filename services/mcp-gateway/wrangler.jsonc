@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "greenways-mcp-gateway",
+  "main": "src/cloudflare-worker.js",
+  "compatibility_date": "2026-08-11",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_REQUESTS",
+        "class_name": "McpRequestDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["McpRequestDurableObject"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
