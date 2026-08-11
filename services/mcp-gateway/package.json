@@ -6,13 +6,17 @@
   "license": "EPL-2.0",
   "scripts": {
     "test": "node --test",
-    "test:core": "node --test test/gateway.test.js test/gateway-recovery.test.js test/mcp-transport.test.js test/request-store.test.js",
-    "check": "node --check src/*.js && node --test"
+    "test:core": "node --test test/gateway.test.js test/gateway-recovery.test.js test/mcp-transport.test.js test/request-store.test.js test/sqlite-request-store.test.js test/cloudflare-request-store.test.js",
+    "check": "node --check src/*.js && node --test && npm run check:worker",
+    "check:worker": "wrangler deploy --dry-run --outdir .wrangler-dist"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
     "@modelcontextprotocol/server": "2.0.0",
     "agents": "0.20.1",
     "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "wrangler": "4.114.0"
   }
 }

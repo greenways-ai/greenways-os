@@ -306,6 +306,9 @@ function requestStoreFailure(cause, message) {
   if (cause?.code === "request-claim-stale") {
     fail(409, "request-claim-lost", "MCP request ownership changed before its result was stored", { cause });
   }
+  if (cause?.code === "request-store-invalid" || cause?.code === "request-store-recovery") {
+    fail(500, "gateway-recovery", "MCP request storage returned invalid state", { cause });
+  }
   fail(503, "gateway-storage-unavailable", message, { cause });
 }
 

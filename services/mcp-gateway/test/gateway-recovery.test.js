@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GreenwaysMcpGateway, McpGatewayError } from "../src/gateway.js";
 import { MemoryRecordStore } from "../src/memory-store.js";
-import { MemoryMcpRequestStore } from "../src/request-store.js";
+import {
+  McpRequestStoreError,
+  MemoryMcpRequestStore,
+} from "../src/request-store.js";
 import {
   MCP_CONNECTION_PROTOCOL,
   MCP_REQUEST_PROTOCOL,
@@ -58,6 +61,38 @@ function gateway({ handlers, authorize } = {}) {
       now: () => new Date(NOW),
     }),
   };
+}
+
+function failingRequestStore(code) {
+  const fail = async () => {
+    throw new McpRequestStoreError(code, "request-store-secret-must-not-leak");
+  };
+  return {
+    claim: fail,
+    wait: fail,
+    complete: fail,
+    release: fail,
+  };
+}
+
+function gatewayWithRequestStore(requestStore) {
+  return new GreenwaysMcpGateway({
+    connectionStore: new MemoryRecordStore([connection()]),
+    requestStore,
+    handlers: {
+      "greenways.status": async () => ({ availability: "replicated", value: {}, provenance: [] }),
+    },
+    authorize: async () => ({
+      allowed: true,
+      reason: "active-local-grant",
+      evidence: {
+        ref: "grant/mcp/read/recovery",
+        digest: DIGEST,
+        observedAt: NOW.toISOString(),
+      },
+    }),
+    now: () => new Date(NOW),
+  });
 }
 
 function hasCode(error, code) {
@@ -122,6 +157,20 @@ test("contains authority and semantic-handler failures behind stable gateway err
   );
 });
 
+test("separates corrupt request-store state from retryable storage outages", async () => {
+  await assert.rejects(
+    gatewayWithRequestStore(failingRequestStore("request-store-recovery"))
+      .execute(request("greenways.status")),
+    (error) => hasCode(error, "gateway-recovery")
+      && !error.message.includes("request-store-secret-must-not-leak"),
+  );
+  await assert.rejects(
+    gatewayWithRequestStore(failingRequestStore("request-store-unavailable"))
+      .execute(request("greenways.status")),
+    (error) => hasCode(error, "gateway-storage-unavailable")
+      && !error.message.includes("request-store-secret-must-not-leak"),
+  );
+});
 
 test("binds replay and execution to the authenticated MCP client", async () => {
   const rig = gateway({

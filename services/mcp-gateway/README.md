@@ -67,6 +67,25 @@ late result. Transient authority or handler failures release the claim so the
 same request may be retried. The in-process promise map remains only a latency
 optimization; repository claims own correctness across isolates.
 
+## Cloudflare SQLite request repository
+
+`CloudflareMcpRequestStore` maps each normalized request ID to exactly one
+`McpRequestDurableObject` through `MCP_REQUESTS.getByName(requestId)`. The
+stateless MCP handler keeps no durable ownership state. Duplicate callers poll
+the same atom for a completed record instead of holding a long-lived Durable
+Object RPC event open.
+
+Each SQLite Durable Object stores one closed claim or result row. Claim,
+completion, replacement, collision, and release transitions execute without an
+`await` between the SQLite read and write. The repository's own clock decides
+whether a claim has expired, and the previous claim ID remains fenced after
+replacement or restart.
+
+Known request-store failures cross the RPC boundary in a closed versioned
+envelope and are reconstructed locally. Unexpected runtime and storage errors
+remain opaque. Corrupt protocol fields or result JSON become `gateway-recovery`
+rather than being returned to an MCP client.
+
 ## Signed pairing
 
 `GreenwaysMcpPairingService` creates a short-lived
@@ -147,25 +166,30 @@ pretending a local read was queued.
 - `src/mcp-handler.js` — stateless Streamable HTTP handler factory.
 - `src/mcp-pairing.js` — signed challenge/assertion protocol and one-time state.
 - `src/mcp-authorization.js` — hardened OAuth authorization GET/POST handler.
-- `src/request-store.js` — atomic claim, wait, completion, release, and in-memory conformance store.
+- `src/request-store.js` — shared request validation, state transitions, and in-memory conformance store.
+- `src/sqlite-request-store.js` — one-row SQLite Durable Object repository.
+- `src/request-store-rpc.js` — closed non-leaking Durable Object RPC envelopes.
+- `src/cloudflare-request-store.js` — request-ID routing and bounded duplicate polling.
+- `src/cloudflare-worker.js` — SQLite Durable Object class; its public fetch boundary remains closed.
 - `src/memory-store.js` — test-only generic connection record store.
 
 ## Test
 
 ```sh
 npm ci
-npm test
+npm run check
 ```
 
 The suite exercises the authority core, replay/recovery boundaries, OAuth
 client binding, tool schemas, stateless tool calls, safe errors, route policy,
 signed identity pairing, OAuth retry behavior, authorization-page hardening,
-and rejection of the legacy MCP lane.
+real SQLite persistence through Node's SQLite engine, Durable Object routing,
+and rejection of the legacy MCP lane. The check also performs a Wrangler
+dry-run build against `wrangler.jsonc`.
 
 ## Next durable slice
 
-The next PR maps the atomic request and pairing repository contracts onto
-Cloudflare SQLite Durable Objects, one coordination atom per request or pairing
-session. The stateless MCP handler remains stateless. A later delivery adapter
-then attaches verified Home Node or Beacon routes without letting remote OAuth
-credentials substitute for local Greenways capability authority.
+The next PR gives signed pairing sessions the same durable storage treatment.
+After both repositories survive isolate replacement, a separate delivery
+adapter can attach verified Home Node or Beacon routes without letting remote
+OAuth credentials substitute for local Greenways capability authority.
