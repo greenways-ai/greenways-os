@@ -27,6 +27,7 @@ jobs:
         run: |
           python .github/agent/mcp-delivery-mailbox/finish.py
           python .github/agent/mcp-delivery-mailbox/clock.py
+          python .github/agent/mcp-delivery-mailbox/nulls.py
 
       - name: Install MCP gateway dependencies
         working-directory: services/mcp-gateway
