@@ -1,35 +1,55 @@
 # Greenways MCP gateway
 
-This service is the read-side authority core for issue #33. It is deliberately
-transport-neutral: remote Streamable HTTP and OAuth terminate outside this
-module, while every semantic read still passes through a closed Greenways
-connection, an exact tool grant, and an independent local capability decision.
+This service exposes capability-scoped Greenways reads through a remote MCP
+boundary without turning the resident Hara kernel into general RPC.
 
 ```text
-remote MCP transport / OAuth
-          |
-          | greenways-mcp-request/1
-          v
+ChatGPT / MCP client
+       │ OAuth 2.1 access token
+       ▼
+stateless Streamable HTTP /mcp
+       │ greenways-mcp-auth-context/1
+       ▼
 GreenwaysMcpGateway
-  - closed read-tool catalogue
-  - connection expiry and revocation
-  - exact argument validation
-  - request-ID idempotency and collision rejection
-  - independent Greenways authority gate
+  - exact connection + OAuth client binding
+  - closed nine-tool catalogue
+  - request expiry, idempotency, and collision rejection
+  - independent Greenways capability decision
   - replicated vs device-bound availability
-  - bounded public results and provenance
-          |
-          v
-explicit semantic handlers
+  - bounded result and provenance validation
+       │
+       ▼
+explicit semantic handlers / Beacon route
 ```
 
-The gateway does not expose `kernel/eval`, arbitrary kernel methods, arbitrary
-HTTP, browser calls, private keys, provider credentials, cookies, or bearer
-tokens. A transport access token identifies a connection but is never enough to
-execute a Greenways read: `authorize()` must independently approve the exact
-connection, tool, request, identity, and route.
+The transport uses the current Cloudflare stateless server path:
 
-## Initial tool catalogue
+- `@modelcontextprotocol/server` 2.0.0;
+- `@modelcontextprotocol/sdk` 1.30.0;
+- `agents` 0.20.1 and `agents/mcp/server`;
+- MCP protocol `2026-07-28` over Streamable HTTP;
+- the exact `/mcp` route with legacy MCP transport rejected.
+
+## Authority split
+
+OAuth authenticates the remote MCP client and projects only:
+
+```json
+{
+  "protocol": "greenways-mcp-auth-context/1",
+  "connectionId": "mcp/connection/..."
+}
+```
+
+The verified OAuth `clientId` and `greenways.read` scope are bound into every
+request digest and checked against the durable Greenways connection. They do
+not replace the independent Greenways `authorize()` decision.
+
+The gateway does not expose `kernel/eval`, arbitrary kernel methods, arbitrary
+HTTP, browser calls, private keys, provider credentials, cookies, OAuth bearer
+tokens, or session secrets.
+
+## Read tools
 
 - `greenways.status`
 - `apps.list`
@@ -41,21 +61,34 @@ connection, tool, request, identity, and route.
 - `receipts.get`
 - `chats.search`
 
-`chats.search` is device-bound and returns a structured `device-offline` result
-rather than pretending an offline read was queued. Replicated tools can remain
-available from attributable Tahto/Space snapshots while a browser or Beacon is
-offline.
+All are advertised as read-only, non-destructive, idempotent, and closed-world.
+`chats.search` remains device-bound and reports `device-offline` rather than
+pretending a local read was queued.
 
-## Run the core tests
+## Modules
+
+- `src/protocol.js` — closed semantic connection, request, and result records.
+- `src/gateway.js` — authority, availability, replay, and recovery core.
+- `src/mcp-transport.js` — OAuth/MCP identity projection and stable tool errors.
+- `src/mcp-server.js` — the nine registered MCP tools and exact Zod schemas.
+- `src/mcp-handler.js` — stateless Streamable HTTP handler factory.
+- `src/memory-store.js` — test-only in-memory record store.
+
+## Test
 
 ```sh
+npm ci
 npm test
 ```
 
-## Next transport slice
+The suite exercises the authority core, replay/recovery boundaries, OAuth
+client binding, tool schemas, stateless tool calls, safe errors, route policy,
+and rejection of the legacy MCP lane.
 
-The next release layer will serve this core from a Cloudflare Worker using the
-stateless `createMcpHandler` Streamable HTTP path, then add OAuth/pairing that
-issues revocable `greenways-mcp-connection/1` records. Transport handlers will
-map MCP tools to these explicit semantic handlers; they will not receive a raw
-kernel call surface.
+## Next pairing slice
+
+The next layer wraps `createGreenwaysMcpHandler()` with Cloudflare's OAuth
+provider and a Greenways-controlled authorization screen. Authorization will
+consume a short-lived Beacon/Home Node pairing assertion and issue the minimal
+auth context above; it will not use the static demo-user flow from example
+servers and will never receive a controller private key.
