@@ -18,6 +18,10 @@ import {
   CHATGPT_PROVIDER_MESSAGE_TYPE,
   createChatgptProviderRuntime,
 } from "./chatgpt-provider-runtime.js";
+import {
+  MCP_ACCESS_MESSAGE_TYPE,
+  createMcpAccessRuntime,
+} from "./mcp-access-runtime.js";
 import { TAHTO_MONITOR_ALARM, createTahtoMonitor } from "./tahto-monitor.js";
 import { TahtoKeyring } from "./tahto-keyring.js";
 import { createAppWindowCoordinator } from "./app-window.js";
@@ -205,6 +209,11 @@ export function createKernelHost({
         tabs,
         assertAuthority: () => host.assertChatgptProviderAuthority(),
       });
+      const mcpAccess = createMcpAccessRuntime({
+        runtime,
+        scripting,
+        assertAuthority: () => host.assertMcpAccessAuthority(),
+      });
       host = new BrowserKernelHost({
         invoke,
         runtime,
@@ -214,6 +223,7 @@ export function createKernelHost({
         userscripts,
         chats,
         chatgptProvider,
+        mcpAccess,
         applicationServices,
         builtinApps,
       });
@@ -315,17 +325,22 @@ export function createMessageHandler({
     const rootNavigation = message?.type === ROOT_APP_MESSAGE_TYPE;
     const chatObservation = message?.type === CHATS_CAPTURE_MESSAGE_TYPE;
     const chatgptProviderMessage = message?.type === CHATGPT_PROVIDER_MESSAGE_TYPE;
+    const mcpAccessMessage = message?.type === MCP_ACCESS_MESSAGE_TYPE;
     const legacyNavigation = LEGACY_APP_PATHS.has(message?.type) || message?.type === "greenways/open-app";
     if (!kernel
         && !bridgeRequest
         && !rootNavigation
         && !legacyNavigation
         && !chatObservation
-        && !chatgptProviderMessage) return false;
+        && !chatgptProviderMessage
+        && !mcpAccessMessage) return false;
 
     Promise.resolve()
       .then(async () => {
         await getBuiltinAppCatalog();
+        if (mcpAccessMessage) {
+          return (await getKernelHost()).handleMcpAccessPageMessage(message, sender);
+        }
         if (chatgptProviderMessage) {
           return (await getKernelHost()).handleChatgptProviderPageMessage(message, sender);
         }

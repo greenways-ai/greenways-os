@@ -1,4 +1,16 @@
-import { createIdentity } from "./protocol.js";
+import {
+  bytesToBase64Url,
+  canonical,
+  createIdentity,
+  sha256,
+} from "./protocol.js";
+import {
+  MCP_PAIRING_ALGORITHM,
+  MCP_PAIRING_ASSERTION_PROTOCOL,
+  normalizeMcpPairingChallenge,
+  normalizeMcpPairingDevice,
+  normalizeMcpPublicKey,
+} from "./mcp-access-protocol.js";
 import { store, withOriginLock } from "./storage.js";
 
 export const KEYRING_PROTOCOL = "greenways-keyring/1";
@@ -113,6 +125,7 @@ export class GreenwaysKeyring {
     sessionStorage,
     identityStore = store,
     identityFactory = createIdentity,
+    cryptoProvider = globalThis.crypto,
     now = () => new Date().toISOString(),
   } = {}) {
     this.sessionStorage = sessionArea(sessionStorage);
@@ -120,9 +133,11 @@ export class GreenwaysKeyring {
       throw new TypeError("Greenways Keyring requires an identity store");
     }
     if (typeof identityFactory !== "function") throw new TypeError("Identity factory must be a function");
+    if (!cryptoProvider?.subtle) throw new TypeError("Greenways Keyring requires Web Crypto");
     if (typeof now !== "function") throw new TypeError("Keyring clock must be a function");
     this.identityStore = identityStore;
     this.identityFactory = identityFactory;
+    this.cryptoProvider = cryptoProvider;
     this.now = now;
   }
 
@@ -167,6 +182,57 @@ export class GreenwaysKeyring {
       await this.identityStore.put("identity", "owner", identityRecord);
       return publicController(identityRecord);
     });
+  }
+
+  async signMcpPairingChallenge(challengeValue, {
+    device,
+    now = () => new Date(this.now()),
+  } = {}) {
+    const challenge = await normalizeMcpPairingChallenge(challengeValue, { now });
+    const identityRecord = await this.identityStore.get("identity", "owner");
+    const identity = identityRecord?.identity;
+    if (!identity?.identityId || !identity?.keyId || !identity?.publicKey || !identityRecord?.privateKey) {
+      const error = new Error("Create a Greenways controller identity before approving MCP access");
+      error.code = "CONTROLLER_REQUIRED";
+      throw error;
+    }
+    if (identity.algorithm !== MCP_PAIRING_ALGORITHM || identityRecord.privateKey.extractable !== false) {
+      throw new Error("The stored Greenways controller key is not an approved non-extractable P-256 signer");
+    }
+    const publicKey = normalizeMcpPublicKey(identity.publicKey);
+    if (identity.keyId !== await sha256(canonical(publicKey))) {
+      throw new Error("The stored Greenways controller public key does not match its key ID");
+    }
+    const pairingDevice = normalizeMcpPairingDevice(device);
+    const issued = now();
+    if (!(issued instanceof Date) || !Number.isFinite(issued.getTime())) {
+      throw new Error("The Greenways pairing clock is unavailable");
+    }
+    const expiresAt = new Date(Math.min(
+      issued.getTime() + 2 * 60 * 1000,
+      Date.parse(challenge.expiresAt),
+    )).toISOString();
+    const body = Object.freeze({
+      protocol: MCP_PAIRING_ASSERTION_PROTOCOL,
+      challengeId: challenge.id,
+      challengeRoot: challenge.root,
+      identity: Object.freeze({
+        id: identity.identityId,
+        handle: identity.handle ?? null,
+        keyId: identity.keyId,
+        algorithm: MCP_PAIRING_ALGORITHM,
+        publicKey,
+      }),
+      device: pairingDevice,
+      issuedAt: issued.toISOString(),
+      expiresAt,
+    });
+    const signature = new Uint8Array(await this.cryptoProvider.subtle.sign(
+      { name: "ECDSA", hash: "SHA-256" },
+      identityRecord.privateKey,
+      new TextEncoder().encode(canonical(body)),
+    ));
+    return Object.freeze({ ...body, signature: bytesToBase64Url(signature) });
   }
 
   async addProviderProfile({ id, provider, label, secret }) {

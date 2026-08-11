@@ -23,6 +23,10 @@ import {
   CHATGPT_PROVIDER_CAPABILITY,
 } from "./chatgpt-provider-runtime.js";
 import {
+  MCP_ACCESS_APP_ID,
+  MCP_ACCESS_CAPABILITY,
+} from "./mcp-access-runtime.js";
+import {
   kernelStore,
   store,
 } from "./storage.js";
@@ -67,6 +71,8 @@ const CLIENT_POLICY = Object.freeze({
       "chatgpt-provider/create",
       "chatgpt-provider/cancel",
       "chatgpt-provider/set-enabled",
+      "mcp-access/status",
+      "mcp-access/set-enabled",
       "applications/call",
     ]),
     dispatches: new Set([
@@ -379,6 +385,7 @@ export class BrowserKernelHost {
     userscripts,
     chats,
     chatgptProvider,
+    mcpAccess,
     applicationServices,
     builtinApps,
     now = () => new Date(),
@@ -403,6 +410,11 @@ export class BrowserKernelHost {
         && (typeof chatgptProvider?.call !== "function"
           || typeof chatgptProvider?.handlePageMessage !== "function")) {
       throw new TypeError("Kernel host ChatGPT provider runtime must expose call() and handlePageMessage()");
+    }
+    if (mcpAccess !== undefined
+        && (typeof mcpAccess?.call !== "function"
+          || typeof mcpAccess?.handlePageMessage !== "function")) {
+      throw new TypeError("Kernel host MCP access runtime must expose call() and handlePageMessage()");
     }
     if (applicationServices !== undefined && typeof applicationServices?.call !== "function") {
       throw new TypeError("Kernel host application services must expose call()");
@@ -430,6 +442,14 @@ export class BrowserKernelHost {
       },
       async handlePageMessage() {
         throw errorWithCode("ChatGPT provider page bridge is unavailable", "CHATGPT_PROVIDER_UNAVAILABLE");
+      },
+    });
+    this.mcpAccess = mcpAccess ?? Object.freeze({
+      async call() {
+        throw errorWithCode("MCP access runtime is unavailable", "MCP_ACCESS_UNAVAILABLE");
+      },
+      async handlePageMessage() {
+        throw errorWithCode("MCP authorization page bridge is unavailable", "MCP_ACCESS_UNAVAILABLE");
       },
     });
     this.applicationServices = applicationServices ?? Object.freeze({
@@ -595,6 +615,29 @@ export class BrowserKernelHost {
     return this.chatgptProvider.call(method, args);
   }
 
+  async assertMcpAccessAuthority() {
+    const global = await this.globalState();
+    const installed = global.installed ?? [];
+    const manifest = installed.find(({ id }) => id === MCP_ACCESS_APP_ID);
+    if (!manifest) throw errorWithCode("Greenways MCP Access is not installed", "APP_NOT_INSTALLED");
+    await this.capabilityAuthority.assert({
+      appId: MCP_ACCESS_APP_ID,
+      capability: MCP_ACCESS_CAPABILITY,
+    }, { installed });
+    if (!activeCapabilityGrant(
+      global.grants ?? [],
+      manifest,
+      MCP_ACCESS_CAPABILITY,
+      { now: this.now },
+    )) {
+      throw errorWithCode("MCP pairing requires an active mcp/pair grant", "CAPABILITY_DENIED");
+    }
+  }
+
+  handleMcpAccessPageMessage(message, sender) {
+    return this.mcpAccess.handlePageMessage(message, sender);
+  }
+
   async initialCheckpoint() {
     return this.invoke("app/checkpoint", [await this.invoke("app/bootstrap", [])]);
   }
@@ -735,6 +778,8 @@ export class BrowserKernelHost {
               ? await this.chats.call(method, invokeArgs)
               : method.startsWith("chatgpt-provider/")
                 ? await this.chatgptProvider.call(method, invokeArgs)
+                : method.startsWith("mcp-access/")
+                  ? await this.mcpAccess.call(method, invokeArgs)
             : await this.invoke(method, invokeArgs),
       };
       if (authority) response.authority = authority;

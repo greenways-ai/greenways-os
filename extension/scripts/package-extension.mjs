@@ -53,6 +53,7 @@ export async function packageExtension({
   await stat(join(extensionRoot, "dist", "background.js"));
   await stat(join(extensionRoot, "dist", "playground-bridge.js"));
   await stat(join(extensionRoot, "dist", "chatgpt-provider-bridge.js"));
+  await stat(join(extensionRoot, "dist", "mcp-authorization-bridge.js"));
 
   const commit = sourceCommit || process.env.GITHUB_SHA
     || await gitValue(extensionRoot, ["rev-parse", "HEAD"]);
@@ -87,7 +88,11 @@ export async function packageExtension({
     const metadataPath = join(outputDirectory, `greenways-os-extension-v${manifest.version}.json`);
     await writeFile(metadataPath, `${JSON.stringify({
       artifact: archiveName,
-      compatibility: ["greenways-playground-ai/1", "greenways-chatgpt-provider/1"],
+      compatibility: [
+        "greenways-playground-ai/1",
+        "greenways-chatgpt-provider/1",
+        "greenways-mcp-access/1",
+      ],
       manifestVersion: manifest.manifest_version,
       sha256,
       sourceCommit: commit,

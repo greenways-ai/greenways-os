@@ -21,6 +21,7 @@ test("packages a versioned, checksummed extension without development inputs", a
     assert.ok(entries.includes("dist/background.js"));
     assert.ok(entries.includes("dist/playground-bridge.js"));
     assert.ok(entries.includes("dist/chatgpt-provider-bridge.js"));
+    assert.ok(entries.includes("dist/mcp-authorization-bridge.js"));
     assert.ok(entries.includes("src/launcher.html"));
     assert.ok(entries.every((entry) => !/^(node_modules|test|scripts|release)\//.test(entry)));
 
@@ -32,6 +33,7 @@ test("packages a versioned, checksummed extension without development inputs", a
     assert.deepEqual(metadata.compatibility, [
       "greenways-playground-ai/1",
       "greenways-chatgpt-provider/1",
+      "greenways-mcp-access/1",
     ]);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });

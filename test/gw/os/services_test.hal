@@ -38,4 +38,13 @@
       (get definition "risk")
       (get definition "grantable")
       (get definition "trustedPublishers")])
-   ["surfaces" "critical" true ["greenways-ai"]])])
+   ["surfaces" "critical" true ["greenways-ai"]])
+
+  (test/check
+   "MCP pairing remains a trusted Keyring capability"
+   (let [definition (services/capability-definition "mcp/pair")]
+     [(get definition "service")
+      (get definition "risk")
+      (get definition "grantable")
+      (get definition "trustedPublishers")])
+   ["keyring" "critical" true ["greenways-ai"]])])

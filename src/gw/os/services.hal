@@ -115,6 +115,7 @@
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "credential/use" "service" "keyring" "risk" "critical" "grantable" true "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "model/generate" "service" "connectors" "risk" "high" "grantable" true "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "model/provide" "service" "surfaces" "risk" "critical" "grantable" true "trustedPublishers" ["greenways-ai"]}
+   {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "mcp/pair" "service" "keyring" "risk" "critical" "grantable" true "trustedPublishers" ["greenways-ai"]}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "tahto/connect" "service" "connectors" "risk" "high" "grantable" true "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "tahto/read" "service" "connectors" "risk" "medium" "grantable" true "trustedPublishers" []}
    {"protocol" CAPABILITY-DEFINITION-PROTOCOL "id" "tahto/write" "service" "connectors" "risk" "critical" "grantable" true "trustedPublishers" []}])
