@@ -78,21 +78,21 @@ optimization; repository claims own correctness across isolates.
 
 ## Cloudflare SQLite request repository
 
-`CloudflareMcpRequestStore` maps each normalized request ID to exactly one
-`McpRequestDurableObject` through `MCP_REQUESTS.getByName(requestId)`. The
+\`CloudflareMcpRequestStore\` maps each normalized request ID to exactly one
+\`McpRequestDurableObject\` through \`MCP_REQUESTS.getByName(requestId)\`. The
 stateless MCP handler keeps no durable ownership state. Duplicate callers poll
 the same atom for a completed record instead of holding a long-lived Durable
 Object RPC event open.
 
 Each SQLite Durable Object stores one closed claim or result row. Claim,
 completion, replacement, collision, and release transitions execute without an
-`await` between the SQLite read and write. The repository's own clock decides
+\`await\` between the SQLite read and write. The repository's own clock decides
 whether a claim has expired, and the previous claim ID remains fenced after
 replacement or restart.
 
 Known request-store failures cross the RPC boundary in a closed versioned
 envelope and are reconstructed locally. Unexpected runtime and storage errors
-remain opaque. Corrupt protocol fields or result JSON become `gateway-recovery`
+remain opaque. Corrupt protocol fields or result JSON become \`gateway-recovery\`
 rather than being returned to an MCP client.
 `,
 );
