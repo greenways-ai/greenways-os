@@ -64,15 +64,22 @@ function clone(value, label) {
   }
 }
 
-function requestId(value) {
+function currentTime(value) {
+  if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
+    fail("request-store-invalid", "MCP request store clock is invalid");
+  }
+  return value.getTime();
+}
+
+export function normalizeMcpRequestId(value) {
   return string(value, "MCP request store request ID", REQUEST_ID);
 }
 
-function digest(value) {
+export function normalizeMcpRequestDigest(value) {
   return string(value, "MCP request store digest", DIGEST);
 }
 
-function claimId(value) {
+export function normalizeMcpRequestClaimId(value) {
   return string(value, "MCP request store claim ID", CLAIM_ID);
 }
 
@@ -92,9 +99,9 @@ export function normalizeMcpRequestClaim(value) {
   }
   return Object.freeze({
     protocol: MCP_REQUEST_CLAIM_PROTOCOL,
-    requestId: requestId(input.requestId),
-    digest: digest(input.digest),
-    claimId: claimId(input.claimId),
+    requestId: normalizeMcpRequestId(input.requestId),
+    digest: normalizeMcpRequestDigest(input.digest),
+    claimId: normalizeMcpRequestClaimId(input.claimId),
     claimedAt,
     expiresAt,
   });
@@ -114,16 +121,150 @@ export function normalizeMcpRequestRecord(value) {
   }
   return Object.freeze({
     protocol: MCP_REQUEST_RECORD_PROTOCOL,
-    requestId: requestId(input.requestId),
-    digest: digest(input.digest),
+    requestId: normalizeMcpRequestId(input.requestId),
+    digest: normalizeMcpRequestDigest(input.digest),
     result: clone(input.result, "MCP request record result"),
   });
 }
 
-function normalizeStored(value) {
+export function normalizeMcpStoredRequestState(value) {
   if (value?.protocol === MCP_REQUEST_CLAIM_PROTOCOL) return normalizeMcpRequestClaim(value);
   if (value?.protocol === MCP_REQUEST_RECORD_PROTOCOL) return normalizeMcpRequestRecord(value);
   fail("request-store-invalid", "MCP request store record protocol is unsupported");
+}
+
+export function normalizeMcpRequestWait(value) {
+  const input = closedKeys(
+    value,
+    new Set(["requestId", "digest", "claimId", "timeoutMs"]),
+    "MCP request wait",
+  );
+  if (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 0 || input.timeoutMs > MAX_WAIT_MS) {
+    fail("request-store-invalid", "MCP request wait timeout is invalid");
+  }
+  return Object.freeze({
+    requestId: normalizeMcpRequestId(input.requestId),
+    digest: normalizeMcpRequestDigest(input.digest),
+    claimId: normalizeMcpRequestClaimId(input.claimId),
+    timeoutMs: input.timeoutMs,
+  });
+}
+
+export function normalizeMcpRequestCompletion(value) {
+  const input = closedKeys(
+    value,
+    new Set(["requestId", "digest", "claimId", "result"]),
+    "MCP request completion",
+  );
+  if (input.result === undefined) {
+    fail("request-store-invalid", "MCP request completion result is required");
+  }
+  return Object.freeze({
+    requestId: normalizeMcpRequestId(input.requestId),
+    digest: normalizeMcpRequestDigest(input.digest),
+    claimId: normalizeMcpRequestClaimId(input.claimId),
+    result: clone(input.result, "MCP request completion result"),
+  });
+}
+
+export function normalizeMcpRequestRelease(value) {
+  const input = closedKeys(
+    value,
+    new Set(["requestId", "digest", "claimId"]),
+    "MCP request claim release",
+  );
+  return Object.freeze({
+    requestId: normalizeMcpRequestId(input.requestId),
+    digest: normalizeMcpRequestDigest(input.digest),
+    claimId: normalizeMcpRequestClaimId(input.claimId),
+  });
+}
+
+function normalizedCurrent(value) {
+  return value === null || value === undefined ? null : normalizeMcpStoredRequestState(value);
+}
+
+function stateTransition(changed, next, extra) {
+  return Object.freeze({
+    changed,
+    next: next === null ? null : clone(next, "MCP request state transition"),
+    ...extra,
+  });
+}
+
+export function claimMcpRequestState(currentValue, proposedValue, nowValue) {
+  const proposed = normalizeMcpRequestClaim(proposedValue);
+  const current = normalizedCurrent(currentValue);
+  const observedAt = currentTime(nowValue);
+  if (current) {
+    if (current.requestId !== proposed.requestId) {
+      fail("request-store-recovery", "Stored MCP request identity changed");
+    }
+    if (current.digest !== proposed.digest) {
+      fail("request-id-collision", "MCP request ID was reused with different content");
+    }
+    if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL) {
+      return stateTransition(false, current, {
+        disposition: "completed",
+        record: clone(current, "MCP request record"),
+      });
+    }
+    if (Date.parse(current.expiresAt) > observedAt) {
+      return stateTransition(false, current, {
+        disposition: "pending",
+        record: clone(current, "MCP request claim"),
+      });
+    }
+  }
+  return stateTransition(true, proposed, {
+    disposition: "acquired",
+    record: clone(proposed, "MCP request claim"),
+  });
+}
+
+export function completeMcpRequestState(currentValue, completionValue) {
+  const completion = normalizeMcpRequestCompletion(completionValue);
+  const current = normalizedCurrent(currentValue);
+  if (!current) fail("request-claim-stale", "MCP request claim is no longer current");
+  if (current.requestId !== completion.requestId) {
+    fail("request-store-recovery", "Stored MCP request identity changed");
+  }
+  if (current.digest !== completion.digest) {
+    fail("request-id-collision", "MCP request ID was reused with different content");
+  }
+  if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL) {
+    return stateTransition(false, current, {
+      record: clone(current, "MCP request record"),
+    });
+  }
+  if (current.claimId !== completion.claimId) {
+    fail("request-claim-stale", "MCP request claim is no longer current");
+  }
+  const record = normalizeMcpRequestRecord({
+    protocol: MCP_REQUEST_RECORD_PROTOCOL,
+    requestId: completion.requestId,
+    digest: completion.digest,
+    result: completion.result,
+  });
+  return stateTransition(true, record, {
+    record: clone(record, "MCP request record"),
+  });
+}
+
+export function releaseMcpRequestState(currentValue, releaseValue) {
+  const release = normalizeMcpRequestRelease(releaseValue);
+  const current = normalizedCurrent(currentValue);
+  if (!current) return stateTransition(false, null, { released: false });
+  if (current.requestId !== release.requestId) {
+    fail("request-store-recovery", "Stored MCP request identity changed");
+  }
+  if (current.digest !== release.digest) {
+    fail("request-id-collision", "MCP request ID was reused with different content");
+  }
+  if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL || current.claimId !== release.claimId) {
+    return stateTransition(false, current, { released: false });
+  }
+  return stateTransition(true, null, { released: true });
 }
 
 function decision(disposition, record) {
@@ -138,7 +279,7 @@ export class MemoryMcpRequestStore {
     this.waiters = new Map();
     this.now = now;
     for (const recordValue of records) {
-      const record = normalizeStored(recordValue);
+      const record = normalizeMcpStoredRequestState(recordValue);
       if (this.records.has(record.requestId)) {
         throw new TypeError(`Duplicate MCP request store record: ${record.requestId}`);
       }
@@ -146,12 +287,10 @@ export class MemoryMcpRequestStore {
     }
   }
 
-  currentTime() {
+  currentDate() {
     const value = this.now();
-    if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
-      fail("request-store-invalid", "MCP request store clock is invalid");
-    }
-    return value.getTime();
+    currentTime(value);
+    return value;
   }
 
   notify(id) {
@@ -161,54 +300,37 @@ export class MemoryMcpRequestStore {
   }
 
   async get(idValue) {
-    const id = requestId(idValue);
+    const id = normalizeMcpRequestId(idValue);
     const value = this.records.get(id);
     return value === undefined ? null : clone(value, "MCP request store record");
   }
 
   async claim(value) {
     const proposed = normalizeMcpRequestClaim(value);
-    const currentTime = this.currentTime();
-    const current = this.records.get(proposed.requestId);
-    if (current) {
-      if (current.digest !== proposed.digest) {
-        fail("request-id-collision", "MCP request ID was reused with different content");
-      }
-      if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL) {
-        return decision("completed", current);
-      }
-      if (Date.parse(current.expiresAt) > currentTime) {
-        return decision("pending", current);
-      }
+    const transition = claimMcpRequestState(
+      this.records.get(proposed.requestId) ?? null,
+      proposed,
+      this.currentDate(),
+    );
+    if (transition.changed) {
+      this.records.set(proposed.requestId, clone(transition.next, "MCP request claim"));
+      this.notify(proposed.requestId);
     }
-    this.records.set(proposed.requestId, clone(proposed, "MCP request claim"));
-    this.notify(proposed.requestId);
-    return decision("acquired", proposed);
+    return decision(transition.disposition, transition.record);
   }
 
   async wait(value) {
-    const input = closedKeys(
-      value,
-      new Set(["requestId", "digest", "claimId", "timeoutMs"]),
-      "MCP request wait",
-    );
-    const id = requestId(input.requestId);
-    const expectedDigest = digest(input.digest);
-    const expectedClaim = claimId(input.claimId);
-    if (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 0 || input.timeoutMs > MAX_WAIT_MS) {
-      fail("request-store-invalid", "MCP request wait timeout is invalid");
-    }
-
+    const input = normalizeMcpRequestWait(value);
     const inspect = () => {
-      const current = this.records.get(id);
+      const current = this.records.get(input.requestId);
       if (!current) return { done: true, value: null };
-      if (current.digest !== expectedDigest) {
+      if (current.digest !== input.digest) {
         fail("request-id-collision", "MCP request ID was reused with different content");
       }
       if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL) {
         return { done: true, value: clone(current, "MCP request record") };
       }
-      if (current.claimId !== expectedClaim) return { done: true, value: null };
+      if (current.claimId !== input.claimId) return { done: true, value: null };
       return { done: false, value: null };
     };
 
@@ -219,9 +341,9 @@ export class MemoryMcpRequestStore {
       let timer;
       const cleanup = () => {
         clearTimeout(timer);
-        const waiters = this.waiters.get(id);
+        const waiters = this.waiters.get(input.requestId);
         waiters?.delete(check);
-        if (waiters?.size === 0) this.waiters.delete(id);
+        if (waiters?.size === 0) this.waiters.delete(input.requestId);
       };
       const check = () => {
         try {
@@ -234,9 +356,9 @@ export class MemoryMcpRequestStore {
           reject(error);
         }
       };
-      const waiters = this.waiters.get(id) ?? new Set();
+      const waiters = this.waiters.get(input.requestId) ?? new Set();
       waiters.add(check);
-      this.waiters.set(id, waiters);
+      this.waiters.set(input.requestId, waiters);
       timer = setTimeout(() => {
         cleanup();
         resolve(null);
@@ -245,58 +367,28 @@ export class MemoryMcpRequestStore {
   }
 
   async complete(value) {
-    const input = closedKeys(
-      value,
-      new Set(["requestId", "digest", "claimId", "result"]),
-      "MCP request completion",
+    const input = normalizeMcpRequestCompletion(value);
+    const transition = completeMcpRequestState(
+      this.records.get(input.requestId) ?? null,
+      input,
     );
-    const id = requestId(input.requestId);
-    const expectedDigest = digest(input.digest);
-    const expectedClaim = claimId(input.claimId);
-    if (input.result === undefined) {
-      fail("request-store-invalid", "MCP request completion result is required");
+    if (transition.changed) {
+      this.records.set(input.requestId, clone(transition.next, "MCP request record"));
+      this.notify(input.requestId);
     }
-    const current = this.records.get(id);
-    if (!current) fail("request-claim-stale", "MCP request claim is no longer current");
-    if (current.digest !== expectedDigest) {
-      fail("request-id-collision", "MCP request ID was reused with different content");
-    }
-    if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL) {
-      return clone(current, "MCP request record");
-    }
-    if (current.claimId !== expectedClaim) {
-      fail("request-claim-stale", "MCP request claim is no longer current");
-    }
-    const record = normalizeMcpRequestRecord({
-      protocol: MCP_REQUEST_RECORD_PROTOCOL,
-      requestId: id,
-      digest: expectedDigest,
-      result: input.result,
-    });
-    this.records.set(id, clone(record, "MCP request record"));
-    this.notify(id);
-    return clone(record, "MCP request record");
+    return clone(transition.record, "MCP request record");
   }
 
   async release(value) {
-    const input = closedKeys(
-      value,
-      new Set(["requestId", "digest", "claimId"]),
-      "MCP request claim release",
+    const input = normalizeMcpRequestRelease(value);
+    const transition = releaseMcpRequestState(
+      this.records.get(input.requestId) ?? null,
+      input,
     );
-    const id = requestId(input.requestId);
-    const expectedDigest = digest(input.digest);
-    const expectedClaim = claimId(input.claimId);
-    const current = this.records.get(id);
-    if (!current) return false;
-    if (current.digest !== expectedDigest) {
-      fail("request-id-collision", "MCP request ID was reused with different content");
+    if (transition.changed) {
+      this.records.delete(input.requestId);
+      this.notify(input.requestId);
     }
-    if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL || current.claimId !== expectedClaim) {
-      return false;
-    }
-    this.records.delete(id);
-    this.notify(id);
-    return true;
+    return transition.released;
   }
 }
