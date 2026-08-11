@@ -363,14 +363,14 @@ test("routes ChatGPT provider page events without granting the page kernel ident
     getKernelHost: async () => ({
       async handleChatgptProviderPageMessage(message, sender) {
         calls.push([message.operation, sender.url]);
-        return { ok: true, protocol: "greenways-chatgpt-provider/1", command: null };
+        return { ok: true, protocol: "greenways-chatgpt-provider/0-alpha", command: null };
       },
     }),
   });
   const response = await new Promise((resolve) => {
     assert.equal(handler({
       type: "greenways/chatgpt-provider",
-      protocol: "greenways-chatgpt-provider/1",
+      protocol: "greenways-chatgpt-provider/0-alpha",
       operation: "hello",
       sessionId: null,
       payload: {},

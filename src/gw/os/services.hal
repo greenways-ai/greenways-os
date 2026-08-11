@@ -2,13 +2,13 @@
   (:require [std.foundation.string :as string]))
 
 (def CORE-SERVICE-PROTOCOL
-  "greenways-core-service/1")
+  "greenways-core-service/0-alpha")
 
 (def CAPABILITY-DEFINITION-PROTOCOL
-  "greenways-capability-definition/1")
+  "greenways-capability-definition/0-alpha")
 
 (def CAPABILITY-GRANT-PROTOCOL
-  "greenways-capability-grant/1")
+  "greenways-capability-grant/0-alpha")
 
 (def CORE-SERVICES
   [{"protocol" CORE-SERVICE-PROTOCOL

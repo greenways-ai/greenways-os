@@ -7,7 +7,7 @@ import {
   respSimple,
 } from "./resp.js";
 
-export const DEVTOOLS_BRIDGE_PROTOCOL = "greenways-devtools-bridge/1";
+export const DEVTOOLS_BRIDGE_PROTOCOL = "greenways-devtools-bridge/0-alpha";
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const HOST = "127.0.0.1";
 const REQUEST_TIMEOUT = 30_000;

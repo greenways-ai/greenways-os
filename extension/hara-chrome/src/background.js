@@ -49,7 +49,7 @@ async function dispatch(service, method, args) {  if (service === "hara" && meth
   return (await fn.apply(owner, args)) ?? null;
 }
 
-/** HTA1 has no float tag; coerce non-safe-integer numbers so results survive encoding. */
+/** HTA0 has no float tag; coerce non-safe-integer numbers so results survive encoding. */
 function sanitize(value) {
   if (typeof value === "number") {
     if (Number.isSafeInteger(value)) return value;

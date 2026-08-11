@@ -5,13 +5,13 @@ import {
   webcrypto,
 } from "node:crypto";
 
-export const HOME_DISCOVERY_PROTOCOL = "greenways-home/1";
-export const HOME_PAIR_PROTOCOL = "greenways-home-pair/1";
-export const HOME_PAIR_RECEIPT_PROTOCOL = "greenways-home-paired/1";
-export const HOME_AUTH_PROTOCOL = "greenways-home-auth/1";
-export const HOME_STATUS_PROTOCOL = "greenways-home-status/1";
-export const HOME_UNPAIR_PROTOCOL = "greenways-home-unpaired/1";
-export const HOME_ERROR_PROTOCOL = "greenways-home-error/1";
+export const HOME_DISCOVERY_PROTOCOL = "greenways-home/0-alpha";
+export const HOME_PAIR_PROTOCOL = "greenways-home-pair/0-alpha";
+export const HOME_PAIR_RECEIPT_PROTOCOL = "greenways-home-paired/0-alpha";
+export const HOME_AUTH_PROTOCOL = "greenways-home-auth/0-alpha";
+export const HOME_STATUS_PROTOCOL = "greenways-home-status/0-alpha";
+export const HOME_UNPAIR_PROTOCOL = "greenways-home-unpaired/0-alpha";
+export const HOME_ERROR_PROTOCOL = "greenways-home-error/0-alpha";
 export const HOME_NODE_ALGORITHM = "ECDSA-P256-SHA256";
 
 const encoder = new TextEncoder();
@@ -319,8 +319,8 @@ export class GreenwaysHomeNode {
   }
 
   async status(request) {
-    const { device, body } = await this.authenticate(request, "POST", "/greenways/v1/status");
-    if (plainObject(body, "Home presence").protocol !== "greenways-home-presence/1") {
+    const { device, body } = await this.authenticate(request, "POST", "/greenways/0-alpha/status");
+    if (plainObject(body, "Home presence").protocol !== "greenways-home-presence/0-alpha") {
       throw new HomeNodeError(400, "unsupported-presence", "Unsupported browser presence record");
     }
     return this.signRecord({
@@ -339,8 +339,8 @@ export class GreenwaysHomeNode {
   }
 
   async unpair(request) {
-    const { device, body } = await this.authenticate(request, "POST", "/greenways/v1/unpair");
-    if (plainObject(body, "Home unpair request").protocol !== "greenways-home-unpair/1") {
+    const { device, body } = await this.authenticate(request, "POST", "/greenways/0-alpha/unpair");
+    if (plainObject(body, "Home unpair request").protocol !== "greenways-home-unpair/0-alpha") {
       throw new HomeNodeError(400, "unsupported-unpair", "Unsupported browser unpair record");
     }
     this.devices.delete(device.id);

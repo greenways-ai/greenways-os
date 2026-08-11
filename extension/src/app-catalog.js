@@ -11,7 +11,7 @@ const SHA256 = /^sha256:[a-f0-9]{64}$/;
 const GITHUB_PART = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?$/;
 const GITHUB_SHA = /^[a-f0-9]{40}$/;
 const PACKAGE_COORDINATE = /^[a-z0-9][a-z0-9._-]*:[a-z0-9][a-z0-9._/-]*$/;
-export const APP_MANIFEST_PROTOCOL = "greenways-app/1";
+export const APP_MANIFEST_PROTOCOL = "greenways-app/0-alpha";
 
 export const APP_CHANNELS = Object.freeze(["bundled", "release", "preview"]);
 

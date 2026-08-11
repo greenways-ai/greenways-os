@@ -52,7 +52,7 @@ function createFakeNode({ persistError = null } = {}) {
     },
     discovery() {
       return {
-        protocol: "greenways-home/1",
+        protocol: "greenways-home/0-alpha",
         node: this.node,
         pairing: { available: this.pairingAvailable() },
         services: this.services,
@@ -298,7 +298,7 @@ test("routes the local control plane before the extension-origin Home Link gate"
     headers: { origin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop" },
   });
   assert.equal(discovery.status, 200);
-  assert.equal((await discovery.json()).protocol, "greenways-home/1");
+  assert.equal((await discovery.json()).protocol, "greenways-home/0-alpha");
 
   const ordinaryWeb = await fetch(`${app.origin}/.well-known/greenways-home`, {
     headers: { origin: "https://attacker.example" },

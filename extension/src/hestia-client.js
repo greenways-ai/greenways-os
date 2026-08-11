@@ -59,7 +59,7 @@ export class HestiaClient {
     );
     if (!response.ok) throw new Error(`Hestia discovery failed: ${response.status}`);
     const manifest = await response.json();
-    if (manifest.protocol !== "hestia-node/1") throw new Error("Unsupported Hestia node");
+    if (manifest.protocol !== "hestia-node/0-alpha") throw new Error("Unsupported Hestia node");
     return manifest;
   }
 
@@ -68,7 +68,7 @@ export class HestiaClient {
       throw new Error("A scoped Hestia device token is required");
     }
     const orderedEntries = orderSyncEntries(entries);
-    const response = await this.request(`${this.origin}/greenways/v1/actions`, {
+    const response = await this.request(`${this.origin}/greenways/0-alpha/actions`, {
       ...privateRequestOptions(),
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Hestia ${deviceToken}` },
@@ -90,7 +90,7 @@ export async function resolveIdentity(identity, { request = fetch, resolver = ID
   );
   if (!response.ok) throw new Error(`Identity resolution failed: ${response.status}`);
   const card = await response.json();
-  if (card.protocol !== "greenways-identity-resolution/1") throw new Error("Invalid identity resolution");
+  if (card.protocol !== "greenways-identity-resolution/0-alpha") throw new Error("Invalid identity resolution");
   const { resolutionRoot, ...body } = card;
   if (resolutionRoot !== await sha256(canonical(body))) throw new Error("Identity resolution was modified");
   return card;

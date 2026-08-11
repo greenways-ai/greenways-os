@@ -159,7 +159,7 @@ test("completes OAuth with the identity ID and minimal connection-only auth prop
   assert.equal(completed.userId, actor.identity.id);
   assert.deepEqual(completed.scope, [MCP_PAIRING_SCOPE]);
   assert.deepEqual(Object.keys(completed.props).sort(), ["connectionId", "protocol"]);
-  assert.equal(completed.props.protocol, "greenways-mcp-auth-context/1");
+  assert.equal(completed.props.protocol, "greenways-mcp-auth-context/0-alpha");
   const connection = await repository.getConnection(completed.props.connectionId);
   assert.equal(connection.identity.id, actor.identity.id);
   assert.equal(connection.client.id, "chatgpt.greenways");

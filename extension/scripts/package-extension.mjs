@@ -89,9 +89,9 @@ export async function packageExtension({
     await writeFile(metadataPath, `${JSON.stringify({
       artifact: archiveName,
       compatibility: [
-        "greenways-playground-ai/1",
-        "greenways-chatgpt-provider/1",
-        "greenways-mcp-access/1",
+        "greenways-playground-ai/0-alpha",
+        "greenways-chatgpt-provider/0-alpha",
+        "greenways-mcp-access/0-alpha",
       ],
       manifestVersion: manifest.manifest_version,
       sha256,

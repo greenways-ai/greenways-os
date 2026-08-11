@@ -52,7 +52,7 @@
   {"hara-playground" ["hara/evaluate" "model/generate" "tabs/open"]})
 
 (def KERNEL-CONTEXT-PROTOCOL
-  "greenways-kernel-context/1")
+  "greenways-kernel-context/0-alpha")
 
 (defn apps-initial-state []
   {"installed" [] "active" nil})
@@ -580,7 +580,7 @@
                                "at" now})))))
 
 (defn chain-include [chain-id previous action now event-id]
-  {"protocol" "greenways-personal-chain/1"
+  {"protocol" "greenways-personal-chain/0-alpha"
    "chainId" chain-id
    "sequence" (+ 1 (or (get previous "sequence") 0))
    "previousHash" (or (get previous "eventHash")

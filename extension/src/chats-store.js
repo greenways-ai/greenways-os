@@ -2,7 +2,7 @@ import { canonical, sha256 } from "./protocol.js";
 
 export const CHATS_APP_ID = "chats";
 export const CHATS_CAPABILITY = "chats/capture";
-export const CHAT_CONVERSATION_PROTOCOL = "greenways-chat-conversation/1";
+export const CHAT_CONVERSATION_PROTOCOL = "greenways-chat-conversation/0-alpha";
 export const CHAT_PROVIDER = "chatgpt";
 export const CHATGPT_ORIGINS = Object.freeze([
   "https://chatgpt.com/*",

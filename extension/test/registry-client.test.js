@@ -15,7 +15,7 @@ async function signedEnvelope({ expiresAt = "2026-08-07T00:00:00.000Z" } = {}) {
     ["sign", "verify"],
   );
   const payload = encodeEdn({
-    "index/protocol": "greenways-registry-index/1",
+    "index/protocol": "greenways-registry-index/0-alpha",
     "index/registry": "https://packages.greenways.ai/",
     "index/generated-at": "2026-08-06T00:00:00.000Z",
     "index/expires-at": expiresAt,
@@ -30,7 +30,7 @@ async function signedEnvelope({ expiresAt = "2026-08-07T00:00:00.000Z" } = {}) {
   return {
     publicJwk: await crypto.subtle.exportKey("jwk", pair.publicKey),
     source: encodeEdn({
-      "registry/protocol": "greenways-registry/1",
+      "registry/protocol": "greenways-registry/0-alpha",
       "registry/key-id": "fixture-root-1",
       "registry/algorithm": "ES256",
       "registry/signed": encodeBase64url(payloadBytes),

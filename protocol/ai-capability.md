@@ -1,7 +1,7 @@
 # Greenways OS AI capability
 
 Status: first runnable Playground integration  
-Protocols: `greenways-ai/1`, `greenways-playground-ai/1`
+Protocols: `greenways-ai/0-alpha`, `greenways-playground-ai/0-alpha`
 
 ## Purpose
 
@@ -34,7 +34,7 @@ https://playground.hara-lang.org/*
 The bridge accepts top-frame messages only when all of the following match:
 
 - page origin: `https://playground.hara-lang.org`;
-- protocol: `greenways-playground-ai/1`;
+- protocol: `greenways-playground-ai/0-alpha`;
 - page source: `hara-playground`;
 - direction: `request`;
 - operation: `status`, `open`, `generate`, or `cancel`.

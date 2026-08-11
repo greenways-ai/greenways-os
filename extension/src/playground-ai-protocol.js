@@ -1,4 +1,4 @@
-export const PLAYGROUND_AI_PROTOCOL = "greenways-playground-ai/1";
+export const PLAYGROUND_AI_PROTOCOL = "greenways-playground-ai/0-alpha";
 export const PLAYGROUND_AI_MESSAGE_TYPE = "greenways/playground-ai";
 export const PLAYGROUND_AI_ORIGIN = "https://playground.hara-lang.org";
 export const PLAYGROUND_APP_ID = "hara-playground";

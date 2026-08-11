@@ -17,15 +17,15 @@ function syncEntry({
   previousHash = `sha256:${"0".repeat(64)}`,
 } = {}) {
   return {
-    protocol: "greenways-sync-entry/1",
+    protocol: "greenways-sync-entry/0-alpha",
     action: {
-      protocol: "greenways-action/1",
+      protocol: "greenways-action/0-alpha",
       id: `action/${eventHash}`,
       root,
       signature: "signed-action",
     },
     inclusion: {
-      protocol: "greenways-personal-chain/1",
+      protocol: "greenways-personal-chain/0-alpha",
       chainId: "identity/alice",
       keyId: "sha256:alice-key",
       sequence,
@@ -42,21 +42,21 @@ test("Hestia discovery and append use the bounded v1 endpoints", async () => {
   const request = async (url, options = {}) => {
     calls.push([url, options]);
     if (url.endsWith("/.well-known/hestia")) {
-      return { ok: true, json: async () => ({ protocol: "hestia-node/1" }) };
+      return { ok: true, json: async () => ({ protocol: "hestia-node/0-alpha" }) };
     }
     return { ok: true, json: async () => ({ accepted: 1, receipts: [] }) };
   };
   const client = new HestiaClient({ origin: "https://home.example/path", request });
-  assert.equal((await client.discover()).protocol, "hestia-node/1");
+  assert.equal((await client.discover()).protocol, "hestia-node/0-alpha");
   const entry = syncEntry();
   await client.append([entry], { deviceToken: "scoped-token" });
-  assert.equal(calls[1][0], "https://home.example/greenways/v1/actions");
+  assert.equal(calls[1][0], "https://home.example/greenways/0-alpha/actions");
   assert.equal(calls[1][1].headers.authorization, "Hestia scoped-token");
   assert.equal(calls[1][1].credentials, "omit");
   assert.equal(calls[1][1].redirect, "error");
   assert.equal(calls[1][1].referrerPolicy, "no-referrer");
   assert.deepEqual(JSON.parse(calls[1][1].body), {
-    protocol: "greenways-sync/1",
+    protocol: "greenways-sync/0-alpha",
     entries: [entry],
   });
 });
@@ -144,7 +144,7 @@ test("orders a contiguous personal-chain batch before sending it", async () => {
 
 test("id.greenways.ai responses are content verified", async () => {
   const body = {
-    protocol: "greenways-identity-resolution/1",
+    protocol: "greenways-identity-resolution/0-alpha",
     identityId: "identity/alice",
     handle: "alice",
     publicKey: { kty: "EC" }

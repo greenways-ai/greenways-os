@@ -1,4 +1,4 @@
-{:conformance/protocol "greenways-devtools/1"
+{:conformance/protocol "greenways-devtools/0-alpha"
  :conformance/cases
  [{:case/id :devtools/root-app-fixed
    :case/input {:app/id "greenways-devtools"

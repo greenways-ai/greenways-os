@@ -50,7 +50,7 @@ const SIGNATURE_PATTERN = /^[A-Za-z0-9_-]+$/;
 const HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,46}[a-z0-9])?$/;
 const KEY_ALGORITHM = Object.freeze({ name: "ECDSA", namedCurve: "P-256" });
 const SIGN_ALGORITHM = Object.freeze({ name: "ECDSA", hash: "SHA-256" });
-const KEY_CHALLENGE = new TextEncoder().encode("greenways-identity-migration/1");
+const KEY_CHALLENGE = new TextEncoder().encode("greenways-identity-migration/0-alpha");
 
 function record(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -99,7 +99,7 @@ function jsonValue(value, seen = new Set()) {
 
 function validActionSchema(action, identity) {
   return exactKeys(action, ACTION_KEYS)
-    && action.protocol === "greenways-action/1"
+    && action.protocol === "greenways-action/0-alpha"
     && ACTION_ID_PATTERN.test(action.id ?? "")
     && typeof action.type === "string" && action.type.startsWith("@greenways/")
     && exactKeys(action.actor ?? {}, ACTOR_KEYS)
@@ -256,7 +256,7 @@ async function validateLegacyInclusions(values, identity, actionsByRoot) {
   const actionRoots = new Set();
   for (const [index, inclusion] of inclusions.entries()) {
     if (!exactKeys(inclusion, LEGACY_INCLUSION_KEYS)
-      || inclusion.protocol !== "greenways-personal-chain/1"
+      || inclusion.protocol !== "greenways-personal-chain/0-alpha"
       || inclusion.chainId !== identity.identityId
       || !Number.isSafeInteger(inclusion.sequence) || inclusion.sequence < 1
       || !HASH_PATTERN.test(inclusion.previousHash ?? "")
@@ -289,7 +289,7 @@ async function validateCurrentInclusions(values, identity, actionsByRoot) {
   const inclusions = [...values].sort((left, right) => left.sequence - right.sequence);
   for (const [index, inclusion] of inclusions.entries()) {
     if (!exactKeys(inclusion, CURRENT_INCLUSION_KEYS)
-      || inclusion.protocol !== "greenways-personal-chain/1"
+      || inclusion.protocol !== "greenways-personal-chain/0-alpha"
       || inclusion.chainId !== identity.identityId
       || inclusion.keyId !== identity.keyId
       || !Number.isSafeInteger(inclusion.sequence) || inclusion.sequence < 1
@@ -384,9 +384,9 @@ async function validatedMigrationHistory(identityRecord, identity) {
     if (!migration || !validActionSchema(migration, identity)
       || migration.type !== "@greenways/personal-chain-migrated"
       || migration.subject !== identity.identityId
-      || migration.payload?.protocol !== "greenways-personal-chain-migration/1"
-      || migration.payload.fromProtocol !== "greenways-personal-chain/1-unsigned"
-      || migration.payload.toProtocol !== "greenways-personal-chain/1"
+      || migration.payload?.protocol !== "greenways-personal-chain-migration/0-alpha"
+      || migration.payload.fromProtocol !== "greenways-personal-chain/0-alpha-unsigned"
+      || migration.payload.toProtocol !== "greenways-personal-chain/0-alpha"
       || !HASH_PATTERN.test(migration.payload.legacyHead ?? "")
       || !HASH_PATTERN.test(migration.payload.signedHead ?? "")
       || !Array.isArray(migration.payload.mappings)
@@ -446,9 +446,9 @@ async function createMigrationRecord({
     actor: identity,
     subject: identity.identityId,
     payload: {
-      protocol: "greenways-personal-chain-migration/1",
-      fromProtocol: "greenways-personal-chain/1-unsigned",
-      toProtocol: "greenways-personal-chain/1",
+      protocol: "greenways-personal-chain-migration/0-alpha",
+      fromProtocol: "greenways-personal-chain/0-alpha-unsigned",
+      toProtocol: "greenways-personal-chain/0-alpha",
       legacyHead: legacyInclusions.at(-1)?.eventHash ?? ZERO_HASH,
       signedHead: signedInclusions.at(-1)?.eventHash ?? ZERO_HASH,
       mappings,

@@ -14,7 +14,7 @@ const LOCK = `sha256:${"a".repeat(64)}`;
 
 function moduleManifest(overrides = {}) {
   return validateAppManifest({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "signing-room",
     version: "0.1.0",
     publisher: { id: "example", name: "Example" },
@@ -41,7 +41,7 @@ function moduleRecord(manifest = moduleManifest(), overrides = {}) {
     protocol: MODULE_RECORD_PROTOCOL,
     id: manifest.id,
     manifest,
-    lockSource: "{:lock/format 2 :packages {}}",
+    lockSource: "{:lock/format \"0.0.0-alpha\" :packages {}}",
     lockDigest: manifest.lockDigest,
     entry: "signing.room/view",
     packages: {},

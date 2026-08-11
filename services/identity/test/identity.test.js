@@ -39,11 +39,11 @@ test("claims cannot substitute another public key", async () => {
 test("HTTP profile exposes discovery, claims, identity and handle lookup", async () => {
   const handle = createIdentityHandler(new IdentityRegistry());
   const registered = await registration("maker");
-  const post = await handle(new Request("https://id.greenways.ai/v1/claims", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(registered.action) }));
+  const post = await handle(new Request("https://id.greenways.ai/0-alpha/claims", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(registered.action) }));
   assert.equal(post.status, 201);
-  const identity = await handle(new Request(`https://id.greenways.ai/v1/identities/${encodeURIComponent(registered.identity.identityId)}`));
+  const identity = await handle(new Request(`https://id.greenways.ai/0-alpha/identities/${encodeURIComponent(registered.identity.identityId)}`));
   assert.equal(identity.status, 200);
-  const byHandle = await handle(new Request("https://id.greenways.ai/v1/handles/maker"));
+  const byHandle = await handle(new Request("https://id.greenways.ai/0-alpha/handles/maker"));
   assert.equal((await byHandle.json()).candidates.length, 1);
   const discovery = await handle(new Request("https://id.greenways.ai/.well-known/greenways-identity"));
   assert.equal((await discovery.json()).privateKeysAccepted, false);

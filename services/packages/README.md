@@ -1,20 +1,20 @@
 # Greenways packages registry
 
-This service builds and serves the static `greenways-registry/1` release tree.
+This service builds and serves the static `greenways-registry/0-alpha` release tree.
 It signs an exact EDN index payload with a registry P-256 key, signs each version
-approval identity with its publisher P-256 key, generates `:lock/format 2`
+approval identity with its publisher P-256 key, generates `:lock/format "0.0.0-alpha"`
 files, verifies every HARP archive with the same lock/HARP invariants as the extension client, and
 publishes immutable versioned paths before replacing `v1/index.edn`.
 
 ## Source layout
 
-`registry.json` uses protocol `greenways-registry-source/1` and names packages,
+`registry.json` uses protocol `greenways-registry-source/0-alpha` and names packages,
 versions, app JSON files, publisher key paths, and prebuilt HARP archives.
 Private keys remain outside the output tree.
 
 ```json
 {
-  "protocol": "greenways-registry-source/1",
+  "protocol": "greenways-registry-source/0-alpha",
   "origin": "https://packages.greenways.ai/",
   "keyId": "greenways-packages-2026-01",
   "expiresSeconds": 86400,
@@ -41,7 +41,7 @@ Private keys remain outside the output tree.
 }
 ```
 
-The app JSON contains the ordinary `greenways-app/1` fields through
+The app JSON contains the ordinary `greenways-app/0-alpha` fields through
 `capabilities`. The builder injects and validates the `hal-module`, release
 channel, registry coordinate, and computed lock digest fields.
 

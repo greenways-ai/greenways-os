@@ -38,7 +38,7 @@ function beaconDescriptor(overrides = {}) {
     },
     capabilities: ["space.discovery", "space.transport", "local.health"],
     legacy: {
-      protocol: "greenways-home/1",
+      protocol: "greenways-home/0-alpha",
       status: "compatibility-only",
     },
     ...overrides,
@@ -53,7 +53,7 @@ function spaceDescriptor(overrides = {}) {
     revision: 1,
     status: "development",
     beacon: {
-      protocol: "greenways-beacon-space/1",
+      protocol: "greenways-beacon-space/0-alpha",
       basePath: "/beacon/v1/",
       discovery: "/beacon/v1/discovery.json",
     },

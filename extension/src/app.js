@@ -365,7 +365,7 @@ async function dispatch(action) {
     await exportEvidence();
   } else if (action === "export-credential") {
     const identity = state.identityRecord.identity;
-    downloadJson({ protocol: "greenways-public-credential/1", identity, exportedAt: new Date().toISOString() }, `${slug(identity.handle)}-credential.json`);
+    downloadJson({ protocol: "greenways-public-credential/0-alpha", identity, exportedAt: new Date().toISOString() }, `${slug(identity.handle)}-credential.json`);
     state.note = "Public credential exported without your private key.";
     render();
   }
@@ -562,7 +562,7 @@ async function exportLocalRecovery() {
     store.values("outbox"),
   ]);
   const body = {
-    protocol: "greenways-local-recovery/1",
+    protocol: "greenways-local-recovery/0-alpha",
     exportedAt: new Date().toISOString(),
     identity: identityRecord?.identity ?? null,
     personalChainMigrations: identityRecord?.personalChainMigrations ?? [],

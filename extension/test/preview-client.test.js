@@ -9,10 +9,10 @@ const sha256 = async (bytes) => `sha256:${[...new Uint8Array(await crypto.subtle
 async function fixture() {
   const sha = "0123456789abcdef0123456789abcdef01234567";
   const source = encoder.encode("(ns notes.app) (defn view [] {\"type\" \"text\"})");
-  const packageEdn = encoder.encode(`{:harp/format 1 :files {"src/notes/app.hal" {:sha256 "${await sha256(source)}" :size ${source.byteLength}}} :resources {"notes.app" "src/notes/app.hal"} :greenways/app {:entry "notes.app/view"}}`);
+  const packageEdn = encoder.encode(`{:harp/format \"0.0.0-alpha\" :files {"src/notes/app.hal" {:sha256 "${await sha256(source)}" :size ${source.byteLength}}} :resources {"notes.app" "src/notes/app.hal"} :greenways/app {:entry "notes.app/view"}}`);
   const archive = zipSync({ "package.edn": packageEdn, "src/notes/app.hal": source });
-  const lock = `{:lock/format 2 :packages {"greenways:notes" {:version "1.0.0" :distribution/path "dist/notes.harp" :harp-sha256 "${await sha256(archive)}" :size ${archive.byteLength}}}}`;
-  const app = `{:app/protocol "greenways-app/1" :app/id "notes" :app/version "1.0.0-preview.1" :app/publisher {:publisher/id "greenways-ai" :publisher/name "Greenways AI"} :app/name "Notes" :app/description "Preview notes." :app/category "installable" :app/capabilities ["hara/module" "storage/local"]}`;
+  const lock = `{:lock/format \"0.0.0-alpha\" :packages {"greenways:notes" {:version "1.0.0" :distribution/path "dist/notes.harp" :harp-sha256 "${await sha256(archive)}" :size ${archive.byteLength}}}}`;
+  const app = `{:app/protocol "greenways-app/0-alpha" :app/id "notes" :app/version "1.0.0-preview.1" :app/publisher {:publisher/id "greenways-ai" :publisher/name "Greenways AI"} :app/name "Notes" :app/description "Preview notes." :app/category "installable" :app/capabilities ["hara/module" "storage/local"]}`;
   const responses = new Map([
     [`https://raw.githubusercontent.com/greenways-ai/notes/${sha}/greenways.app.edn`, app],
     [`https://raw.githubusercontent.com/greenways-ai/notes/${sha}/project.lock.edn`, lock],

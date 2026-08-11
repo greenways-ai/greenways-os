@@ -1,7 +1,7 @@
 # Greenways for ChatGPT
 
 Status: first foreground provider slice  
-Protocols: `greenways-chatgpt-provider/1`, `greenways-model-session/1`
+Protocols: `greenways-chatgpt-provider/0-alpha`, `greenways-model-session/0-alpha`
 
 ## Purpose
 
@@ -70,7 +70,7 @@ A foreground request is durable Greenways state:
 
 ```json
 {
-  "protocol": "greenways-model-session/1",
+  "protocol": "greenways-model-session/0-alpha",
   "id": "model/session/…",
   "provider": "webapp.chatgpt",
   "mode": "foreground",

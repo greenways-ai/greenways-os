@@ -71,7 +71,7 @@ function fakeNode() {
     persistState() {},
     discovery() {
       return {
-        protocol: "greenways-home/1",
+        protocol: "greenways-home/0-alpha",
         node: this.node,
         pairing: { available: this.pairingAvailable() },
         services: this.services,

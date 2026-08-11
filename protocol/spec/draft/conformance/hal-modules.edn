@@ -1,6 +1,6 @@
 [{:case/id :greenways.os.case/hal-module-release
   :case/type :app-manifest
-  :input {:app/protocol :greenways-app/1
+  :input {:app/protocol :greenways-app/0-alpha
           :app/id :greenways-notes
           :app/version "1.2.0"
           :app/publisher {:publisher/id :greenways-ai
@@ -20,7 +20,7 @@
 
  {:case/id :greenways.os.case/hal-module-preview-pinned
   :case/type :app-manifest
-  :input {:app/protocol :greenways-app/1
+  :input {:app/protocol :greenways-app/0-alpha
           :app/id :greenways-notes
           :app/version "1.2.0-preview.1"
           :app/publisher {:publisher/id :greenways-ai
@@ -41,7 +41,7 @@
 
  {:case/id :greenways.os.case/hal-module-preview-mutable-ref
   :case/type :app-manifest
-  :input {:app/protocol :greenways-app/1
+  :input {:app/protocol :greenways-app/0-alpha
           :app/id :greenways-notes
           :app/version "1.2.0-preview.1"
           :app/publisher {:publisher/id :greenways-ai
@@ -62,7 +62,7 @@
 
  {:case/id :greenways.os.case/hal-module-capability-required
   :case/type :app-manifest
-  :input {:app/protocol :greenways-app/1
+  :input {:app/protocol :greenways-app/0-alpha
           :app/id :greenways-notes
           :app/version "1.2.0"
           :app/publisher {:publisher/id :greenways-ai
@@ -82,7 +82,7 @@
 
  {:case/id :greenways.os.case/hal-module-code-in-manifest
   :case/type :app-manifest
-  :input {:app/protocol :greenways-app/1
+  :input {:app/protocol :greenways-app/0-alpha
           :app/id :greenways-notes
           :app/version "1.2.0"
           :app/publisher {:publisher/id :greenways-ai

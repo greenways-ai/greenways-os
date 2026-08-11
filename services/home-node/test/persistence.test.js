@@ -73,8 +73,8 @@ test("persists node identity, browser grants, and replay nonces across restarts"
   const replayCandidate = await createSignedHomeRequest({
     device: connection.device,
     method: "POST",
-    path: "/greenways/v1/status",
-    body: { protocol: "greenways-home-presence/1", visible: true },
+    path: "/greenways/0-alpha/status",
+    body: { protocol: "greenways-home-presence/0-alpha", visible: true },
     nonce: "nonce/restart-replay",
     cryptoProvider: webcrypto,
   });

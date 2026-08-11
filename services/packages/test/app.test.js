@@ -4,7 +4,7 @@ import { appApprovalIdentity, validateReleaseModuleManifest } from "../src/app.j
 
 function manifest(overrides = {}) {
   return {
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "fixture-app",
     version: "1.2.3",
     publisher: { id: "greenways-ai", name: "Greenways AI" },

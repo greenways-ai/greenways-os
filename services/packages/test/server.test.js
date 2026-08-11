@@ -8,7 +8,7 @@ import { createRegistryServer } from "../src/server.js";
 test("serves the mutable signed index separately from immutable artifacts", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "greenways-registry-"));
   await mkdir(join(root, "v1", "packages"), { recursive: true });
-  await writeFile(join(root, "v1", "index.edn"), "{:registry/protocol \"greenways-registry/1\"}");
+  await writeFile(join(root, "v1", "index.edn"), "{:registry/protocol \"greenways-registry/0-alpha\"}");
   await writeFile(join(root, "v1", "packages", "fixture.harp"), "archive");
   const service = createRegistryServer({ root, host: "127.0.0.1", port: 0 });
   const address = await service.listen();

@@ -7,7 +7,7 @@ const LOCK = `sha256:${"a".repeat(64)}`;
 
 function manifest(overrides = {}) {
   return validateAppManifest({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "greenways-notes",
     version: "1.0.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },

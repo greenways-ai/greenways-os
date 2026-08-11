@@ -52,7 +52,7 @@ function services() {
     async status() {
       calls.push(["ai-status"]);
       return {
-        protocol: "greenways-ai/1",
+        protocol: "greenways-ai/0-alpha",
         providerProfiles: [{ id: "openai.primary.abc123", provider: "openai", label: "Primary" }],
         providerCredentialStorage: "session",
         providerAccess: { openai: true },
@@ -61,7 +61,7 @@ function services() {
     async generate(request, context) {
       calls.push(["generate", request, context]);
       return {
-        protocol: "greenways-ai/1",
+        protocol: "greenways-ai/0-alpha",
         requestId: request.requestId,
         provider: "openai",
         profileId: request.profileId,
@@ -72,7 +72,7 @@ function services() {
     async result(requestId, context) {
       calls.push(["result", requestId, context]);
       return {
-        protocol: "greenways-ai/1",
+        protocol: "greenways-ai/0-alpha",
         requestId,
         provider: "webapp.chatgpt",
         sessionId: "model/session/01234567",

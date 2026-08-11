@@ -58,7 +58,7 @@ test("status requires only the AI status projection", async () => {
   const statusOnlyService = {
     async status() {
       return {
-        protocol: "greenways-ai/1",
+        protocol: "greenways-ai/0-alpha",
         providerProfiles: [],
         providerCredentialStorage: "session",
         providerAccess: {},
@@ -75,5 +75,5 @@ test("status requires only the AI status projection", async () => {
   const response = await invoke(handler, message("status"));
   assert.equal(response.ok, true);
   assert.equal(response.capability.allowed, true);
-  assert.equal(response.ai.protocol, "greenways-ai/1");
+  assert.equal(response.ai.protocol, "greenways-ai/0-alpha");
 });

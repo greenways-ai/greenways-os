@@ -85,7 +85,7 @@ Everything below the wasm boundary is new in chrome-hara:
 Summary of the split:
 
 - **Reused 1:1** — the entire Rust evaluator source, the raw wasm artifact,
-  `hta.js` (HTA1 codec, `HtaContext`, manifest loader), `hta-worker.js`.
+  `hta.js` (HTA0 codec, `HtaContext`, manifest loader), `hta-worker.js`.
   Zero changes to `core/rust/web/`; its tests pass untouched.
 - **Reused by pattern** — the fiber-suspending host/call demo from
   `hta-browser.js` became the port-forwarding Proxy bridge; the playground's
@@ -151,7 +151,7 @@ chrome-hara bridge (node): RESP TCP server ⟷ WS ⟷ extension
 
 ## Known limitations
 
-- HTA1 has no float tag: fractional CDP results are truncated to integers
+- HTA0 has no float tag: fractional CDP results are truncated to integers
   (`sanitize()` in `src/background.js`).
 - `requireSpecs` is a scanner, not a reader — it can over-match inside
   strings/comments (harmless: extra registrations).

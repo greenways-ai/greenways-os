@@ -14,7 +14,7 @@ const ARCHIVE = new Uint8Array([1, 2, 3, 4]);
 
 function manifest(overrides = {}) {
   return {
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "notes",
     version: "1.0.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },
@@ -37,13 +37,13 @@ function manifest(overrides = {}) {
 
 function bundle(overrides = {}) {
   return {
-    lockSource: "{:lock/format 2 :packages {}}",
+    lockSource: "{:lock/format \"0.0.0-alpha\" :packages {}}",
     lockDigest: LOCK,
     entry: "notes.app/view",
     resources: { "notes.app": "(ns notes.app)" },
     packages: {
       "greenways:notes": {
-        url: "https://packages.greenways.ai/v1/packages/notes/1.0.0.harp",
+        url: "https://packages.greenways.ai/0-alpha/packages/notes/1.0.0.harp",
         digest: `sha256:${"b".repeat(64)}`,
         size: ARCHIVE.byteLength,
         archive: ARCHIVE,

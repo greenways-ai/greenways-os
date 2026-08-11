@@ -131,7 +131,7 @@ async function loadState() {
   try {
     state = normalizeTahtoNodeState(await store.get("settings", TAHTO_SETTINGS_KEY));
     monitorRecords = new Map((await fabricStore.values())
-      .filter((record) => record?.protocol === "greenways-tahto-monitor/1")
+      .filter((record) => record?.protocol === "greenways-tahto-monitor/0-alpha")
       .map((record) => [record.origin, record]));
     stateError = null;
   } catch (error) {

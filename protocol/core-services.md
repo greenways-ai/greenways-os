@@ -1,11 +1,11 @@
 # Greenways OS core services and capability grants
 
 Status: first authority implementation  
-Core service protocol: `greenways-core-service/1`  
-Capability definition protocol: `greenways-capability-definition/1`  
-Capability grant protocol: `greenways-capability-grant/1`  
-Capability authority protocol: `greenways-capability-authority/1`  
-Capability decision protocol: `greenways-capability-decision/1`
+Core service protocol: `greenways-core-service/0-alpha`
+Capability definition protocol: `greenways-capability-definition/0-alpha`
+Capability grant protocol: `greenways-capability-grant/0-alpha`
+Capability authority protocol: `greenways-capability-authority/0-alpha`
+Capability decision protocol: `greenways-capability-decision/0-alpha`
 
 ## Purpose
 

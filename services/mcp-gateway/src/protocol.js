@@ -1,9 +1,9 @@
-export const MCP_GATEWAY_PROTOCOL = "greenways-mcp-gateway/1";
-export const MCP_CONNECTION_PROTOCOL = "greenways-mcp-connection/1";
-export const MCP_REQUEST_PROTOCOL = "greenways-mcp-request/1";
-export const MCP_RESULT_PROTOCOL = "greenways-mcp-result/1";
-export const MCP_REQUEST_RECORD_PROTOCOL = "greenways-mcp-request-record/1";
-export const MCP_REQUEST_CLAIM_PROTOCOL = "greenways-mcp-request-claim/1";
+export const MCP_GATEWAY_PROTOCOL = "greenways-mcp-gateway/0-alpha";
+export const MCP_CONNECTION_PROTOCOL = "greenways-mcp-connection/0-alpha";
+export const MCP_REQUEST_PROTOCOL = "greenways-mcp-request/0-alpha";
+export const MCP_RESULT_PROTOCOL = "greenways-mcp-result/0-alpha";
+export const MCP_REQUEST_RECORD_PROTOCOL = "greenways-mcp-request-record/0-alpha";
+export const MCP_REQUEST_CLAIM_PROTOCOL = "greenways-mcp-request-claim/0-alpha";
 
 const MAX_REQUEST_BYTES = 64 * 1024;
 export const MAX_RESULT_BYTES = 256 * 1024;

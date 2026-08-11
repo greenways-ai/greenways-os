@@ -30,7 +30,7 @@ test("normalizes bounded home origins and one-time pairing codes", () => {
 
 test("rejects executable fields in home discovery service metadata", () => {
   const base = {
-    protocol: "greenways-home/1",
+    protocol: "greenways-home/0-alpha",
     node: {
       id: "home.test",
       name: "Test Home",
@@ -69,11 +69,11 @@ test("rejects executable fields in home discovery service metadata", () => {
 
 test("signs method, path, nonce, time, and body hash with the browser device key", async () => {
   const device = await createHomeDevice("Test browser", webcrypto);
-  const body = { protocol: "greenways-home-presence/1", visible: true };
+  const body = { protocol: "greenways-home-presence/0-alpha", visible: true };
   const signed = await createSignedHomeRequest({
     device,
     method: "POST",
-    path: "/greenways/v1/status",
+    path: "/greenways/0-alpha/status",
     body,
     now: new Date("2026-08-05T00:00:00.000Z"),
     nonce: "nonce/test",
@@ -81,7 +81,7 @@ test("signs method, path, nonce, time, and body hash with the browser device key
   });
   assert.equal(device.privateKey.extractable, false);
   assert.equal(signed.envelope.method, "POST");
-  assert.equal(signed.envelope.path, "/greenways/v1/status");
+  assert.equal(signed.envelope.path, "/greenways/0-alpha/status");
   assert.equal(signed.envelope.nonce, "nonce/test");
   const key = await webcrypto.subtle.importKey(
     "jwk",

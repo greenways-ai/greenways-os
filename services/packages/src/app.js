@@ -98,8 +98,8 @@ function normalizeCapabilities(value, label) {
 export function validateReleaseModuleManifest(value) {
   const input = exactKeys(value, MANIFEST_KEYS, "release app manifest");
   assertNoExecutableFields(input, "release app manifest");
-  if (input.protocol !== "greenways-app/1") {
-    throw new Error("release app manifest.protocol must be greenways-app/1");
+  if (input.protocol !== "greenways-app/0-alpha") {
+    throw new Error("release app manifest.protocol must be greenways-app/0-alpha");
   }
   if (input.kind !== "hal-module" || input.channel !== "release") {
     throw new Error("release app manifest must be a release hal-module");
@@ -126,7 +126,7 @@ export function validateReleaseModuleManifest(value) {
     throw new Error("release app manifest.source.coordinate is invalid");
   }
   return Object.freeze({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id,
     version,
     publisher,

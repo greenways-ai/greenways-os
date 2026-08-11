@@ -61,11 +61,11 @@ function descriptor(overrides = {}) {
     },
     routes: {
       discovery: "/.well-known/tahto",
-      health: "/tahto/v1/health",
-      status: "/tahto/v1/status",
-      diagnostics: "/tahto/v1/diagnostics",
-      pairingPrepare: "/tahto/v1/pairing/prepare",
-      pairingComplete: "/tahto/v1/pairing/complete",
+      health: "/tahto/0-alpha/health",
+      status: "/tahto/0-alpha/status",
+      diagnostics: "/tahto/0-alpha/diagnostics",
+      pairingPrepare: "/tahto/0-alpha/pairing/prepare",
+      pairingComplete: "/tahto/0-alpha/pairing/complete",
     },
     components: {
       controlPlane: "ready",
@@ -142,16 +142,16 @@ test("strictly validates inert Tahto discovery", () => {
   assert.equal(value.runtime.applicationServer, "Hoplite");
   assert.equal(value.authority.privateKeys, "greenways-os");
   assert.equal(value.boundaries.remoteExecutableCatalogue, false);
-  assert.equal(value.routes.status, "/tahto/v1/status");
-  assert.equal(value.routes.diagnostics, "/tahto/v1/diagnostics");
+  assert.equal(value.routes.status, "/tahto/0-alpha/status");
+  assert.equal(value.routes.diagnostics, "/tahto/0-alpha/diagnostics");
   assert.equal(value.components.semanticFabric, "planned:T-SF-01");
   assert.throws(() => normalizeTahtoDescriptor(descriptor({ script: "https://evil.example/a.js" })), /executable field script/);
   assert.throws(() => normalizeTahtoDescriptor(descriptor({ routes: {
     discovery: "/.well-known/tahto",
-    health: "/tahto/v1/health",
+    health: "/tahto/0-alpha/health",
     status: "https://evil.example/status",
-    pairingPrepare: "/tahto/v1/pairing/prepare",
-    pairingComplete: "/tahto/v1/pairing/complete",
+    pairingPrepare: "/tahto/0-alpha/pairing/prepare",
+    pairingComplete: "/tahto/0-alpha/pairing/complete",
   } })), /must be \/tahto\/v1\/status/);
 });
 
@@ -171,8 +171,8 @@ test("inspects discovery, health and status without credentials or redirects", a
   assert.equal(inspected.status.node.mode, "local");
   assert.deepEqual(calls.map(([url]) => url), [
     "http://127.0.0.1:58100/.well-known/tahto",
-    "http://127.0.0.1:58100/tahto/v1/health",
-    "http://127.0.0.1:58100/tahto/v1/status",
+    "http://127.0.0.1:58100/tahto/0-alpha/health",
+    "http://127.0.0.1:58100/tahto/0-alpha/status",
   ]);
   for (const [, options] of calls) {
     assert.equal(options.credentials, "omit");
@@ -274,7 +274,7 @@ test("pairing prepares, signs the exact intent, completes, and binds only the re
     }),
     signPairingIntent: async (origin, intent, intentDigest) => {
       signatures.push({ origin, intent, intentDigest });
-      return { profile: "tahto-signature/1", algorithm: "p256-sha256", keyId: `sha256:${"a".repeat(64)}`, value: "signature" };
+      return { profile: "tahto-signature/0-alpha", algorithm: "p256-sha256", keyId: `sha256:${"a".repeat(64)}`, value: "signature" };
     },
     bind: async (origin, identity) => calls.push({ origin, identity }),
   };
@@ -285,7 +285,7 @@ test("pairing prepares, signs the exact intent, completes, and binds only the re
     assert.equal("privateKey" in envelope, false);
     if (url.endsWith("/prepare")) {
       const intent = {
-        protocol: "tahto.pairing-intent/1",
+        protocol: "tahto.pairing-intent/0-alpha",
         invitation: "invite.live",
         node: "node.home",
         device: envelope.device,
@@ -294,13 +294,13 @@ test("pairing prepares, signs the exact intent, completes, and binds only the re
         "prepared-at": envelope.preparedAt,
         "expires-at": "2026-08-09T00:10:00.000Z",
       };
-      return json({ protocol: "tahto.pairing-prepare-result/1", intent, intentDigest: `sha256:${"b".repeat(64)}` });
+      return json({ protocol: "tahto.pairing-prepare-result/0-alpha", intent, intentDigest: `sha256:${"b".repeat(64)}` });
     }
-    assert.equal(url, "https://tahto.example/tahto/v1/pairing/complete");
-    assert.equal(envelope.protocol, "tahto.pairing-complete/1");
+    assert.equal(url, "https://tahto.example/tahto/0-alpha/pairing/complete");
+    assert.equal(envelope.protocol, "tahto.pairing-complete/0-alpha");
     assert.deepEqual(envelope.intent, signatures[0].intent);
     return new Response(JSON.stringify({
-      protocol: "tahto.pairing-result/1",
+      protocol: "tahto.pairing-result/0-alpha",
       node: "node.home",
       device: envelope.intent.device,
       administrator: false,
@@ -318,17 +318,17 @@ test("pairing prepares, signs the exact intent, completes, and binds only the re
 });
 
 test("semantic read signs the operation and rejects executable response fields", async () => {
-  const keyring = { signRequest: async (_origin, request) => ({ protocol: "tahto.device-request/1", ...request }) };
+  const keyring = { signRequest: async (_origin, request) => ({ protocol: "tahto.device-request/0-alpha", ...request }) };
   let executable = false;
   const request = async (_url, options) => {
     assert.equal(decodeHeader(options.headers["x-tahto-request"]).operation, "semantic.read");
     return new Response(JSON.stringify(executable ? {
-      protocol: "tahto.semantic-result/1",
+      protocol: "tahto.semantic-result/0-alpha",
       operation: "semantic.read",
       status: "ready",
       value: { script: "alert(1)" },
     } : {
-      protocol: "tahto.semantic-result/1",
+      protocol: "tahto.semantic-result/0-alpha",
       operation: "semantic.read",
       status: "ready",
       value: { stableId: "document/main" },
@@ -347,14 +347,14 @@ test("paired diagnostics signs only the closed monitor scope", async () => {
   const keyring = {
     async signRequest(origin, request) {
       signed.push({ origin, request });
-      return { protocol: "tahto.device-request/1", ...request };
+      return { protocol: "tahto.device-request/0-alpha", ...request };
     },
   };
   const request = async (url, options) => {
-    assert.equal(url, "https://tahto.example/tahto/v1/diagnostics");
+    assert.equal(url, "https://tahto.example/tahto/0-alpha/diagnostics");
     assert.equal(decodeHeader(options.headers["x-tahto-request"]).operation, "monitor.diagnostics");
     return json({
-      protocol: "tahto.diagnostics/1",
+      protocol: "tahto.diagnostics/0-alpha",
       checkedAt: "2026-08-09T00:00:00.000Z",
       state: "ready",
       checks: { metadata: { state: "ready", revision: 4, error: null } },

@@ -123,7 +123,7 @@ export function createUserscriptsRuntime({
     const timestamp = now().toISOString();
     const source = draft.source ?? existing?.source;
     const record = validateUserscriptRecord({
-      protocol: "greenways-userscript/1",
+      protocol: "greenways-userscript/0-alpha",
       id: existing?.id ?? newScriptId(),
       name: draft.name ?? existing?.name,
       matches: draft.matches ?? existing?.matches,

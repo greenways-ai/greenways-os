@@ -695,7 +695,7 @@ function F(e, t) {
 }
 function I(e) {
 	let t = e instanceof Uint8Array ? e : new Uint8Array(e);
-	if (t.length < 40 || String.fromCharCode(...t.subarray(0, 4)) !== "HNW1") throw Error("native artifact has invalid magic");
+	if (t.length < 40 || String.fromCharCode(...t.subarray(0, 4)) !== "HNW0") throw Error("native artifact has invalid magic");
 	let n = 8 + F(t, 4);
 	if (n + 32 !== t.length) throw Error("native artifact length mismatch");
 	let r = 8, i = new DataView(t.buffer, t.byteOffset, t.byteLength), a = i.getUint16(r, !1);

@@ -2,11 +2,11 @@ import { canonical, sha256 } from "./protocol.js";
 import { normalizeTahtoOrigin } from "./tahto-client.js";
 import { store, withOriginLock } from "./storage.js";
 
-export const TAHTO_DEVICE_KEY_PROTOCOL = "greenways-tahto-device-key/1";
-export const TAHTO_DEVICE_REQUEST_PROTOCOL = "tahto.device-request/1";
-export const TAHTO_SIGNATURE_PROTOCOL = "tahto-signature/1";
+export const TAHTO_DEVICE_KEY_PROTOCOL = "greenways-tahto-device-key/0-alpha";
+export const TAHTO_DEVICE_REQUEST_PROTOCOL = "tahto.device-request/0-alpha";
+export const TAHTO_SIGNATURE_PROTOCOL = "tahto-signature/0-alpha";
 export const TAHTO_KEY_ALGORITHM = "p256-sha256";
-export const TAHTO_PAIRING_INTENT_PROTOCOL = "tahto.pairing-intent/1";
+export const TAHTO_PAIRING_INTENT_PROTOCOL = "tahto.pairing-intent/0-alpha";
 
 const IDENTIFIER = /^[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;

@@ -204,7 +204,7 @@ export async function verifyRegistryEnvelope(
     ]),
     "Registry envelope",
   );
-  if (envelope["registry/protocol"] !== "greenways-registry/1") {
+  if (envelope["registry/protocol"] !== "greenways-registry/0-alpha") {
     throw new Error("Registry envelope protocol is not supported");
   }
   if (envelope["registry/algorithm"] !== "ES256") {
@@ -228,7 +228,7 @@ export async function verifyRegistryEnvelope(
     ]),
     "Registry index",
   );
-  if (index["index/protocol"] !== "greenways-registry-index/1") {
+  if (index["index/protocol"] !== "greenways-registry-index/0-alpha") {
     throw new Error("Registry index protocol is not supported");
   }
   const registry = normalizedOrigin(index["index/registry"], "Registry index origin");

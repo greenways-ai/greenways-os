@@ -1,6 +1,6 @@
 # Browser kernel boundary
 
-The Chrome host exposes `greenways-kernel/1` between packaged extension pages
+The Chrome host exposes `greenways-kernel/0-alpha` between packaged extension pages
 and the Manifest V3 background service worker. The worker is the only Hara
 authority for application lifecycle and world/session transitions. A page is a
 client and effect surface, not an independent source of kernel truth.

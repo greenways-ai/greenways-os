@@ -6,13 +6,13 @@ import {
   sha256,
 } from "./protocol.js";
 
-export const HOME_DISCOVERY_PROTOCOL = "greenways-home/1";
-export const HOME_PAIR_PROTOCOL = "greenways-home-pair/1";
-export const HOME_PAIR_RECEIPT_PROTOCOL = "greenways-home-paired/1";
-export const HOME_AUTH_PROTOCOL = "greenways-home-auth/1";
-export const HOME_STATUS_PROTOCOL = "greenways-home-status/1";
-export const HOME_UNPAIR_PROTOCOL = "greenways-home-unpaired/1";
-export const HOME_LINK_PROTOCOL = "greenways-home-link/1";
+export const HOME_DISCOVERY_PROTOCOL = "greenways-home/0-alpha";
+export const HOME_PAIR_PROTOCOL = "greenways-home-pair/0-alpha";
+export const HOME_PAIR_RECEIPT_PROTOCOL = "greenways-home-paired/0-alpha";
+export const HOME_AUTH_PROTOCOL = "greenways-home-auth/0-alpha";
+export const HOME_STATUS_PROTOCOL = "greenways-home-status/0-alpha";
+export const HOME_UNPAIR_PROTOCOL = "greenways-home-unpaired/0-alpha";
+export const HOME_LINK_PROTOCOL = "greenways-home-link/0-alpha";
 export const HOME_LINK_SETTINGS_KEY = "home-link";
 export const HOME_NODE_ALGORITHM = "ECDSA-P256-SHA256";
 
@@ -404,7 +404,7 @@ export class HomeLinkClient {
   async pair({ code, device, node }) {
     if (!node) throw new Error("Home pairing requires a verified discovery record");
     const pairedDevice = normalizedDeviceForPairing(device);
-    const response = await this.request(`${this.origin}/greenways/v1/pair`, {
+    const response = await this.request(`${this.origin}/greenways/0-alpha/pair`, {
       ...privateRequestOptions(),
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -423,14 +423,14 @@ export class HomeLinkClient {
     const payload = await createSignedHomeRequest({
       device: connection.device,
       method: "POST",
-      path: "/greenways/v1/status",
+      path: "/greenways/0-alpha/status",
       body: {
         ...presence,
-        protocol: "greenways-home-presence/1",
+        protocol: "greenways-home-presence/0-alpha",
       },
       cryptoProvider: this.cryptoProvider,
     });
-    const response = await this.request(`${this.origin}/greenways/v1/status`, {
+    const response = await this.request(`${this.origin}/greenways/0-alpha/status`, {
       ...privateRequestOptions(),
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -445,11 +445,11 @@ export class HomeLinkClient {
     const payload = await createSignedHomeRequest({
       device: connection.device,
       method: "POST",
-      path: "/greenways/v1/unpair",
-      body: { protocol: "greenways-home-unpair/1" },
+      path: "/greenways/0-alpha/unpair",
+      body: { protocol: "greenways-home-unpair/0-alpha" },
       cryptoProvider: this.cryptoProvider,
     });
-    const response = await this.request(`${this.origin}/greenways/v1/unpair`, {
+    const response = await this.request(`${this.origin}/greenways/0-alpha/unpair`, {
       ...privateRequestOptions(),
       method: "POST",
       headers: { "content-type": "application/json" },

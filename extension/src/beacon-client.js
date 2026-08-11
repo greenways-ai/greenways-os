@@ -1,6 +1,6 @@
-export const BEACON_PROTOCOL = "greenways-beacon/1";
-export const BEACON_LINK_PROTOCOL = "greenways-beacon-link/1";
-export const SPACE_PROTOCOL = "greenways-space/1";
+export const BEACON_PROTOCOL = "greenways-beacon/0-alpha";
+export const BEACON_LINK_PROTOCOL = "greenways-beacon-link/0-alpha";
+export const SPACE_PROTOCOL = "greenways-space/0-alpha";
 export const BEACON_SETTINGS_KEY = "beacon";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
@@ -215,7 +215,7 @@ export function normalizeSpaceDescriptor(value) {
     revision: input.revision,
     status: identifier(input.status, "Space descriptor.status"),
     beacon: Object.freeze({
-      protocol: exact(beacon.protocol, "greenways-beacon-space/1", "Space Beacon contract.protocol"),
+      protocol: exact(beacon.protocol, "greenways-beacon-space/0-alpha", "Space Beacon contract.protocol"),
       basePath: exact(beacon.basePath, "/beacon/v1/", "Space Beacon contract.basePath"),
       discovery: exact(beacon.discovery, "/beacon/v1/discovery.json", "Space Beacon contract.discovery"),
     }),

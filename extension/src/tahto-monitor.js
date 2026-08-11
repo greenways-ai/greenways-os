@@ -5,7 +5,7 @@ import {
 } from "./tahto-client.js";
 import { fabricStore, store } from "./storage.js";
 
-export const TAHTO_MONITOR_PROTOCOL = "greenways-tahto-monitor/1";
+export const TAHTO_MONITOR_PROTOCOL = "greenways-tahto-monitor/0-alpha";
 export const TAHTO_MONITOR_ALARM = "greenways:tahto-monitor";
 export const TAHTO_MONITOR_PERIOD_MINUTES = 5;
 export const TAHTO_MONITOR_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -51,7 +51,7 @@ export function createTahtoMonitorSample({
     ? { state: "unreachable", checks: {} }
     : classifyTahtoInspection(inspection);
   return Object.freeze({
-    protocol: "greenways-tahto-monitor-sample/1",
+    protocol: "greenways-tahto-monitor-sample/0-alpha",
     origin,
     checkedAt,
     latencyMs: Math.max(0, Math.round(latencyMs)),
@@ -76,7 +76,7 @@ export function applyTahtoMonitorSample(previous, sample, nowMs = Date.parse(sam
     ?? [...incidents].reverse().find((incident) => incident.closedAt === null);
   if (runtimeFailure && consecutiveFailures >= 2 && !open) {
     incidents.push({
-      protocol: "greenways-tahto-incident/1",
+      protocol: "greenways-tahto-incident/0-alpha",
       openedAt: sample.checkedAt,
       closedAt: null,
       state: sample.state,

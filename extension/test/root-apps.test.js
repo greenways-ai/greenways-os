@@ -8,7 +8,7 @@ import {
 } from "../src/root-apps.js";
 
 test("publishes one fixed preinstalled root DevTools app", () => {
-  assert.equal(ROOT_APP_PROTOCOL, "greenways-root-app/1");
+  assert.equal(ROOT_APP_PROTOCOL, "greenways-root-app/0-alpha");
   assert.deepEqual(ROOT_APPS.map(({ id }) => id), ["greenways-devtools"]);
   const devtools = getRootApp("greenways-devtools");
   assert.equal(devtools.preinstalled, true);

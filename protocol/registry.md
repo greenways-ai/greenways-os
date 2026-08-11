@@ -1,8 +1,8 @@
 # Greenways Registry protocol
 
 Status: draft  
-Envelope protocol: `greenways-registry/1`  
-Index payload protocol: `greenways-registry-index/1`
+Envelope protocol: `greenways-registry/0-alpha`
+Index payload protocol: `greenways-registry-index/0-alpha`
 
 ## Purpose
 
@@ -25,7 +25,7 @@ Additional origins require a reviewed extension policy update.
 `GET /v1/index.edn` returns an EDN envelope:
 
 ```clojure
-{:registry/protocol "greenways-registry/1"
+{:registry/protocol "greenways-registry/0-alpha"
  :registry/key-id "greenways-packages-2026-01"
  :registry/algorithm "ES256"
  :registry/signed "<base64url exact UTF-8 index payload bytes>"
@@ -44,7 +44,7 @@ padding. A conformance fixture fixes this representation.
 After signature verification, the decoded EDN payload must be:
 
 ```clojure
-{:index/protocol "greenways-registry-index/1"
+{:index/protocol "greenways-registry-index/0-alpha"
  :index/registry "https://packages.greenways.ai/"
  :index/generated-at "2026-08-06T00:00:00Z"
  :index/expires-at "2026-08-07T00:00:00Z"
@@ -59,7 +59,7 @@ After signature verification, the decoded EDN payload must be:
    :package/versions
    {"1.2.0"
     {:version "1.2.0"
-     :lock/url "https://packages.greenways.ai/v1/packages/greenways:notes/1.2.0/lock.edn"
+     :lock/url "https://packages.greenways.ai/0-alpha/packages/greenways:notes/1.2.0/lock.edn"
      :lock/sha256 "sha256:..."
      :app/manifest {...}
      :publisher/signature
@@ -102,11 +102,11 @@ GET /v1/packages/<coordinate>/<version>/lock.edn
 GET /v1/packages/<coordinate>/<version>/<archive>.harp
 ```
 
-A lock uses `:lock/format 2`. Its exact UTF-8 SHA-256 must equal the version
+A lock uses `:lock/format "0.0.0-alpha"`. Its exact UTF-8 SHA-256 must equal the version
 record and app manifest `lockDigest`. Every archive entry contains an HTTPS URL,
 size, and SHA-256. V1 archive and lock URLs remain on the signed registry origin.
 
-Every `.harp` archive contains `package.edn` with `:harp/format 1`, digest-declared
+Every `.harp` archive contains `package.edn` with `:harp/format "0.0.0-alpha"`, digest-declared
 files, and a namespace-to-path resource map. An application package additionally
 identifies one namespace-qualified view entry in `:greenways/app {:entry ...}`.
 Dependencies may contribute resources but cannot replace the application entry
@@ -121,7 +121,7 @@ For a release install the client:
 3. verifies the publisher signature;
 4. fetches the exact lock and verifies its digest;
 5. fetches and verifies every `.harp` archive and file;
-6. validates the `greenways-app/1` manifest;
+6. validates the `greenways-app/0-alpha` manifest;
 7. presents publisher, version, capabilities, channel, and lock digest for
    approval; and
 8. stages the module generation before the kernel commits the install record.

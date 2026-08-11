@@ -21,7 +21,7 @@ const nowText = "2026-08-11T06:20:00.000Z";
 
 async function challenge(overrides = {}) {
   const body = {
-    protocol: "greenways-mcp-pairing-challenge/1",
+    protocol: "greenways-mcp-pairing-challenge/0-alpha",
     id: "mcp/challenge/keyring-example-0001",
     client: { id: "chatgpt.greenways", name: "ChatGPT", uri: "https://chatgpt.com/" },
     scopes: ["greenways.read"],
@@ -66,7 +66,7 @@ test("signs one exact MCP challenge without exporting the controller key", async
     now: () => new Date(nowText),
   });
 
-  assert.equal(assertion.protocol, "greenways-mcp-pairing-assertion/1");
+  assert.equal(assertion.protocol, "greenways-mcp-pairing-assertion/0-alpha");
   assert.equal(assertion.challengeId, value.id);
   assert.equal(assertion.challengeRoot, value.root);
   assert.equal(assertion.identity.id, controller.identityId);

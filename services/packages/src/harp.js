@@ -75,7 +75,7 @@ function appEntry(manifest, label) {
 export async function verifyLockedPackageBundle(lockSource, request) {
   const lockText = String(lockSource);
   const lock = parseEDNString(lockText, ednOptions);
-  if (lock["lock/format"] !== 2) throw new Error("project.lock.edn requires :lock/format 2");
+  if (lock["lock/format"] !== "0.0.0-alpha") throw new Error("project.lock.edn requires alpha lock format");
   const lockPackages = plainObject(lock.packages ?? {}, "project.lock.edn packages");
   const packages = {};
   const resources = {};
@@ -104,7 +104,7 @@ export async function verifyLockedPackageBundle(lockSource, request) {
       throw new Error(`Locked package ${coordinate} package.edn exceeds the manifest byte limit`);
     }
     const manifest = parseEDNString(decoder.decode(files["package.edn"]), ednOptions);
-    if (manifest["harp/format"] !== 1) throw new Error(`Locked package ${coordinate} requires :harp/format 1`);
+    if (manifest["harp/format"] !== "0.0.0-alpha") throw new Error(`Locked package ${coordinate} requires alpha HARP format`);
     const declaredFiles = plainObject(manifest.files ?? {}, `Locked package ${coordinate} files`);
     const declaredResources = plainObject(manifest.resources ?? {}, `Locked package ${coordinate} resources`);
     const archivePaths = new Set(Object.keys(files));

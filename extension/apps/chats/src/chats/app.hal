@@ -46,7 +46,7 @@
        (app-call
         "hestia.control"
         "propose"
-        [{:intent/protocol "hestia.control-intent/1"
+        [{:intent/protocol "hestia.control-intent/0-alpha"
           :intent/id proposal-id
           :intent/application "chats"
           :intent/action :chat/share

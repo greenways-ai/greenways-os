@@ -1,4 +1,4 @@
-export const KERNEL_PROTOCOL = "greenways-kernel/1";
+export const KERNEL_PROTOCOL = "greenways-kernel/0-alpha";
 
 export const KERNEL_MESSAGE_TYPES = Object.freeze({
   ATTACH: "greenways/kernel/attach",

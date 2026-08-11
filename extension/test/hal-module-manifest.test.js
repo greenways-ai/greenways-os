@@ -11,7 +11,7 @@ const LOCK = `sha256:${"a".repeat(64)}`;
 
 function moduleManifest(overrides = {}) {
   return {
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "greenways-notes",
     version: "1.2.0",
     publisher: { id: "greenways-ai", name: "Greenways AI" },

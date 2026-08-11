@@ -30,7 +30,7 @@ Every successful identity or handle response uses:
 
 ```json
 {
-  "protocol": "greenways-identity-resolution/1",
+  "protocol": "greenways-identity-resolution/0-alpha",
   "identityId": "identity/...",
   "handle": "river.studio",
   "currentKey": { "keyId": "sha256:...", "publicKey": {} },

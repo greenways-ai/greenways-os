@@ -37,7 +37,7 @@ async function createLegacyIdentity(handle = "alice") {
 
 async function legacyInclusion(identity, previous, action, includedAt) {
   const body = {
-    protocol: "greenways-personal-chain/1",
+    protocol: "greenways-personal-chain/0-alpha",
     chainId: identity.identityId,
     sequence: (previous?.sequence ?? 0) + 1,
     previousHash: previous?.eventHash ?? ZERO_HASH,
@@ -205,7 +205,7 @@ test("rejects tampered actions and legacy inclusion hashes before replacement", 
   await context.test("owner-signed malformed action", async () => {
     const fixture = await legacyFixture();
     const malformed = await signAction({
-      protocol: "greenways-action/1",
+      protocol: "greenways-action/0-alpha",
       id: "action/AAAAAAAAAAAAAAAAAAAAAA",
       actor: {
         identityId: fixture.identityRecord.identity.identityId,

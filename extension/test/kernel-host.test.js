@@ -10,7 +10,7 @@ import {
 
 const builtinApps = await getBuiltinAppCatalog();
 
-const CONTEXT_PROTOCOL = "greenways-kernel-context/1";
+const CONTEXT_PROTOCOL = "greenways-kernel-context/0-alpha";
 const LAUNCHER_A = Object.freeze({ kind: "launcher", clientId: "launcher/client-alpha-0001" });
 const LAUNCHER_B = Object.freeze({ kind: "launcher", clientId: "launcher/client-bravo-0002" });
 const WORLD_A = Object.freeze({ kind: "world", clientId: "world/client-alpha-000001" });
@@ -19,7 +19,7 @@ const DEVTOOLS_A = Object.freeze({ kind: "devtools", clientId: "devtools/client-
 const ALLOW_CAPABILITY_AUTHORITY = Object.freeze({
   async check({ appId, capability }) {
     return Object.freeze({
-      protocol: "greenways-capability-decision/1",
+      protocol: "greenways-capability-decision/0-alpha",
       allowed: true,
       reason: "test-authority",
       capability,
@@ -36,7 +36,7 @@ function denyingCapabilityAuthority(reason = "module-runtime-unverified") {
   return Object.freeze({
     async check({ appId, capability }) {
       return Object.freeze({
-        protocol: "greenways-capability-decision/1",
+        protocol: "greenways-capability-decision/0-alpha",
         allowed: false,
         reason,
         capability,
@@ -884,7 +884,7 @@ test("exposes resident service and capability projections through bounded kernel
 test("fails a capability check closed before Hara grants are consulted", async () => {
   const repository = new MemoryRepository();
   const module = validateAppManifest({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "unverified-signer",
     version: "0.1.0",
     publisher: { id: "example", name: "Example" },
@@ -930,7 +930,7 @@ test("fails a capability check closed before Hara grants are consulted", async (
 test("denies a capability grant before preparing durable state when authority is unverified", async () => {
   const repository = new MemoryRepository();
   const module = validateAppManifest({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "blocked-signer",
     version: "0.1.0",
     publisher: { id: "example", name: "Example" },
@@ -988,7 +988,7 @@ test("persists an exact app-bound capability grant and revocation across restart
   const repository = new MemoryRepository();
   const lockDigest = `sha256:${"a".repeat(64)}`;
   const module = validateAppManifest({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "signing-room",
     version: "0.1.0",
     publisher: { id: "example", name: "Example" },
@@ -1068,7 +1068,7 @@ test("persists an exact app-bound capability grant and revocation across restart
 test("removing an app revokes its grants atomically so reinstall cannot revive them", async () => {
   const repository = new MemoryRepository();
   const module = validateAppManifest({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "temporary-signer",
     version: "0.1.0",
     publisher: { id: "example", name: "Example" },
@@ -1128,7 +1128,7 @@ test("removing an app revokes its grants atomically so reinstall cannot revive t
 test("rejects undeclared capability grants before preparing a durable request", async () => {
   const repository = new MemoryRepository();
   const module = validateAppManifest({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id: "notes-room",
     version: "0.1.0",
     publisher: { id: "example", name: "Example" },

@@ -10,7 +10,7 @@ ChatGPT / MCP client
 Greenways pairing challenge
        │ locally signed by Greenways OS
        ▼
-revocable greenways-mcp-connection/1
+revocable greenways-mcp-connection/0-alpha
        │ minimal connection-only OAuth props
        ▼
 stateless Streamable HTTP /mcp
@@ -41,7 +41,7 @@ OAuth authenticates the remote MCP client and projects only:
 
 ```json
 {
-  "protocol": "greenways-mcp-auth-context/1",
+  "protocol": "greenways-mcp-auth-context/0-alpha",
   "connectionId": "mcp/connection/..."
 }
 ```
@@ -89,7 +89,7 @@ rather than being returned to an MCP client.
 ## Signed pairing
 
 `GreenwaysMcpPairingService` creates a short-lived
-`greenways-mcp-pairing-challenge/1` bound to:
+`greenways-mcp-pairing-challenge/0-alpha` bound to:
 
 - the exact OAuth authorization request digest;
 - the dynamically registered OAuth client ID, name, and URI;
@@ -97,7 +97,7 @@ rather than being returned to an MCP client.
 - the exact nine-tool read catalogue;
 - a one-time nonce and bounded expiry.
 
-Greenways OS signs a `greenways-mcp-pairing-assertion/1` with its local,
+Greenways OS signs a `greenways-mcp-pairing-assertion/0-alpha` with its local,
 non-exported P-256 controller key. The assertion carries only the public
 identity card, reviewed browser-device identity, challenge root, and bounded
 timestamps. The gateway recalculates the public-key digest and verifies the

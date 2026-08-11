@@ -120,17 +120,17 @@ export function createHomeNodeServer({ node = new GreenwaysHomeNode(), host = "1
         writeJson(response, 200, node.discovery(), origin);
         return;
       }
-      if (request.method === "POST" && url.pathname === "/greenways/v1/pair") {
+      if (request.method === "POST" && url.pathname === "/greenways/0-alpha/pair") {
         const body = await readJson(request);
         writeJson(response, 200, await runExclusive(() => node.pair(body)), origin);
         return;
       }
-      if (request.method === "POST" && url.pathname === "/greenways/v1/status") {
+      if (request.method === "POST" && url.pathname === "/greenways/0-alpha/status") {
         const body = await readJson(request);
         writeJson(response, 200, await runExclusive(() => node.status(body)), origin);
         return;
       }
-      if (request.method === "POST" && url.pathname === "/greenways/v1/unpair") {
+      if (request.method === "POST" && url.pathname === "/greenways/0-alpha/unpair") {
         const body = await readJson(request);
         writeJson(response, 200, await runExclusive(() => node.unpair(body)), origin);
         return;

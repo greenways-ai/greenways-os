@@ -22,7 +22,7 @@ A home node owns an ECDSA P-256 node key and exposes:
 GET /.well-known/greenways-home
 ```
 
-The response uses `greenways-home/1` and contains only:
+The response uses `greenways-home/0-alpha` and contains only:
 
 - a stable node identifier, display name, public key and key identifier;
 - whether a one-time pairing window is available;
@@ -49,11 +49,11 @@ private key is non-extractable and remains in the extension's IndexedDB; only
 the public JWK, browser name, and random device identifier are sent to:
 
 ```text
-POST /greenways/v1/pair
+POST /greenways/0-alpha/pair
 ```
 
-The request uses `greenways-home-pair/1`. A successful, node-signed
-`greenways-home-paired/1` receipt binds the browser device to the verified node,
+The request uses `greenways-home-pair/0-alpha`. A successful, node-signed
+`greenways-home-paired/0-alpha` receipt binds the browser device to the verified node,
 lists its scopes, and repeats the inert service descriptors. The receipt must
 carry the same node key discovered before the code was submitted.
 
@@ -64,14 +64,14 @@ Each browser profile receives a separate key and can be revoked independently.
 ## Signed browser requests
 
 After pairing, the browser sends status and unpair requests as
-`greenways-home-auth/1`. The signed envelope contains:
+`greenways-home-auth/0-alpha`. The signed envelope contains:
 
 ```json
 {
-  "protocol": "greenways-home-auth/1",
+  "protocol": "greenways-home-auth/0-alpha",
   "deviceId": "browser.…",
   "method": "POST",
-  "path": "/greenways/v1/status",
+  "path": "/greenways/0-alpha/status",
   "timestamp": "2026-08-05T00:00:00.000Z",
   "nonce": "nonce/…",
   "bodyHash": "sha256:…"
@@ -83,20 +83,20 @@ registered public key, exact HTTP method and path, body hash, timestamp window,
 and a single-use nonce. Replayed, modified, expired, unknown-device, or
 incorrectly signed requests fail closed.
 
-`POST /greenways/v1/status` returns a node-signed
-`greenways-home-status/1` record containing paired browser names, last signed
+`POST /greenways/0-alpha/status` returns a node-signed
+`greenways-home-status/0-alpha` record containing paired browser names, last signed
 presence times, and bounded service metadata. It does not expose browser
 history, tabs, identity secrets, or local application state.
 
-`POST /greenways/v1/unpair` removes the public device record and returns a
-node-signed `greenways-home-unpaired/1` receipt. If the node is unreachable,
+`POST /greenways/0-alpha/unpair` removes the public device record and returns a
+node-signed `greenways-home-unpaired/0-alpha` receipt. If the node is unreachable,
 Greenways OS may still delete the local private key and revoke its origin
 permission; the node is then left only with a stale public-key entry that can no
 longer authenticate the removed browser.
 
 ## Durable node state
 
-The reference node stores a versioned `greenways-home-state/1` record containing:
+The reference node stores a versioned `greenways-home-state/0-alpha` record containing:
 
 - the node identifier, name, public key and key identifier;
 - the node's PKCS#8 private signing key;

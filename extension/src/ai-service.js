@@ -2,7 +2,7 @@ import { GreenwaysKeyring } from "./keyring.js";
 import { MODEL_PROVIDER_POLICY } from "./model-provider-policy.js";
 import { CHATGPT_PROVIDER_ID } from "./chatgpt-provider-protocol.js";
 
-export const AI_SERVICE_PROTOCOL = "greenways-ai/1";
+export const AI_SERVICE_PROTOCOL = "greenways-ai/0-alpha";
 export const MODEL_GENERATE_CAPABILITY = "model/generate";
 
 const REQUEST_ID = /^[a-z0-9][a-z0-9._:/-]{15,127}$/i;

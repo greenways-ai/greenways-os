@@ -97,7 +97,7 @@ test("creates a durable request-bound session and returns immediately", async ()
     messages: [{ role: "user", content: "Explain this form." }],
     timeoutMs: 15 * 60_000,
   }, context);
-  assert.equal(result.protocol, "greenways-ai/1");
+  assert.equal(result.protocol, "greenways-ai/0-alpha");
   assert.equal(result.pending, true);
   assert.equal(result.sessionId, "model/session/01234567");
   const request = calls.find(([method]) => method === "chatgpt-provider/create")[1][0];

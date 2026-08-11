@@ -130,8 +130,8 @@ test("two browsers pair by one-time code and authenticate without bearer secrets
   const signed = await createSignedHomeRequest({
     device: first.device,
     method: "POST",
-    path: "/greenways/v1/status",
-    body: { protocol: "greenways-home-presence/1" },
+    path: "/greenways/0-alpha/status",
+    body: { protocol: "greenways-home-presence/0-alpha" },
     nonce: "nonce/replay-check",
     cryptoProvider: webcrypto,
   });
@@ -142,13 +142,13 @@ test("two browsers pair by one-time code and authenticate without bearer secrets
   const untampered = await createSignedHomeRequest({
     device: first.device,
     method: "POST",
-    path: "/greenways/v1/status",
-    body: { protocol: "greenways-home-presence/1" },
+    path: "/greenways/0-alpha/status",
+    body: { protocol: "greenways-home-presence/0-alpha" },
     nonce: "nonce/body-check",
     cryptoProvider: webcrypto,
   });
   await assert.rejects(
-    node.status({ ...untampered, body: { protocol: "greenways-home-presence/1", changed: true } }),
+    node.status({ ...untampered, body: { protocol: "greenways-home-presence/0-alpha", changed: true } }),
     (error) => error instanceof HomeNodeError && error.code === "body-modified",
   );
 

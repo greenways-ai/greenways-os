@@ -31,9 +31,9 @@ import {
   store,
 } from "./storage.js";
 
-export const KERNEL_PROTOCOL = "greenways-kernel/1";
-export const KERNEL_GLOBAL_PROTOCOL = "greenways-kernel-global/1";
-export const KERNEL_CONTEXT_RECORD_PROTOCOL = "greenways-kernel-context-record/1";
+export const KERNEL_PROTOCOL = "greenways-kernel/0-alpha";
+export const KERNEL_GLOBAL_PROTOCOL = "greenways-kernel-global/0-alpha";
+export const KERNEL_CONTEXT_RECORD_PROTOCOL = "greenways-kernel-context-record/0-alpha";
 
 const CLIENT_ID = /^[a-z0-9][a-z0-9._:/-]{15,127}$/i;
 const REQUEST_ID = /^[a-z0-9][a-z0-9._:/-]{15,127}$/i;

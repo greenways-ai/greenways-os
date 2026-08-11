@@ -32,7 +32,7 @@ test("separates ready, not-ready, and degraded component state", () => {
 
 test("opens an incident after two runtime failures and closes it on recovery", () => {
   const sample = (at, state) => ({
-    protocol: "greenways-tahto-monitor-sample/1",
+    protocol: "greenways-tahto-monitor-sample/0-alpha",
     origin: "https://tahto.example",
     checkedAt: at,
     latencyMs: 1,
@@ -77,7 +77,7 @@ test("polls only the selected default node and stores a bounded sample", async (
   const settings = {
     async get() {
       return {
-        protocol: "greenways-tahto-nodes/1",
+        protocol: "greenways-tahto-nodes/0-alpha",
         defaultOrigin: "https://default.example",
         nodes: [
           { origin: "https://default.example", label: "Default", descriptor: {}, health: {}, status: {}, connectedAt: "2026-08-09T00:00:00.000Z", checkedAt: "2026-08-09T00:00:00.000Z" },
@@ -128,7 +128,7 @@ test("adds paired diagnostics without turning a diagnostic denial into node fail
     clientFactory() {
       return {
         async inspect() {
-          return { ...inspection(), descriptor: { routes: { diagnostics: "/tahto/v1/diagnostics" } } };
+          return { ...inspection(), descriptor: { routes: { diagnostics: "/tahto/0-alpha/diagnostics" } } };
         },
         async diagnostics() { throw new Error("tahto.monitor/device-not-authorized"); },
       };

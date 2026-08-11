@@ -21,7 +21,7 @@ Every non-module manifest has exactly these fields:
 
 | Field | Meaning |
 | --- | --- |
-| `protocol` | Exact manifest protocol, currently `greenways-app/1`. |
+| `protocol` | Exact manifest protocol, currently `greenways-app/0-alpha`. |
 | `id` | Stable lowercase identifier. |
 | `version` | SemVer 2.0 version of this exact app integration. |
 | `publisher` | Stable lowercase publisher identifier and human-facing name. |
@@ -75,13 +75,13 @@ handler, a new host service, or a new declarative view element.
 ## HAL module container
 
 A `.hal` app is distributed as one or more `.harp` archives selected by a
-`:lock/format 2` lock. Before staging, the extension verifies:
+`:lock/format "0.0.0-alpha"` lock. Before staging, the extension verifies:
 
 1. the exact lock digest bound by the approval;
 2. each archive URL against channel policy;
 3. archive size and SHA-256;
 4. archive path safety;
-5. `package.edn` and `:harp/format 1`;
+5. `package.edn` and `:harp/format "0.0.0-alpha"`;
 6. every declared file size and SHA-256; and
 7. a duplicate-free namespace set.
 
@@ -191,7 +191,7 @@ Existing non-operation-grant capabilities remain `identity/local`,
 `hara/evaluate`. `hal-module` requires `hara/module`.
 
 A manifest declaration is only an installation request. Consequential operations
-require a separate `greenways-capability-grant/1` created by the trusted host
+require a separate `greenways-capability-grant/0-alpha` created by the trusted host
 and bound to the exact app ID, version, publisher, and lock digest. Expired,
 revoked, removed, updated, or stale grants cannot authorize an operation. Grant
 constraints may contain bounded policy and opaque profile references but cannot

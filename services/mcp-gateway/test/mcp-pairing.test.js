@@ -134,7 +134,7 @@ test("accepts one locally signed identity assertion and exposes only a connectio
       return {
         redirectTo: "https://chatgpt.com/aip/callback?code=example",
         props: {
-          protocol: "greenways-mcp-auth-context/1",
+          protocol: "greenways-mcp-auth-context/0-alpha",
           connectionId: value.connection.id,
         },
       };
@@ -155,7 +155,7 @@ test("accepts one locally signed identity assertion and exposes only a connectio
   assert.equal(completion.identity.publicKey.d, undefined);
   assert.equal(completion.connection.id, result.connection.id);
   assert.deepEqual(result.oauthResult.props, {
-    protocol: "greenways-mcp-auth-context/1",
+    protocol: "greenways-mcp-auth-context/0-alpha",
     connectionId: result.connection.id,
   });
   assert.deepEqual(await repository.getConnection(result.connection.id), result.connection);

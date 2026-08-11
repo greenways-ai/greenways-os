@@ -7,10 +7,10 @@ import {
   validateBoundedPublicValue,
 } from "./protocol.js";
 
-export const MCP_PAIRING_CHALLENGE_PROTOCOL = "greenways-mcp-pairing-challenge/1";
-export const MCP_PAIRING_ASSERTION_PROTOCOL = "greenways-mcp-pairing-assertion/1";
-export const MCP_PAIRING_SESSION_PROTOCOL = "greenways-mcp-pairing-session/2";
-export const MCP_PAIRING_RECEIPT_PROTOCOL = "greenways-mcp-pairing-receipt/1";
+export const MCP_PAIRING_CHALLENGE_PROTOCOL = "greenways-mcp-pairing-challenge/0-alpha";
+export const MCP_PAIRING_ASSERTION_PROTOCOL = "greenways-mcp-pairing-assertion/0-alpha";
+export const MCP_PAIRING_SESSION_PROTOCOL = "greenways-mcp-pairing-session/0-alpha";
+export const MCP_PAIRING_RECEIPT_PROTOCOL = "greenways-mcp-pairing-receipt/0-alpha";
 export const MCP_PAIRING_ALGORITHM = "ECDSA-P256-SHA256";
 export const MCP_PAIRING_SCOPE = "greenways.read";
 export const MCP_PAIRING_DEFAULT_CLAIM_LIFETIME_MS = 2 * 60 * 1000;
@@ -853,7 +853,7 @@ export class GreenwaysMcpPairingService {
     const claimId = secureUuid(this.randomUUID, "MCP pairing claim");
     const issued = pairingRepositoryDate(this.now());
     const connection = normalizeConnection({
-      protocol: "greenways-mcp-connection/1",
+      protocol: "greenways-mcp-connection/0-alpha",
       id: mcpConnectionIdForClaim(session.id, claimId),
       identity: {
         id: verified.identity.id,

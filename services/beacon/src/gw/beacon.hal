@@ -2,8 +2,8 @@
   (:require [hoplite.core :as h]
             [std.json :as json]))
 
-(def protocol "greenways-beacon/1")
-(def space-protocol "greenways-space/1")
+(def protocol "greenways-beacon/0-alpha")
+(def space-protocol "greenways-space/0-alpha")
 (def space-origin "https://greenways.space")
 
 (def public-headers
@@ -46,7 +46,7 @@
     "space.transport"
     "local.health"]
    "legacy"
-   {"protocol" "greenways-home/1"
+   {"protocol" "greenways-home/0-alpha"
     "status" "compatibility-only"}})
 
 (defn root
@@ -57,7 +57,7 @@
   [_request]
   (json-response
     200
-    {"protocol" "greenways-beacon-health/1"
+    {"protocol" "greenways-beacon-health/0-alpha"
      "status" "ready"
      "runtime" "hoplite"
      "spaceRoute" "/space/"}))
@@ -66,7 +66,7 @@
   [_request]
   (json-response
     200
-    {"protocol" "greenways-beacon-status/1"
+    {"protocol" "greenways-beacon-status/0-alpha"
      "beacon" {"status" "ready"
                "authority" "local"}
      "space" {"origin" space-origin

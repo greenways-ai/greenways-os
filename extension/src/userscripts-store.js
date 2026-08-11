@@ -1,4 +1,4 @@
-export const USERSCRIPT_RECORD_PROTOCOL = "greenways-userscript/1";
+export const USERSCRIPT_RECORD_PROTOCOL = "greenways-userscript/0-alpha";
 export const USERSCRIPTS_APP_ID = "userscripts";
 export const USERSCRIPTS_CAPABILITY = "userscripts/manage";
 export const USERSCRIPT_LIMITS = Object.freeze({

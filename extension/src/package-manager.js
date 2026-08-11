@@ -1,8 +1,8 @@
 import { validateAppCatalog, validateAppManifest } from "./app-catalog.js";
 import { sameManifestApproval } from "./app-launch.js";
 
-export const PACKAGE_MANAGER_PROTOCOL = "greenways-package-manager/1";
-export const PACKAGE_PROTOCOL = "greenways-package/1";
+export const PACKAGE_MANAGER_PROTOCOL = "greenways-package-manager/0-alpha";
+export const PACKAGE_PROTOCOL = "greenways-package/0-alpha";
 
 export const PACKAGE_KINDS = Object.freeze([
   "system",

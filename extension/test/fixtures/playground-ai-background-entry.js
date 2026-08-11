@@ -34,7 +34,7 @@ const authority = {
 const aiService = {
   async status() {
     return {
-      protocol: "greenways-ai/1",
+      protocol: "greenways-ai/0-alpha",
       providerProfiles: [{ id: "openai.fixture", provider: "openai", label: "Fixture OpenAI" }],
       providerCredentialStorage: "session",
       providerAccess: { openai: true },
@@ -58,7 +58,7 @@ const aiService = {
     // browser assertion can prove that it is absent from every page projection.
     if (!fixtureSecret.startsWith("fixture-secret")) throw new Error("Invalid fixture secret");
     return {
-      protocol: "greenways-ai/1",
+      protocol: "greenways-ai/0-alpha",
       requestId: request.requestId,
       provider: "openai",
       profileId: request.profileId,

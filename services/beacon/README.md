@@ -94,7 +94,7 @@ greenways-beacon uninstall
 
 ## Migration from Home Node
 
-`services/home-node/` remains the compatibility implementation for the existing `greenways-home/1` extension wire protocol while the browser migrates to Beacon. New service composition, remote routing and product language belong in Beacon.
+`services/home-node/` remains the compatibility implementation for the existing `greenways-home/0-alpha` extension wire protocol while the browser migrates to Beacon. New service composition, remote routing and product language belong in Beacon.
 
 The migration must preserve user-controlled browser keys and require an explicit decision before replacing a previously pinned node identity. The legacy Node HTTP router is not the target runtime.
 

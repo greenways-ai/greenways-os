@@ -1,6 +1,6 @@
-export const CORE_SERVICE_PROTOCOL = "greenways-core-service/1";
-export const CAPABILITY_DEFINITION_PROTOCOL = "greenways-capability-definition/1";
-export const CAPABILITY_GRANT_PROTOCOL = "greenways-capability-grant/1";
+export const CORE_SERVICE_PROTOCOL = "greenways-core-service/0-alpha";
+export const CAPABILITY_DEFINITION_PROTOCOL = "greenways-capability-definition/0-alpha";
+export const CAPABILITY_GRANT_PROTOCOL = "greenways-capability-grant/0-alpha";
 
 const APP_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SERVICE_ID = /^[a-z][a-z0-9-]{1,63}$/;

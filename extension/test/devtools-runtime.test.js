@@ -45,7 +45,7 @@ test("evaluates Hara in an explicit namespace and restores the kernel namespace"
 test("returns bounded public module status", async () => {
   const { devtools } = rig();
   const status = await devtools.call("devtools/status");
-  assert.equal(status.protocol, "greenways-devtools/1");
+  assert.equal(status.protocol, "greenways-devtools/0-alpha");
   assert.equal(status.currentNamespace, "gw.os.kernel");
   assert.deepEqual(status.modules, [{
     id: "example-app",

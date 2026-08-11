@@ -1,6 +1,6 @@
 [{:case/id :greenways.os.case/registry-signed-envelope
   :case/type :registry-envelope
-  :input {:registry/protocol :greenways-registry/1
+  :input {:registry/protocol :greenways-registry/0-alpha
           :registry/key-id "greenways-packages-test-1"
           :registry/algorithm "ES256"
           :registry/signed "ezppbmRleC9leHBpcmVzLWF0ICIyMDI2LTA4LTA3VDAwOjAwOjAwLjAwMFoiIDppbmRleC9nZW5lcmF0ZWQtYXQgIjIwMjYtMDgtMDZUMDA6MDA6MDAuMDAwWiIgOmluZGV4L3BhY2thZ2VzIHt9IDppbmRleC9wcm90b2NvbCAiZ3JlZW53YXlzLXJlZ2lzdHJ5LWluZGV4LzEiIDppbmRleC9yZWdpc3RyeSAiaHR0cHM6Ly9wYWNrYWdlcy5ncmVlbndheXMuYWkvIn0"
@@ -10,7 +10,7 @@
 
  {:case/id :greenways.os.case/registry-unknown-key
   :case/type :registry-envelope
-  :input {:registry/protocol :greenways-registry/1
+  :input {:registry/protocol :greenways-registry/0-alpha
           :registry/key-id "attacker-key"
           :registry/algorithm "ES256"
           :registry/signed "ezppbmRleC9leHBpcmVzLWF0ICIyMDI2LTA4LTA3VDAwOjAwOjAwLjAwMFoiIDppbmRleC9nZW5lcmF0ZWQtYXQgIjIwMjYtMDgtMDZUMDA6MDA6MDAuMDAwWiIgOmluZGV4L3BhY2thZ2VzIHt9IDppbmRleC9wcm90b2NvbCAiZ3JlZW53YXlzLXJlZ2lzdHJ5LWluZGV4LzEiIDppbmRleC9yZWdpc3RyeSAiaHR0cHM6Ly9wYWNrYWdlcy5ncmVlbndheXMuYWkvIn0"
@@ -20,7 +20,7 @@
  {:case/id :greenways.os.case/registry-expired-index
   :case/type :registry-index
   :clock "2026-08-06T12:00:00Z"
-  :input {:index/protocol :greenways-registry-index/1
+  :input {:index/protocol :greenways-registry-index/0-alpha
           :index/registry "https://packages.greenways.ai/"
           :index/generated-at "2026-08-05T00:00:00Z"
           :index/expires-at "2026-08-06T00:00:00Z"
@@ -35,7 +35,7 @@
 
  {:case/id :greenways.os.case/registry-cannot-add-handler
   :case/type :registry-resolution
-  :input {:app/manifest {:app/protocol :greenways-app/1
+  :input {:app/manifest {:app/protocol :greenways-app/0-alpha
                          :app/id :foreign-handler
                          :app/version "1.0.0"
                          :app/publisher {:publisher/id :publisher

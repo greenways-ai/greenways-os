@@ -25,7 +25,7 @@ import {
   canonical,
 } from "./home-node.js";
 
-export const HOME_NODE_STATE_PROTOCOL = "greenways-home-state/1";
+export const HOME_NODE_STATE_PROTOCOL = "greenways-home-state/0-alpha";
 
 const IDENTIFIER = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SHA256 = /^sha256:[0-9a-f]{64}$/;

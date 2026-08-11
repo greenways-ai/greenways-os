@@ -1,4 +1,4 @@
-const PROTOCOL = "greenways.fabric-backup/1";
+const PROTOCOL = "greenways.fabric-backup/0-alpha";
 const DAY = 86_400_000;
 
 export const FABRIC_COLLECTIONS = Object.freeze({
@@ -98,11 +98,11 @@ export async function collectFabricState(storage) {
     applications[appId] = { version: 1, collections: {} };
     for (const name of names) applications[appId].collections[name] = await storage.entries(name);
   }
-  return { protocol: "greenways.fabric-state/1", applications };
+  return { protocol: "greenways.fabric-state/0-alpha", applications };
 }
 
 export async function restoreFabricState(payload, storage) {
-  if (payload?.protocol !== "greenways.fabric-state/1") throw new TypeError("Unsupported Greenways state backup");
+  if (payload?.protocol !== "greenways.fabric-state/0-alpha") throw new TypeError("Unsupported Greenways state backup");
   for (const [appId, descriptor] of Object.entries(payload.applications ?? {})) {
     const allowed = new Set(FABRIC_COLLECTIONS[appId] ?? []);
     for (const [name, entries] of Object.entries(descriptor.collections ?? {})) {

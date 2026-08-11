@@ -1,6 +1,6 @@
 import { validateAppManifest } from "./app-catalog.js";
 
-export const MODULE_RECORD_PROTOCOL = "greenways-module-record/1";
+export const MODULE_RECORD_PROTOCOL = "greenways-module-record/0-alpha";
 export const MODULE_RECORD_LIMITS = Object.freeze({
   packages: 64,
   archiveBytes: 32 * 1024 * 1024,

@@ -42,7 +42,7 @@ test("binds one exact OAuth client and connection into a short-lived read reques
     randomUUID,
   });
   assert.deepEqual(request, {
-    protocol: "greenways-mcp-request/1",
+    protocol: "greenways-mcp-request/0-alpha",
     requestId: "mcp/request/01234567-89ab-cdef-0123-456789abcdef",
     connectionId: "mcp/connection/transport-0001",
     tool: "apps.get",

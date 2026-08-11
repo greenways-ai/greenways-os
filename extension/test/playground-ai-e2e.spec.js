@@ -45,7 +45,7 @@ const fixtureHtml = `<!doctype html><meta charset="utf-8"><script>
       postMessage({
         source: "hara-playground",
         direction: "request",
-        protocol: "greenways-playground-ai/1",
+        protocol: "greenways-playground-ai/0-alpha",
         requestId,
         operation,
         payload,

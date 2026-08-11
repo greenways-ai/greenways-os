@@ -1,6 +1,6 @@
 [{:case/id :greenways.os.case/core-service-resident
   :case/type :core-service
-  :input {:service/protocol :greenways-core-service/1
+  :input {:service/protocol :greenways-core-service/0-alpha
           :service/id :keyring
           :service/version "0.1.0"
           :service/status :active
@@ -11,7 +11,7 @@
 
  {:case/id :greenways.os.case/core-service-removable
   :case/type :core-service
-  :input {:service/protocol :greenways-core-service/1
+  :input {:service/protocol :greenways-core-service/0-alpha
           :service/id :keyring
           :service/version "0.1.0"
           :service/status :active
@@ -22,7 +22,7 @@
 
  {:case/id :greenways.os.case/capability-definition-key-sign
   :case/type :capability-definition
-  :input {:capability/protocol :greenways-capability-definition/1
+  :input {:capability/protocol :greenways-capability-definition/0-alpha
           :capability/id :key/sign
           :capability/service :keyring
           :capability/risk :critical
@@ -32,7 +32,7 @@
 
  {:case/id :greenways.os.case/capability-definition-model-provide
   :case/type :capability-definition
-  :input {:capability/protocol :greenways-capability-definition/1
+  :input {:capability/protocol :greenways-capability-definition/0-alpha
           :capability/id :model/provide
           :capability/service :surfaces
           :capability/risk :critical
@@ -42,7 +42,7 @@
 
  {:case/id :greenways.os.case/capability-grant-exact-module
   :case/type :capability-grant
-  :input {:grant/protocol :greenways-capability-grant/1
+  :input {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-0001
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room
@@ -63,7 +63,7 @@
               :app/publisher-id :example
               :app/lock-digest "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
               :app/capabilities [:hara/module :key/sign]}
-  :grant {:grant/protocol :greenways-capability-grant/1
+  :grant {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-0002
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room
@@ -79,7 +79,7 @@
 
  {:case/id :greenways.os.case/capability-grant-secret-constraint
   :case/type :capability-grant
-  :input {:grant/protocol :greenways-capability-grant/1
+  :input {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-0003
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room
@@ -96,7 +96,7 @@
  {:case/id :greenways.os.case/capability-grant-expired
   :case/type :capability-authorisation
   :at "2026-08-06T02:00:00.000Z"
-  :grant {:grant/protocol :greenways-capability-grant/1
+  :grant {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-0004
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room
@@ -113,7 +113,7 @@
  {:case/id :greenways.os.case/capability-grant-clock-rollback-revocation
   :case/type :capability-revocation
   :clock "2026-08-05T23:00:00.000Z"
-  :grant {:grant/protocol :greenways-capability-grant/1
+  :grant {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-0005
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room
@@ -135,11 +135,11 @@
               :app/publisher-id :example
               :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
               :app/capabilities [:hara/module :key/sign]}
-  :module-record {:record/protocol :greenways-module-record/1
+  :module-record {:record/protocol :greenways-module-record/0-alpha
                   :record/app-id :signing-room
                   :record/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
   :runtime nil
-  :grant {:grant/protocol :greenways-capability-grant/1
+  :grant {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-runtime-0001
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room
@@ -160,14 +160,14 @@
               :app/publisher-id :example
               :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
               :app/capabilities [:hara/module :key/sign]}
-  :module-record {:record/protocol :greenways-module-record/1
+  :module-record {:record/protocol :greenways-module-record/0-alpha
                   :record/app-id :signing-room
                   :record/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
   :runtime {:runtime/app-id :signing-room
             :runtime/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             :runtime/generation 3
             :runtime/root "app.signing-room.g3"}
-  :grant {:grant/protocol :greenways-capability-grant/1
+  :grant {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-runtime-0002
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room
@@ -188,14 +188,14 @@
               :app/publisher-id :example
               :app/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
               :app/capabilities [:hara/module :key/sign]}
-  :module-record {:record/protocol :greenways-module-record/1
+  :module-record {:record/protocol :greenways-module-record/0-alpha
                   :record/app-id :signing-room
                   :record/lock-digest "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
   :runtime {:runtime/app-id :signing-room
             :runtime/lock-digest "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
             :runtime/generation 3
             :runtime/root "app.signing-room.g3"}
-  :grant {:grant/protocol :greenways-capability-grant/1
+  :grant {:grant/protocol :greenways-capability-grant/0-alpha
           :grant/id :grant/signing-room-runtime-0003
           :grant/subject {:subject/kind :app
                           :subject/app-id :signing-room

@@ -1,8 +1,8 @@
 # Greenways Package Manager protocol
 
 Status: modular app draft  
-Manager protocol: `greenways-package-manager/1`  
-Package protocol: `greenways-package/1`
+Manager protocol: `greenways-package-manager/0-alpha`
+Package protocol: `greenways-package/0-alpha`
 
 ## Purpose
 
@@ -13,10 +13,10 @@ are not removable packages.
 
 ## Runtime approval compatibility
 
-`greenways-app/1` remains the normative runtime approval record. For ordinary
+`greenways-app/0-alpha` remains the normative runtime approval record. For ordinary
 apps it binds package ID, semantic version, publisher, exact capabilities, and
 the locally shipped launch target. For `hal-module` it additionally binds the
-exact lock digest. `greenways-package/1` is a read-only product projection of a
+exact lock digest. `greenways-package/0-alpha` is a read-only product projection of a
 validated record; it cannot loosen validation or add executable fields.
 
 ## Package kinds
@@ -29,7 +29,7 @@ System IDs, publisher, target, and capabilities are bound together.
 ### `hal-module`
 
 An optional or bundled `.hal` application installed from a digest-verified
-`:lock/format 2` package graph. Its source is evaluated only by the browser-held
+`:lock/format "0.0.0-alpha"` package graph. Its source is evaluated only by the browser-held
 Hara kernel under an app-owned namespace generation. It receives no ambient
 extension authority and renders through host-owned declarative surfaces.
 

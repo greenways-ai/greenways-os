@@ -21,7 +21,7 @@ function keyring(profile) {
     async status() {
       return {
         providerProfiles: [{
-          protocol: "greenways-keyring/1",
+          protocol: "greenways-keyring/0-alpha",
           id: profile.id,
           provider: profile.provider,
           label: "Coding",

@@ -15,7 +15,7 @@ import {
 
 const digest = `sha256:${"a".repeat(64)}`;
 const moduleManifest = Object.freeze({
-  protocol: "greenways-app/1",
+  protocol: "greenways-app/0-alpha",
   id: "signing-room",
   version: "0.1.0",
   publisher: Object.freeze({ id: "example", name: "Example" }),

@@ -19,7 +19,7 @@ import {
   signEs256,
 } from "./crypto.js";
 
-const SOURCE_PROTOCOL = "greenways-registry-source/1";
+const SOURCE_PROTOCOL = "greenways-registry-source/0-alpha";
 const encoder = new TextEncoder();
 
 function plainObject(value, label) {
@@ -122,7 +122,7 @@ async function buildVersion({
   if (!archiveRecords.length) throw new Error(`${coordinate}@${version} must contain at least one HARP archive`);
 
   const lockObject = {
-    "lock/format": 2,
+    "lock/format": "0.0.0-alpha",
     packages: Object.fromEntries(archiveRecords.map(({ coordinate: id, entry }) => [id, entry])),
   };
   const lockSource = encodeEdn(lockObject);
@@ -247,7 +247,7 @@ export async function buildRegistry({
     }
 
     const payloadSource = encodeEdn({
-      "index/protocol": "greenways-registry-index/1",
+      "index/protocol": "greenways-registry-index/0-alpha",
       "index/registry": registry,
       "index/generated-at": generated.toISOString(),
       "index/expires-at": expires.toISOString(),
@@ -255,7 +255,7 @@ export async function buildRegistry({
     });
     const payloadBytes = encoder.encode(payloadSource);
     const envelope = encodeEdn({
-      "registry/protocol": "greenways-registry/1",
+      "registry/protocol": "greenways-registry/0-alpha",
       "registry/key-id": nonEmpty(config.keyId, "registry keyId"),
       "registry/algorithm": "ES256",
       "registry/signed": Buffer.from(payloadBytes).toString("base64url"),

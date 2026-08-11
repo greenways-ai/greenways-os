@@ -73,7 +73,7 @@ export function actionBody({ type, actor, workflowRoot = null, subject = null, p
   if (!String(type).startsWith("@greenways/")) throw new Error("Greenways action type required");
   if (!actor?.identityId || !actor?.keyId) throw new Error("Key-controlled actor required");
   return {
-    protocol: "greenways-action/1",
+    protocol: "greenways-action/0-alpha",
     id: randomId("action"),
     type,
     actor: { identityId: actor.identityId, handle: actor.handle, keyId: actor.keyId },
@@ -129,7 +129,7 @@ export async function includeAction(chainOwner, privateKey, previous, action) {
     throw new Error("Previous inclusion belongs to another personal chain");
   }
   const inclusion = {
-    protocol: "greenways-personal-chain/1",
+    protocol: "greenways-personal-chain/0-alpha",
     chainId: chainOwner.identityId,
     keyId: chainOwner.keyId,
     sequence: (previous?.sequence ?? 0) + 1,
@@ -152,7 +152,7 @@ export async function verifyPersonalChain(inclusions, publicKeys) {
   for (const inclusion of inclusions) {
     if (!inclusion || typeof inclusion !== "object") return false;
     const { eventHash, signature, ...body } = inclusion;
-    if (body.protocol !== "greenways-personal-chain/1" || !body.chainId || !body.keyId) return false;
+    if (body.protocol !== "greenways-personal-chain/0-alpha" || !body.chainId || !body.keyId) return false;
     if (chainId === null) {
       chainId = body.chainId;
       keyId = body.keyId;
@@ -178,7 +178,7 @@ export async function createEvidenceBundle({
   personalChainMigrations = [],
 }) {
   const bundle = {
-    protocol: "greenways-evidence-bundle/1",
+    protocol: "greenways-evidence-bundle/0-alpha",
     id: randomId("bundle"),
     exportedAt: new Date().toISOString(),
     project,
@@ -218,12 +218,12 @@ export async function verifyEvidenceBundle(bundle) {
 
 export async function verifyPersonalChainMigration(migration, inclusions, publicKeys) {
   if (!migration || typeof migration !== "object" || Array.isArray(migration)
-    || migration.protocol !== "greenways-action/1"
+    || migration.protocol !== "greenways-action/0-alpha"
     || migration.type !== "@greenways/personal-chain-migrated"
     || migration.subject !== migration.actor?.identityId
-    || migration.payload?.protocol !== "greenways-personal-chain-migration/1"
-    || migration.payload.fromProtocol !== "greenways-personal-chain/1-unsigned"
-    || migration.payload.toProtocol !== "greenways-personal-chain/1"
+    || migration.payload?.protocol !== "greenways-personal-chain-migration/0-alpha"
+    || migration.payload.fromProtocol !== "greenways-personal-chain/0-alpha-unsigned"
+    || migration.payload.toProtocol !== "greenways-personal-chain/0-alpha"
     || !Array.isArray(migration.payload.mappings)
     || !Array.isArray(migration.payload.previouslyPendingRoots)
     || !Array.isArray(inclusions)) {
@@ -255,7 +255,7 @@ export async function verifyPersonalChainMigration(migration, inclusions, public
 export async function createFurnishingBundle({ identity, privateKey, title, ideas = [], repositories = [], parents = [], visibility = "personal" }) {
   if (!["personal", "shared"].includes(visibility)) throw new Error("Furnishing visibility must be personal or shared");
   const furnishing = {
-    protocol: "greenways-room-furnishing/1",
+    protocol: "greenways-room-furnishing/0-alpha",
     id: randomId("furnishing"),
     title: String(title ?? "Untitled furnishing"),
     parents: [...new Set(parents)],
@@ -268,14 +268,14 @@ export async function createFurnishingBundle({ identity, privateKey, title, idea
     type: "@greenways/furnishing-published", actor: identity, subject: furnishing.id,
     payload: { furnishingRoot: await sha256(canonical(furnishing)), parents: furnishing.parents, visibility }
   }), privateKey);
-  const body = { protocol: "greenways-furnishing-bundle/1", furnishing, creator: identity, publication };
+  const body = { protocol: "greenways-furnishing-bundle/0-alpha", furnishing, creator: identity, publication };
   return { ...body, root: await sha256(canonical(body)) };
 }
 
 export async function verifyFurnishingBundle(bundle) {
   const { root, ...body } = bundle ?? {};
   const errors = [];
-  if (body.protocol !== "greenways-furnishing-bundle/1") errors.push("unsupported-furnishing-bundle");
+  if (body.protocol !== "greenways-furnishing-bundle/0-alpha") errors.push("unsupported-furnishing-bundle");
   if (root !== await sha256(canonical(body))) errors.push("bundle-root-mismatch");
   if (!body.creator?.publicKey || !await verifyAction(body.publication, body.creator?.publicKey)) errors.push("publication-signature-invalid");
   if (body.publication?.payload?.furnishingRoot !== await sha256(canonical(body.furnishing))) errors.push("furnishing-root-mismatch");
@@ -284,7 +284,7 @@ export async function verifyFurnishingBundle(bundle) {
 
 export async function verifyPublicCredential(credential) {
   const identity = credential?.identity;
-  if (credential?.protocol !== "greenways-public-credential/1" || !identity?.identityId || !identity?.publicKey) return false;
+  if (credential?.protocol !== "greenways-public-credential/0-alpha" || !identity?.identityId || !identity?.publicKey) return false;
   return identity.keyId === await sha256(canonical(identity.publicKey));
 }
 

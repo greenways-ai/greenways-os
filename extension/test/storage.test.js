@@ -189,13 +189,13 @@ test("writes an action, inclusion, and outbox item through one transaction", asy
     },
   };
   const action = {
-    protocol: "greenways-action/1",
+    protocol: "greenways-action/0-alpha",
     id: "action:1",
     root: "sha256:action",
     signature: "signed-action",
   };
   const inclusion = {
-    protocol: "greenways-personal-chain/1",
+    protocol: "greenways-personal-chain/0-alpha",
     chainId: "identity/alice",
     keyId: "sha256:alice-key",
     sequence: 1,
@@ -205,7 +205,7 @@ test("writes an action, inclusion, and outbox item through one transaction", asy
     signature: "signed-inclusion",
   };
   const syncEntry = {
-    protocol: "greenways-sync-entry/1",
+    protocol: "greenways-sync-entry/0-alpha",
     action,
     inclusion,
   };
@@ -229,13 +229,13 @@ test("rejects an outbox entry whose inclusion names another action", () => {
     () => putSignedRecordStores(
       tx,
       {
-        protocol: "greenways-action/1",
+        protocol: "greenways-action/0-alpha",
         id: "action:1",
         root: "sha256:action",
         signature: "signed-action",
       },
       {
-        protocol: "greenways-personal-chain/1",
+        protocol: "greenways-personal-chain/0-alpha",
         chainId: "identity/alice",
         keyId: "sha256:alice-key",
         sequence: 1,
@@ -259,13 +259,13 @@ test("atomically replaces a migrated identity, inclusions, and signed outbox", a
     privateKey: { type: "private" },
   };
   const action = {
-    protocol: "greenways-action/1",
+    protocol: "greenways-action/0-alpha",
     id: "action/one",
     root: "sha256:action",
     signature: "signed-action",
   };
   const inclusion = {
-    protocol: "greenways-personal-chain/1",
+    protocol: "greenways-personal-chain/0-alpha",
     chainId: "identity/alice",
     keyId: "sha256:alice-key",
     sequence: 1,
@@ -274,7 +274,7 @@ test("atomically replaces a migrated identity, inclusions, and signed outbox", a
     actionRoot: action.root,
     signature: "signed-inclusion",
   };
-  const entry = { protocol: "greenways-sync-entry/1", action, inclusion };
+  const entry = { protocol: "greenways-sync-entry/0-alpha", action, inclusion };
 
   await replacePersonalChainStores(tx, {
     identityRecord,
@@ -301,8 +301,8 @@ test("commits global and context envelopes, exact apps, and request acknowledgem
     ["apps:removed-app", { id: "removed-app" }],
     ["kernel:request:req-1", { id: "req-1", status: "prepared" }],
   ]));
-  const globalEnvelope = { protocol: "greenways-kernel-state/1", revision: 4, state: { apps: {} } };
-  const contextEnvelope = { protocol: "greenways-kernel-context/1", revision: 2, state: { surface: null } };
+  const globalEnvelope = { protocol: "greenways-kernel-state/0-alpha", revision: 4, state: { apps: {} } };
+  const contextEnvelope = { protocol: "greenways-kernel-context/0-alpha", revision: 2, state: { surface: null } };
   const apps = [{ id: "greenways-home" }, { id: "historia" }];
 
   await commitKernelStores(tx, {
@@ -334,15 +334,15 @@ test("commits an exact module snapshot in the same two-phase transaction", async
     ["kernel:request:req-module", { id: "req-module", status: "prepared" }],
   ]));
   const module = {
-    protocol: "greenways-module-record/1",
+    protocol: "greenways-module-record/0-alpha",
     id: "notes",
     lockDigest: `sha256:${"a".repeat(64)}`,
   };
   await commitKernelStores(tx, {
     requestId: "req-module",
     contextId: "launcher:modules",
-    globalEnvelope: { protocol: "greenways-kernel-global/1", revision: 1 },
-    contextEnvelope: { protocol: "greenways-kernel-context/1", revision: 1 },
+    globalEnvelope: { protocol: "greenways-kernel-global/0-alpha", revision: 1 },
+    contextEnvelope: { protocol: "greenways-kernel-context/0-alpha", revision: 1 },
     apps: [{ id: "greenways-home" }, { id: "notes" }],
     modules: [module],
   });
@@ -359,15 +359,15 @@ test("commits an exact capability grant snapshot in the same two-phase transacti
     ["kernel:request:req-grant", { id: "req-grant", status: "prepared" }],
   ]));
   const grant = {
-    protocol: "greenways-capability-grant/1",
+    protocol: "greenways-capability-grant/0-alpha",
     id: "grant/signing-room-0001",
     capability: "key/sign",
   };
   await commitKernelStores(tx, {
     requestId: "req-grant",
     contextId: "launcher:grants",
-    globalEnvelope: { protocol: "greenways-kernel-global/1", revision: 2 },
-    contextEnvelope: { protocol: "greenways-kernel-context/1", revision: 2 },
+    globalEnvelope: { protocol: "greenways-kernel-global/0-alpha", revision: 2 },
+    contextEnvelope: { protocol: "greenways-kernel-context/0-alpha", revision: 2 },
     apps: [{ id: "greenways-home" }],
     grants: [grant],
   });
@@ -399,7 +399,7 @@ test("rebinds packaged system manifests and their app projection atomically", as
     ["apps:greenways-home", { id: "greenways-home", version: "0.2.0" }],
   ]));
   const globalEnvelope = {
-    protocol: "greenways-kernel-global/1",
+    protocol: "greenways-kernel-global/0-alpha",
     revision: 3,
     installed: [{ id: "greenways-home", version: "0.3.0" }],
     receipts: [],

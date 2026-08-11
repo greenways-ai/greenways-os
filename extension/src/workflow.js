@@ -237,7 +237,7 @@ export function createPublicationCheckpoint(project, policyRoot) {
   }
   if (status.state !== "ready") throw new Error("Resolve the Release Steward attention items before publishing");
   return {
-    protocol: "greenways-release-checkpoint/1",
+    protocol: "greenways-release-checkpoint/0-alpha",
     id: randomId("checkpoint"),
     workloadId: project.id,
     workflowRoot: policyRoot,

@@ -7,8 +7,8 @@ import {
   validateBoundedPublicValue,
 } from "./protocol.js";
 
-export const MCP_AUTH_CONTEXT_PROTOCOL = "greenways-mcp-auth-context/1";
-export const MCP_TOOL_ERROR_PROTOCOL = "greenways-mcp-tool-error/1";
+export const MCP_AUTH_CONTEXT_PROTOCOL = "greenways-mcp-auth-context/0-alpha";
+export const MCP_TOOL_ERROR_PROTOCOL = "greenways-mcp-tool-error/0-alpha";
 export const MCP_READ_SCOPE = "greenways.read";
 
 const CONNECTION_ID = /^mcp\/connection\/[A-Za-z0-9._:-]{8,160}$/;

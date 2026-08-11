@@ -68,7 +68,7 @@ The authority and replay core is implemented in [`services/mcp-gateway`](../serv
 
 The core provides:
 
-- closed `greenways-mcp-connection/1`, `greenways-mcp-request/1`, and `greenways-mcp-result/1` records;
+- closed `greenways-mcp-connection/0-alpha`, `greenways-mcp-request/0-alpha`, and `greenways-mcp-result/0-alpha` records;
 - an exact per-connection read-tool allowlist with expiry and final revocation;
 - a second, independent Greenways authorization decision for every semantic read;
 - bounded and closed arguments for each of the nine read tools;
@@ -92,7 +92,7 @@ Each OAuth grant exposes only this application context:
 
 ```json
 {
-  "protocol": "greenways-mcp-auth-context/1",
+  "protocol": "greenways-mcp-auth-context/0-alpha",
   "connectionId": "mcp/connection/..."
 }
 ```
@@ -108,7 +108,7 @@ idempotent
 closed-world
 ```
 
-Tool input is validated by exact Zod schemas before semantic request validation. Errors are returned as stable `greenways-mcp-tool-error/1` values and never include provider, bearer, storage, or authority exception details. Browser CORS projection is disabled by default; deployment wrappers configure exact host and origin policy.
+Tool input is validated by exact Zod schemas before semantic request validation. Errors are returned as stable `greenways-mcp-tool-error/0-alpha` values and never include provider, bearer, storage, or authority exception details. Browser CORS projection is disabled by default; deployment wrappers configure exact host and origin policy.
 
 ## Implemented signed OAuth pairing
 
@@ -116,7 +116,7 @@ The authorization flow does not use a static gateway account or ask Greenways OS
 
 ### Challenge
 
-A GET to `/authorize` parses the server-side OAuth request, looks up the dynamically registered client, and creates a short-lived `greenways-mcp-pairing-challenge/1` containing:
+A GET to `/authorize` parses the server-side OAuth request, looks up the dynamically registered client, and creates a short-lived `greenways-mcp-pairing-challenge/0-alpha` containing:
 
 ```text
 challenge ID and nonce
@@ -132,7 +132,7 @@ The raw OAuth request, including OAuth state and PKCE material, remains server-s
 
 ### Local approval
 
-Greenways OS recomputes the complete challenge root before signing. It then creates a `greenways-mcp-pairing-assertion/1` containing the challenge ID/root, public Greenways identity card, reviewed browser-device identity, and bounded timestamps. The assertion is signed with the local non-extractable P-256 controller key.
+Greenways OS recomputes the complete challenge root before signing. It then creates a `greenways-mcp-pairing-assertion/0-alpha` containing the challenge ID/root, public Greenways identity card, reviewed browser-device identity, and bounded timestamps. The assertion is signed with the local non-extractable P-256 controller key.
 
 The gateway:
 
@@ -190,7 +190,7 @@ The gateway forwards a closed request envelope:
 
 ```json
 {
-  "protocol": "greenways-mcp-request/1",
+  "protocol": "greenways-mcp-request/0-alpha",
   "requestId": "mcp/request/…",
   "connectionId": "mcp/connection/…",
   "tool": "work.get",

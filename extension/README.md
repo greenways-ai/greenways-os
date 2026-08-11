@@ -50,7 +50,7 @@ Kernel DevTools attaches to the existing service-worker kernel. It does not embe
 
 ## Resident services
 
-A core service is a permanent authority boundary, not necessarily a permanent UI. The current `greenways-core-service/1` registry reserves ten non-removable services:
+A core service is a permanent authority boundary, not necessarily a permanent UI. The current `greenways-core-service/0-alpha` registry reserves ten non-removable services:
 
 ```text
 kernel · store · capabilities · identity · keyring
@@ -63,7 +63,7 @@ The service catalogue and closed capability vocabulary are defined in JavaScript
 
 ### Capability authority
 
-A package manifest declares broad installation requirements. Consequential operations such as `key/sign`, `credential/use`, and `model/generate` additionally require a durable `greenways-capability-grant/1` record bound to the exact app ID, version, publisher, and HAL lock digest.
+A package manifest declares broad installation requirements. Consequential operations such as `key/sign`, `credential/use`, and `model/generate` additionally require a durable `greenways-capability-grant/0-alpha` record bound to the exact app ID, version, publisher, and HAL lock digest.
 
 A stored grant is not sufficient by itself. The service worker verifies that the exact approval is still current. A HAL module must also have a matching durable module record and appear in the immutable runtime index created only after boot-time archive re-verification and successful namespace registration. A corrupt or unrestored module cannot recover authority through an old grant.
 
@@ -73,7 +73,7 @@ See [`../protocol/core-services.md`](../protocol/core-services.md).
 
 ## Module runtime
 
-`greenways-app/1` remains the exact runtime approval record. Digest-verified `.hal` packages are loaded through the locally shipped `hal-module` handler and rewritten into fresh app-owned namespace generations:
+`greenways-app/0-alpha` remains the exact runtime approval record. Digest-verified `.hal` packages are loaded through the locally shipped `hal-module` handler and rewritten into fresh app-owned namespace generations:
 
 ```text
 app.<id>.g<generation>.*
@@ -107,7 +107,7 @@ returns a response only after the user explicitly selects it. It does not embed
 a second Hara kernel or read ChatGPT cookies, access tokens, billing data, or
 private network responses.
 
-The provider uses a durable `greenways-model-session/1` state machine and the
+The provider uses a durable `greenways-model-session/0-alpha` state machine and the
 publisher-restricted `model/provide` capability. This authority is separate
 from both `model/generate` and the optional `chats/capture` archive. See
 [`../protocol/chatgpt-provider.md`](../protocol/chatgpt-provider.md).

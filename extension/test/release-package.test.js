@@ -31,9 +31,9 @@ test("packages a versioned, checksummed extension without development inputs", a
     assert.equal(metadata.version, "0.4.0");
     assert.equal(metadata.sha256, result.sha256);
     assert.deepEqual(metadata.compatibility, [
-      "greenways-playground-ai/1",
-      "greenways-chatgpt-provider/1",
-      "greenways-mcp-access/1",
+      "greenways-playground-ai/0-alpha",
+      "greenways-chatgpt-provider/0-alpha",
+      "greenways-mcp-access/0-alpha",
     ]);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });

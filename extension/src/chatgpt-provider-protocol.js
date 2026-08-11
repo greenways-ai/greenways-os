@@ -1,5 +1,5 @@
-export const CHATGPT_PROVIDER_PROTOCOL = "greenways-chatgpt-provider/1";
-export const CHATGPT_PROVIDER_SESSION_PROTOCOL = "greenways-model-session/1";
+export const CHATGPT_PROVIDER_PROTOCOL = "greenways-chatgpt-provider/0-alpha";
+export const CHATGPT_PROVIDER_SESSION_PROTOCOL = "greenways-model-session/0-alpha";
 export const CHATGPT_PROVIDER_MESSAGE_TYPE = "greenways/chatgpt-provider";
 export const CHATGPT_PROVIDER_APP_ID = "chatgpt-provider";
 export const CHATGPT_PROVIDER_CAPABILITY = "model/provide";

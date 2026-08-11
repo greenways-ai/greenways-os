@@ -12,7 +12,7 @@ The minimal server discovery and append contract is:
 
 ```text
 GET  /.well-known/hestia
-POST /greenways/v1/actions
+POST /greenways/0-alpha/actions
 ```
 
 Discovery identifies the Hestia instance, supported protocol versions, append
@@ -25,13 +25,13 @@ The browser outbox stores and sends entries in this shape:
 
 ```json
 {
-  "protocol": "greenways-sync-entry/1",
-  "action": { "protocol": "greenways-action/1", "root": "sha256:…", "signature": "…" },
-  "inclusion": { "protocol": "greenways-personal-chain/1", "actionRoot": "sha256:…", "eventHash": "sha256:…", "signature": "…" }
+  "protocol": "greenways-sync-entry/0-alpha",
+  "action": { "protocol": "greenways-action/0-alpha", "root": "sha256:…", "signature": "…" },
+  "inclusion": { "protocol": "greenways-personal-chain/0-alpha", "actionRoot": "sha256:…", "eventHash": "sha256:…", "signature": "…" }
 }
 ```
 
-The append body uses `greenways-sync/1` and an `entries` array. Greenways OS
+The append body uses `greenways-sync/0-alpha` and an `entries` array. Greenways OS
 removes a batch from the local outbox only when Hestia acknowledges the exact
 full count. Redirects are rejected so a scoped device token is never forwarded
 to another origin. Entries are sent in personal-chain order. A Hestia node must

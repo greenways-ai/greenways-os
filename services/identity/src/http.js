@@ -1,5 +1,5 @@
 const discovery = {
-  protocol: "greenways-identity-service/1",
+  protocol: "greenways-identity-service/0-alpha",
   identityEndpoint: "/v1/identities/{identity-id}",
   handleEndpoint: "/v1/handles/{handle}",
   claimEndpoint: "/v1/claims",

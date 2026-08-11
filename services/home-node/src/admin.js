@@ -1,10 +1,10 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { renderAdminPage } from "./admin-page.js";
 
-export const HOME_ADMIN_STATUS_PROTOCOL = "greenways-home-admin-status/1";
-export const HOME_ADMIN_PAIRING_PROTOCOL = "greenways-home-admin-pairing/1";
-export const HOME_ADMIN_REVOKED_PROTOCOL = "greenways-home-admin-revoked/1";
-export const HOME_ADMIN_ERROR_PROTOCOL = "greenways-home-admin-error/1";
+export const HOME_ADMIN_STATUS_PROTOCOL = "greenways-home-admin-status/0-alpha";
+export const HOME_ADMIN_PAIRING_PROTOCOL = "greenways-home-admin-pairing/0-alpha";
+export const HOME_ADMIN_REVOKED_PROTOCOL = "greenways-home-admin-revoked/0-alpha";
+export const HOME_ADMIN_ERROR_PROTOCOL = "greenways-home-admin-error/0-alpha";
 
 const ADMIN_SESSION_COOKIE = "gw_home_admin";
 const ADMIN_API_PREFIX = "/greenways/admin/v1/";

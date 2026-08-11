@@ -77,7 +77,7 @@
   (test/check "context restore rejects an orphan packaged surface"
               (let [restored
                     (kernel/app-restore
-                     {"protocol" "greenways-kernel-context/1"
+                     {"protocol" "greenways-kernel-context/0-alpha"
                       "apps" {"active" "hestia-connector"}
                       "surface" {"active" "hestia-connector"
                                  "payload" {"appId" "hestia-connector"}}

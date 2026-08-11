@@ -210,7 +210,7 @@ test("Hara exposes resident core services and owns capability grant transitions"
 
   const bootstrap = '(gw.os.kernel/dispatch "app/bootstrap" [])';
   const digest = `sha256:${"a".repeat(64)}`;
-  const moduleManifest = `{"protocol" "greenways-app/1"
+  const moduleManifest = `{"protocol" "greenways-app/0-alpha"
     "id" "signing-room"
     "version" "0.1.0"
     "publisher" {"id" "example" "name" "Example"}
@@ -224,7 +224,7 @@ test("Hara exposes resident core services and owns capability grant transitions"
     "lockDigest" "${digest}"
     "source" {"kind" "github" "owner" "example" "repo" "signing-room" "sha" "${"b".repeat(40)}"}}`;
   const installed = `(get (gw.os.kernel/dispatch "apps/install" [${bootstrap} ${moduleManifest}]) "state")`;
-  const grant = `{"protocol" "greenways-capability-grant/1"
+  const grant = `{"protocol" "greenways-capability-grant/0-alpha"
     "id" "grant/signing-room-0001"
     "subject" {"kind" "app" "appId" "signing-room" "version" "0.1.0" "publisherId" "example" "lockDigest" "${digest}"}
     "capability" "key/sign"

@@ -44,7 +44,7 @@ test("publishes the ordinary apps beside fixed Kernel DevTools", () => {
     "hara-playground",
   ]);
   assert.equal(BUILTIN_APPS, BUILTIN_APP_CATALOG);
-  assert.equal(APP_MANIFEST_PROTOCOL, "greenways-app/1");
+  assert.equal(APP_MANIFEST_PROTOCOL, "greenways-app/0-alpha");
   assert.deepEqual(SYSTEM_APP_IDS, ["greenways-worlds"]);
   assert.deepEqual(RUNTIME_HANDLERS, [
     "extension-page", "packaged-surface", "native-hybrid", "web-tab", "hal-module"
@@ -116,7 +116,7 @@ test("normalizes labels and freezes nested launch data", () => {
 
 test("requires a versioned protocol and attributable publisher", () => {
   assert.throws(
-    () => validateAppManifest(manifest({ protocol: "greenways-app/2" })),
+    () => validateAppManifest(manifest({ protocol: "greenways-app/0-alpha" })),
     /protocol must be greenways-app\/1/
   );
   assert.throws(

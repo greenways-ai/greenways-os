@@ -1,17 +1,17 @@
-export const SYNC_ENTRY_PROTOCOL = "greenways-sync-entry/1";
-export const SYNC_BATCH_PROTOCOL = "greenways-sync/1";
+export const SYNC_ENTRY_PROTOCOL = "greenways-sync-entry/0-alpha";
+export const SYNC_BATCH_PROTOCOL = "greenways-sync/0-alpha";
 const ZERO_HASH = `sha256:${"0".repeat(64)}`;
 
 export function createSyncEntry(action, inclusion) {
   if (!action || typeof action !== "object" || Array.isArray(action)
-    || action.protocol !== "greenways-action/1"
+    || action.protocol !== "greenways-action/0-alpha"
     || typeof action.id !== "string" || !action.id
     || typeof action.root !== "string" || !action.root
     || typeof action.signature !== "string" || !action.signature) {
     throw new Error("Hestia sync requires a signed Greenways action");
   }
   if (!inclusion || typeof inclusion !== "object" || Array.isArray(inclusion)
-    || inclusion.protocol !== "greenways-personal-chain/1"
+    || inclusion.protocol !== "greenways-personal-chain/0-alpha"
     || typeof inclusion.chainId !== "string" || !inclusion.chainId
     || typeof inclusion.keyId !== "string" || !inclusion.keyId
     || !Number.isSafeInteger(inclusion.sequence) || inclusion.sequence < 1

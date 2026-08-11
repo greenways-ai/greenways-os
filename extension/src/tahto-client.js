@@ -1,12 +1,12 @@
-export const TAHTO_NODE_PROTOCOL = "tahto.node/1";
-export const TAHTO_HEALTH_PROTOCOL = "tahto.health/1";
-export const TAHTO_STATUS_PROTOCOL = "tahto.status/1";
-export const TAHTO_LINK_PROTOCOL = "greenways-tahto-nodes/1";
+export const TAHTO_NODE_PROTOCOL = "tahto.node/0-alpha";
+export const TAHTO_HEALTH_PROTOCOL = "tahto.health/0-alpha";
+export const TAHTO_STATUS_PROTOCOL = "tahto.status/0-alpha";
+export const TAHTO_LINK_PROTOCOL = "greenways-tahto-nodes/0-alpha";
 export const TAHTO_SETTINGS_KEY = "tahto-nodes";
-export const TAHTO_PAIRING_PREPARE_PROTOCOL = "tahto.pairing-prepare/1";
-export const TAHTO_PAIRING_COMPLETE_PROTOCOL = "tahto.pairing-complete/1";
-export const TAHTO_PAIRING_INTENT_PROTOCOL = "tahto.pairing-intent/1";
-export const TAHTO_PAIRING_PREPARE_RESULT_PROTOCOL = "tahto.pairing-prepare-result/1";
+export const TAHTO_PAIRING_PREPARE_PROTOCOL = "tahto.pairing-prepare/0-alpha";
+export const TAHTO_PAIRING_COMPLETE_PROTOCOL = "tahto.pairing-complete/0-alpha";
+export const TAHTO_PAIRING_INTENT_PROTOCOL = "tahto.pairing-intent/0-alpha";
+export const TAHTO_PAIRING_PREPARE_RESULT_PROTOCOL = "tahto.pairing-prepare-result/0-alpha";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const IDENTIFIER = /^[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
@@ -141,7 +141,7 @@ function normalizePairingResult(value) {
   assertKeys(input, new Set(["protocol", "node", "device", "administrator", "grants"]), "Tahto pairing result");
   if (!Array.isArray(input.grants) || input.grants.length !== 0) throw new Error("Tahto pairing must not mint grants");
   return Object.freeze({
-    protocol: exact(input.protocol, "tahto.pairing-result/1", "Tahto pairing result.protocol"),
+    protocol: exact(input.protocol, "tahto.pairing-result/0-alpha", "Tahto pairing result.protocol"),
     node: identifier(input.node, "Tahto pairing result.node"),
     device: identifier(input.device, "Tahto pairing result.device"),
     administrator: exact(input.administrator, false, "Tahto pairing result.administrator"),
@@ -183,7 +183,7 @@ function normalizeSemanticResult(value, operation) {
   assertNoExecutableFields(input, "Tahto semantic result");
   assertKeys(input, new Set(["protocol", "operation", "status", "value", "plan", "receipt", "error"]), "Tahto semantic result");
   const output = {
-    protocol: exact(input.protocol, "tahto.semantic-result/1", "Tahto semantic result.protocol"),
+    protocol: exact(input.protocol, "tahto.semantic-result/0-alpha", "Tahto semantic result.protocol"),
     operation: exact(input.operation, operation, "Tahto semantic result.operation"),
     status: requiredString(input.status, "Tahto semantic result.status", 40),
   };
@@ -285,14 +285,14 @@ export function normalizeTahtoDescriptor(value) {
     boundaries: Object.freeze({ ...boundaries }),
     routes: Object.freeze({
       discovery: exact(routes.discovery, "/.well-known/tahto", "Tahto routes.discovery"),
-      health: exact(routes.health, "/tahto/v1/health", "Tahto routes.health"),
-      status: exact(routes.status, "/tahto/v1/status", "Tahto routes.status"),
+      health: exact(routes.health, "/tahto/0-alpha/health", "Tahto routes.health"),
+      status: exact(routes.status, "/tahto/0-alpha/status", "Tahto routes.status"),
       ...(routes.diagnostics ? {
-        diagnostics: exact(routes.diagnostics, "/tahto/v1/diagnostics", "Tahto routes.diagnostics"),
+        diagnostics: exact(routes.diagnostics, "/tahto/0-alpha/diagnostics", "Tahto routes.diagnostics"),
       } : {}),
       ...(routes.pairingPrepare ? {
-        pairingPrepare: exact(routes.pairingPrepare, "/tahto/v1/pairing/prepare", "Tahto routes.pairingPrepare"),
-        pairingComplete: exact(routes.pairingComplete, "/tahto/v1/pairing/complete", "Tahto routes.pairingComplete"),
+        pairingPrepare: exact(routes.pairingPrepare, "/tahto/0-alpha/pairing/prepare", "Tahto routes.pairingPrepare"),
+        pairingComplete: exact(routes.pairingComplete, "/tahto/0-alpha/pairing/complete", "Tahto routes.pairingComplete"),
       } : {}),
     }),
     components: Object.freeze(normalizedComponents),
@@ -331,7 +331,7 @@ export function normalizeTahtoDiagnostics(value) {
     normalizedCounts[key] = count;
   }
   return Object.freeze({
-    protocol: exact(input.protocol, "tahto.diagnostics/1", "Tahto diagnostics.protocol"),
+    protocol: exact(input.protocol, "tahto.diagnostics/0-alpha", "Tahto diagnostics.protocol"),
     checkedAt: timestamp(input.checkedAt, "Tahto diagnostics.checkedAt"),
     state: identifier(input.state, "Tahto diagnostics.state"),
     checks: Object.freeze({
@@ -394,11 +394,11 @@ export class TahtoClient {
   }
 
   health() {
-    return this.get("/tahto/v1/health", "Tahto health", normalizeTahtoHealth);
+    return this.get("/tahto/0-alpha/health", "Tahto health", normalizeTahtoHealth);
   }
 
   status() {
-    return this.get("/tahto/v1/status", "Tahto status", normalizeTahtoStatus);
+    return this.get("/tahto/0-alpha/status", "Tahto status", normalizeTahtoStatus);
   }
 
   async inspect() {
@@ -417,7 +417,7 @@ export class TahtoClient {
       payload: {},
     }, options);
     return this.postEnvelope(
-      "/tahto/v1/diagnostics",
+      "/tahto/0-alpha/diagnostics",
       "x-tahto-request",
       signed,
       "Tahto diagnostics",
@@ -446,7 +446,7 @@ export class TahtoClient {
     const device = `device.${key.keyId.slice(7, 31)}`;
     const preparedAt = new Date().toISOString();
     const prepared = await this.postEnvelope(
-      "/tahto/v1/pairing/prepare",
+      "/tahto/0-alpha/pairing/prepare",
       "x-tahto-pairing",
       {
         protocol: TAHTO_PAIRING_PREPARE_PROTOCOL,
@@ -466,7 +466,7 @@ export class TahtoClient {
     }
     const signature = await this.keyring.signPairingIntent(this.origin, prepared.intent, prepared.intentDigest);
     const result = await this.postEnvelope(
-      "/tahto/v1/pairing/complete",
+      "/tahto/0-alpha/pairing/complete",
       "x-tahto-pairing",
       {
         protocol: TAHTO_PAIRING_COMPLETE_PROTOCOL,
@@ -496,7 +496,7 @@ export class TahtoClient {
       payload,
     }, options);
     return this.postEnvelope(
-      `/tahto/v1/semantic/${operation.slice("semantic.".length)}`,
+      `/tahto/0-alpha/semantic/${operation.slice("semantic.".length)}`,
       "x-tahto-request",
       signed,
       `Tahto ${operation}`,

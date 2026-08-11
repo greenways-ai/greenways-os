@@ -3,7 +3,7 @@ import {
 } from "./chatgpt-provider-protocol.js";
 
 export const CHATGPT_AI_PROFILE = Object.freeze({
-  protocol: "greenways-provider-profile/1",
+  protocol: "greenways-provider-profile/0-alpha",
   id: CHATGPT_PROVIDER_ID,
   provider: CHATGPT_PROVIDER_ID,
   label: "ChatGPT Web — foreground",
@@ -65,7 +65,7 @@ export function formatChatgptPrompt(messages) {
 function aiResult(session) {
   const request = session.request ?? {};
   return Object.freeze({
-    protocol: "greenways-ai/1",
+    protocol: "greenways-ai/0-alpha",
     requestId: request.requestId,
     provider: CHATGPT_PROVIDER_ID,
     profileId: CHATGPT_PROVIDER_ID,

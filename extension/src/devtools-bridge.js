@@ -1,4 +1,4 @@
-export const DEVTOOLS_BRIDGE_PROTOCOL = "greenways-devtools-bridge/1";
+export const DEVTOOLS_BRIDGE_PROTOCOL = "greenways-devtools-bridge/0-alpha";
 export const DEVTOOLS_NATIVE_HOST = "ai.greenways.devtools";
 export const DEVTOOLS_DEFAULT_PORT = 46379;
 

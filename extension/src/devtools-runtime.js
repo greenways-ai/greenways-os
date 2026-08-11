@@ -86,7 +86,7 @@ export function createDevtoolsRuntime({ runtime, modules, invoke }) {
     async call(method, args = []) {
       if (method === "devtools/status") {
         return Object.freeze({
-          protocol: "greenways-devtools/1",
+          protocol: "greenways-devtools/0-alpha",
           currentNamespace: runtime.currentNamespace(),
           modules: Object.freeze(modules.list().map(publicModule)),
         });

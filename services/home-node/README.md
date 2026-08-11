@@ -1,6 +1,6 @@
 # Greenways Home Node development service
 
-This service is the runnable reference for the `greenways-home/1` browser-link
+This service is the runnable reference for the `greenways-home/0-alpha` browser-link
 protocol. It demonstrates a durable node identity and browser-grant boundary
 before the wider Hestia service host, administration, and deployment system is
 added.

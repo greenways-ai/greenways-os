@@ -22,7 +22,7 @@ function repository(global) {
 test("requires the current installed Playground approval and active grant", async () => {
   const authority = new PlaygroundAiAuthority({
     repository: repository({
-      protocol: "greenways-kernel-global/1",
+      protocol: "greenways-kernel-global/0-alpha",
       installed: [manifest],
       grants: [grant],
     }),
@@ -41,7 +41,7 @@ test("fails closed for absent, stale, or ungranted app approval", async () => {
 
   const stale = new PlaygroundAiAuthority({
     repository: repository({
-      protocol: "greenways-kernel-global/1",
+      protocol: "greenways-kernel-global/0-alpha",
       installed: [{ ...manifest, version: "0.1.0" }],
       grants: [],
     }),
@@ -51,7 +51,7 @@ test("fails closed for absent, stale, or ungranted app approval", async () => {
 
   const ungranted = new PlaygroundAiAuthority({
     repository: repository({
-      protocol: "greenways-kernel-global/1",
+      protocol: "greenways-kernel-global/0-alpha",
       installed: [manifest],
       grants: [],
     }),

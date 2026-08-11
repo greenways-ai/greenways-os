@@ -2,7 +2,7 @@ import { canonical, normalizeHandle, sha256, verifyAction } from "../../../exten
 
 function publicResolution(identity) {
   return {
-    protocol: "greenways-identity-resolution/1",
+    protocol: "greenways-identity-resolution/0-alpha",
     identityId: identity.identityId,
     handle: identity.handle,
     currentKey: { keyId: identity.keyId, publicKey: identity.publicKey },
@@ -45,7 +45,7 @@ export class IdentityRegistry {
     const handle = normalizeHandle(rawHandle);
     const identities = [...(this.#handles.get(handle) ?? [])];
     const candidates = await Promise.all(identities.map((id) => this.resolveIdentity(id)));
-    const body = { protocol: "greenways-handle-resolution/1", handle, candidates };
+    const body = { protocol: "greenways-handle-resolution/0-alpha", handle, candidates };
     return { ...body, resolutionRoot: await sha256(canonical(body)) };
   }
 }

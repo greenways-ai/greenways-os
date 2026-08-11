@@ -12,7 +12,7 @@ const now = () => new Date("2026-08-11T06:10:00.000Z");
 
 async function challenge() {
   const body = {
-    protocol: "greenways-mcp-pairing-challenge/1",
+    protocol: "greenways-mcp-pairing-challenge/0-alpha",
     id: "mcp/challenge/runtime-example-0001",
     client: { id: "chatgpt.greenways", name: "ChatGPT", uri: "https://chatgpt.com/" },
     scopes: ["greenways.read"],
@@ -61,7 +61,7 @@ test("registers only the reviewed authorization adapter and signs after explicit
       },
       async signMcpPairingChallenge(value, options) {
         signingCalls.push({ value, options });
-        return { protocol: "greenways-mcp-pairing-assertion/1", challengeId: value.id };
+        return { protocol: "greenways-mcp-pairing-assertion/0-alpha", challengeId: value.id };
       },
     },
     assertAuthority: async () => { authorityChecks += 1; },

@@ -9,8 +9,8 @@ import {
 } from "./app-launch.js";
 import { moduleRecordApproval } from "./module-record.js";
 
-export const CAPABILITY_AUTHORITY_PROTOCOL = "greenways-capability-authority/1";
-export const CAPABILITY_DECISION_PROTOCOL = "greenways-capability-decision/1";
+export const CAPABILITY_AUTHORITY_PROTOCOL = "greenways-capability-authority/0-alpha";
+export const CAPABILITY_DECISION_PROTOCOL = "greenways-capability-decision/0-alpha";
 
 const APP_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SHA256 = /^sha256:[a-f0-9]{64}$/;

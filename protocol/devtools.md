@@ -1,9 +1,9 @@
 # Greenways Kernel DevTools protocol
 
 Status: root-OS draft
-Root app protocol: `greenways-root-app/1`
-DevTools protocol: `greenways-devtools/1`
-Bridge protocol: `greenways-devtools-bridge/1`
+Root app protocol: `greenways-root-app/0-alpha`
+DevTools protocol: `greenways-devtools/0-alpha`
+Bridge protocol: `greenways-devtools-bridge/0-alpha`
 
 ## Purpose
 

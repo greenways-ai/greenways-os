@@ -1,4 +1,4 @@
-export const ROOT_APP_PROTOCOL = "greenways-root-app/1";
+export const ROOT_APP_PROTOCOL = "greenways-root-app/0-alpha";
 
 const ROOT_APP_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SAFE_PATH = /^[a-zA-Z0-9._/-]+\.html(?:#[a-zA-Z0-9._-]+)?$/;

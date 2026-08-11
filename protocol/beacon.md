@@ -72,7 +72,7 @@ GET /beacon/v1/health
 GET /beacon/v1/status
 ```
 
-The descriptor uses `greenways-beacon/1` and names the fixed Space relationship. It is public local metadata and contains no device key, bearer token, browser history or application state.
+The descriptor uses `greenways-beacon/0-alpha` and names the fixed Space relationship. It is public local metadata and contains no device key, bearer token, browser history or application state.
 
 Hoplite also renders one immutable Nginx prefix:
 
@@ -98,17 +98,17 @@ Through the local gateway this becomes:
 GET http://127.0.0.1:58100/space/discovery.json
 ```
 
-The `greenways-space/1` record identifies Space and lists service descriptors for Hestia, Ignatius and later modules. Descriptors are inert data. They may include service IDs, protocol versions, capability names and status; they cannot contain JavaScript, Wasm, HAL, HTML, extension entrypoints or another executable payload.
+The `greenways-space/0-alpha` record identifies Space and lists service descriptors for Hestia, Ignatius and later modules. Descriptors are inert data. They may include service IDs, protocol versions, capability names and status; they cannot contain JavaScript, Wasm, HAL, HTML, extension entrypoints or another executable payload.
 
 A production Space catalogue will be signed by the Space identity and bound to an expiry/revision. Beacon and Greenways OS must reject a changed signing identity unless the user deliberately trusts the replacement.
 
 ## Browser-device migration
 
-The legacy `greenways-home/1` prototype has a useful per-browser P-256 pairing model, but it also created a parallel Node-owned authority and service registry. Migration proceeds in stages:
+The legacy `greenways-home/0-alpha` prototype has a useful per-browser P-256 pairing model, but it also created a parallel Node-owned authority and service registry. Migration proceeds in stages:
 
 1. Ship Beacon as the new Hoplite edge and product identity.
 2. Keep the old Home Link implementation available only for existing paired browsers.
-3. Define `greenways-beacon-device/1` using browser-held non-extractable keys and Hoplite-owned application authentication/store adapters.
+3. Define `greenways-beacon-device/0-alpha` using browser-held non-extractable keys and Hoplite-owned application authentication/store adapters.
 4. Let a user explicitly bind or re-enrol each browser with Beacon.
 5. Remove the Node HTTP service after exports, revocation and recovery have conformance coverage.
 

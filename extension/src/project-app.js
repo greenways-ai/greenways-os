@@ -105,7 +105,7 @@ export function applicationDescriptorFromProject(value) {
   const application = object(project["project/application"], ":project/application");
   closedKeys(application, APPLICATION_KEYS, ":project/application");
   return Object.freeze({
-    protocol: "greenways-app/1",
+    protocol: "greenways-app/0-alpha",
     id,
     version,
     publisher: Object.freeze({

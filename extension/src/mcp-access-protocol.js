@@ -1,6 +1,6 @@
 import { canonical, sha256 } from "./protocol.js";
 
-export const MCP_ACCESS_PROTOCOL = "greenways-mcp-access/1";
+export const MCP_ACCESS_PROTOCOL = "greenways-mcp-access/0-alpha";
 export const MCP_ACCESS_MESSAGE_TYPE = "greenways/mcp-authorization";
 export const MCP_ACCESS_APP_ID = "mcp-access";
 export const MCP_ACCESS_CAPABILITY = "mcp/pair";
@@ -10,8 +10,8 @@ export const MCP_ACCESS_SCRIPT_ID = "greenways-mcp-authorization";
 export const MCP_ACCESS_SCRIPT = "dist/mcp-authorization-bridge.js";
 export const MCP_ACCESS_PATH = "/authorize";
 
-export const MCP_PAIRING_CHALLENGE_PROTOCOL = "greenways-mcp-pairing-challenge/1";
-export const MCP_PAIRING_ASSERTION_PROTOCOL = "greenways-mcp-pairing-assertion/1";
+export const MCP_PAIRING_CHALLENGE_PROTOCOL = "greenways-mcp-pairing-challenge/0-alpha";
+export const MCP_PAIRING_ASSERTION_PROTOCOL = "greenways-mcp-pairing-assertion/0-alpha";
 export const MCP_PAIRING_ALGORITHM = "ECDSA-P256-SHA256";
 export const MCP_PAIRING_SCOPE = "greenways.read";
 

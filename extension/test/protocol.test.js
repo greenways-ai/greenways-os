@@ -100,9 +100,9 @@ test("evidence bundle verifies actions and personal inclusion", async () => {
     actor: identity,
     subject: identity.identityId,
     payload: {
-      protocol: "greenways-personal-chain-migration/1",
-      fromProtocol: "greenways-personal-chain/1-unsigned",
-      toProtocol: "greenways-personal-chain/1",
+      protocol: "greenways-personal-chain-migration/0-alpha",
+      fromProtocol: "greenways-personal-chain/0-alpha-unsigned",
+      toProtocol: "greenways-personal-chain/0-alpha",
       legacyHead: legacyHash,
       signedHead: inclusion.eventHash,
       mappings: [{
@@ -200,7 +200,7 @@ test("room furnishings are signed, portable, and tamper evident", async () => {
 
 test("a public friend credential binds its identity to its key ID", async () => {
   const { identity } = await createIdentity("friend");
-  const credential = { protocol: "greenways-public-credential/1", identity };
+  const credential = { protocol: "greenways-public-credential/0-alpha", identity };
   assert.equal(await verifyPublicCredential(credential), true);
   assert.equal(await verifyPublicCredential({ ...credential, identity: { ...identity, handle: "renamed" } }), true);
   assert.equal(await verifyPublicCredential({ ...credential, identity: { ...identity, keyId: "sha256:wrong" } }), false);

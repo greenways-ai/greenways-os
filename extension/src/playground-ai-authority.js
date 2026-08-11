@@ -5,8 +5,8 @@ import { store } from "./storage.js";
 import { MODEL_GENERATE_CAPABILITY } from "./ai-service.js";
 import { PLAYGROUND_APP_ID } from "./playground-ai-protocol.js";
 
-export const PLAYGROUND_CAPABILITY_STATUS_PROTOCOL = "greenways-playground-capability-status/1";
-const KERNEL_GLOBAL_PROTOCOL = "greenways-kernel-global/1";
+export const PLAYGROUND_CAPABILITY_STATUS_PROTOCOL = "greenways-playground-capability-status/0-alpha";
+const KERNEL_GLOBAL_PROTOCOL = "greenways-kernel-global/0-alpha";
 
 function frozenStatus({ installed, eligible, grant, reason }) {
   return Object.freeze({

@@ -13,7 +13,7 @@ import {
 } from "./mcp-access-protocol.js";
 import { store, withOriginLock } from "./storage.js";
 
-export const KEYRING_PROTOCOL = "greenways-keyring/1";
+export const KEYRING_PROTOCOL = "greenways-keyring/0-alpha";
 export const KEYRING_SESSION_STORAGE_KEY = "greenways-keyring/provider-profiles";
 const KEYRING_LOCK = "keyring";
 

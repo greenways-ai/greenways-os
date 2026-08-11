@@ -1,7 +1,7 @@
 # Greenways Keyring protocol
 
 Status: first local product slice  
-Protocol: `greenways-keyring/1`
+Protocol: `greenways-keyring/0-alpha`
 
 ## Purpose
 
@@ -43,7 +43,7 @@ A provider profile is a session-scoped credential for a model provider.
 
 ```json
 {
-  "protocol": "greenways-keyring/1",
+  "protocol": "greenways-keyring/0-alpha",
   "id": "openrouter.personal.ab12cd34",
   "provider": "openrouter",
   "label": "Personal coding",
@@ -62,14 +62,14 @@ Each approved Tahto origin has a distinct non-extractable P-256 device key in
 the durable identity store. Pairing is a two-phase ceremony:
 
 1. Greenways OS sends the one-time invitation, proposed device ID and public
-   key to `/tahto/v1/pairing/prepare`.
-2. Tahto persists and returns the exact closed `tahto.pairing-intent/1` plus
+   key to `/tahto/0-alpha/pairing/prepare`.
+2. Tahto persists and returns the exact closed `tahto.pairing-intent/0-alpha` plus
    its canonical SHA-256 digest.
 3. The keyring verifies that the intent binds the proposed origin-specific
    key, device and digest, then signs
-   `tahto.pairing-intent/1\n<digest>` using the same private key.
+   `tahto.pairing-intent/0-alpha\n<digest>` using the same private key.
 4. Greenways OS sends the unchanged intent and signature to
-   `/tahto/v1/pairing/complete`, and binds the returned node/device identity
+   `/tahto/0-alpha/pairing/complete`, and binds the returned node/device identity
    only after successful completion.
 
 The invitation token is never stored by Greenways OS. Tahto receives no private
@@ -82,7 +82,7 @@ prepare and complete retries are safe after a lost response.
 
 ```json
 {
-  "protocol": "greenways-keyring/1",
+  "protocol": "greenways-keyring/0-alpha",
   "controller": {
     "identityId": "identity/...",
     "handle": "river.studio",
@@ -92,7 +92,7 @@ prepare and complete retries are safe after a lost response.
   },
   "providerProfiles": [
     {
-      "protocol": "greenways-keyring/1",
+      "protocol": "greenways-keyring/0-alpha",
       "id": "openrouter.personal.ab12cd34",
       "provider": "openrouter",
       "label": "Personal coding",
