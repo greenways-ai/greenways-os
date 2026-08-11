@@ -131,10 +131,12 @@ function decision(disposition, record) {
 }
 
 export class MemoryMcpRequestStore {
-  constructor(records = []) {
+  constructor(records = [], { now = () => new Date() } = {}) {
     if (!Array.isArray(records)) throw new TypeError("MCP request store records must be an array");
+    if (typeof now !== "function") throw new TypeError("MCP request store requires a clock");
     this.records = new Map();
     this.waiters = new Map();
+    this.now = now;
     for (const recordValue of records) {
       const record = normalizeStored(recordValue);
       if (this.records.has(record.requestId)) {
@@ -142,6 +144,14 @@ export class MemoryMcpRequestStore {
       }
       this.records.set(record.requestId, clone(record, "MCP request store record"));
     }
+  }
+
+  currentTime() {
+    const value = this.now();
+    if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
+      fail("request-store-invalid", "MCP request store clock is invalid");
+    }
+    return value.getTime();
   }
 
   notify(id) {
@@ -158,6 +168,7 @@ export class MemoryMcpRequestStore {
 
   async claim(value) {
     const proposed = normalizeMcpRequestClaim(value);
+    const currentTime = this.currentTime();
     const current = this.records.get(proposed.requestId);
     if (current) {
       if (current.digest !== proposed.digest) {
@@ -166,7 +177,7 @@ export class MemoryMcpRequestStore {
       if (current.protocol === MCP_REQUEST_RECORD_PROTOCOL) {
         return decision("completed", current);
       }
-      if (Date.parse(current.expiresAt) > Date.parse(proposed.claimedAt)) {
+      if (Date.parse(current.expiresAt) > currentTime) {
         return decision("pending", current);
       }
     }
