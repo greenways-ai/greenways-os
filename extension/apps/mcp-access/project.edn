@@ -1,0 +1,21 @@
+{:hara/type :project
+ :hara/version "1.0.0"
+ :project/id greenways-ai/mcp-access
+ :project/version "0.1.0"
+ :project/source-paths ["src"]
+ :project/test-paths ["test"]
+ :project/extension-paths []
+ :project/dependencies {}
+ :project/capabilities
+ #{:hara/module
+   :mcp/pair}
+ :project/main mcp-access.app/main
+ :project/application
+ {:application/publisher-name "Greenways AI"
+  :application/name "Greenways MCP Access"
+  :application/description
+  "Approve one exact remote MCP read connection without exporting the local controller key."
+  :application/category :installable
+  :application/launch
+  {:launch/handler :packaged-surface
+   :launch/surface-id :mcp-access}}}
