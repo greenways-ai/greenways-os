@@ -15,6 +15,7 @@ import { store, withOriginLock } from "./storage.js";
 import { SurfaceHost } from "./surface-host.js";
 import { createUserscriptsSurface } from "./userscripts-surface.js";
 import { createChatsSurface } from "./chats-surface.js";
+import { createChatgptProviderSurface } from "./chatgpt-provider-surface.js";
 import { EffectRuntime } from "./world-session.js";
 import { GreenwaysKeyring } from "./keyring.js";
 import { openKeyringSurface } from "./keyring-surface.js";
@@ -49,6 +50,7 @@ function appGlyph(manifest) {
   const glyphs = {
     "greenways-worlds": "◎",
     chats: "≡",
+    "chatgpt-provider": "✦",
     userscripts: "⌁",
   };
   return glyphs[manifest.id] || manifest.name.slice(0, 1).toUpperCase();
@@ -449,6 +451,7 @@ async function start() {
     onRequestClose: () => session?.dispatch("surface/close").catch((error) => setStatus(error?.message || "The interface could not close.", "error")),
   });
   surfaceHost.register("chats", createChatsSurface);
+  surfaceHost.register("chatgpt-provider", createChatgptProviderSurface);
   surfaceHost.register("userscripts", createUserscriptsSurface);
   session = new KernelClient({ clientKind: "launcher", effects });
   session.subscribe((haraState) => {

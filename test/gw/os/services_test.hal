@@ -29,4 +29,13 @@
      ["hestia/propose" "hestia/approve" "hestia/execute"]))
    [["work" "high" true]
     ["work" "critical" true]
-    ["work" "critical" true]])])
+    ["work" "critical" true]])
+
+  (test/check
+   "foreground model provision remains a reviewed surface capability"
+   (let [definition (services/capability-definition "model/provide")]
+     [(get definition "service")
+      (get definition "risk")
+      (get definition "grantable")
+      (get definition "trustedPublishers")])
+   ["surfaces" "critical" true ["greenways-ai"]])])

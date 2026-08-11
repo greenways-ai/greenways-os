@@ -98,6 +98,20 @@ A future System Keychain application can add a replaceable native credential pro
 
 See [`../protocol/keyring.md`](../protocol/keyring.md).
 
+## Greenways for ChatGPT
+
+The installable **Greenways for ChatGPT** app turns the visible ChatGPT web
+application into a foreground, user-mediated model provider. The reviewed page
+adapter can place a prompt only after a user click, never presses Send, and
+returns a response only after the user explicitly selects it. It does not embed
+a second Hara kernel or read ChatGPT cookies, access tokens, billing data, or
+private network responses.
+
+The provider uses a durable `greenways-model-session/1` state machine and the
+publisher-restricted `model/provide` capability. This authority is separate
+from both `model/generate` and the optional `chats/capture` archive. See
+[`../protocol/chatgpt-provider.md`](../protocol/chatgpt-provider.md).
+
 ## RESP bridge
 
 Chrome extension pages do not own raw listening sockets. The optional TCP listener is supplied by `services/devtools-node` through Chrome Native Messaging.
@@ -127,12 +141,16 @@ The required extension permissions are:
 
 ```text
 sidePanel
+alarms
 storage
 nativeMessaging
+scripting
 userScripts
 ```
 
 `nativeMessaging` allows the reviewed DevTools page to connect to the separately installed `ai.greenways.devtools` companion. It does not allow an extension page to execute arbitrary native commands.
+
+`scripting` allows the reviewed Chats and ChatGPT Provider applications to register their fixed bundled page adapters after the user approves the exact site origin. It does not allow an installed package to provide JavaScript or register another content script.
 
 `userScripts` allows the bundled Userscripts app to register user-authored scripts with Chrome's `chrome.userScripts` API. Scripts run in the isolated `USER_SCRIPT` world on their declared match patterns. Chrome additionally requires its own developer-mode **Allow User Scripts** toggle for this extension before any registration takes effect, and every management operation requires an active `userscripts/manage` capability grant bound to the exact installed app approval. Script source is entered locally and is never fetched from a remote origin; durable records stay in the profile's IndexedDB store and Chrome registration is a rebuildable projection of them. This permission raises the minimum Chrome version to 120.
 

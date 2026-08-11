@@ -1,6 +1,7 @@
 import { APP_CAPABILITIES } from "./core-services.js";
 import { applicationDescriptorWithDigest } from "./project-app.js";
 import chatsProject from "../apps/chats/project.edn";
+import chatgptProviderProject from "../apps/chatgpt-provider/project.edn";
 import userscriptsProject from "../apps/userscripts/project.edn";
 
 const IDENTIFIER = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -23,6 +24,7 @@ export const RUNTIME_HANDLERS = Object.freeze([
 
 export const PACKAGED_SURFACE_IDS = Object.freeze([
   "chats",
+  "chatgpt-provider",
   "userscripts",
 ]);
 
@@ -52,6 +54,15 @@ const PACKAGED_SURFACE_BINDINGS = Object.freeze({
     capabilities: Object.freeze([
       "chats/capture",
       "storage/local",
+    ]),
+  }),
+  "chatgpt-provider": Object.freeze({
+    appId: "chatgpt-provider",
+    publisherId: "greenways-ai",
+    capabilities: Object.freeze([
+      "model/provide",
+      "storage/local",
+      "tabs/open",
     ]),
   }),
   userscripts: Object.freeze({
@@ -460,11 +471,13 @@ export function getBuiltinAppCatalog() {
   if (!builtinAppCatalogPromise) {
     builtinAppCatalogPromise = Promise.all([
       applicationDescriptorWithDigest(chatsProject),
+      applicationDescriptorWithDigest(chatgptProviderProject),
       applicationDescriptorWithDigest(userscriptsProject),
-    ]).then(([chats, userscripts]) => {
+    ]).then(([chats, chatgptProvider, userscripts]) => {
       builtinAppCatalog = validateAppCatalog([
         STATIC_BUILTIN_DESCRIPTORS[0],
         chats,
+        chatgptProvider,
         userscripts,
         STATIC_BUILTIN_DESCRIPTORS[1],
       ]);

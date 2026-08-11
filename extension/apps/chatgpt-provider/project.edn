@@ -1,0 +1,23 @@
+{:hara/type :project
+ :hara/version "1.0.0"
+ :project/id greenways-ai/chatgpt-provider
+ :project/version "0.1.0"
+ :project/source-paths ["src"]
+ :project/test-paths ["test"]
+ :project/extension-paths []
+ :project/dependencies {}
+ :project/capabilities
+ #{:hara/module
+   :storage/local
+   :model/provide
+   :tabs/open}
+ :project/main chatgpt-provider.app/main
+ :project/application
+ {:application/publisher-name "Greenways AI"
+  :application/name "Greenways for ChatGPT"
+  :application/description
+  "Use the visible ChatGPT web application as a foreground, user-mediated Greenways model provider."
+  :application/category :installable
+  :application/launch
+  {:launch/handler :packaged-surface
+   :launch/surface-id :chatgpt-provider}}}

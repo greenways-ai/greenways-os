@@ -14,6 +14,10 @@ import {
 import { moduleStore, store } from "./storage.js";
 import { createUserscriptsRuntime } from "./userscripts-runtime.js";
 import { createChatsRuntime } from "./chats-runtime.js";
+import {
+  CHATGPT_PROVIDER_MESSAGE_TYPE,
+  createChatgptProviderRuntime,
+} from "./chatgpt-provider-runtime.js";
 import { TAHTO_MONITOR_ALARM, createTahtoMonitor } from "./tahto-monitor.js";
 import { TahtoKeyring } from "./tahto-keyring.js";
 import { createAppWindowCoordinator } from "./app-window.js";
@@ -195,6 +199,12 @@ export function createKernelHost({
         scripting,
         assertAuthority: () => host.assertChatsAuthority(),
       });
+      const chatgptProvider = createChatgptProviderRuntime({
+        runtime,
+        scripting,
+        tabs,
+        assertAuthority: () => host.assertChatgptProviderAuthority(),
+      });
       host = new BrowserKernelHost({
         invoke,
         runtime,
@@ -203,6 +213,7 @@ export function createKernelHost({
         devtools,
         userscripts,
         chats,
+        chatgptProvider,
         applicationServices,
         builtinApps,
       });
@@ -299,12 +310,21 @@ export function createMessageHandler({
     const bridgeRequest = DEVTOOLS_BRIDGE_TYPES.has(message?.type);
     const rootNavigation = message?.type === ROOT_APP_MESSAGE_TYPE;
     const chatObservation = message?.type === CHATS_CAPTURE_MESSAGE_TYPE;
+    const chatgptProviderMessage = message?.type === CHATGPT_PROVIDER_MESSAGE_TYPE;
     const legacyNavigation = LEGACY_APP_PATHS.has(message?.type) || message?.type === "greenways/open-app";
-    if (!kernel && !bridgeRequest && !rootNavigation && !legacyNavigation && !chatObservation) return false;
+    if (!kernel
+        && !bridgeRequest
+        && !rootNavigation
+        && !legacyNavigation
+        && !chatObservation
+        && !chatgptProviderMessage) return false;
 
     Promise.resolve()
       .then(async () => {
         await getBuiltinAppCatalog();
+        if (chatgptProviderMessage) {
+          return (await getKernelHost()).handleChatgptProviderPageMessage(message, sender);
+        }
         if (chatObservation) {
           const origin = new URL(sender?.url ?? "about:blank").origin;
           if (!["https://chatgpt.com", "https://www.chatgpt.com", "https://chat.openai.com"].includes(origin)) {

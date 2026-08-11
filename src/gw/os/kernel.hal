@@ -29,14 +29,16 @@
   {"greenways-worlds" ["network/github" "worlds/browse"]})
 
 (def PACKAGED-SURFACES
-  ["chats" "userscripts"])
+  ["chats" "chatgpt-provider" "userscripts"])
 
 (def PACKAGED-SURFACE-PUBLISHERS
   {"chats" "greenways-ai"
+   "chatgpt-provider" "greenways-ai"
    "userscripts" "greenways-ai"})
 
 (def PACKAGED-SURFACE-CAPABILITIES
   {"chats" ["chats/capture" "storage/local"]
+   "chatgpt-provider" ["model/provide" "storage/local" "tabs/open"]
    "userscripts" ["userscripts/manage" "storage/local"]})
 
 (def PACKAGED-TAB-LAUNCHES
@@ -98,6 +100,10 @@
        (= (count expected)
           (count (filter (fn [value] (value-present? actual value)) expected)))))
 
+(defn required-values? [required actual]
+  (= (count required)
+     (count (filter (fn [value] (value-present? actual value)) required))))
+
 (defn app-manifest [manifest]
   (let [app-id (normalize-query (get manifest "id"))
         category (normalize-query (get manifest "category"))
@@ -145,7 +151,7 @@
            (not (= publisher-id (get PACKAGED-SURFACE-PUBLISHERS app-id))))
       (throw "Packaged app surface publisher is not trusted")
       (and (= handler "packaged-surface")
-           (not (exact-values? (get PACKAGED-SURFACE-CAPABILITIES app-id) capabilities)))
+           (not (required-values? (get PACKAGED-SURFACE-CAPABILITIES app-id) capabilities)))
       (throw "Packaged app surface capabilities are not bound to its id")
       (and (= handler "hal-module") (not (= category "installable")))
       (throw "HAL modules must be installable apps")

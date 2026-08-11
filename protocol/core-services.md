@@ -115,6 +115,8 @@ The first operation-grantable capabilities are:
 | `credential/manage` | Keyring | critical | Create, update, or remove opaque profiles; initially Greenways-publisher only |
 | `credential/use` | Keyring | critical | Use an opaque provider profile without revealing its secret |
 | `model/generate` | Connector Broker | high | Perform a bounded model request using an approved profile |
+| `model/provide` | Surface and Interaction Host | critical | Project one foreground request into a reviewed AI web application and return only an explicitly selected response |
+| `chats/capture` | Surface and Interaction Host | critical | Observe rendered conversations on an approved AI chat origin; Greenways-publisher only |
 | `userscripts/manage` | Surface and Interaction Host | critical | Register, update, or remove user-authored scripts in matching web pages; Greenways-publisher only |
 
 Existing installation capabilities remain in the same closed vocabulary but are

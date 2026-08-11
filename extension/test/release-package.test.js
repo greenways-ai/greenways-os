@@ -20,6 +20,7 @@ test("packages a versioned, checksummed extension without development inputs", a
     assert.ok(entries.includes("manifest.json"));
     assert.ok(entries.includes("dist/background.js"));
     assert.ok(entries.includes("dist/playground-bridge.js"));
+    assert.ok(entries.includes("dist/chatgpt-provider-bridge.js"));
     assert.ok(entries.includes("src/launcher.html"));
     assert.ok(entries.every((entry) => !/^(node_modules|test|scripts|release)\//.test(entry)));
 
@@ -28,7 +29,10 @@ test("packages a versioned, checksummed extension without development inputs", a
     const metadata = JSON.parse(await readFile(result.metadataPath, "utf8"));
     assert.equal(metadata.version, "0.4.0");
     assert.equal(metadata.sha256, result.sha256);
-    assert.deepEqual(metadata.compatibility, ["greenways-playground-ai/1"]);
+    assert.deepEqual(metadata.compatibility, [
+      "greenways-playground-ai/1",
+      "greenways-chatgpt-provider/1",
+    ]);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }

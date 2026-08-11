@@ -39,10 +39,18 @@ test("publishes a closed, resident core service graph", () => {
 });
 
 test("adds opaque key and model operations to the closed app capability vocabulary", () => {
-  for (const capability of ["key/public", "key/sign", "credential/manage", "credential/use", "model/generate"]) {
+  for (const capability of [
+    "key/public",
+    "key/sign",
+    "credential/manage",
+    "credential/use",
+    "model/generate",
+    "model/provide",
+  ]) {
     assert.ok(APP_CAPABILITIES.includes(capability));
     assert.equal(getCapabilityDefinition(capability).grantable, true);
   }
+  assert.deepEqual(getCapabilityDefinition("model/provide").trustedPublishers, ["greenways-ai"]);
   assert.equal(getCapabilityDefinition("hara/module").grantable, false);
 });
 

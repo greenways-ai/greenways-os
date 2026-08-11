@@ -19,6 +19,10 @@ import {
   CHATS_CAPABILITY,
 } from "./chats-runtime.js";
 import {
+  CHATGPT_PROVIDER_APP_ID,
+  CHATGPT_PROVIDER_CAPABILITY,
+} from "./chatgpt-provider-runtime.js";
+import {
   kernelStore,
   store,
 } from "./storage.js";
@@ -57,6 +61,12 @@ const CLIENT_POLICY = Object.freeze({
       "chats/capture",
       "chats/remove",
       "chats/set-capture",
+      "chatgpt-provider/status",
+      "chatgpt-provider/list",
+      "chatgpt-provider/get",
+      "chatgpt-provider/create",
+      "chatgpt-provider/cancel",
+      "chatgpt-provider/set-enabled",
       "applications/call",
     ]),
     dispatches: new Set([
@@ -368,6 +378,7 @@ export class BrowserKernelHost {
     devtools,
     userscripts,
     chats,
+    chatgptProvider,
     applicationServices,
     builtinApps,
     now = () => new Date(),
@@ -388,6 +399,11 @@ export class BrowserKernelHost {
     if (chats !== undefined && typeof chats?.call !== "function") {
       throw new TypeError("Kernel host Chats runtime must expose call()");
     }
+    if (chatgptProvider !== undefined
+        && (typeof chatgptProvider?.call !== "function"
+          || typeof chatgptProvider?.handlePageMessage !== "function")) {
+      throw new TypeError("Kernel host ChatGPT provider runtime must expose call() and handlePageMessage()");
+    }
     if (applicationServices !== undefined && typeof applicationServices?.call !== "function") {
       throw new TypeError("Kernel host application services must expose call()");
     }
@@ -406,6 +422,14 @@ export class BrowserKernelHost {
     this.chats = chats ?? Object.freeze({
       async call() {
         throw errorWithCode("Chats runtime is unavailable", "CHATS_UNAVAILABLE");
+      },
+    });
+    this.chatgptProvider = chatgptProvider ?? Object.freeze({
+      async call() {
+        throw errorWithCode("ChatGPT provider runtime is unavailable", "CHATGPT_PROVIDER_UNAVAILABLE");
+      },
+      async handlePageMessage() {
+        throw errorWithCode("ChatGPT provider page bridge is unavailable", "CHATGPT_PROVIDER_UNAVAILABLE");
       },
     });
     this.applicationServices = applicationServices ?? Object.freeze({
@@ -541,6 +565,29 @@ export class BrowserKernelHost {
   async captureChatObservation(observation) {
     await this.assertChatsAuthority();
     return this.chats.capture(observation);
+  }
+
+  async assertChatgptProviderAuthority() {
+    const global = await this.globalState();
+    const installed = global.installed ?? [];
+    const manifest = installed.find(({ id }) => id === CHATGPT_PROVIDER_APP_ID);
+    if (!manifest) throw errorWithCode("Greenways for ChatGPT is not installed", "APP_NOT_INSTALLED");
+    await this.capabilityAuthority.assert({
+      appId: CHATGPT_PROVIDER_APP_ID,
+      capability: CHATGPT_PROVIDER_CAPABILITY,
+    }, { installed });
+    if (!activeCapabilityGrant(
+      global.grants ?? [],
+      manifest,
+      CHATGPT_PROVIDER_CAPABILITY,
+      { now: this.now },
+    )) {
+      throw errorWithCode("Foreground ChatGPT access requires an active model/provide grant", "CAPABILITY_DENIED");
+    }
+  }
+
+  handleChatgptProviderPageMessage(message, sender) {
+    return this.chatgptProvider.handlePageMessage(message, sender);
   }
 
   async initialCheckpoint() {
@@ -681,6 +728,8 @@ export class BrowserKernelHost {
             ? await this.userscripts.call(method, invokeArgs)
             : method.startsWith("chats/")
               ? await this.chats.call(method, invokeArgs)
+              : method.startsWith("chatgpt-provider/")
+                ? await this.chatgptProvider.call(method, invokeArgs)
             : await this.invoke(method, invokeArgs),
       };
       if (authority) response.authority = authority;
