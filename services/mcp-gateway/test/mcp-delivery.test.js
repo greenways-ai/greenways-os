@@ -64,6 +64,16 @@ test("enqueues exact device reads idempotently and rejects changed content", asy
   );
 });
 
+test("binds a delivery lease to the exact route consumer", async () => {
+  const repository = new MemoryMcpDeliveryRepository({ now: () => new Date(NOW) });
+  await repository.enqueue(queued());
+  await assert.rejects(
+    repository.claimNext(ROUTE_ID, "beacon/other", LEASE_ONE),
+    (error) => hasCode(error, "delivery-consumer-mismatch") && error.status === 403,
+  );
+  assert.equal((await repository.read(ROUTE_ID, mcpDeliveryIdForRequest(REQUEST_ID))).state, "queued");
+});
+
 test("leases one pending read, fences duplicate consumers, and stores an attributable result", async () => {
   const repository = new MemoryMcpDeliveryRepository({ now: () => new Date(NOW) });
   const inserted = await repository.enqueue(queued());
@@ -91,6 +101,32 @@ test("leases one pending read, fences duplicate consumers, and stores an attribu
   assert.equal(completed.state, "completed");
   assert.equal(completed.result.availability, "device");
   assert.deepEqual(await repository.read(ROUTE_ID, inserted.id), completed);
+});
+
+test("rejects completion without provenance for the exact route", async () => {
+  const repository = new MemoryMcpDeliveryRepository({ now: () => new Date(NOW) });
+  const inserted = await repository.enqueue(queued());
+  await repository.claimNext(ROUTE_ID, ROUTE_ID, LEASE_ONE);
+  await assert.rejects(
+    repository.complete({
+      routeId: ROUTE_ID,
+      deliveryId: inserted.id,
+      digest: inserted.digest,
+      leaseId: LEASE_ONE,
+      result: {
+        availability: "device",
+        value: { matches: [] },
+        provenance: [{
+          kind: "device",
+          ref: "home-node/other",
+          digest: null,
+          observedAt: NOW.toISOString(),
+        }],
+      },
+    }),
+    (error) => hasCode(error, "delivery-result-unattributed") && error.status === 400,
+  );
+  assert.equal((await repository.read(ROUTE_ID, inserted.id)).state, "leased");
 });
 
 test("replaces an expired delivery lease and fences the former consumer", async () => {

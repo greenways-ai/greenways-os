@@ -16,7 +16,7 @@ const ROUTE_ID = /^(beacon|home-node)\/[A-Za-z0-9][A-Za-z0-9._:/-]{2,160}$/;
 const CONNECTION_ID = /^mcp\/connection\/[A-Za-z0-9._:-]{8,160}$/;
 const GENERAL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,180}$/;
 const DELIVERY_STATES = new Set(["queued", "leased", "completed"]);
-const AVAILABILITY = new Set(["replicated", "device", "hybrid"]);
+const AVAILABILITY = new Set(["device", "hybrid"]);
 const PROVENANCE_KINDS = new Set(["authority", "snapshot", "receipt", "resource", "device"]);
 const MAX_PROVENANCE = 16;
 const MAX_LEASE_MS = 2 * 60 * 1000;
@@ -211,6 +211,16 @@ export function normalizeMcpDeliveryResult(value) {
   });
 }
 
+function assertRouteProvenance(result, routeId, status = 500) {
+  if (!result.provenance.some((entry) => entry.kind === "device" && entry.ref === routeId)) {
+    fail(
+      status,
+      status >= 500 ? "delivery-recovery" : "delivery-result-unattributed",
+      "MCP delivery result is not attributed to its exact route",
+    );
+  }
+}
+
 export function normalizeMcpDeliveryLease(value) {
   if (value === null || value === undefined) return null;
   const input = closedKeys(
@@ -291,6 +301,7 @@ export function normalizeMcpDeliveryRecord(value) {
     ? null
     : normalizeMcpDeliveryResult(input.result);
   const completedAt = optionalTime(input.completedAt, "MCP delivery completedAt");
+  if (result) assertRouteProvenance(result, route.id);
   if ((input.state === "queued" && (lease || result || completedAt))
       || (input.state === "leased" && (!lease || result || completedAt))
       || (input.state === "completed" && (!lease || !result || !completedAt))) {
@@ -369,8 +380,12 @@ export function claimMcpDeliveryState(
     "MCP delivery claim",
   );
   const routeId = normalizeMcpDeliveryRouteId(input.routeId);
+  const consumerId = normalizeMcpDeliveryRouteId(input.consumerId);
   if (current.route.id !== routeId) {
     fail(500, "delivery-recovery", "MCP delivery route identity changed");
+  }
+  if (consumerId !== routeId) {
+    fail(403, "delivery-consumer-mismatch", "MCP delivery consumer does not own this route");
   }
   const observed = repositoryDate(nowValue);
   if (Date.parse(current.expiresAt) <= observed.getTime()) {
@@ -385,7 +400,7 @@ export function claimMcpDeliveryState(
   const lease = normalizeMcpDeliveryLease({
     protocol: MCP_DELIVERY_LEASE_PROTOCOL,
     id: normalizeMcpDeliveryLeaseId(input.leaseId),
-    consumerId: normalizeMcpDeliveryRouteId(input.consumerId),
+    consumerId,
     claimedAt: observed.toISOString(),
     expiresAt: new Date(Math.min(
       observed.getTime() + leaseLifetime(lifetimeMs),
@@ -427,10 +442,12 @@ export function completeMcpDeliveryState(currentValue, completionValue, nowValue
       || Date.parse(current.expiresAt) <= observed.getTime()) {
     fail(409, "delivery-lease-stale", "MCP delivery lease is no longer current");
   }
+  const result = normalizeMcpDeliveryResult(input.result);
+  assertRouteProvenance(result, current.route.id, 400);
   const next = normalizeMcpDeliveryRecord({
     ...current,
     state: "completed",
-    result: normalizeMcpDeliveryResult(input.result),
+    result,
     completedAt: observed.toISOString(),
   });
   return transition(next, true);

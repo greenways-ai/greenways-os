@@ -5,6 +5,7 @@ import {
   normalizeMcpDeliveryRecord,
   normalizeMcpDeliveryRouteId,
 } from "./mcp-delivery.js";
+import { validateDigest } from "./protocol.js";
 import { unwrapMcpDeliveryStoreRpc } from "./delivery-store-rpc.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 100;
@@ -125,12 +126,13 @@ export class CloudflareMcpDeliveryRepository {
   async wait(routeIdValue, deliveryIdValue, digest, timeoutMsValue) {
     const routeId = normalizeMcpDeliveryRouteId(routeIdValue);
     const deliveryId = normalizeMcpDeliveryId(deliveryIdValue);
+    const expectedDigest = validateDigest(digest, "MCP delivery wait digest");
     const timeoutMs = waitTimeout(timeoutMsValue);
     const deadline = currentTime(this.now) + timeoutMs;
     while (true) {
       const record = await this.read(routeId, deliveryId);
       if (record === null) return null;
-      if (record.digest !== digest) {
+      if (record.digest !== expectedDigest) {
         throw new McpDeliveryError(
           409,
           "delivery-id-collision",

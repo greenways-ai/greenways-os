@@ -116,6 +116,20 @@ test("routes all mailbox operations through the exact route atom and observes co
   assert.ok(namespace.calls.some(({ method }) => method === "read"));
 });
 
+test("validates the expected digest before polling a route atom", async () => {
+  const repository = new CloudflareMcpDeliveryRepository({
+    getByName: () => ({
+      read: async () => {
+        throw new Error("the route atom must not be called");
+      },
+    }),
+  });
+  await assert.rejects(
+    repository.wait(ROUTE_ID, mcpDeliveryIdForRequest(REQUEST_ID), "not-a-digest", 100),
+    /digest/i,
+  );
+});
+
 test("contains raw route atom failures behind an opaque retryable error", async () => {
   const repository = new CloudflareMcpDeliveryRepository({
     getByName: () => ({
