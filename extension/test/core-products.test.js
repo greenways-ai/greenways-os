@@ -8,12 +8,14 @@ import {
   sidebarMarkup,
 } from "../src/app-shell.js";
 
-const [html, launcher, shell, keyringSurface, devtools, keyringProtocol, packageProtocol] = await Promise.all([
+const [html, launcher, shell, keyringSurface, devtools, playgroundConsent, playgroundConsentStyle, keyringProtocol, packageProtocol] = await Promise.all([
   readFile(new URL("../src/launcher.html", import.meta.url), "utf8"),
   readFile(new URL("../src/launcher.js", import.meta.url), "utf8"),
   readFile(new URL("../src/app-shell.css", import.meta.url), "utf8"),
   readFile(new URL("../src/keyring-surface.css", import.meta.url), "utf8"),
   readFile(new URL("../src/devtools.js", import.meta.url), "utf8"),
+  readFile(new URL("../src/playground-consent.js", import.meta.url), "utf8"),
+  readFile(new URL("../src/playground-consent.css", import.meta.url), "utf8"),
   readFile(new URL("../../protocol/keyring.md", import.meta.url), "utf8"),
   readFile(new URL("../../protocol/packages.md", import.meta.url), "utf8"),
 ]);
@@ -52,4 +54,14 @@ test("keeps keyring, package, and privileged developer boundaries explicit", () 
   assert.match(devtools, /devtools\/eval/);
   assert.match(keyringProtocol, /must not receive the underlying key material/);
   assert.match(packageProtocol, /cannot be installed as remote extension logic/);
+});
+
+test("Playground AI access uses the shared compact Keyring shell", () => {
+  assert.match(playgroundConsent, /appShellMarkup/);
+  assert.match(playgroundConsent, /activeRoute: "keyring"/);
+  assert.match(playgroundConsent, /data-enable-playground/);
+  assert.match(playgroundConsent, /data-provider-form/);
+  assert.doesNotMatch(playgroundConsent, /consent-hero|Let Playground use AI/);
+  assert.match(playgroundConsentStyle, /var\(--mac-surface\)/);
+  assert.doesNotMatch(playgroundConsentStyle, /clamp\(44px|gw-font-display/);
 });

@@ -16,6 +16,7 @@ import {
   PLAYGROUND_AI_ORIGIN,
   PLAYGROUND_APP_ID,
 } from "./playground-ai-protocol.js";
+import { appShellMarkup } from "./app-shell.js";
 
 const stylesheet = document.createElement("link");
 stylesheet.rel = "stylesheet";
@@ -93,68 +94,49 @@ async function providerAccess(provider) {
 async function profileRows() {
   const profiles = keyringStatus?.providerProfiles ?? [];
   if (!profiles.length) {
-    return '<p class="consent-empty">No provider keys are installed for this browser session.</p>';
+    return '<p class="gw-empty">No provider keys are loaded for this browser session.</p>';
   }
   const access = Object.fromEntries(await Promise.all(
     KEYRING_PROVIDERS.map(async ({ id }) => [id, await providerAccess(id).catch(() => false)]),
   ));
   return profiles.map((profile) => `
-    <article class="consent-profile">
-      <span class="consent-profile__mark">${escapeHtml(profile.provider.slice(0, 1).toUpperCase())}</span>
-      <div><strong>${escapeHtml(profile.label)}</strong><small>${escapeHtml(profile.provider)} · session only · ${access[profile.provider] ? "network approved" : "network approval required"}</small></div>
-      <button type="button" data-remove-profile="${escapeHtml(profile.id)}" ${busy ? "disabled" : ""}>Remove</button>
-    </article>`).join("");
+    <div class="gw-row consent-profile">
+      <div class="gw-row__main"><span class="gw-row__icon">${escapeHtml(profile.provider.slice(0, 1).toUpperCase())}</span><div class="gw-row__copy"><strong>${escapeHtml(profile.label)}</strong><span>${escapeHtml(profile.provider)} · session only · ${access[profile.provider] ? "network approved" : "network approval required"}</span></div></div>
+      <button class="gw-button gw-button--danger" type="button" data-remove-profile="${escapeHtml(profile.id)}" ${busy ? "disabled" : ""}>Remove</button>
+    </div>`).join("");
 }
 
 async function render() {
   const state = approvalState();
   const grant = currentGrant();
-  root.innerHTML = `<div class="playground-consent-shell">
-    <header class="playground-consent-header">
-      <div><span class="consent-mark">GW</span><span><strong>Greenways OS</strong><small>HARA PLAYGROUND · AI CONNECTION</small></span></div>
-      <a href="${PLAYGROUND_AI_ORIGIN}/">Return to Playground</a>
-    </header>
-
-    <main class="playground-consent-main">
-      <section class="consent-hero">
-        <p>LOCAL KEY AUTHORITY</p>
-        <h1>Let Playground use AI<br><em>without giving it your key.</em></h1>
-        <p>Greenways OS keeps provider credentials in session storage, checks the Hara Playground approval, and sends only bounded model requests to an approved provider.</p>
-        <div class="consent-state" data-tone="${escapeHtml(state.tone)}"><i></i><strong>${escapeHtml(state.label)}</strong><span>${grant ? "model/generate is active for playground.hara-lang.org" : "No model call can leave the browser until you approve it here."}</span></div>
-      </section>
-
-      <section class="consent-card">
-        <header><div><p>01 · APPLICATION AUTHORITY</p><h2>Hara Playground</h2></div><span>https://playground.hara-lang.org</span></header>
-        <div class="consent-capability">
-          <div><strong>model/generate</strong><span>Bounded prompts and text responses through a selected Keyring profile.</span></div>
-          ${grant
-            ? `<button type="button" class="consent-secondary" data-revoke-grant="${escapeHtml(grant.id)}" ${busy ? "disabled" : ""}>Revoke AI access</button>`
-            : `<button type="button" class="consent-primary" data-enable-playground ${busy ? "disabled" : ""}>${busy ? "Working…" : "Enable in Playground"}</button>`}
-        </div>
-        <ul class="consent-boundaries">
-          <li>Exact caller origin only</li>
-          <li>Maximum 256 KB context</li>
-          <li>Maximum 4,096 output tokens</li>
-          <li>No arbitrary URLs, headers, tools, or credential export</li>
-        </ul>
-      </section>
-
-      <section class="consent-card">
-        <header><div><p>02 · PROVIDER KEYS</p><h2>Session profiles</h2></div><span>Cleared when the browser session ends</span></header>
+  const content = `<header class="gw-page__header consent-page-header"><div><h2>AI Access</h2><p>Use AI from Hara Playground without exposing a provider key.</p></div><a class="gw-button" href="${PLAYGROUND_AI_ORIGIN}/">Open Playground</a></header>
+    <div class="gw-settings playground-consent-settings">
+      <section><h3>Application access</h3><div class="gw-group">
+        <div class="gw-row"><div class="gw-row__main"><span class="gw-row__icon">H</span><div class="gw-row__copy"><strong>Hara Playground</strong><span>playground.hara-lang.org · ${grant ? "model/generate active" : "no model requests allowed"}</span></div></div><div class="gw-row__actions"><span class="consent-state" data-tone="${escapeHtml(state.tone)}"><i></i>${escapeHtml(state.label)}</span>${grant
+          ? `<button type="button" class="gw-button gw-button--danger" data-revoke-grant="${escapeHtml(grant.id)}" ${busy ? "disabled" : ""}>Revoke</button>`
+          : `<button type="button" class="gw-button gw-button--primary" data-enable-playground ${busy ? "disabled" : ""}>${busy ? "Working…" : "Enable"}</button>`}</div></div>
+        <div class="gw-row"><div class="gw-row__copy"><strong>model/generate</strong><span>Bounded prompts and text responses through a selected Keyring profile.</span></div><span class="gw-row__value">Typed capability</span></div>
+        <details class="gw-disclosure"><summary>Security limits</summary><ul class="consent-boundaries"><li>Exact caller origin only</li><li>Maximum 256 KB context</li><li>Maximum 4,096 output tokens</li><li>No arbitrary URLs, headers, tools, or credential export</li></ul></details>
+      </div></section>
+      <section><h3>Session provider keys</h3><div class="gw-group">
         <div class="consent-profiles">${await profileRows()}</div>
         <form class="consent-provider-form" data-provider-form>
           <label><span>Provider</span><select name="provider">${KEYRING_PROVIDERS.map(({ id, name }) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join("")}</select></label>
           <label><span>Label</span><input name="label" maxlength="80" autocomplete="off" placeholder="Personal coding" required></label>
-          <label class="consent-secret"><span>API key</span><input name="secret" type="password" minlength="8" maxlength="8192" autocomplete="off" placeholder="Stored only for this browser session" required></label>
-          <button type="submit" class="consent-secondary" ${busy ? "disabled" : ""}>Add provider key</button>
+          <label class="consent-secret"><span>API key</span><input name="secret" type="password" minlength="8" maxlength="8192" autocomplete="off" placeholder="Stored for this browser session" required></label>
+          <div class="consent-form-actions"><span>Cleared when this browser session ends.</span><button type="submit" class="gw-button gw-button--primary" ${busy ? "disabled" : ""}>Add key</button></div>
         </form>
-      </section>
-
+      </div></section>
       ${notice ? `<p class="consent-notice" data-tone="${escapeHtml(noticeTone)}" role="status">${escapeHtml(notice)}</p>` : ""}
-    </main>
-
-    <footer class="playground-consent-footer"><span>GREENWAYS / KEYRING</span><span>Keys stay local · requests stay typed · access stays revocable</span></footer>
-  </div>`;
+    </div>`;
+  root.innerHTML = appShellMarkup({
+    activeRoute: "keyring",
+    title: "Hara Playground",
+    detail: "AI access",
+    content,
+    state: state.label,
+    tone: state.tone,
+  });
   bindEvents();
 }
 
@@ -297,7 +279,7 @@ function bindEvents() {
 
 async function start() {
   if (!root) throw new Error("Greenways launcher root is unavailable");
-  root.innerHTML = '<section class="launcher-fatal"><p>GREENWAYS KEYRING</p><h1>Opening Playground access…</h1></section>';
+  root.innerHTML = appShellMarkup({ activeRoute: "keyring", title: "Hara Playground", detail: "AI access", content: '<p class="gw-empty">Opening Playground access…</p>' });
   await getBuiltinAppCatalog();
   await session.start();
   keyringStatus = await keyring.status();
@@ -306,5 +288,5 @@ async function start() {
 
 globalThis.addEventListener("beforeunload", () => session.destroy(), { once: true });
 start().catch((error) => {
-  root.innerHTML = `<section class="launcher-fatal"><p>GREENWAYS KEYRING</p><h1>Playground access could not open.</h1><code>${escapeHtml(error?.message || error)}</code></section>`;
+  root.innerHTML = appShellMarkup({ activeRoute: "keyring", title: "Hara Playground", detail: "AI access unavailable", state: "Unavailable", tone: "error", content: `<div class="gw-settings"><section><div class="gw-group"><p class="gw-empty">${escapeHtml(error?.message || error)}</p></div></section></div>` });
 });
