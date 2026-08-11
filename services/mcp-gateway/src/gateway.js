@@ -11,6 +11,8 @@ import {
 } from "./protocol.js";
 
 const AVAILABILITY = new Set(["replicated", "device", "hybrid"]);
+const RESULT_AVAILABILITY = new Set([...AVAILABILITY, "device-offline"]);
+const RESULT_OUTCOMES = new Set(["ok", "unavailable"]);
 const PROVENANCE_KINDS = new Set(["authority", "snapshot", "receipt", "resource", "device"]);
 const MAX_PROVENANCE = 16;
 
@@ -70,6 +72,23 @@ function canonicalTime(value, label) {
   return output;
 }
 
+function normalizeAuthorityEvidence(value) {
+  const input = closedKeys(
+    value,
+    new Set(["ref", "digest", "observedAt"]),
+    "MCP authority evidence",
+  );
+  return Object.freeze({
+    ref: publicString(input.ref, "MCP authority evidence ref", 240),
+    digest: input.digest === undefined || input.digest === null
+      ? null
+      : validateDigest(input.digest, "MCP authority evidence digest"),
+    observedAt: input.observedAt === undefined || input.observedAt === null
+      ? null
+      : canonicalTime(input.observedAt, "MCP authority evidence observedAt"),
+  });
+}
+
 function normalizeAuthority(value) {
   const input = closedKeys(value, new Set(["allowed", "reason", "evidence"]), "MCP authority decision");
   if (typeof input.allowed !== "boolean") fail(500, "gateway-contract", "MCP authority decision allowed must be boolean");
@@ -78,7 +97,7 @@ function normalizeAuthority(value) {
     reason: publicString(input.reason, "MCP authority decision reason", 120),
     evidence: input.evidence === undefined || input.evidence === null
       ? null
-      : validateBoundedPublicValue(input.evidence, "MCP authority evidence"),
+      : normalizeAuthorityEvidence(input.evidence),
   });
 }
 
@@ -144,6 +163,57 @@ function publicResult({ request, outcome, availability, value, error, provenance
   return result;
 }
 
+function normalizeStoredError(value) {
+  if (value === null) return null;
+  const input = closedKeys(value, new Set(["code", "message"]), "Stored MCP result error");
+  return Object.freeze({
+    code: publicString(input.code, "Stored MCP result error code", 80),
+    message: publicString(input.message, "Stored MCP result error message", 400),
+  });
+}
+
+function normalizeStoredResult(value, request) {
+  const input = closedKeys(
+    value,
+    new Set([
+      "protocol", "requestId", "connectionId", "tool", "outcome",
+      "availability", "value", "error", "provenance", "completedAt",
+    ]),
+    "Stored MCP result",
+  );
+  if (input.protocol !== MCP_RESULT_PROTOCOL
+      || input.requestId !== request.requestId
+      || input.connectionId !== request.connectionId
+      || input.tool !== request.tool) {
+    fail(500, "gateway-recovery", "Stored MCP result identity is invalid");
+  }
+  const outcome = publicString(input.outcome, "Stored MCP result outcome", 40);
+  const availability = publicString(input.availability, "Stored MCP result availability", 40);
+  if (!RESULT_OUTCOMES.has(outcome) || !RESULT_AVAILABILITY.has(availability)) {
+    fail(500, "gateway-recovery", "Stored MCP result state is invalid");
+  }
+  const storedError = normalizeStoredError(input.error);
+  if ((outcome === "ok" && storedError !== null)
+      || (outcome === "unavailable"
+        && (availability !== "device-offline" || input.value !== null || storedError === null))) {
+    fail(500, "gateway-recovery", "Stored MCP result outcome is inconsistent");
+  }
+  const output = Object.freeze({
+    protocol: MCP_RESULT_PROTOCOL,
+    requestId: request.requestId,
+    connectionId: request.connectionId,
+    tool: request.tool,
+    outcome,
+    availability,
+    value: validateBoundedPublicValue(input.value, "Stored MCP result value"),
+    error: storedError,
+    provenance: normalizeProvenance(input.provenance),
+    completedAt: canonicalTime(input.completedAt, "Stored MCP result completedAt"),
+  });
+  validateBoundedPublicValue(output, "Stored MCP result");
+  return output;
+}
+
 function activeConnection(connection, now) {
   if (connection.revokedAt) fail(401, "connection-revoked", "The MCP connection has been revoked");
   if (Date.parse(connection.expiresAt) <= now.getTime()) {
@@ -199,9 +269,19 @@ export class GreenwaysMcpGateway {
     } catch (cause) {
       fail(400, cause.code ?? "invalid-request", cause.message, { cause });
     }
-    const digest = await sha256(canonical(request));
-    const stored = await this.requestStore.get(request.requestId);
-    if (stored) return this.replay(stored, digest);
+    let digest;
+    try {
+      digest = await sha256(canonical(request));
+    } catch (cause) {
+      fail(500, cause?.code ?? "runtime-unavailable", "MCP request digesting failed", { cause });
+    }
+    let stored;
+    try {
+      stored = await this.requestStore.get(request.requestId);
+    } catch (cause) {
+      fail(503, "gateway-storage-unavailable", "MCP request storage is unavailable", { cause });
+    }
+    if (stored) return this.replay(stored, digest, request);
 
     const running = this.inflight.get(request.requestId);
     if (running) {
@@ -218,17 +298,44 @@ export class GreenwaysMcpGateway {
     }
   }
 
-  replay(record, digest) {
-    const input = closedKeys(record, new Set(["protocol", "requestId", "digest", "result"]), "Stored MCP request");
-    if (input.protocol !== MCP_REQUEST_RECORD_PROTOCOL || input.requestId !== input.result?.requestId) {
-      fail(500, "gateway-recovery", "Stored MCP request record is invalid");
+  replay(record, digest, request) {
+    try {
+      const input = closedKeys(record, new Set(["protocol", "requestId", "digest", "result"]), "Stored MCP request");
+      if (input.protocol !== MCP_REQUEST_RECORD_PROTOCOL || input.requestId !== request.requestId) {
+        fail(500, "gateway-recovery", "Stored MCP request record is invalid");
+      }
+      const storedDigest = validateDigest(input.digest, "Stored MCP request digest");
+      if (storedDigest !== digest) fail(409, "request-id-collision", "MCP request ID was reused with different content");
+      return normalizeStoredResult(input.result, request);
+    } catch (cause) {
+      if (cause instanceof McpGatewayError
+          && new Set(["request-id-collision", "gateway-recovery"]).has(cause.code)) {
+        throw cause;
+      }
+      fail(500, "gateway-recovery", "Stored MCP request result is invalid", { cause });
     }
-    if (input.digest !== digest) fail(409, "request-id-collision", "MCP request ID was reused with different content");
-    return input.result;
+  }
+
+  async storeResult(requestId, digest, result) {
+    try {
+      await this.requestStore.put({
+        protocol: MCP_REQUEST_RECORD_PROTOCOL,
+        requestId,
+        digest,
+        result,
+      });
+    } catch (cause) {
+      fail(503, "gateway-storage-unavailable", "MCP request result could not be stored", { cause });
+    }
   }
 
   async executeFresh(request, digest) {
-    const rawConnection = await this.connectionStore.get(request.connectionId);
+    let rawConnection;
+    try {
+      rawConnection = await this.connectionStore.get(request.connectionId);
+    } catch (cause) {
+      fail(503, "gateway-storage-unavailable", "MCP connection storage is unavailable", { cause });
+    }
     if (!rawConnection) fail(401, "connection-unknown", "The MCP connection does not exist");
     let connection;
     try {
@@ -246,27 +353,32 @@ export class GreenwaysMcpGateway {
     const descriptor = toolDescriptor(request.tool);
     if (descriptor.availability === "device-bound" && connection.route.status !== "online") {
       const result = unavailableResult(request, current);
-      await this.requestStore.put({
-        protocol: MCP_REQUEST_RECORD_PROTOCOL,
-        requestId: request.requestId,
-        digest,
-        result,
-      });
+      await this.storeResult(request.requestId, digest, result);
       return result;
     }
 
-    const rawDecision = await this.authorize({ connection, request, tool: descriptor });
+    let rawDecision;
+    try {
+      rawDecision = await this.authorize({ connection, request, tool: descriptor });
+    } catch (cause) {
+      fail(503, "authority-unavailable", "Greenways authority could not validate the MCP request", { cause });
+    }
     const decision = contract(() => normalizeAuthority(rawDecision));
     if (!decision.allowed) fail(403, "authority-denied", `Greenways authority denied the tool: ${decision.reason}`);
     const handler = this.handlers[request.tool];
     if (!handler) fail(503, "tool-unavailable", "The granted MCP tool is not available on this gateway");
-    const rawHandled = await handler(request.arguments, {
-      identity: connection.identity,
-      client: connection.client,
-      route: connection.route,
-      requestId: request.requestId,
-      authority: decision,
-    });
+    let rawHandled;
+    try {
+      rawHandled = await handler(request.arguments, {
+        identity: connection.identity,
+        client: connection.client,
+        route: connection.route,
+        requestId: request.requestId,
+        authority: decision,
+      });
+    } catch (cause) {
+      fail(502, "tool-failed", "The Greenways MCP read handler failed", { cause });
+    }
     const handled = contract(() => normalizeHandlerResult(rawHandled));
     const authorityProvenance = decision.evidence
       ? [Object.freeze({
@@ -285,12 +397,7 @@ export class GreenwaysMcpGateway {
       provenance: Object.freeze([...authorityProvenance, ...handled.provenance]),
       completedAt: current.toISOString(),
     }));
-    await this.requestStore.put({
-      protocol: MCP_REQUEST_RECORD_PROTOCOL,
-      requestId: request.requestId,
-      digest,
-      result,
-    });
+    await this.storeResult(request.requestId, digest, result);
     return result;
   }
 }
