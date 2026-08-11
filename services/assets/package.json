@@ -1,0 +1,14 @@
+{
+  "name": "@greenways-ai/assets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "EPL-2.0",
+  "bin": {
+    "greenways-assets": "bin/greenways-assets.mjs"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check bin/greenways-assets.mjs && node --check src/*.js && node --test"
+  }
+}

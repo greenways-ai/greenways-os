@@ -36,6 +36,7 @@ jobs:
             extension/package-lock.json
             services/mcp-gateway/package-lock.json
             services/packages/package-lock.json
+            services/assets/package-lock.json
             services/devtools-node/package-lock.json
       - run: npm ci
       - run: npm test
@@ -75,6 +76,10 @@ jobs:
         if: always()
         working-directory: services/packages
         run: npm ci && npm test
+      - name: Test asset registry service
+        if: always()
+        working-directory: services/assets
+        run: npm ci && npm run check
       - name: Test DevTools native host
         if: always()
         working-directory: services/devtools-node
