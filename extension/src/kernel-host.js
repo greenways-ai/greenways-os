@@ -590,6 +590,11 @@ export class BrowserKernelHost {
     return this.chatgptProvider.handlePageMessage(message, sender);
   }
 
+  async callChatgptProvider(method, args = []) {
+    await this.assertChatgptProviderAuthority();
+    return this.chatgptProvider.call(method, args);
+  }
+
   async initialCheckpoint() {
     return this.invoke("app/checkpoint", [await this.invoke("app/bootstrap", [])]);
   }

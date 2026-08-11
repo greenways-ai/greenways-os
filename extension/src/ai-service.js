@@ -1,5 +1,6 @@
 import { GreenwaysKeyring } from "./keyring.js";
 import { MODEL_PROVIDER_POLICY } from "./model-provider-policy.js";
+import { CHATGPT_PROVIDER_ID } from "./chatgpt-provider-protocol.js";
 
 export const AI_SERVICE_PROTOCOL = "greenways-ai/1";
 export const MODEL_GENERATE_CAPABILITY = "model/generate";
@@ -25,6 +26,7 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 const MAX_OUTPUT_TOKENS = 8192;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_TIMEOUT_MS = 120_000;
+const MAX_FOREGROUND_TIMEOUT_MS = 15 * 60_000;
 
 function errorWithCode(message, code, options) {
   const error = new Error(message, options);
@@ -112,7 +114,7 @@ export function normalizeModelRequest(value) {
     input.timeoutMs,
     DEFAULT_TIMEOUT_MS,
     1_000,
-    MAX_TIMEOUT_MS,
+    profileId === CHATGPT_PROVIDER_ID ? MAX_FOREGROUND_TIMEOUT_MS : MAX_TIMEOUT_MS,
     "Model request timeoutMs",
   );
   const output = Object.freeze({ requestId, profileId, model, messages, maxOutputTokens, timeoutMs });
@@ -343,6 +345,7 @@ function providerUsage(provider, data) {
 export class GreenwaysAiService {
   constructor({
     keyring = new GreenwaysKeyring(),
+    webProvider = null,
     fetchImpl = globalThis.fetch,
     permissions = globalThis.chrome?.permissions,
     setTimeoutImpl = globalThis.setTimeout,
@@ -352,12 +355,21 @@ export class GreenwaysAiService {
     if (!keyring || typeof keyring.status !== "function" || typeof keyring.readProfiles !== "function") {
       throw new TypeError("Greenways AI requires the trusted Keyring provider-profile reader");
     }
+    if (webProvider !== null
+        && (typeof webProvider?.handles !== "function"
+          || typeof webProvider?.status !== "function"
+          || typeof webProvider?.create !== "function"
+          || typeof webProvider?.result !== "function"
+          || typeof webProvider?.cancel !== "function")) {
+      throw new TypeError("Greenways AI foreground provider boundary is invalid");
+    }
     if (typeof fetchImpl !== "function") throw new TypeError("Greenways AI requires fetch");
     if (typeof setTimeoutImpl !== "function" || typeof clearTimeoutImpl !== "function") {
       throw new TypeError("Greenways AI requires timeout functions");
     }
     if (typeof now !== "function") throw new TypeError("Greenways AI requires a clock");
     this.keyring = keyring;
+    this.webProvider = webProvider;
     this.fetchImpl = fetchImpl;
     this.permissions = permissions;
     this.setTimeoutImpl = setTimeoutImpl;
@@ -378,21 +390,42 @@ export class GreenwaysAiService {
     for (const provider of Object.keys(MODEL_PROVIDER_POLICY)) {
       providerAccess[provider] = await this.hasProviderAccess(provider).catch(() => false);
     }
+    const profiles = [...(keyring.providerProfiles ?? [])];
+    if (this.webProvider) {
+      const web = await this.webProvider.status();
+      if (web?.profile) {
+        const index = profiles.findIndex(({ id }) => id === web.profile.id);
+        if (index >= 0) profiles.splice(index, 1);
+        profiles.push(web.profile);
+        providerAccess[web.profile.provider] = Boolean(web.profile.available);
+      }
+    }
     return Object.freeze({
       protocol: AI_SERVICE_PROTOCOL,
-      providerProfiles: keyring.providerProfiles,
+      providerProfiles: Object.freeze(profiles),
       providerCredentialStorage: keyring.providerCredentialStorage,
       providerAccess: Object.freeze(providerAccess),
     });
   }
 
-  cancel(requestId) {
+  async cancel(requestId, context = {}) {
     const requested = requiredString(requestId, "Cancelled model request id", 128);
     const operation = this.inflight.get(requested);
-    if (!operation) return Object.freeze({ requestId: requested, cancelled: false });
-    operation.cancelled = true;
-    operation.controller.abort();
-    return Object.freeze({ requestId: requested, cancelled: true });
+    if (operation) {
+      operation.cancelled = true;
+      operation.controller.abort();
+      return Object.freeze({ requestId: requested, cancelled: true });
+    }
+    if (this.webProvider) return this.webProvider.cancel(requested, context);
+    return Object.freeze({ requestId: requested, cancelled: false });
+  }
+
+  async result(requestId, context = {}) {
+    const requested = requiredString(requestId, "Model result request id", 128);
+    if (!this.webProvider) {
+      throw errorWithCode("Foreground model provider is unavailable", "PROVIDER_UNAVAILABLE");
+    }
+    return this.webProvider.result(requested, context);
   }
 
   async generate(value, context = {}) {
@@ -404,6 +437,14 @@ export class GreenwaysAiService {
     if (context.grant?.capability !== MODEL_GENERATE_CAPABILITY
         || context.grant?.subject?.appId !== context.appId) {
       throw errorWithCode("Greenways AI requires a bound model/generate grant", "CAPABILITY_DENIED");
+    }
+    if (this.webProvider?.handles(request.profileId)) {
+      const web = await this.webProvider.status();
+      if (!web?.profile?.available) {
+        throw errorWithCode("Greenways for ChatGPT is not available", "PROVIDER_UNAVAILABLE");
+      }
+      assertGrantConstraints(request, web.profile, context);
+      return this.webProvider.create(request, context);
     }
     if (this.inflight.has(request.requestId)) {
       throw errorWithCode("Model request id is already in flight", "REQUEST_ID_REUSE");

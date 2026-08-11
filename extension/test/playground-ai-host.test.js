@@ -69,8 +69,19 @@ function services() {
         output: "Use a map.",
       };
     },
-    cancel(requestId) {
-      calls.push(["cancel", requestId]);
+    async result(requestId, context) {
+      calls.push(["result", requestId, context]);
+      return {
+        protocol: "greenways-ai/1",
+        requestId,
+        provider: "webapp.chatgpt",
+        sessionId: "model/session/01234567",
+        state: "ready",
+        pending: true,
+      };
+    },
+    async cancel(requestId, context) {
+      calls.push(["cancel", requestId, context]);
       return { requestId, cancelled: true };
     },
   };
@@ -174,4 +185,29 @@ test("rejects arbitrary methods and payloads", async () => {
   const payload = await invoke(handler, message("status", { url: "https://attacker.example" }));
   assert.equal(payload.ok, false);
   assert.equal(payload.code, "INVALID_REQUEST");
+});
+
+test("polls and cancels foreground sessions only with current model authority", async () => {
+  const service = services();
+  const handler = createPlaygroundAiMessageHandler({
+    runtime,
+    tabs: { create: async () => ({ id: 90 }) },
+    getAuthority: async () => service.authority,
+    getAiService: async () => service.aiService,
+  });
+  const result = await invoke(handler, message("result", {
+    requestId: "request/0123456789abcdef",
+  }));
+  assert.equal(result.ok, true);
+  assert.equal(result.result.pending, true);
+  const polled = service.calls.find(([name]) => name === "result");
+  assert.equal(polled[1], "request/0123456789abcdef");
+  assert.equal(polled[2].grant.id, service.grant.id);
+
+  const cancelled = await invoke(handler, message("cancel", {
+    requestId: "request/0123456789abcdef",
+  }));
+  assert.equal(cancelled.result.cancelled, true);
+  const cancel = service.calls.find(([name]) => name === "cancel");
+  assert.equal(cancel[2].grant.id, service.grant.id);
 });

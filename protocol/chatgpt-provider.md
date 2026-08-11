@@ -121,3 +121,23 @@ The returned text must byte-for-byte match the response candidate that was previ
 The first slice accepts text prompts and text responses, one foreground session per ChatGPT tab. It does not automate submission, stream response tokens into callers, identify an exact ChatGPT model, upload files, invoke tools, or run unattended agent work.
 
 API-backed providers remain the execution path for unattended workflows. A subsequent broker slice can let Hara Playground and other installed apps create these durable sessions through the common `model/generate` boundary.
+
+## Common model broker
+
+The provider is also projected into the common Greenways AI profile list as
+`webapp.chatgpt`. A caller with an exact `model/generate` grant submits the
+same closed model request used for API-backed profiles. The broker creates a
+durable foreground session and returns its handle immediately; it does not keep
+a service-worker promise alive while a person interacts with ChatGPT.
+
+The caller polls the closed `result` operation by its original request ID.
+Every read and cancellation revalidates both independent authorities:
+
+- the caller application's current `model/generate` grant; and
+- the reviewed provider application's current `model/provide` grant.
+
+The session stores the caller app, exact origin, exact grant ID, request ID,
+requested model label and expiry. Reusing a request ID with different content is
+rejected. Returned output remains byte-for-byte bound to the reviewed candidate
+and includes its SHA-256 digest and visible ChatGPT source identity. API-backed
+profiles retain their existing direct response path.

@@ -211,6 +211,78 @@ test("cancels an in-flight request without leaking the provider credential", asy
   });
   const pending = service.generate(request({ profileId: profile.id, model: "gpt-5" }), context);
   await began;
-  assert.equal(service.cancel("request/0123456789abcdef").cancelled, true);
+  assert.equal((await service.cancel("request/0123456789abcdef")).cancelled, true);
   await assert.rejects(pending, (error) => error.code === "REQUEST_CANCELLED");
+});
+
+test("routes webapp.chatgpt through a durable foreground provider without reading credentials", async () => {
+  const calls = [];
+  const webProvider = {
+    handles: (id) => id === "webapp.chatgpt",
+    async status() {
+      return { profile: {
+        id: "webapp.chatgpt",
+        provider: "webapp.chatgpt",
+        label: "ChatGPT Web — foreground",
+        available: true,
+      } };
+    },
+    async create(value, caller) {
+      calls.push(["create", value, caller]);
+      return {
+        protocol: AI_SERVICE_PROTOCOL,
+        requestId: value.requestId,
+        provider: "webapp.chatgpt",
+        profileId: "webapp.chatgpt",
+        model: value.model,
+        sessionId: "model/session/01234567",
+        state: "created",
+        pending: true,
+      };
+    },
+    async result(requestId, caller) {
+      calls.push(["result", requestId, caller]);
+      return { protocol: AI_SERVICE_PROTOCOL, requestId, provider: "webapp.chatgpt", pending: true };
+    },
+    async cancel(requestId, caller) {
+      calls.push(["cancel", requestId, caller]);
+      return { requestId, cancelled: true };
+    },
+  };
+  const noCredentialKeyring = {
+    async status() { return { providerProfiles: [], providerCredentialStorage: "session" }; },
+    async readProfiles() { throw new Error("foreground provider must not read credentials"); },
+  };
+  const service = new GreenwaysAiService({
+    keyring: noCredentialKeyring,
+    webProvider,
+    permissions: permissions(false),
+    fetchImpl: async () => { throw new Error("foreground provider must not call a provider API"); },
+  });
+  const foregroundContext = {
+    ...context,
+    grant: {
+      ...context.grant,
+      id: "grant/hara-playground/model-generate/0001",
+      constraints: {
+        ...context.grant.constraints,
+        timeoutMs: 15 * 60_000,
+      },
+    },
+  };
+  const result = await service.generate(request({
+    profileId: "webapp.chatgpt",
+    model: "chatgpt-auto",
+    timeoutMs: 15 * 60_000,
+  }), foregroundContext);
+  assert.equal(result.pending, true);
+  assert.equal(result.sessionId, "model/session/01234567");
+  assert.equal(calls[0][2].grant.id, "grant/hara-playground/model-generate/0001");
+  assert.equal((await service.status()).providerAccess["webapp.chatgpt"], true);
+  assert.equal((await service.result(result.requestId, foregroundContext)).pending, true);
+  assert.equal((await service.cancel(result.requestId, foregroundContext)).cancelled, true);
+  assert.throws(
+    () => normalizeModelRequest(request({ timeoutMs: 15 * 60_000 })),
+    /timeoutMs must be an integer/,
+  );
 });

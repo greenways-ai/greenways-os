@@ -57,7 +57,7 @@ The default grant is constrained to:
   "origins": ["https://playground.hara-lang.org"],
   "maxInputBytes": 262144,
   "maxOutputTokens": 4096,
-  "timeoutMs": 120000
+  "timeoutMs": 900000
 }
 ```
 

@@ -25,19 +25,27 @@ export const CHATGPT_PROVIDER_METHODS = Object.freeze([
   "chatgpt-provider/status",
   "chatgpt-provider/list",
   "chatgpt-provider/get",
+  "chatgpt-provider/get-request",
   "chatgpt-provider/create",
   "chatgpt-provider/cancel",
+  "chatgpt-provider/cancel-request",
   "chatgpt-provider/set-enabled",
 ]);
 
 const SESSION_ID = /^model\/session\/[A-Za-z0-9._:-]{8,160}$/;
 const APP_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+const REQUEST_ID = /^[a-z0-9][a-z0-9._:/-]{15,127}$/i;
+const GRANT_ID = /^grant\/[a-z0-9][a-z0-9._/-]{7,126}$/;
+const MODEL_ID = /^[a-z0-9][a-z0-9._:/-]{0,159}$/i;
 const SESSION_STATES = new Set([
   "created", "attached", "staged", "ready", "returned", "cancelled", "expired",
 ]);
 const ACTIVE_STATES = new Set(["created", "attached", "staged", "ready"]);
 const PAGE_OPERATIONS = new Set(["hello", "staged", "ready", "returned", "dismissed"]);
-const REQUEST_KEYS = new Set(["prompt", "title", "callerAppId"]);
+const REQUEST_KEYS = new Set([
+  "prompt", "title", "callerAppId", "callerOrigin", "callerGrantId",
+  "requestId", "model", "expiresAt",
+]);
 const SESSION_KEYS = new Set([
   "protocol", "id", "provider", "mode", "state", "request",
   "tabId", "documentId", "origin", "conversationId", "assistantMessageId",
@@ -87,15 +95,46 @@ function optionalString(value, label, maximum) {
   return value === undefined || value === null || value === "" ? null : string(value, label, maximum);
 }
 
+function optionalMatchingString(value, pattern, label, maximum) {
+  const output = optionalString(value, label, maximum);
+  if (output !== null && !pattern.test(output)) {
+    throw errorWithCode(`${label} is invalid`, "INVALID_REQUEST");
+  }
+  return output;
+}
+
+function optionalOrigin(value) {
+  const output = optionalString(value, "Caller origin", 240);
+  if (output === null) return null;
+  let parsed;
+  try {
+    parsed = new URL(output);
+  } catch {
+    throw errorWithCode("Caller origin is invalid", "INVALID_REQUEST");
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password
+      || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw errorWithCode("Caller origin must be a credential-free HTTPS origin", "INVALID_REQUEST");
+  }
+  return parsed.origin;
+}
+
 function normalizeRequest(value) {
   const input = plainObject(value, "ChatGPT provider request");
   closedKeys(input, REQUEST_KEYS, "ChatGPT provider request");
   const callerAppId = optionalString(input.callerAppId, "Caller app id", 80) ?? CHATGPT_PROVIDER_APP_ID;
   if (!APP_ID.test(callerAppId)) throw errorWithCode("Caller app id is invalid", "INVALID_REQUEST");
+  const model = optionalMatchingString(input.model, MODEL_ID, "Requested model id", 160);
+  if (model?.includes("://")) throw errorWithCode("Requested model id is invalid", "INVALID_REQUEST");
   return Object.freeze({
     prompt: string(input.prompt, "ChatGPT provider prompt", MAX_PROMPT_CHARS),
     title: optionalString(input.title, "ChatGPT provider title", 160) ?? "Greenways request",
     callerAppId,
+    callerOrigin: optionalOrigin(input.callerOrigin),
+    callerGrantId: optionalMatchingString(input.callerGrantId, GRANT_ID, "Caller grant id", 128),
+    requestId: optionalMatchingString(input.requestId, REQUEST_ID, "Caller request id", 128),
+    model,
+    expiresAt: canonicalTime(input.expiresAt, "ChatGPT provider request expiresAt", { optional: true }),
   });
 }
 
@@ -195,6 +234,11 @@ function publicSession(session) {
     request: Object.freeze({
       title: session.request.title,
       callerAppId: session.request.callerAppId,
+      callerOrigin: session.request.callerOrigin ?? null,
+      callerGrantId: session.request.callerGrantId ?? null,
+      requestId: session.request.requestId ?? null,
+      model: session.request.model ?? null,
+      expiresAt: session.request.expiresAt ?? null,
       prompt: session.request.prompt,
     }),
     tabId: Number.isInteger(session.tabId) ? session.tabId : null,
@@ -277,19 +321,47 @@ export function createChatgptProviderRuntime({
   if (typeof assertAuthority !== "function") throw new TypeError("ChatGPT provider requires an authority gate");
   if (typeof now !== "function") throw new TypeError("ChatGPT provider requires a clock");
 
-  async function records() {
-    return (await store.values())
-      .filter((record) => record?.protocol === CHATGPT_PROVIDER_SESSION_PROTOCOL)
-      .map(validateSession)
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  async function expireIfNeeded(session) {
+    if (!ACTIVE_STATES.has(session.state)
+        || !session.request.expiresAt
+        || session.request.expiresAt > now().toISOString()) return session;
+    const expired = await save({ ...session, state: "expired", candidate: null });
+    if (Number.isInteger(expired.tabId) && typeof tabs?.sendMessage === "function") {
+      await tabs.sendMessage(expired.tabId, {
+        type: CHATGPT_PROVIDER_MESSAGE_TYPE,
+        protocol: CHATGPT_PROVIDER_PROTOCOL,
+        operation: "clear",
+        sessionId: expired.id,
+      }).catch(() => {});
+    }
+    return expired;
   }
 
-  async function get(id) {
+  async function records({ expire = false } = {}) {
+    const output = [];
+    for (const record of (await store.values())
+      .filter((candidate) => candidate?.protocol === CHATGPT_PROVIDER_SESSION_PROTOCOL)) {
+      const session = validateSession(record);
+      output.push(expire ? await expireIfNeeded(session) : session);
+    }
+    return output.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  async function get(id, { expire = false } = {}) {
     const record = await store.get(normalizeSessionId(id));
     if (!record || record.protocol !== CHATGPT_PROVIDER_SESSION_PROTOCOL) {
       throw errorWithCode("ChatGPT provider session does not exist", "SESSION_NOT_FOUND");
     }
-    return validateSession(record);
+    const session = validateSession(record);
+    return expire ? expireIfNeeded(session) : session;
+  }
+
+  async function requestSession(id, { expire = false } = {}) {
+    const requested = string(id, "Caller model request id", 128);
+    if (!REQUEST_ID.test(requested)) throw errorWithCode("Caller model request id is invalid", "INVALID_REQUEST");
+    const session = (await records({ expire })).find(({ request }) => request.requestId === requested);
+    if (!session) throw errorWithCode("ChatGPT provider session does not exist", "SESSION_NOT_FOUND");
+    return session;
   }
 
   async function save(record) {
@@ -312,7 +384,7 @@ export function createChatgptProviderRuntime({
   async function status() {
     const [registered, sessions, originAccess] = await Promise.all([
       registrations(),
-      records(),
+      records({ expire: true }),
       hasOriginAccess().catch(() => false),
     ]);
     return Object.freeze({
@@ -364,7 +436,7 @@ export function createChatgptProviderRuntime({
 
   async function chatgptTab() {
     if (!tabs?.query || !tabs?.create) throw errorWithCode("Chrome tabs are unavailable", "PROVIDER_UNAVAILABLE");
-    const busyTabIds = new Set((await records())
+    const busyTabIds = new Set((await records({ expire: true }))
       .filter(({ state, tabId }) => ACTIVE_STATES.has(state) && Number.isInteger(tabId))
       .map(({ tabId }) => tabId));
     const candidates = await tabs.query({ url: CHATGPT_PROVIDER_ORIGINS });
@@ -383,6 +455,16 @@ export function createChatgptProviderRuntime({
   async function create(args) {
     await assertAuthority();
     const request = normalizeRequest(args[0]);
+    if (request.requestId) {
+      const existing = (await records({ expire: true }))
+        .find((session) => session.request.requestId === request.requestId);
+      if (existing) {
+        if (JSON.stringify(existing.request) !== JSON.stringify(request)) {
+          throw errorWithCode("Caller model request id was reused with different content", "REQUEST_ID_REUSE");
+        }
+        return Object.freeze({ ok: true, replayed: true, session: publicSession(existing) });
+      }
+    }
     const providerStatus = await status();
     if (!providerStatus.enabled) throw errorWithCode("Greenways for ChatGPT is not enabled", "PROVIDER_DISABLED");
     const tab = await chatgptTab();
@@ -420,17 +502,20 @@ export function createChatgptProviderRuntime({
 
   async function list() {
     await assertAuthority();
-    return Object.freeze({ ok: true, sessions: Object.freeze((await records()).map(publicSession)) });
+    return Object.freeze({ ok: true, sessions: Object.freeze((await records({ expire: true })).map(publicSession)) });
   }
 
   async function read(args) {
     await assertAuthority();
-    return Object.freeze({ ok: true, session: publicSession(await get(args[0])) });
+    return Object.freeze({ ok: true, session: publicSession(await get(args[0], { expire: true })) });
   }
 
-  async function cancel(args) {
+  async function readRequest(args) {
     await assertAuthority();
-    const current = await get(args[0]);
+    return Object.freeze({ ok: true, session: publicSession(await requestSession(args[0], { expire: true })) });
+  }
+
+  async function cancelCurrent(current) {
     if (!ACTIVE_STATES.has(current.state)) return Object.freeze({ ok: true, session: publicSession(current) });
     const session = await save({ ...current, state: "cancelled", candidate: null });
     if (Number.isInteger(session.tabId) && typeof tabs?.sendMessage === "function") {
@@ -444,8 +529,20 @@ export function createChatgptProviderRuntime({
     return Object.freeze({ ok: true, session: publicSession(session) });
   }
 
+  async function cancel(args) {
+    await assertAuthority();
+    const current = await get(args[0], { expire: true });
+    return cancelCurrent(current);
+  }
+
+  async function cancelRequest(args) {
+    await assertAuthority();
+    return cancelCurrent(await requestSession(args[0], { expire: true }));
+  }
+
   async function pendingForTab(tabId) {
-    return (await records()).find((session) => session.tabId === tabId && ACTIVE_STATES.has(session.state)) ?? null;
+    return (await records({ expire: true }))
+      .find((session) => session.tabId === tabId && ACTIVE_STATES.has(session.state)) ?? null;
   }
 
   async function handlePageMessage(value, sender) {
@@ -546,8 +643,10 @@ export function createChatgptProviderRuntime({
       if (method === "chatgpt-provider/status") return status();
       if (method === "chatgpt-provider/list") return list();
       if (method === "chatgpt-provider/get") return read(args);
+      if (method === "chatgpt-provider/get-request") return readRequest(args);
       if (method === "chatgpt-provider/create") return create(args);
       if (method === "chatgpt-provider/cancel") return cancel(args);
+      if (method === "chatgpt-provider/cancel-request") return cancelRequest(args);
       return setEnabled(args);
     },
     handlePageMessage,

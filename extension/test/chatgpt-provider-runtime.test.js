@@ -171,3 +171,54 @@ test("opens another ChatGPT tab rather than overlapping an active session", asyn
   const second = await runtime.call("chatgpt-provider/create", [{ prompt: "Second" }]);
   assert.equal(second.session.tabId, 9);
 });
+
+test("replays identical broker requests, rejects collisions, and expires stale sessions", async () => {
+  let registered = [];
+  let clock = new Date("2026-08-11T03:00:00.000Z");
+  const store = memoryStore();
+  const runtime = createChatgptProviderRuntime({
+    store,
+    runtime: { id: "greenways" },
+    permissions: { contains: async () => true },
+    scripting: {
+      getRegisteredContentScripts: async () => registered,
+      unregisterContentScripts: async () => { registered = []; },
+      registerContentScripts: async (records) => { registered = records; },
+    },
+    tabs: {
+      query: async () => [{ id: 7, incognito: false }],
+      update: async () => {},
+      sendMessage: async () => {},
+      create: async () => ({ id: 9 }),
+    },
+    now: () => new Date(clock),
+  });
+  await runtime.call("chatgpt-provider/set-enabled", [true]);
+  const request = {
+    prompt: "USER:\nExplain this form.",
+    title: "Hara Playground request",
+    callerAppId: "hara-playground",
+    callerOrigin: "https://playground.hara-lang.org",
+    callerGrantId: "grant/hara-playground/model-generate/0001",
+    requestId: "request/0123456789abcdef",
+    model: "chatgpt-auto",
+    expiresAt: "2026-08-11T03:15:00.000Z",
+  };
+  const first = await runtime.call("chatgpt-provider/create", [request]);
+  const replayed = await runtime.call("chatgpt-provider/create", [request]);
+  assert.equal(replayed.replayed, true);
+  assert.equal(replayed.session.id, first.session.id);
+  assert.equal(
+    (await runtime.call("chatgpt-provider/get-request", [request.requestId])).session.id,
+    first.session.id,
+  );
+  await assert.rejects(
+    runtime.call("chatgpt-provider/create", [{ ...request, prompt: "Changed" }]),
+    (error) => error.code === "REQUEST_ID_REUSE",
+  );
+  clock = new Date("2026-08-11T03:16:00.000Z");
+  const expired = await runtime.call("chatgpt-provider/get-request", [request.requestId]);
+  assert.equal(expired.session.state, "expired");
+  const cancelled = await runtime.call("chatgpt-provider/cancel-request", [request.requestId]);
+  assert.equal(cancelled.session.state, "expired");
+});
