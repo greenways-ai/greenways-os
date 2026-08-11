@@ -9,13 +9,15 @@ import {
 
 export const MCP_PAIRING_CHALLENGE_PROTOCOL = "greenways-mcp-pairing-challenge/1";
 export const MCP_PAIRING_ASSERTION_PROTOCOL = "greenways-mcp-pairing-assertion/1";
-export const MCP_PAIRING_SESSION_PROTOCOL = "greenways-mcp-pairing-session/1";
+export const MCP_PAIRING_SESSION_PROTOCOL = "greenways-mcp-pairing-session/2";
 export const MCP_PAIRING_RECEIPT_PROTOCOL = "greenways-mcp-pairing-receipt/1";
 export const MCP_PAIRING_ALGORITHM = "ECDSA-P256-SHA256";
 export const MCP_PAIRING_SCOPE = "greenways.read";
+export const MCP_PAIRING_DEFAULT_CLAIM_LIFETIME_MS = 2 * 60 * 1000;
 
-const CHALLENGE_ID = /^mcp\/challenge\/[A-Za-z0-9._:-]{8,160}$/;
-const CONNECTION_ID = /^mcp\/connection\/[A-Za-z0-9._:-]{8,160}$/;
+const CHALLENGE_ID = /^mcp\/challenge\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PAIRING_CONNECTION_ID = /^mcp\/connection\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const CLAIM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,180}$/;
 const SIGNATURE = /^[A-Za-z0-9_-]{64,200}$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
@@ -26,6 +28,7 @@ const DEFAULT_CHALLENGE_LIFETIME_MS = 5 * 60 * 1000;
 const MAX_CHALLENGE_LIFETIME_MS = 10 * 60 * 1000;
 const DEFAULT_ASSERTION_LIFETIME_MS = 2 * 60 * 1000;
 const MAX_ASSERTION_LIFETIME_MS = 5 * 60 * 1000;
+const MAX_PAIRING_CLAIM_LIFETIME_MS = 5 * 60 * 1000;
 const DEFAULT_CONNECTION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_CONNECTION_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000;
 const MAX_CLOCK_SKEW_MS = 60 * 1000;
@@ -79,6 +82,36 @@ function id(value, label, pattern = ID, status = 400) {
   const output = string(value, label, 180, status);
   if (!pattern.test(output)) fail(status, "invalid-pairing", `${label} is invalid`);
   return output;
+}
+
+export function normalizeMcpPairingChallengeId(value, status = 400) {
+  return id(value, "MCP pairing challenge id", CHALLENGE_ID, status);
+}
+
+export function normalizeMcpPairingClaimId(value, status = 400) {
+  const output = string(value, "MCP pairing claim id", 80, status);
+  if (!CLAIM_ID.test(output)) fail(status, "invalid-pairing", "MCP pairing claim id is invalid");
+  return output.toLowerCase();
+}
+
+export function normalizeMcpPairingConnectionId(value, status = 400) {
+  const output = string(value, "MCP pairing connection id", 180, status);
+  if (!PAIRING_CONNECTION_ID.test(output)) {
+    fail(status, "invalid-pairing", "MCP pairing connection id is invalid");
+  }
+  return output.toLowerCase();
+}
+
+export function mcpConnectionIdForClaim(challengeIdValue, claimIdValue) {
+  const challengeId = normalizeMcpPairingChallengeId(challengeIdValue, 500);
+  const claimId = normalizeMcpPairingClaimId(claimIdValue, 500);
+  return `mcp/connection/${challengeId.slice("mcp/challenge/".length).toLowerCase()}:${claimId}`;
+}
+
+export function mcpChallengeIdForConnection(connectionIdValue) {
+  const connectionId = normalizeMcpPairingConnectionId(connectionIdValue, 500);
+  const match = PAIRING_CONNECTION_ID.exec(connectionId);
+  return `mcp/challenge/${match[1].toLowerCase()}`;
 }
 
 function boundedLifetime(value, fallback, maximum, label) {
@@ -214,7 +247,7 @@ function normalizeDevice(value) {
   });
 }
 
-function normalizeChallenge(value) {
+export function normalizeMcpPairingChallenge(value) {
   const input = closedKeys(
     value,
     new Set([
@@ -237,6 +270,12 @@ function normalizeChallenge(value) {
   if (!DIGEST.test(requestDigest) || !DIGEST.test(root)) {
     fail(500, "pairing-recovery", "Stored MCP pairing challenge digest is invalid");
   }
+  let scopes;
+  try {
+    scopes = normalizeScopes(input.scopes);
+  } catch (cause) {
+    fail(500, "pairing-recovery", "Stored MCP pairing challenge scopes are invalid", { cause });
+  }
   return Object.freeze({
     protocol: MCP_PAIRING_CHALLENGE_PROTOCOL,
     id: id(input.id, "MCP pairing challenge id", CHALLENGE_ID, 500),
@@ -245,7 +284,7 @@ function normalizeChallenge(value) {
       name: string(input.client?.name, "MCP pairing client name", 120, 500),
       uri: input.client?.uri === null ? null : string(input.client?.uri, "MCP pairing client URI", 2048, 500),
     }),
-    scopes: normalizeScopes(input.scopes),
+    scopes,
     tools: Object.freeze([...input.tools]),
     requestDigest,
     nonce: string(input.nonce, "MCP pairing challenge nonce", 80, 500),
@@ -255,12 +294,12 @@ function normalizeChallenge(value) {
   });
 }
 
-function normalizeSession(value) {
+export function normalizeMcpPairingSession(value) {
   const input = closedKeys(
     value,
     new Set([
       "protocol", "id", "state", "challenge", "oauthRequest", "createdAt",
-      "claimId", "claimedAt", "consumedAt", "connectionId",
+      "claimId", "claimedAt", "claimExpiresAt", "consumedAt", "connection",
     ]),
     "MCP pairing session",
     500,
@@ -268,24 +307,61 @@ function normalizeSession(value) {
   if (input.protocol !== MCP_PAIRING_SESSION_PROTOCOL || !CHALLENGE_STATES.has(input.state)) {
     fail(500, "pairing-recovery", "Stored MCP pairing session is invalid");
   }
-  const challenge = normalizeChallenge(input.challenge);
+  const challenge = normalizeMcpPairingChallenge(input.challenge);
   if (input.id !== challenge.id) fail(500, "pairing-recovery", "Stored MCP pairing session identity is invalid");
+  let oauthRequest;
+  try {
+    oauthRequest = jsonClone(input.oauthRequest, "Stored OAuth request");
+  } catch (cause) {
+    fail(500, "pairing-recovery", "Stored OAuth request is invalid", { cause });
+  }
+  let connection = null;
+  if (input.connection !== null) {
+    try {
+      connection = normalizeConnection(input.connection);
+    } catch (cause) {
+      fail(500, "pairing-recovery", "Stored MCP pairing connection is invalid", { cause });
+    }
+  }
   const output = Object.freeze({
     protocol: MCP_PAIRING_SESSION_PROTOCOL,
     id: challenge.id,
     state: input.state,
     challenge,
-    oauthRequest: jsonClone(input.oauthRequest, "Stored OAuth request"),
+    oauthRequest,
     createdAt: canonicalDate(input.createdAt, "MCP pairing session createdAt", 500),
-    claimId: input.claimId === null ? null : string(input.claimId, "MCP pairing claim id", 80, 500),
+    claimId: input.claimId === null ? null : normalizeMcpPairingClaimId(input.claimId, 500),
     claimedAt: input.claimedAt === null ? null : canonicalDate(input.claimedAt, "MCP pairing claimedAt", 500),
+    claimExpiresAt: input.claimExpiresAt === null
+      ? null
+      : canonicalDate(input.claimExpiresAt, "MCP pairing claimExpiresAt", 500),
     consumedAt: input.consumedAt === null ? null : canonicalDate(input.consumedAt, "MCP pairing consumedAt", 500),
-    connectionId: input.connectionId === null ? null : id(input.connectionId, "MCP pairing connection id", CONNECTION_ID, 500),
+    connection,
   });
-  if ((output.state === "open" && (output.claimId || output.claimedAt || output.consumedAt || output.connectionId))
-      || (output.state === "claimed" && (!output.claimId || !output.claimedAt || output.consumedAt || output.connectionId))
-      || (output.state === "consumed" && (!output.claimId || !output.claimedAt || !output.consumedAt || !output.connectionId))) {
+  if ((output.state === "open"
+        && (output.claimId || output.claimedAt || output.claimExpiresAt || output.consumedAt || output.connection))
+      || (output.state === "claimed"
+        && (!output.claimId || !output.claimedAt || !output.claimExpiresAt || output.consumedAt || !output.connection))
+      || (output.state === "consumed"
+        && (!output.claimId || !output.claimedAt || !output.claimExpiresAt || !output.consumedAt || !output.connection))) {
     fail(500, "pairing-recovery", "Stored MCP pairing session state is inconsistent");
+  }
+  if (output.claimedAt) {
+    if (Date.parse(output.claimExpiresAt) <= Date.parse(output.claimedAt)
+        || Date.parse(output.claimExpiresAt) > Date.parse(challenge.expiresAt)) {
+      fail(500, "pairing-recovery", "Stored MCP pairing claim lifetime is inconsistent");
+    }
+    const expectedConnectionId = mcpConnectionIdForClaim(challenge.id, output.claimId);
+    if (output.connection.id !== expectedConnectionId
+        || output.connection.client.id !== challenge.client.id
+        || output.connection.client.name !== challenge.client.name
+        || output.connection.tools.length !== challenge.tools.length
+        || output.connection.tools.some((name, index) => name !== challenge.tools[index])) {
+      fail(500, "pairing-recovery", "Stored MCP pairing connection is not bound to its claim");
+    }
+  }
+  if (output.consumedAt && Date.parse(output.consumedAt) < Date.parse(output.claimedAt)) {
+    fail(500, "pairing-recovery", "Stored MCP pairing consumption precedes its claim");
   }
   return output;
 }
@@ -404,7 +480,7 @@ export async function createMcpPairingAssertion(challengeValue, {
   cryptoProvider = globalThis.crypto,
   assertionLifetimeMs = DEFAULT_ASSERTION_LIFETIME_MS,
 } = {}) {
-  const challenge = normalizeChallenge(challengeValue);
+  const challenge = normalizeMcpPairingChallenge(challengeValue);
   const issued = now();
   if (!(issued instanceof Date) || !Number.isFinite(issued.getTime())) {
     throw new TypeError("MCP pairing assertion clock is invalid");
@@ -441,66 +517,231 @@ export async function createMcpPairingAssertion(challengeValue, {
   return Object.freeze({ ...body, signature: encoded });
 }
 
+function pairingRepositoryDate(value) {
+  if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
+    fail(500, "pairing-recovery", "MCP pairing repository clock is invalid");
+  }
+  return value;
+}
+
+function clonePairingValue(value, label) {
+  try {
+    return structuredClone(value);
+  } catch (cause) {
+    fail(500, "pairing-recovery", `${label} must be structured-cloneable`, { cause });
+  }
+}
+
+function pairingTransition(session, changed, extra = {}) {
+  return Object.freeze({
+    session: clonePairingValue(session, "MCP pairing transition"),
+    changed,
+    ...extra,
+  });
+}
+
+function currentPairingSession(value) {
+  return value === null || value === undefined ? null : normalizeMcpPairingSession(value);
+}
+
+export function putMcpPairingSessionState(currentValue, sessionValue) {
+  if (currentPairingSession(currentValue)) {
+    fail(409, "pairing-session-exists", "MCP pairing session already exists");
+  }
+  return pairingTransition(normalizeMcpPairingSession(sessionValue), true);
+}
+
+export function claimMcpPairingSessionState(
+  currentValue,
+  claimValue,
+  nowValue,
+  claimLifetimeMs = MCP_PAIRING_DEFAULT_CLAIM_LIFETIME_MS,
+) {
+  const current = currentPairingSession(currentValue);
+  if (!current) fail(404, "pairing-session-missing", "MCP pairing session does not exist");
+  const input = closedKeys(
+    claimValue,
+    new Set(["id", "root", "claimId", "connection"]),
+    "MCP pairing repository claim",
+    500,
+  );
+  const idValue = normalizeMcpPairingChallengeId(input.id, 500);
+  const claimId = normalizeMcpPairingClaimId(input.claimId, 500);
+  if (current.id !== idValue) fail(500, "pairing-recovery", "MCP pairing repository identity changed");
+  if (current.challenge.root !== input.root) fail(409, "pairing-session-changed", "MCP pairing session changed");
+  const observed = pairingRepositoryDate(nowValue);
+  if (Date.parse(current.challenge.expiresAt) <= observed.getTime()) {
+    fail(403, "pairing-challenge-expired", "MCP pairing challenge expired");
+  }
+  if (current.state === "consumed") {
+    fail(409, "pairing-session-used", "MCP pairing session is already in use");
+  }
+  if (current.state === "claimed" && Date.parse(current.claimExpiresAt) > observed.getTime()) {
+    fail(409, "pairing-session-used", "MCP pairing session is already in use");
+  }
+  const lifetime = boundedLifetime(
+    claimLifetimeMs,
+    MCP_PAIRING_DEFAULT_CLAIM_LIFETIME_MS,
+    MAX_PAIRING_CLAIM_LIFETIME_MS,
+    "MCP pairing claim lifetime",
+  );
+  let connection;
+  try {
+    connection = normalizeConnection(input.connection);
+  } catch (cause) {
+    fail(500, "pairing-recovery", "MCP pairing claim connection is invalid", { cause });
+  }
+  if (connection.id !== mcpConnectionIdForClaim(current.id, claimId)) {
+    fail(500, "pairing-recovery", "MCP pairing claim connection ID is invalid");
+  }
+  const next = normalizeMcpPairingSession({
+    ...current,
+    state: "claimed",
+    claimId,
+    claimedAt: observed.toISOString(),
+    claimExpiresAt: new Date(Math.min(
+      observed.getTime() + lifetime,
+      Date.parse(current.challenge.expiresAt),
+    )).toISOString(),
+    consumedAt: null,
+    connection,
+  });
+  return pairingTransition(next, true);
+}
+
+export function releaseMcpPairingSessionState(currentValue, releaseValue) {
+  const current = currentPairingSession(currentValue);
+  if (!current) return pairingTransition(null, false, { released: false });
+  const input = closedKeys(
+    releaseValue,
+    new Set(["id", "claimId", "connectionId"]),
+    "MCP pairing repository release",
+    500,
+  );
+  const idValue = normalizeMcpPairingChallengeId(input.id, 500);
+  const claimId = normalizeMcpPairingClaimId(input.claimId, 500);
+  const connectionId = normalizeMcpPairingConnectionId(input.connectionId, 500);
+  if (current.id !== idValue) fail(500, "pairing-recovery", "MCP pairing repository identity changed");
+  if (current.state !== "claimed"
+      || current.claimId !== claimId
+      || current.connection?.id !== connectionId) {
+    return pairingTransition(current, false, { released: false });
+  }
+  const next = normalizeMcpPairingSession({
+    ...current,
+    state: "open",
+    claimId: null,
+    claimedAt: null,
+    claimExpiresAt: null,
+    consumedAt: null,
+    connection: null,
+  });
+  return pairingTransition(next, true, { released: true });
+}
+
+export function consumeMcpPairingSessionState(currentValue, consumeValue, nowValue) {
+  const current = currentPairingSession(currentValue);
+  if (!current) fail(409, "pairing-session-changed", "MCP pairing session claim is no longer current");
+  const input = closedKeys(
+    consumeValue,
+    new Set(["id", "claimId", "connectionId"]),
+    "MCP pairing repository consumption",
+    500,
+  );
+  const idValue = normalizeMcpPairingChallengeId(input.id, 500);
+  const claimId = normalizeMcpPairingClaimId(input.claimId, 500);
+  const connectionId = normalizeMcpPairingConnectionId(input.connectionId, 500);
+  const observed = pairingRepositoryDate(nowValue);
+  if (current.id !== idValue) fail(500, "pairing-recovery", "MCP pairing repository identity changed");
+  if (current.state !== "claimed"
+      || current.claimId !== claimId
+      || current.connection?.id !== connectionId
+      || Date.parse(current.claimExpiresAt) <= observed.getTime()) {
+    fail(409, "pairing-session-changed", "MCP pairing session claim is no longer current");
+  }
+  const next = normalizeMcpPairingSession({
+    ...current,
+    state: "consumed",
+    consumedAt: observed.toISOString(),
+  });
+  return pairingTransition(next, true);
+}
+
 export class MemoryMcpPairingRepository {
-  constructor() {
+  constructor({
+    now = () => new Date(),
+    claimLifetimeMs = MCP_PAIRING_DEFAULT_CLAIM_LIFETIME_MS,
+  } = {}) {
+    if (typeof now !== "function") throw new TypeError("MCP pairing repository requires a clock");
     this.sessions = new Map();
-    this.connections = new Map();
+    this.now = now;
+    this.claimLifetimeMs = claimLifetimeMs;
   }
 
-  async putSession(session) {
-    if (this.sessions.has(session.id)) fail(409, "pairing-session-exists", "MCP pairing session already exists");
-    this.sessions.set(session.id, structuredClone(session));
+  currentDate() {
+    return pairingRepositoryDate(this.now());
+  }
+
+  async putSession(sessionValue) {
+    const session = normalizeMcpPairingSession(sessionValue);
+    const transition = putMcpPairingSessionState(this.sessions.get(session.id) ?? null, session);
+    this.sessions.set(session.id, clonePairingValue(transition.session, "MCP pairing session"));
+    return clonePairingValue(transition.session, "MCP pairing session");
   }
 
   async getSession(idValue) {
-    const value = this.sessions.get(idValue);
-    return value ? structuredClone(value) : null;
+    const idValueNormalized = normalizeMcpPairingChallengeId(idValue, 500);
+    const value = this.sessions.get(idValueNormalized);
+    return value ? clonePairingValue(normalizeMcpPairingSession(value), "MCP pairing session") : null;
   }
 
-  async claimSession(idValue, root, claimId, claimedAt) {
-    const current = this.sessions.get(idValue);
-    if (!current) fail(404, "pairing-session-missing", "MCP pairing session does not exist");
-    if (current.challenge?.root !== root) fail(409, "pairing-session-changed", "MCP pairing session changed");
-    if (current.state !== "open") fail(409, "pairing-session-used", "MCP pairing session is already in use");
-    const next = { ...current, state: "claimed", claimId, claimedAt };
-    this.sessions.set(idValue, structuredClone(next));
-    return structuredClone(next);
+  async claimSession(idValue, root, claimIdValue, connectionValue) {
+    const idValueNormalized = normalizeMcpPairingChallengeId(idValue, 500);
+    const transition = claimMcpPairingSessionState(
+      this.sessions.get(idValueNormalized) ?? null,
+      { id: idValueNormalized, root, claimId: claimIdValue, connection: connectionValue },
+      this.currentDate(),
+      this.claimLifetimeMs,
+    );
+    this.sessions.set(idValueNormalized, clonePairingValue(transition.session, "MCP pairing session"));
+    return clonePairingValue(transition.session, "MCP pairing session");
   }
 
-  async releaseSession(idValue, claimId) {
-    const current = this.sessions.get(idValue);
-    if (!current || current.state !== "claimed" || current.claimId !== claimId) return false;
-    this.sessions.set(idValue, structuredClone({
-      ...current,
-      state: "open",
-      claimId: null,
-      claimedAt: null,
-    }));
-    return true;
-  }
-
-  async consumeSession(idValue, claimId, connectionId, consumedAt) {
-    const current = this.sessions.get(idValue);
-    if (!current || current.state !== "claimed" || current.claimId !== claimId) {
-      fail(409, "pairing-session-changed", "MCP pairing session claim is no longer current");
+  async releaseSession(idValue, claimIdValue, connectionIdValue) {
+    const idValueNormalized = normalizeMcpPairingChallengeId(idValue, 500);
+    const transition = releaseMcpPairingSessionState(
+      this.sessions.get(idValueNormalized) ?? null,
+      { id: idValueNormalized, claimId: claimIdValue, connectionId: connectionIdValue },
+    );
+    if (transition.changed) {
+      this.sessions.set(idValueNormalized, clonePairingValue(transition.session, "MCP pairing session"));
     }
-    const next = { ...current, state: "consumed", connectionId, consumedAt };
-    this.sessions.set(idValue, structuredClone(next));
-    return structuredClone(next);
+    return transition.released;
   }
 
-  async putConnection(connection) {
-    if (this.connections.has(connection.id)) fail(409, "connection-exists", "MCP connection already exists");
-    this.connections.set(connection.id, structuredClone(connection));
+  async consumeSession(idValue, claimIdValue, connectionIdValue) {
+    const idValueNormalized = normalizeMcpPairingChallengeId(idValue, 500);
+    const transition = consumeMcpPairingSessionState(
+      this.sessions.get(idValueNormalized) ?? null,
+      { id: idValueNormalized, claimId: claimIdValue, connectionId: connectionIdValue },
+      this.currentDate(),
+    );
+    this.sessions.set(idValueNormalized, clonePairingValue(transition.session, "MCP pairing session"));
+    return clonePairingValue(transition.session, "MCP pairing session");
   }
 
-  async deleteConnection(connectionId) {
-    return this.connections.delete(connectionId);
+  async getConnection(connectionIdValue) {
+    const connectionId = normalizeMcpPairingConnectionId(connectionIdValue, 500);
+    const challengeId = mcpChallengeIdForConnection(connectionId);
+    const session = this.sessions.get(challengeId);
+    if (!session) return null;
+    const normalized = normalizeMcpPairingSession(session);
+    if (normalized.state !== "consumed" || normalized.connection?.id !== connectionId) return null;
+    return clonePairingValue(normalized.connection, "MCP connection");
   }
 
-  async getConnection(connectionId) {
-    const value = this.connections.get(connectionId);
-    return value ? structuredClone(value) : null;
+  async get(connectionIdValue) {
+    return this.getConnection(connectionIdValue);
   }
 }
 
@@ -524,8 +765,7 @@ export class GreenwaysMcpPairingService {
         || typeof repository.claimSession !== "function"
         || typeof repository.releaseSession !== "function"
         || typeof repository.consumeSession !== "function"
-        || typeof repository.putConnection !== "function"
-        || typeof repository.deleteConnection !== "function") {
+        || typeof repository.getConnection !== "function") {
       throw new TypeError("MCP pairing requires an atomic pairing repository");
     }
     if (!cryptoProvider?.subtle) throw new TypeError("MCP pairing requires Web Crypto");
@@ -554,7 +794,7 @@ export class GreenwaysMcpPairingService {
     const clientId = id(request.clientId, "OAuth authorization client id");
     const scopes = normalizeScopes(request.scope);
     const client = normalizeClient(clientInfo, clientId);
-    const issued = this.now();
+    const issued = pairingRepositoryDate(this.now());
     const body = {
       protocol: MCP_PAIRING_CHALLENGE_PROTOCOL,
       id: `mcp/challenge/${secureUuid(this.randomUUID, "MCP pairing challenge")}`,
@@ -576,10 +816,11 @@ export class GreenwaysMcpPairingService {
       createdAt: issued.toISOString(),
       claimId: null,
       claimedAt: null,
+      claimExpiresAt: null,
       consumedAt: null,
-      connectionId: null,
+      connection: null,
     });
-    normalizeSession(session);
+    normalizeMcpPairingSession(session);
     await this.repository.putSession(session);
     return stablePublicChallenge(challenge);
   }
@@ -589,9 +830,14 @@ export class GreenwaysMcpPairingService {
     const requestedId = id(challengeId, "MCP pairing challenge id", CHALLENGE_ID);
     const stored = await this.repository.getSession(requestedId);
     if (!stored) fail(404, "pairing-session-missing", "MCP pairing session does not exist");
-    const session = normalizeSession(stored);
-    if (session.state !== "open") fail(409, "pairing-session-used", "MCP pairing session is already in use");
-    if (Date.parse(session.challenge.expiresAt) <= this.now().getTime()) {
+    const session = normalizeMcpPairingSession(stored);
+    const observed = pairingRepositoryDate(this.now());
+    const observedAt = observed.getTime();
+    if (session.state === "consumed"
+        || (session.state === "claimed" && Date.parse(session.claimExpiresAt) > observedAt)) {
+      fail(409, "pairing-session-used", "MCP pairing session is already in use");
+    }
+    if (Date.parse(session.challenge.expiresAt) <= observedAt) {
       fail(403, "pairing-challenge-expired", "MCP pairing challenge expired");
     }
     if (session.challenge.root !== await challengeRoot(session.challenge, this.cryptoProvider)) {
@@ -601,17 +847,14 @@ export class GreenwaysMcpPairingService {
       fail(500, "pairing-recovery", "Stored OAuth authorization request changed");
     }
     const verified = await verifyAssertion(assertion, session.challenge, {
-      now: this.now,
+      now: () => new Date(observed),
       cryptoProvider: this.cryptoProvider,
     });
     const claimId = secureUuid(this.randomUUID, "MCP pairing claim");
-    const claimedAt = this.now().toISOString();
-    await this.repository.claimSession(session.id, session.challenge.root, claimId, claimedAt);
-
-    const issued = this.now();
+    const issued = pairingRepositoryDate(this.now());
     const connection = normalizeConnection({
       protocol: "greenways-mcp-connection/1",
-      id: `mcp/connection/${secureUuid(this.randomUUID, "MCP connection")}`,
+      id: mcpConnectionIdForClaim(session.id, claimId),
       identity: {
         id: verified.identity.id,
         keyId: verified.identity.keyId,
@@ -630,23 +873,20 @@ export class GreenwaysMcpPairingService {
       expiresAt: new Date(issued.getTime() + this.connectionLifetimeMs).toISOString(),
       revokedAt: null,
     });
+    await this.repository.claimSession(
+      session.id,
+      session.challenge.root,
+      claimId,
+      connection,
+    );
 
-    let connectionStored = false;
     try {
-      await this.repository.putConnection(connection);
-      connectionStored = true;
       const oauthResult = await completeAuthorization({
         oauthRequest: session.oauthRequest,
         identity: verified.identity,
         device: verified.device,
         connection,
       });
-      await this.repository.consumeSession(
-        session.id,
-        claimId,
-        connection.id,
-        this.now().toISOString(),
-      );
       const receipt = Object.freeze({
         protocol: MCP_PAIRING_RECEIPT_PROTOCOL,
         challengeId: session.id,
@@ -658,13 +898,13 @@ export class GreenwaysMcpPairingService {
         }),
         client: connection.client,
         tools: connection.tools,
-        pairedAt: this.now().toISOString(),
+        pairedAt: pairingRepositoryDate(this.now()).toISOString(),
       });
       validateBoundedPublicValue(receipt, "MCP pairing receipt");
+      await this.repository.consumeSession(session.id, claimId, connection.id);
       return Object.freeze({ connection, receipt, oauthResult });
     } catch (cause) {
-      if (connectionStored) await this.repository.deleteConnection(connection.id).catch(() => {});
-      await this.repository.releaseSession(session.id, claimId).catch(() => {});
+      await this.repository.releaseSession(session.id, claimId, connection.id).catch(() => {});
       if (cause instanceof McpPairingError) throw cause;
       fail(502, "oauth-authorization-failed", "MCP OAuth authorization could not be completed", { cause });
     }

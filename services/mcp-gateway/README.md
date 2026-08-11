@@ -103,17 +103,26 @@ identity card, reviewed browser-device identity, challenge root, and bounded
 timestamps. The gateway recalculates the public-key digest and verifies the
 signature before claiming the challenge.
 
-The pairing repository owns the one-time state transition:
+The pairing repository owns a lease-fenced state transition:
 
 ```text
-open → claimed → consumed
-          │
-          └── OAuth failure → open
+open → claimed(connection pending) → consumed(connection active)
+          │                            ▲
+          ├── OAuth failure → open     │ atomic session transition
+          └── expired lease → replacement claim
 ```
 
-Concurrent or replayed approvals cannot create another connection. If OAuth
-completion fails, the provisional connection is removed and the original
-signed assertion can be retried while it remains valid.
+Every claim receives a connection ID derived from both the challenge ID and the
+unique claim ID. The complete provisional connection is stored inside the same
+pairing atom. Connection lookup returns it only after the session becomes
+`consumed`. Therefore an OAuth token issued just before a Worker interruption
+cannot use a pending connection and cannot become valid after a later claim
+replaces it.
+
+The repository's clock owns claim expiry. A stale claimant cannot consume or
+release a replacement claim. Concurrent or replayed approvals cannot activate
+another connection, while an interrupted claim can be safely retried during the
+original challenge lifetime.
 
 A new connection initially uses an honest `replica/...` route with status
 `unknown`. The pairing proof establishes identity and client consent; it does
@@ -164,7 +173,10 @@ pretending a local read was queued.
 - `src/mcp-transport.js` — OAuth/MCP identity projection and stable tool errors.
 - `src/mcp-server.js` — the nine registered MCP tools and exact Zod schemas.
 - `src/mcp-handler.js` — stateless Streamable HTTP handler factory.
-- `src/mcp-pairing.js` — signed challenge/assertion protocol and one-time state.
+- `src/mcp-pairing.js` — signed challenge/assertion protocol, lease-fenced state, and in-memory conformance repository.
+- `src/sqlite-pairing-store.js` — one-session SQLite Durable Object repository and consumed-only connection view.
+- `src/pairing-store-rpc.js` — closed non-leaking pairing repository RPC envelopes.
+- `src/cloudflare-pairing-store.js` — challenge/connection routing through one pairing atom.
 - `src/mcp-authorization.js` — hardened OAuth authorization GET/POST handler.
 - `src/request-store.js` — shared request validation, state transitions, and in-memory conformance store.
 - `src/sqlite-request-store.js` — one-row SQLite Durable Object repository.
@@ -187,9 +199,9 @@ real SQLite persistence through Node's SQLite engine, Durable Object routing,
 and rejection of the legacy MCP lane. The check also performs a Wrangler
 dry-run build against `wrangler.jsonc`.
 
-## Next durable slice
+## Next delivery slice
 
-The next PR gives signed pairing sessions the same durable storage treatment.
-After both repositories survive isolate replacement, a separate delivery
-adapter can attach verified Home Node or Beacon routes without letting remote
-OAuth credentials substitute for local Greenways capability authority.
+Request and signed-pairing repositories now survive isolate replacement. The
+next PR attaches a verified Home Node or Beacon route behind the existing
+connection and Greenways capability checks. Remote OAuth credentials still
+cannot substitute for resident Greenways authority.
