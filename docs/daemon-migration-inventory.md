@@ -23,6 +23,7 @@ authority is moved.
 | Browser sender identity | Chrome service worker/content scripts | Chrome extension | Remains browser-local and must be attached to every forwarded request |
 | Host permissions and user gestures | Chrome extension | Chrome extension | Daemon cannot infer or manufacture browser permission |
 | Browser effects | extension effect handlers | Chrome extension | Every daemon-requested effect is revalidated against current tab/document state |
+| Local clients | Daemon-owned enrolment registry | Desktop, CLI, browser-bridge, and developer roles are issued offline with one private credential file; only its digest is retained and revocation is final. Expiring socket sessions are the next boundary. |
 | Management surfaces | extension side panel and app surfaces | Flutter Desktop | UI is replaceable and contains no durable authority |
 | Remote MCP coordination | `services/mcp-gateway` | optional ingress to an authorised daemon node | Reuse pairing/replay primitives; hosted gateway is not the kernel |
 

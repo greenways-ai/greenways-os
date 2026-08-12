@@ -162,9 +162,21 @@ dependencies = [
 name = "greenways-admin"
 version = "0.1.0"
 dependencies = [
+ "greenways-authority",
  "greenways-local",
  "greenways-vault",
  "serde_json",
+]
+
+[[package]]
+name = "greenways-authority"
+version = "0.1.0"
+dependencies = [
+ "getrandom",
+ "serde",
+ "serde_json",
+ "sha2",
+ "zeroize",
 ]
 
 [[package]]
@@ -208,6 +220,7 @@ dependencies = [
 name = "greenwaysd"
 version = "0.1.0"
 dependencies = [
+ "greenways-authority",
  "greenways-local",
  "greenways-protocol",
  "greenways-vault",

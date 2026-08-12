@@ -1,5 +1,7 @@
+use greenways_authority::{LocalClient, LocalClientRegistry, LocalClientRole};
 use greenways_local::GreenwaysPaths;
 use greenways_vault::{ProviderKind, ProviderProfile, ProviderVault, MAX_PROVIDER_SECRET_BYTES};
+use serde_json::json;
 use std::{
     env,
     io::{self, IsTerminal, Read},
@@ -10,6 +12,12 @@ use std::{
 
 #[derive(Debug)]
 enum Command {
+    Provider(ProviderCommand),
+    Client(ClientCommand),
+}
+
+#[derive(Debug)]
+enum ProviderCommand {
     List,
     Add {
         id: String,
@@ -20,6 +28,19 @@ enum Command {
         id: String,
     },
     Remove {
+        id: String,
+    },
+}
+
+#[derive(Debug)]
+enum ClientCommand {
+    List,
+    Issue {
+        role: LocalClientRole,
+        label: String,
+        output: PathBuf,
+    },
+    Revoke {
         id: String,
     },
 }
@@ -41,15 +62,25 @@ fn main() {
 fn run() -> Result<(), String> {
     let options = parse_options(env::args().skip(1))?;
     let paths = GreenwaysPaths::resolve(options.home).map_err(|error| error.to_string())?;
-    let metadata_path = paths.home.join("state").join("providers.json");
-
     match options.command {
-        Command::List => {
+        Command::Provider(command) => run_provider(command, &paths, options.json),
+        Command::Client(command) => run_client(command, &paths, options.json),
+    }
+}
+
+fn run_provider(
+    command: ProviderCommand,
+    paths: &GreenwaysPaths,
+    json: bool,
+) -> Result<(), String> {
+    let metadata_path = paths.home.join("state").join("providers.json");
+    match command {
+        ProviderCommand::List => {
             let vault =
                 ProviderVault::open_system(metadata_path).map_err(|error| error.to_string())?;
-            print_profiles(&vault.profiles(), options.json)
+            print_profiles(&vault.profiles(), json)
         }
-        Command::Add {
+        ProviderCommand::Add {
             id,
             provider,
             label,
@@ -61,9 +92,9 @@ fn run() -> Result<(), String> {
             let profile = vault
                 .add_profile(&id, provider, &label, secret, now_unix_ms()?)
                 .map_err(|error| error.to_string())?;
-            print_profile("Added", &profile, options.json)
+            print_profile("Added", &profile, json)
         }
-        Command::Rotate { id } => {
+        ProviderCommand::Rotate { id } => {
             assert_daemon_stopped(&paths.socket_file)?;
             let secret = read_secret_from_stdin()?;
             let mut vault =
@@ -71,16 +102,49 @@ fn run() -> Result<(), String> {
             let profile = vault
                 .rotate_profile(&id, secret, now_unix_ms()?)
                 .map_err(|error| error.to_string())?;
-            print_profile("Rotated", &profile, options.json)
+            print_profile("Rotated", &profile, json)
         }
-        Command::Remove { id } => {
+        ProviderCommand::Remove { id } => {
             assert_daemon_stopped(&paths.socket_file)?;
             let mut vault =
                 ProviderVault::open_system(metadata_path).map_err(|error| error.to_string())?;
             let profile = vault
                 .remove_profile(&id)
                 .map_err(|error| error.to_string())?;
-            print_profile("Removed", &profile, options.json)
+            print_profile("Removed", &profile, json)
+        }
+    }
+}
+
+fn run_client(command: ClientCommand, paths: &GreenwaysPaths, json: bool) -> Result<(), String> {
+    let registry_path = paths.home.join("state").join("local-clients.json");
+    match command {
+        ClientCommand::List => {
+            let registry =
+                LocalClientRegistry::open(registry_path).map_err(|error| error.to_string())?;
+            print_clients(&registry.clients(), json)
+        }
+        ClientCommand::Issue {
+            role,
+            label,
+            output,
+        } => {
+            assert_daemon_stopped(&paths.socket_file)?;
+            let mut registry =
+                LocalClientRegistry::open(registry_path).map_err(|error| error.to_string())?;
+            let client = registry
+                .issue_to_file(role, &label, &output, now_unix_ms()?)
+                .map_err(|error| error.to_string())?;
+            print_issued_client(&client, &output, json)
+        }
+        ClientCommand::Revoke { id } => {
+            assert_daemon_stopped(&paths.socket_file)?;
+            let mut registry =
+                LocalClientRegistry::open(registry_path).map_err(|error| error.to_string())?;
+            let client = registry
+                .revoke(&id, now_unix_ms()?)
+                .map_err(|error| error.to_string())?;
+            print_client("Revoked", &client, json)
         }
     }
 }
@@ -129,6 +193,75 @@ fn print_profile(prefix: &str, profile: &ProviderProfile, json: bool) -> Result<
     Ok(())
 }
 
+fn print_clients(clients: &[LocalClient], json: bool) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(clients)
+                .map_err(|_| "could not encode local clients".to_owned())?
+        );
+        return Ok(());
+    }
+    if clients.is_empty() {
+        println!("No local clients enrolled.");
+        return Ok(());
+    }
+    println!("Greenways local clients");
+    for client in clients {
+        let state = if client.revoked_at_unix_ms.is_some() {
+            "revoked"
+        } else {
+            "active"
+        };
+        println!(
+            "  {}  {}  {}  ({state})",
+            client.id,
+            client.role.as_str(),
+            client.label
+        );
+    }
+    Ok(())
+}
+
+fn print_issued_client(client: &LocalClient, output: &Path, json: bool) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "client": client,
+                "credentialFile": output.to_string_lossy(),
+                "secretProjection": false
+            }))
+            .map_err(|_| "could not encode issued local client".to_owned())?
+        );
+    } else {
+        println!(
+            "Issued {} client {}. Credential written once to {}.",
+            client.role.as_str(),
+            client.id,
+            output.display()
+        );
+    }
+    Ok(())
+}
+
+fn print_client(prefix: &str, client: &LocalClient, json: bool) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(client)
+                .map_err(|_| "could not encode local client".to_owned())?
+        );
+    } else {
+        println!(
+            "{prefix} local client {} ({}).",
+            client.id,
+            client.role.as_str()
+        );
+    }
+    Ok(())
+}
+
 fn read_secret_from_stdin() -> Result<Vec<u8>, String> {
     if io::stdin().is_terminal() {
         return Err(
@@ -159,21 +292,24 @@ fn assert_daemon_stopped(socket_file: &Path) -> Result<(), String> {
     }
     match UnixStream::connect(socket_file) {
         Ok(_) => Err(
-            "stop greenwaysd before changing provider credentials so there is one metadata authority"
+            "stop greenwaysd before changing authority state so there is one metadata writer"
                 .to_owned(),
         ),
         Err(error)
             if matches!(
                 error.kind(),
                 io::ErrorKind::ConnectionRefused | io::ErrorKind::NotFound
-            ) => Ok(()),
+            ) =>
+        {
+            Ok(())
+        }
         Err(_) => Err("could not prove that greenwaysd is stopped".to_owned()),
     }
 }
 
 #[cfg(not(unix))]
 fn assert_daemon_stopped(_socket_file: &Path) -> Result<(), String> {
-    Err("offline provider administration is not implemented on this platform".to_owned())
+    Err("offline Greenways administration is not implemented on this platform".to_owned())
 }
 
 fn now_unix_ms() -> Result<u64, String> {
@@ -185,8 +321,9 @@ fn now_unix_ms() -> Result<u64, String> {
 
 fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut arguments = arguments.peekable();
-    match arguments.next().as_deref() {
-        Some("provider") => {}
+    let group = match arguments.next().as_deref() {
+        Some("provider") => "provider",
+        Some("client") => "client",
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -196,16 +333,18 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             process::exit(0);
         }
         Some(value) => return Err(format!("unsupported command group: {value}")),
-    }
-
+    };
     let action = arguments
         .next()
-        .ok_or_else(|| "provider action is required".to_owned())?;
+        .ok_or_else(|| format!("{group} action is required"))?;
+
     let mut home = None;
     let mut json = false;
     let mut id = None;
     let mut provider = None;
     let mut label = None;
+    let mut role = None;
+    let mut output = None;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -221,7 +360,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                 id = Some(
                     arguments
                         .next()
-                        .ok_or_else(|| "--id requires a provider profile id".to_owned())?,
+                        .ok_or_else(|| "--id requires an identifier".to_owned())?,
                 );
             }
             "--provider" => {
@@ -241,6 +380,23 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                         .ok_or_else(|| "--label requires text".to_owned())?,
                 );
             }
+            "--role" => {
+                role = Some(
+                    LocalClientRole::parse(
+                        &arguments
+                            .next()
+                            .ok_or_else(|| "--role requires a role".to_owned())?,
+                    )
+                    .map_err(|error| error.to_string())?,
+                );
+            }
+            "--output" => {
+                output = Some(PathBuf::from(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--output requires a path".to_owned())?,
+                ));
+            }
             "-h" | "--help" => {
                 print_help();
                 process::exit(0);
@@ -250,31 +406,63 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     }
 
     let required_id = || id.clone().ok_or_else(|| "--id is required".to_owned());
-    let command = match action.as_str() {
-        "list" => {
-            if id.is_some() || provider.is_some() || label.is_some() {
-                return Err("provider list does not accept profile fields".to_owned());
-            }
-            Command::List
+    let command = match (group, action.as_str()) {
+        ("provider", "list") => {
+            require_absent(&id, "--id", "provider list")?;
+            require_absent(&provider, "--provider", "provider list")?;
+            require_absent(&label, "--label", "provider list")?;
+            require_absent(&role, "--role", "provider list")?;
+            require_absent(&output, "--output", "provider list")?;
+            Command::Provider(ProviderCommand::List)
         }
-        "add" => Command::Add {
-            id: required_id()?,
-            provider: provider.ok_or_else(|| "--provider is required".to_owned())?,
-            label: label.ok_or_else(|| "--label is required".to_owned())?,
-        },
-        "rotate" => {
-            if provider.is_some() || label.is_some() {
-                return Err("provider rotate accepts only --id".to_owned());
-            }
-            Command::Rotate { id: required_id()? }
+        ("provider", "add") => {
+            require_absent(&role, "--role", "provider add")?;
+            require_absent(&output, "--output", "provider add")?;
+            Command::Provider(ProviderCommand::Add {
+                id: required_id()?,
+                provider: provider.ok_or_else(|| "--provider is required".to_owned())?,
+                label: label.ok_or_else(|| "--label is required".to_owned())?,
+            })
         }
-        "remove" => {
-            if provider.is_some() || label.is_some() {
-                return Err("provider remove accepts only --id".to_owned());
-            }
-            Command::Remove { id: required_id()? }
+        ("provider", "rotate") => {
+            require_absent(&provider, "--provider", "provider rotate")?;
+            require_absent(&label, "--label", "provider rotate")?;
+            require_absent(&role, "--role", "provider rotate")?;
+            require_absent(&output, "--output", "provider rotate")?;
+            Command::Provider(ProviderCommand::Rotate { id: required_id()? })
         }
-        _ => return Err(format!("unsupported provider action: {action}")),
+        ("provider", "remove") => {
+            require_absent(&provider, "--provider", "provider remove")?;
+            require_absent(&label, "--label", "provider remove")?;
+            require_absent(&role, "--role", "provider remove")?;
+            require_absent(&output, "--output", "provider remove")?;
+            Command::Provider(ProviderCommand::Remove { id: required_id()? })
+        }
+        ("client", "list") => {
+            require_absent(&id, "--id", "client list")?;
+            require_absent(&provider, "--provider", "client list")?;
+            require_absent(&label, "--label", "client list")?;
+            require_absent(&role, "--role", "client list")?;
+            require_absent(&output, "--output", "client list")?;
+            Command::Client(ClientCommand::List)
+        }
+        ("client", "issue") => {
+            require_absent(&id, "--id", "client issue")?;
+            require_absent(&provider, "--provider", "client issue")?;
+            Command::Client(ClientCommand::Issue {
+                role: role.ok_or_else(|| "--role is required".to_owned())?,
+                label: label.ok_or_else(|| "--label is required".to_owned())?,
+                output: output.ok_or_else(|| "--output is required".to_owned())?,
+            })
+        }
+        ("client", "revoke") => {
+            require_absent(&provider, "--provider", "client revoke")?;
+            require_absent(&label, "--label", "client revoke")?;
+            require_absent(&role, "--role", "client revoke")?;
+            require_absent(&output, "--output", "client revoke")?;
+            Command::Client(ClientCommand::Revoke { id: required_id()? })
+        }
+        _ => return Err(format!("unsupported {group} action: {action}")),
     };
 
     Ok(Options {
@@ -284,6 +472,14 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     })
 }
 
+fn require_absent<T>(value: &Option<T>, flag: &str, command: &str) -> Result<(), String> {
+    if value.is_some() {
+        Err(format!("{command} does not accept {flag}"))
+    } else {
+        Ok(())
+    }
+}
+
 fn print_help() {
     println!(
         "Usage:\n\
@@ -291,10 +487,14 @@ fn print_help() {
          greenways-admin provider add --id ID --provider PROVIDER --label LABEL [--home PATH] [--json]\n\
          greenways-admin provider rotate --id ID [--home PATH] [--json]\n\
          greenways-admin provider remove --id ID [--home PATH] [--json]\n\
+         greenways-admin client list [--home PATH] [--json]\n\
+         greenways-admin client issue --role ROLE --label LABEL --output PATH [--home PATH] [--json]\n\
+         greenways-admin client revoke --id ID [--home PATH] [--json]\n\
          \n\
-         Add and rotate read the credential from stdin. The secret is placed directly into the\n\
-         operating-system credential store and is never accepted as an argument or printed.\n\
-         Stop greenwaysd before mutating provider profiles."
+         Provider credentials are read from stdin and placed directly into the operating-system\n\
+         credential store. Local client credentials are written once to a new private file.\n\
+         Neither secret is accepted as a command-line argument or printed. Stop greenwaysd before\n\
+         mutating provider or local-client authority."
     );
 }
 
@@ -302,53 +502,108 @@ fn print_help() {
 mod tests {
     use super::*;
 
+    fn parse(values: &[&str]) -> Result<Options, String> {
+        parse_options(values.iter().map(|value| (*value).to_owned()))
+    }
+
     #[test]
     fn parses_closed_provider_commands() {
-        let options = parse_options(
-            [
-                "provider",
-                "add",
-                "--id",
-                "openai.personal",
-                "--provider",
-                "openai",
-                "--label",
-                "Personal",
-                "--home",
-                "/tmp/greenways",
-                "--json",
-            ]
-            .into_iter()
-            .map(str::to_owned),
-        )
+        let options = parse(&[
+            "provider",
+            "add",
+            "--id",
+            "openai.personal",
+            "--provider",
+            "openai",
+            "--label",
+            "Personal",
+            "--home",
+            "/tmp/greenways",
+            "--json",
+        ])
         .expect("add command should parse");
         assert!(matches!(
             options.command,
-            Command::Add {
+            Command::Provider(ProviderCommand::Add {
                 provider: ProviderKind::OpenAi,
                 ..
-            }
+            })
         ));
         assert_eq!(options.home, Some(PathBuf::from("/tmp/greenways")));
         assert!(options.json);
     }
 
     #[test]
-    fn rejects_secret_and_endpoint_arguments() {
-        for field in ["--secret", "--endpoint", "--key"] {
-            let result = parse_options(
-                [
-                    "provider",
-                    "rotate",
-                    "--id",
-                    "openai.personal",
-                    field,
-                    "value",
-                ]
-                .into_iter()
-                .map(str::to_owned),
-            );
-            assert!(result.is_err());
+    fn parses_local_client_issue_and_revocation() {
+        let issue = parse(&[
+            "client",
+            "issue",
+            "--role",
+            "browser-bridge",
+            "--label",
+            "Chrome bridge",
+            "--output",
+            "/tmp/browser.json",
+        ])
+        .expect("client issue should parse");
+        assert!(matches!(
+            issue.command,
+            Command::Client(ClientCommand::Issue {
+                role: LocalClientRole::BrowserBridge,
+                ..
+            })
+        ));
+        let revoke = parse(&[
+            "client",
+            "revoke",
+            "--id",
+            "local/client/00112233445566778899aabbccddeeff",
+        ])
+        .expect("client revoke should parse");
+        assert!(matches!(
+            revoke.command,
+            Command::Client(ClientCommand::Revoke { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_secret_fields_and_cross_command_authority() {
+        for field in ["--secret", "--token", "--key", "--endpoint"] {
+            assert!(parse(&[
+                "client",
+                "issue",
+                "--role",
+                "cli",
+                "--label",
+                "CLI",
+                "--output",
+                "/tmp/client.json",
+                field,
+                "value",
+            ])
+            .is_err());
         }
+        assert!(parse(&[
+            "client",
+            "issue",
+            "--role",
+            "cli",
+            "--label",
+            "CLI",
+            "--output",
+            "/tmp/client.json",
+            "--provider",
+            "openai",
+        ])
+        .is_err());
+        assert!(parse(&[
+            "provider",
+            "rotate",
+            "--id",
+            "openai.personal",
+            "--role",
+            "desktop",
+        ])
+        .is_err());
     }
 }
