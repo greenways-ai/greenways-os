@@ -18,8 +18,122 @@ jobs:
           ref: agent/greenwaysd-capability-reads-51
           fetch-depth: 0
 
+      - name: Reconcile the read patch with current CLI commands
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/agent/capability-reads/apply.py')
+          text = path.read_text()
+
+          old_predicate = '''replace(
+              "cli/greenways/src/main.rs",
+              ''' + "'''" + '''            Self::Whoami | Self::Clients | Self::IdentityStatus | Self::IdentityCard
+          ''' + "'''" + ''',
+              ''' + "'''" + '''            Self::Whoami
+                          | Self::Clients
+                          | Self::IdentityStatus
+                          | Self::IdentityCard
+                          | Self::CapabilitiesStatus
+                          | Self::Capabilities
+          ''' + "'''" + ''',
+          )
+          '''
+          new_predicate = '''replace(
+              "cli/greenways/src/main.rs",
+              ''' + "'''" + '''            Self::Vault
+                          | Self::Whoami
+                          | Self::Clients
+                          | Self::Invoke
+                          | Self::IdentityStatus
+                          | Self::IdentityCard
+          ''' + "'''" + ''',
+              ''' + "'''" + '''            Self::Vault
+                          | Self::Whoami
+                          | Self::Clients
+                          | Self::Invoke
+                          | Self::IdentityStatus
+                          | Self::IdentityCard
+                          | Self::CapabilitiesStatus
+                          | Self::Capabilities
+          ''' + "'''" + ''',
+          )
+          '''
+
+          old_required = '''replace(
+              "cli/greenways/src/main.rs",
+              ''' + "'''" + '''            "--credential is required for whoami, clients, and identity commands".to_owned(),
+          ''' + "'''" + ''',
+              ''' + "'''" + '''            "--credential is required for whoami, clients, identity, and capability commands"
+                          .to_owned(),
+          ''' + "'''" + ''',
+          )
+          '''
+          new_required = '''replace(
+              "cli/greenways/src/main.rs",
+              ''' + "'''" + '''            "--credential is required for vault, whoami, clients, invoke, and identity commands"
+                          .to_owned(),
+          ''' + "'''" + ''',
+              ''' + "'''" + '''            "--credential is required for vault, whoami, clients, invoke, identity, and capability commands"
+                          .to_owned(),
+          ''' + "'''" + ''',
+          )
+          '''
+
+          old_help = '''replace(
+              "cli/greenways/src/main.rs",
+              ''' + "'''" + '''         greenways identity-card --credential PATH [--home PATH] [--json]\\n\\
+          ''' + "'''" + ''',
+              ''' + "'''" + '''         greenways identity-card --credential PATH [--home PATH] [--json]\\n\\
+                   greenways capabilities-status --credential PATH [--home PATH] [--json]\\n\\
+                   greenways capabilities --credential PATH [--home PATH] [--json]\\n\\
+          ''' + "'''" + ''',
+          )
+          '''
+
+          for old, new, label in [
+              (old_predicate, new_predicate, 'credential predicate'),
+              (old_required, new_required, 'required credential message'),
+              (old_help, '', 'help insertion'),
+          ]:
+              if text.count(old) != 1:
+                  raise SystemExit(f'{label} script anchor was not found exactly once')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+
       - name: Apply authenticated capability reads
         run: python3 .github/agent/capability-reads/apply.py
+
+      - name: Complete current CLI capability wording
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('cli/greenways/src/main.rs')
+          text = path.read_text()
+          accepted = (
+              '--credential is accepted only by vault, whoami, clients, invoke, and identity commands'
+          )
+          if text.count(accepted) != 1:
+              raise SystemExit('accepted credential message was not found exactly once')
+          text = text.replace(
+              accepted,
+              '--credential is accepted only by vault, whoami, clients, invoke, identity, and capability commands',
+              1,
+          )
+          help_line = 'greenways identity-card --credential PATH [--home PATH] [--json]\\n'
+          if text.count(help_line) != 1:
+              raise SystemExit('identity-card help line was not found exactly once')
+          text = text.replace(
+              help_line,
+              help_line
+              + 'greenways capabilities-status --credential PATH [--home PATH] [--json]\\n'
+              + 'greenways capabilities --credential PATH [--home PATH] [--json]\\n',
+              1,
+          )
+          path.write_text(text)
+          PY
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
