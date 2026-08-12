@@ -116,8 +116,8 @@ test("normalizes labels and freezes nested launch data", () => {
 
 test("requires a versioned protocol and attributable publisher", () => {
   assert.throws(
-    () => validateAppManifest(manifest({ protocol: "greenways-app/0-alpha" })),
-    /protocol must be greenways-app\/1/
+    () => validateAppManifest(manifest({ protocol: "greenways-app/1" })),
+    /protocol must be greenways-app\/0-alpha/
   );
   assert.throws(
     () => validateAppManifest(manifest({ version: "latest" })),
