@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct and reconcile provider invocation slice
+      - name: Reconstruct, reconcile, and apply provider invocation slice
         run: |
           cat .github/agent/provider-invoke/apply.gz.b64.part-* \
             | base64 --decode \
@@ -38,16 +38,94 @@ jobs:
           source = source.replace(r"b\'\n\'", r"b\'\\n\'")
 
           module = ast.parse(source)
-          operations = None
+          operation_assignment = None
           for node in module.body:
               if isinstance(node, ast.Assign) and any(
                   isinstance(target, ast.Name) and target.id == 'OPERATIONS'
                   for target in node.targets
               ):
-                  operations = ast.literal_eval(node.value)
+                  operation_assignment = node
                   break
-          if operations is None:
+          if operation_assignment is None:
               raise SystemExit('bootstrap operations were not found')
+          operations = ast.literal_eval(operation_assignment.value)
+
+          operations[23] = (
+              'crates/greenways-local/src/lib.rs',
+              '''    pub fn clients(&mut self) -> Result<LocalResponse, LocalError> {
+                  self.send(&LocalRequest::clients_list(new_request_id()?))
+              }
+
+              pub fn send(''',
+              '''    pub fn clients(&mut self) -> Result<LocalResponse, LocalError> {
+                  self.send(&LocalRequest::clients_list(new_request_id()?))
+              }
+
+              pub fn invoke(
+                  &mut self,
+                  invocation: ProviderInvocation,
+              ) -> Result<LocalResponse, LocalError> {
+                  self.send(&LocalRequest::provider_invoke(
+                      new_request_id()?,
+                      invocation,
+                  )?)
+              }
+
+              pub fn send(''',
+          )
+          operations[25] = (
+              'services/greenwaysd/src/lib.rs',
+              '''use greenways_authority::{
+                  new_local_session,''',
+              '''mod provider;
+
+              use greenways_authority::{
+                  new_local_session,''',
+          )
+          operations[29] = (
+              'services/greenwaysd/src/lib.rs',
+              '''        if request.operation == "authority.clients.list"
+                  && actor
+                      .as_ref()
+                      .is_some_and(|actor| !role_may_list_clients(actor.role))
+              {
+                  return Ok(LocalResponse::error(
+                      request.request_id,
+                      "authority-denied",
+                      "This local client role cannot inspect Greenways authority state.",
+                  ));
+              }
+              let digest = request_digest(&request)?;''',
+              '''        if request.operation == "authority.clients.list"
+                  && actor
+                      .as_ref()
+                      .is_some_and(|actor| !role_may_list_clients(actor.role))
+              {
+                  return Ok(LocalResponse::error(
+                      request.request_id,
+                      "authority-denied",
+                      "This local client role cannot inspect Greenways authority state.",
+                  ));
+              }
+              if request.operation == "provider.invoke" {
+                  let actor = actor.ok_or_else(|| {
+                      DaemonError::State("authenticated provider request has no actor".to_owned())
+                  })?;
+                  if !role_may_invoke_provider(actor.role) {
+                      return Ok(LocalResponse::error(
+                          request.request_id,
+                          "authority-denied",
+                          "This local client role cannot invoke daemon provider credentials.",
+                      ));
+                  }
+                  return self.handle_provider_invocation_at(request, actor, observed_at_unix_ms);
+              }
+
+              let digest = request_digest(&request)?;''',
+          )
+
+          operation_assignment.value = ast.parse(repr(operations), mode='eval').body
+          ast.fix_missing_locations(module)
 
           missing = []
           for index, (filename, expected, _) in enumerate(operations):
@@ -59,9 +137,12 @@ jobs:
                   print(f'MISSING[{index}] {filename}: count={count}: {expected!r}')
               raise SystemExit(f'{len(missing)} exact replacement markers require reconciliation')
 
-          path.write_text(source)
+          namespace = {
+              '__name__': '__main__',
+              '__file__': str(path),
+          }
+          exec(compile(module, str(path), 'exec'), namespace)
           PY
-          python /tmp/provider-invoke-apply.py
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
