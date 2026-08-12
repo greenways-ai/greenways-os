@@ -1,0 +1,13 @@
+[package]
+name = "greenways-local"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+greenways-protocol = { path = "../greenways-protocol" }
+
+[lints]
+workspace = true
