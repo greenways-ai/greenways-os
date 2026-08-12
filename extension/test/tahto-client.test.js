@@ -152,7 +152,7 @@ test("strictly validates inert Tahto discovery", () => {
     status: "https://evil.example/status",
     pairingPrepare: "/tahto/0-alpha/pairing/prepare",
     pairingComplete: "/tahto/0-alpha/pairing/complete",
-  } })), /must be \/tahto\/v1\/status/);
+  } })), /must be \/tahto\/0-alpha\/status/);
 });
 
 test("inspects discovery, health and status without credentials or redirects", async () => {
