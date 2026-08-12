@@ -153,6 +153,19 @@ jobs:
           if manifest.count(marker) != 1:
               raise SystemExit('ureq dependency marker was not found exactly once')
           vault_manifest.write_text(manifest.replace(marker, replacement, 1))
+
+          vault_source = Path('crates/greenways-vault/src/lib.rs')
+          vault_text = vault_source.read_text()
+          constructor = (
+              '    fn open_with_store(\n'
+              '        metadata_path: PathBuf,\n'
+              '        credentials: Arc<dyn CredentialStore>,\n'
+              '    ) -> Result<Self, VaultError> {'
+          )
+          test_constructor = '    #[cfg(test)]\n' + constructor
+          if vault_text.count(constructor) != 1:
+              raise SystemExit('test-only vault constructor marker was not found exactly once')
+          vault_source.write_text(vault_text.replace(constructor, test_constructor, 1))
           PY
 
       - name: Install pinned Rust toolchain
