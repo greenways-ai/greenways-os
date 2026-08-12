@@ -141,6 +141,18 @@ jobs:
               '__file__': str(path),
           }
           exec(compile(module, str(path), 'exec'), namespace)
+
+          vault_manifest = Path('crates/greenways-vault/Cargo.toml')
+          manifest = vault_manifest.read_text()
+          marker = 'ureq = { version = "=2.12.1", features = ["json"] }\n'
+          replacement = (
+              marker
+              + '# Keep ureq on the repository Rust 1.85-compatible URL/IDNA line.\n'
+              + 'url = "=2.5.2"\n'
+          )
+          if manifest.count(marker) != 1:
+              raise SystemExit('ureq dependency marker was not found exactly once')
+          vault_manifest.write_text(manifest.replace(marker, replacement, 1))
           PY
 
       - name: Install pinned Rust toolchain
