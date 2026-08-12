@@ -128,6 +128,24 @@ impl LocalRequest {
             arguments: Map::new(),
         }
     }
+
+    pub fn capabilities_status(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "capabilities.status".to_owned(),
+            arguments: Map::new(),
+        }
+    }
+
+    pub fn capabilities_list(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "capabilities.list".to_owned(),
+            arguments: Map::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -283,6 +301,8 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
             | "provider.invoke"
             | "identity.status"
             | "identity.public-card"
+            | "capabilities.status"
+            | "capabilities.list"
     ) {
         return Err(ProtocolError::new(
             "unsupported-operation",
@@ -572,6 +592,16 @@ mod tests {
         assert!(validate_request(&card).is_ok());
         assert!(status.arguments.is_empty());
         assert!(card.arguments.is_empty());
+    }
+
+    #[test]
+    fn publishes_closed_capability_authority_reads() {
+        let status = LocalRequest::capabilities_status("local/request/capstatus1");
+        let list = LocalRequest::capabilities_list("local/request/caplist001");
+        assert!(validate_request(&status).is_ok());
+        assert!(validate_request(&list).is_ok());
+        assert!(status.arguments.is_empty());
+        assert!(list.arguments.is_empty());
     }
 
     #[test]

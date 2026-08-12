@@ -4,6 +4,7 @@ use greenways_authority::{
     new_local_session, parse_local_client_credential_arguments, valid_client_id, AuthorityError,
     LocalClient, LocalClientRegistry, LocalClientRole, LocalSession,
 };
+use greenways_capabilities::{CapabilityAuthority, CapabilityError};
 use greenways_identity::{IdentityError, ProfileIdentityVault};
 use greenways_local::GreenwaysPaths;
 use greenways_protocol::{
@@ -47,6 +48,7 @@ pub enum DaemonError {
     Io(io::Error),
     Protocol(ProtocolError),
     Authority(AuthorityError),
+    Capability(CapabilityError),
     Identity(IdentityError),
     Vault(VaultError),
     State(String),
@@ -61,6 +63,12 @@ impl fmt::Display for DaemonError {
             Self::Protocol(error) => write!(formatter, "Greenways daemon protocol failed: {error}"),
             Self::Authority(error) => {
                 write!(formatter, "Greenways daemon authority failed: {error}")
+            }
+            Self::Capability(error) => {
+                write!(
+                    formatter,
+                    "Greenways daemon capability authority failed: {error}"
+                )
             }
             Self::Identity(error) => {
                 write!(formatter, "Greenways daemon identity failed: {error}")
@@ -92,6 +100,7 @@ impl Error for DaemonError {
             Self::Io(error) => Some(error),
             Self::Protocol(error) => Some(error),
             Self::Authority(error) => Some(error),
+            Self::Capability(error) => Some(error),
             Self::Identity(error) => Some(error),
             Self::Vault(error) => Some(error),
             _ => None,
@@ -114,6 +123,12 @@ impl From<ProtocolError> for DaemonError {
 impl From<AuthorityError> for DaemonError {
     fn from(value: AuthorityError) -> Self {
         Self::Authority(value)
+    }
+}
+
+impl From<CapabilityError> for DaemonError {
+    fn from(value: CapabilityError) -> Self {
+        Self::Capability(value)
     }
 }
 
@@ -168,6 +183,7 @@ pub struct Daemon {
     paths: GreenwaysPaths,
     state: DaemonState,
     clients: LocalClientRegistry,
+    capabilities: CapabilityAuthority,
     identity: ProfileIdentityVault,
     vault: ProviderVault,
 }
@@ -181,6 +197,8 @@ impl Daemon {
         ensure_private_dir(&paths.home)?;
         let clients =
             LocalClientRegistry::open(paths.home.join("state").join("local-clients.json"))?;
+        let capabilities =
+            CapabilityAuthority::open(paths.home.join("state").join("capabilities.json"))?;
         let identity = ProfileIdentityVault::open_system(
             paths.home.join("state").join("profile-identity.json"),
         )?;
@@ -210,6 +228,7 @@ impl Daemon {
             paths,
             state,
             clients,
+            capabilities,
             identity,
             vault,
         })
@@ -257,6 +276,19 @@ impl Daemon {
                 request.request_id,
                 "authority-denied",
                 "This local client role cannot inspect Greenways authority state.",
+            ));
+        }
+        if matches!(
+            request.operation.as_str(),
+            "capabilities.status" | "capabilities.list"
+        ) && actor
+            .as_ref()
+            .is_some_and(|actor| !role_may_inspect_capabilities(actor.role))
+        {
+            return Ok(LocalResponse::error(
+                request.request_id,
+                "authority-denied",
+                "This local client role cannot inspect Greenways capability authority.",
             ));
         }
         if request.operation == "vault.status"
@@ -365,6 +397,26 @@ impl Daemon {
                     "Create a Greenways profile identity before requesting its public card.",
                 ),
             },
+            "capabilities.status" => LocalResponse::ok(
+                request.request_id.clone(),
+                serde_json::to_value(self.capabilities.status(observed_at_unix_ms)?).map_err(
+                    |_| {
+                        DaemonError::State(
+                            "capability authority status could not be encoded".to_owned(),
+                        )
+                    },
+                )?,
+            ),
+            "capabilities.list" => LocalResponse::ok(
+                request.request_id.clone(),
+                serde_json::to_value(self.capabilities.list(observed_at_unix_ms)?).map_err(
+                    |_| {
+                        DaemonError::State(
+                            "capability authority list could not be encoded".to_owned(),
+                        )
+                    },
+                )?,
+            ),
             "client.whoami" => {
                 let actor = actor.as_ref().ok_or_else(|| {
                     DaemonError::State("authenticated actor disappeared".to_owned())
@@ -750,11 +802,20 @@ fn requires_authenticated_session(operation: &str) -> bool {
             | "provider.invoke"
             | "identity.status"
             | "identity.public-card"
+            | "capabilities.status"
+            | "capabilities.list"
             | "vault.status"
     )
 }
 
 fn role_may_list_clients(role: LocalClientRole) -> bool {
+    matches!(
+        role,
+        LocalClientRole::Desktop | LocalClientRole::Cli | LocalClientRole::Developer
+    )
+}
+
+fn role_may_inspect_capabilities(role: LocalClientRole) -> bool {
     matches!(
         role,
         LocalClientRole::Desktop | LocalClientRole::Cli | LocalClientRole::Developer
@@ -1308,6 +1369,58 @@ mod tests {
                 .expect("identity status projection");
         assert_eq!(status.state, "unconfigured");
         assert!(!status.private_key_projection);
+    }
+
+    #[test]
+    fn capability_authority_reads_are_authenticated_and_role_scoped() {
+        let home = TestHome::new("capability-auth");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let public = daemon
+            .handle_request_at(
+                LocalRequest::capabilities_status("local/request/capauth001"),
+                2_000,
+            )
+            .expect("public capability status should return a response");
+        assert_eq!(public.outcome, Outcome::Error);
+        assert_eq!(
+            public.error.expect("authentication error").code,
+            "authentication-required"
+        );
+
+        let browser = RequestActor {
+            client_id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::BrowserBridge,
+        };
+        let denied = daemon
+            .handle_request_as_at(
+                LocalRequest::capabilities_list("local/request/capauth002"),
+                Some(browser),
+                3_000,
+            )
+            .expect("browser denial should return a response");
+        assert_eq!(denied.outcome, Outcome::Error);
+        assert_eq!(
+            denied.error.expect("authority error").code,
+            "authority-denied"
+        );
+
+        let cli = RequestActor {
+            client_id: "local/client/ffeeddccbbaa99887766554433221100".to_owned(),
+            role: LocalClientRole::Cli,
+        };
+        let allowed = daemon
+            .handle_request_as_at(
+                LocalRequest::capabilities_status("local/request/capauth003"),
+                Some(cli),
+                4_000,
+            )
+            .expect("CLI capability status should complete");
+        assert_eq!(allowed.outcome, Outcome::Ok);
+        let status: greenways_capabilities::CapabilityAuthorityStatus =
+            serde_json::from_value(allowed.value.expect("capability status value"))
+                .expect("capability status projection");
+        assert_eq!(status.grant_count, 0);
+        assert!(!status.arbitrary_signing);
     }
 
     #[test]

@@ -322,6 +322,7 @@ name = "greenways-cli"
 version = "0.1.0"
 dependencies = [
  "greenways-authority",
+ "greenways-capabilities",
  "greenways-identity",
  "greenways-local",
  "greenways-protocol",
@@ -393,6 +394,7 @@ name = "greenwaysd"
 version = "0.1.0"
 dependencies = [
  "greenways-authority",
+ "greenways-capabilities",
  "greenways-identity",
  "greenways-local",
  "greenways-protocol",

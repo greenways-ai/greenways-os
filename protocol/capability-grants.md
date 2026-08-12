@@ -150,3 +150,15 @@ greenways-capability-revocation-subject/0-alpha
 ```
 
 There remains no `crypto.sign`, `identity.sign`, arbitrary-byte signing, private-key export, or caller-selected protocol operation.
+
+
+## Daemon read integration
+
+`greenwaysd` opens and validates the private capability authority file during startup. The first authenticated local operations are:
+
+```text
+capabilities.status
+capabilities.list
+```
+
+Desktop, CLI, and explicit Developer roles may inspect these projections. The browser bridge cannot list or count authority records. Both operations are ordinary actor-bound daemon requests and therefore retain exact request replay and collision semantics.

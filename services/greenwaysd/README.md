@@ -112,3 +112,10 @@ cargo run -p greenways-admin -- identity status
 The private P-256 key is stored in the operating-system keyring. Daemon metadata contains only a private key handle and the self-signed public identity card. Authenticated Desktop, CLI, browser-bridge, and Developer sessions may read `identity.status` and `identity.public-card`; no local operation exports the private key or signs caller-selected bytes.
 
 The first signing vocabulary contains exactly one subject: `greenways-profile-identity-subject/0-alpha`. Node enrolment, source mandates, application grants, and MCP pairing will be introduced as separate closed typed subjects in later PRs.
+
+
+## Capability authority reads
+
+`greenwaysd` now validates and owns the signed capability authority state at startup. Enrolled Desktop, CLI, and Developer sessions may read `capabilities.status` and `capabilities.list`. The browser-bridge role is deliberately denied authority inventory; a later exact `capabilities.check` seam will answer only whether one reviewed application operation is currently granted.
+
+These operations are read-only. Grant issuance and revocation remain offline administration in the next slice, and the extension remains the compatibility authority until its exact approvals are migrated with receipts.
