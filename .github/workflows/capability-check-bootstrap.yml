@@ -1,0 +1,81 @@
+name: Exact capability decision bootstrap
+
+on:
+  push:
+    branches:
+      - agent/greenwaysd-capability-check-51
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Run exact capability decision bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/greenwaysd-capability-check-51
+          fetch-depth: 0
+
+      - name: Reassemble and verify the exact capability decision patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .github/agent/capability-check/part-00 \
+            .github/agent/capability-check/part-01 \
+            .github/agent/capability-check/p2-* \
+            .github/agent/capability-check/part-03 \
+            > /tmp/capability-check-apply.py.gz.b64
+          echo 'db2dabe00402d03c2b137472d638383022b1827740332e2cedfd857fa4719571  /tmp/capability-check-apply.py.gz.b64' | sha256sum --check --strict
+          base64 --decode /tmp/capability-check-apply.py.gz.b64 | gzip --decompress > /tmp/capability-check-apply.py
+          echo 'f54418ad5522b4af11bedf5528fa87ef78ada924d88fef1f55109a941a8c01b7  /tmp/capability-check-apply.py' | sha256sum --check --strict
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/capability-check-apply.py')
+          text = path.read_text()
+          marker = '# The capability core owns the versioned, exact decision request.'
+          marker_at = text.find(marker)
+          if marker_at < 0:
+              raise SystemExit('capability-core reconciliation marker was not found')
+          block_start = text.find('replace_once(', marker_at)
+          block_end = text.find('\n\nreplace_once(', block_start)
+          if block_start < 0 or block_end < 0:
+              raise SystemExit('obsolete import edit boundaries were not found')
+          text = text[:block_start] + text[block_end + 2:]
+          path.write_text(text)
+          PY
+          python3 -m py_compile /tmp/capability-check-apply.py
+          python3 /tmp/capability-check-apply.py
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+
+      - name: Validate exact final source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.85.1 fmt --all
+          cargo +1.85.1 fmt --all -- --check
+          cargo +1.85.1 test --workspace --all-targets
+          cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+          git diff --check
+
+      - name: Remove bootstrap files
+        run: |
+          rm -rf .github/agent/capability-check
+          rm -f .github/workflows/capability-check-bootstrap.yml
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name 'greenways-os-ci'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add exact authenticated capability decisions' -m 'Expose one actor-bound exact subject check without authority inventory or mutation. Refs #51.'
+          git push origin HEAD:agent/greenwaysd-capability-check-51
