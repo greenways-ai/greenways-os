@@ -46,19 +46,6 @@ jobs:
           if block_start < 0 or block_end < 0:
               raise SystemExit('obsolete import edit boundaries were not found')
           text = text[:block_start] + text[block_end + 2:]
-
-          private_constant = (
-              'const CAPABILITY_DECISION_PROTOCOL: &str = '
-              '"greenways-capability-decision/0-alpha";'
-          )
-          public_constant = (
-              'pub const CAPABILITY_DECISION_PROTOCOL: &str = '
-              '"greenways-capability-decision/0-alpha";'
-          )
-          if text.count(private_constant) != 2:
-              raise SystemExit('decision protocol visibility anchors were not found exactly twice')
-          text = text.replace(private_constant, public_constant)
-
           path.write_text(text)
           PY
           python3 -m py_compile /tmp/capability-check-apply.py
