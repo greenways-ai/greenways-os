@@ -259,6 +259,17 @@ impl Daemon {
                 "This local client role cannot inspect Greenways authority state.",
             ));
         }
+        if request.operation == "vault.status"
+            && actor
+                .as_ref()
+                .is_some_and(|actor| !role_may_read_vault_status(actor.role))
+        {
+            return Ok(LocalResponse::error(
+                request.request_id,
+                "authority-denied",
+                "This local client role cannot inspect Greenways vault status.",
+            ));
+        }
         if request.operation == "provider.invoke" {
             let actor = actor.ok_or_else(|| {
                 DaemonError::State("authenticated provider request has no actor".to_owned())
@@ -739,10 +750,18 @@ fn requires_authenticated_session(operation: &str) -> bool {
             | "provider.invoke"
             | "identity.status"
             | "identity.public-card"
+            | "vault.status"
     )
 }
 
 fn role_may_list_clients(role: LocalClientRole) -> bool {
+    matches!(
+        role,
+        LocalClientRole::Desktop | LocalClientRole::Cli | LocalClientRole::Developer
+    )
+}
+
+fn role_may_read_vault_status(role: LocalClientRole) -> bool {
     matches!(
         role,
         LocalClientRole::Desktop | LocalClientRole::Cli | LocalClientRole::Developer
@@ -1044,7 +1063,7 @@ mod tests {
     }
 
     #[test]
-    fn projects_only_redacted_provider_vault_status() {
+    fn requires_authorized_actor_and_projects_only_redacted_provider_vault_status() {
         let home = TestHome::new("vault-status");
         let paths = home.paths();
         let registry_path = paths.home.join("state").join("providers.json");
@@ -1069,10 +1088,45 @@ mod tests {
         .expect("provider registry should be written");
 
         let mut daemon = Daemon::open_at(paths, 1_500).expect("daemon should open");
-        let response = daemon
+        let public = daemon
             .handle_request_at(
                 LocalRequest::vault_status("local/request/vaultstat1"),
                 2_000,
+            )
+            .expect("public vault status should return a closed response");
+        assert_eq!(public.outcome, Outcome::Error);
+        assert_eq!(
+            public.error.expect("authentication error").code,
+            "authentication-required"
+        );
+
+        let browser_actor = RequestActor {
+            client_id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::BrowserBridge,
+        };
+        let denied = daemon
+            .handle_request_as_at(
+                LocalRequest::vault_status("local/request/vaultstat2"),
+                Some(browser_actor),
+                2_100,
+            )
+            .expect("browser vault status should return a closed response");
+        assert_eq!(denied.outcome, Outcome::Error);
+        assert_eq!(
+            denied.error.expect("authority denial").code,
+            "authority-denied"
+        );
+        assert!(daemon.state.receipts.is_empty());
+
+        let cli_actor = RequestActor {
+            client_id: "local/client/ffeeddccbbaa99887766554433221100".to_owned(),
+            role: LocalClientRole::Cli,
+        };
+        let response = daemon
+            .handle_request_as_at(
+                LocalRequest::vault_status("local/request/vaultstat3"),
+                Some(cli_actor),
+                2_200,
             )
             .expect("vault status should complete");
         let status: VaultStatus =
@@ -1314,6 +1368,13 @@ mod tests {
             serde_json::from_value(clients.value.expect("client list value"))
                 .expect("client list projection");
         assert_eq!(listed.len(), 1);
+        assert_eq!(
+            client
+                .vault_status()
+                .expect("vault status should complete")
+                .outcome,
+            Outcome::Ok
+        );
         drop(client);
         handle
             .join()
@@ -1323,7 +1384,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn browser_bridge_session_cannot_list_authority_state() {
+    fn browser_bridge_session_cannot_inspect_authority_or_vault_state() {
         let home = TestHome::new("browser-role");
         let paths = home.paths();
         let credential_path = paths.home.join("clients").join("browser.json");
@@ -1352,6 +1413,14 @@ mod tests {
         let denied = client.clients().expect("denial should be a response");
         assert_eq!(denied.outcome, Outcome::Error);
         assert_eq!(denied.error.expect("denial error").code, "authority-denied");
+        let denied = client
+            .vault_status()
+            .expect("vault denial should be a response");
+        assert_eq!(denied.outcome, Outcome::Error);
+        assert_eq!(
+            denied.error.expect("vault denial error").code,
+            "authority-denied"
+        );
         drop(client);
         handle
             .join()

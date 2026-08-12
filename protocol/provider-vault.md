@@ -1,10 +1,10 @@
 # Greenways provider credential vault
 
-Status: first identity and credential-custody slice for issue #51.
+Status: daemon-owned credential custody with authenticated, role-scoped status for issue #51.
 
 ## Boundary
 
-`greenwaysd` owns provider-profile metadata. The provider credential itself is stored in the operating-system credential store through an opaque profile identifier. The daemon state, provider registry, ordinary local IPC, Flutter clients, browser extension, logs and request receipts never contain the credential bytes.
+`greenwaysd` owns provider-profile metadata. Provider credentials remain in the operating-system credential store behind opaque profile identifiers. Daemon state, ordinary local IPC, Flutter clients, the browser extension, logs, durable receipts, and provider results never contain credential bytes.
 
 ```text
 greenways-admin -- secret on stdin
@@ -12,14 +12,15 @@ greenways-admin -- secret on stdin
         ▼
 operating-system credential store
         ▲
-        │ opaque provider profile id
+        │ opaque provider profile ID
         │
 greenwaysd provider registry
-        │
-        └── redacted vault.status
+        │ authenticated local session
+        ├── role-scoped redacted vault.status
+        └── typed provider.invoke
 ```
 
-The first supported provider vocabulary is closed:
+The first provider vocabulary is closed:
 
 ```text
 anthropic
@@ -27,11 +28,11 @@ openai
 openrouter
 ```
 
-No caller-selected endpoint, authentication header, key name or secret-store service is accepted.
+Provider adapters use fixed endpoints and authentication shapes. Callers cannot select an endpoint, authentication header, secret-store service, credential handle, or arbitrary HTTP request.
 
 ## Administration
 
-Provider mutation is offline and CLI-first during this migration slice:
+Provider mutation remains offline and CLI-first:
 
 ```sh
 printf '%s' "$OPENAI_API_KEY" | \
@@ -50,15 +51,26 @@ greenways-admin provider remove --id openai.personal
 
 The credential is read only from stdin. It is not accepted as a command-line argument or printed. Mutations require `greenwaysd` to be stopped, preventing the administrator and daemon from becoming concurrent metadata authorities.
 
-## Public status
+## Authenticated status
 
-The ordinary local protocol adds one read-only operation:
+The local protocol exposes one read-only vault operation:
 
 ```text
 vault.status
 ```
 
-It returns only:
+It requires a daemon-verified, connection-bound local-client session. The fixed role policy is:
+
+| Role | Read `vault.status` |
+| --- | ---: |
+| Desktop | Yes |
+| CLI | Yes |
+| Browser bridge | No |
+| Developer | Yes |
+
+The browser bridge may read the public Greenways identity needed for reviewed pairing, but it cannot inspect provider-custody metadata. A local-client role identifies the installed caller; it is not Greenway membership, room membership, source authority, application authority, or a provider grant.
+
+The response contains only:
 
 ```json
 {
@@ -70,20 +82,26 @@ It returns only:
 }
 ```
 
-Profile IDs, labels and provider credentials are not included in this public daemon projection. Redacted profile inventory remains an offline administrator view until authenticated local client roles are implemented.
+Profile IDs, labels, opaque credential handles, and provider credentials are never included. Redacted profile inventory remains an offline administrator view.
+
+## Typed invocation
+
+`provider.invoke` consumes one closed, bounded provider invocation inside `greenwaysd` and returns one normalized bounded result. Desktop, CLI, and explicit Developer roles may use this migration path. The browser bridge remains denied until one exact reviewed application grant can be checked for one exact invocation.
+
+Definitive provider results and provider errors are durably replayable for the same authenticated actor. A prepared request with an uncertain external outcome is fenced rather than retried automatically, preventing accidental duplicate billable calls.
 
 ## Transaction semantics
 
-- Metadata is written to a private file by fsync, atomic rename and parent-directory sync.
+- Metadata is written to a private file by fsync, atomic rename, and parent-directory sync.
 - Adding a profile removes the credential if metadata commit fails.
 - Rotating a profile restores the earlier credential if metadata commit fails.
 - Removing a profile restores the deleted credential if metadata commit fails.
-- Registry records are closed, bounded, versioned and duplicate-free.
+- Registry records are closed, bounded, versioned, and duplicate-free.
 - In-memory secret buffers are zeroised on drop.
 
 ## Exclusions
 
-This slice deliberately does not expose:
+The daemon does not expose:
 
 ```text
 credential.read
@@ -91,7 +109,9 @@ credential.export
 key.export-private
 arbitrary signing
 caller-selected provider endpoints
-provider.invoke
+arbitrary HTTP
+raw provider response bodies
+browser cookies or session tokens
 ```
 
-Typed model invocation will be implemented inside the daemon vault/broker boundary so a future client receives a model result, not a credential.
+Clients receive semantic provider results and receipts, never the provider credential or browser authority that produced them.
