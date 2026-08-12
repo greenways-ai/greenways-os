@@ -151,10 +151,6 @@ impl LocalClient {
         self.send(&LocalRequest::paths(new_request_id()?))
     }
 
-    pub fn vault_status(&self) -> Result<LocalResponse, LocalError> {
-        self.send(&LocalRequest::vault_status(new_request_id()?))
-    }
-
     pub fn send(&self, request: &LocalRequest) -> Result<LocalResponse, LocalError> {
         send_request(&self.socket_file, request)
     }
@@ -216,6 +212,10 @@ impl AuthenticatedLocalClient {
 
     pub fn session(&self) -> &LocalSession {
         &self.session
+    }
+
+    pub fn vault_status(&mut self) -> Result<LocalResponse, LocalError> {
+        self.send(&LocalRequest::vault_status(new_request_id()?))
     }
 
     pub fn whoami(&mut self) -> Result<LocalResponse, LocalError> {

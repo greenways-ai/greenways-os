@@ -32,7 +32,12 @@ impl Command {
     const fn requires_credential(self) -> bool {
         matches!(
             self,
-            Self::Whoami | Self::Clients | Self::Invoke | Self::IdentityStatus | Self::IdentityCard
+            Self::Vault
+                | Self::Whoami
+                | Self::Clients
+                | Self::Invoke
+                | Self::IdentityStatus
+                | Self::IdentityCard
         )
     }
 }
@@ -67,6 +72,7 @@ fn run() -> Result<(), String> {
         let mut client = AuthenticatedLocalClient::from_paths(&paths, credential)
             .map_err(|error| error.to_string())?;
         match options.command {
+            Command::Vault => client.vault_status(),
             Command::Whoami => client.whoami(),
             Command::Clients => client.clients(),
             Command::Invoke => {
@@ -97,7 +103,6 @@ fn run() -> Result<(), String> {
         match options.command {
             Command::Status => client.status(),
             Command::Paths => client.paths(),
-            Command::Vault => client.vault_status(),
             _ => unreachable!("public command was already classified"),
         }
         .map_err(|error| error.to_string())?
@@ -385,13 +390,13 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     }
     if command.requires_credential() && credential.is_none() {
         return Err(
-            "--credential is required for whoami, clients, invoke, and identity commands"
+            "--credential is required for vault, whoami, clients, invoke, and identity commands"
                 .to_owned(),
         );
     }
     if !command.requires_credential() && credential.is_some() {
         return Err(
-            "--credential is accepted only by whoami, clients, invoke, and identity commands"
+            "--credential is accepted only by vault, whoami, clients, invoke, and identity commands"
                 .to_owned(),
         );
     }
@@ -422,7 +427,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
 fn print_help() {
     println!(
         "Usage:\n\
-         greenways <status|paths|vault> [--home PATH] [--json]\n\
+         greenways <status|paths> [--home PATH] [--json]\n\
+         greenways vault --credential PATH [--home PATH] [--json]\n\
          greenways whoami --credential PATH [--home PATH] [--json]\n\
          greenways clients --credential PATH [--home PATH] [--json]\n\
 greenways invoke --credential PATH --profile ID --model ID \
@@ -447,10 +453,12 @@ mod tests {
 
     #[test]
     fn requires_credentials_only_for_authority_commands() {
+        assert!(parse(&["vault"]).is_err());
         assert!(parse(&["whoami"]).is_err());
         assert!(parse(&["clients"]).is_err());
         assert!(parse(&["identity-status"]).is_err());
         assert!(parse(&["identity-card"]).is_err());
+        assert!(parse(&["vault", "--credential", "/tmp/client.json"]).is_ok());
         assert!(parse(&["whoami", "--credential", "/tmp/client.json",]).is_ok());
         assert!(parse(&["status", "--credential", "/tmp/client.json",]).is_err());
     }
