@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+test-support = []
+
 [dependencies]
 base64ct = { version = "1.8.0", features = ["alloc"] }
 getrandom.workspace = true
