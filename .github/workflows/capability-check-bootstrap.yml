@@ -22,7 +22,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/agent/capability-check/part-* > /tmp/capability-check-apply.py.gz.b64
+          cat \
+            .github/agent/capability-check/part-00 \
+            .github/agent/capability-check/part-01 \
+            .github/agent/capability-check/p2-* \
+            .github/agent/capability-check/part-03 \
+            > /tmp/capability-check-apply.py.gz.b64
           echo 'db2dabe00402d03c2b137472d638383022b1827740332e2cedfd857fa4719571  /tmp/capability-check-apply.py.gz.b64' | sha256sum --check --strict
           base64 --decode /tmp/capability-check-apply.py.gz.b64 | gzip --decompress > /tmp/capability-check-apply.py
           echo 'f54418ad5522b4af11bedf5528fa87ef78ada924d88fef1f55109a941a8c01b7  /tmp/capability-check-apply.py' | sha256sum --check --strict
