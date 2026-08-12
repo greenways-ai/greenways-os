@@ -291,6 +291,7 @@ name = "greenways-admin"
 version = "0.1.0"
 dependencies = [
  "greenways-authority",
+ "greenways-capabilities",
  "greenways-identity",
  "greenways-local",
  "greenways-vault",
