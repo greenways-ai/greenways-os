@@ -31,6 +31,24 @@ jobs:
           echo 'db2dabe00402d03c2b137472d638383022b1827740332e2cedfd857fa4719571  /tmp/capability-check-apply.py.gz.b64' | sha256sum --check --strict
           base64 --decode /tmp/capability-check-apply.py.gz.b64 | gzip --decompress > /tmp/capability-check-apply.py
           echo 'f54418ad5522b4af11bedf5528fa87ef78ada924d88fef1f55109a941a8c01b7  /tmp/capability-check-apply.py' | sha256sum --check --strict
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/capability-check-apply.py')
+          text = path.read_text()
+          marker = '# The capability core owns the versioned, exact decision request.'
+          marker_at = text.find(marker)
+          if marker_at < 0:
+              raise SystemExit('capability-core reconciliation marker was not found')
+          block_start = text.find('replace_once(', marker_at)
+          block_end = text.find('\n\nreplace_once(', block_start)
+          if block_start < 0 or block_end < 0:
+              raise SystemExit('obsolete import edit boundaries were not found')
+          text = text[:block_start] + text[block_end + 2:]
+          path.write_text(text)
+          PY
+          python3 -m py_compile /tmp/capability-check-apply.py
           python3 /tmp/capability-check-apply.py
 
       - name: Install pinned Rust toolchain
