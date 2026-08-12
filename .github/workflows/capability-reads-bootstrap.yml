@@ -80,25 +80,23 @@ jobs:
           )
           '''
 
-          old_help = '''replace(
-              "cli/greenways/src/main.rs",
-              ''' + "'''" + '''         greenways identity-card --credential PATH [--home PATH] [--json]\\n\\
-          ''' + "'''" + ''',
-              ''' + "'''" + '''         greenways identity-card --credential PATH [--home PATH] [--json]\\n\\
-                   greenways capabilities-status --credential PATH [--home PATH] [--json]\\n\\
-                   greenways capabilities --credential PATH [--home PATH] [--json]\\n\\
-          ''' + "'''" + ''',
-          )
-          '''
-
           for old, new, label in [
               (old_predicate, new_predicate, 'credential predicate'),
               (old_required, new_required, 'required credential message'),
-              (old_help, '', 'help insertion'),
           ]:
               if text.count(old) != 1:
                   raise SystemExit(f'{label} script anchor was not found exactly once')
               text = text.replace(old, new, 1)
+
+          marker = 'greenways identity-card --credential PATH [--home PATH] [--json]'
+          marker_at = text.find(marker)
+          if marker_at < 0:
+              raise SystemExit('help insertion marker was not found')
+          block_start = text.rfind('replace(\n', 0, marker_at)
+          block_end = text.find('\n)\n', marker_at)
+          if block_start < 0 or block_end < 0:
+              raise SystemExit('help insertion block boundaries were not found')
+          text = text[:block_start] + text[block_end + 3:]
           path.write_text(text)
           PY
 
