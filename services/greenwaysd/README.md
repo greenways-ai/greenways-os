@@ -119,3 +119,23 @@ The first signing vocabulary contains exactly one subject: `greenways-profile-id
 `greenwaysd` now validates and owns the signed capability authority state at startup. Enrolled Desktop, CLI, and Developer sessions may read `capabilities.status` and `capabilities.list`. The browser-bridge role is deliberately denied authority inventory; a later exact `capabilities.check` seam will answer only whether one reviewed application operation is currently granted.
 
 These operations are read-only. Grant issuance and revocation remain offline administration in the next slice, and the extension remains the compatibility authority until its exact approvals are migrated with receipts.
+
+
+## Offline capability administration
+
+Capability grants are issued and revoked only while `greenwaysd` is stopped:
+
+```sh
+greenways-admin capability issue \
+  --capability model/generate \
+  --app-id hara-playground \
+  --app-version 1.2.3 \
+  --publisher hara-lang \
+  --approval-digest sha256:…
+
+greenways-admin capability revoke \
+  --grant-id grant/… \
+  --reason user-revoked
+```
+
+The administrator reconstructs the exact application approval subject, asks the daemon-owned profile identity to sign one closed grant or revocation subject, and atomically commits the immutable record. It never accepts private keys, arbitrary signing bytes, generic JSON constraints, or provider credentials on the command line. Status and list remain read-only and may run while the daemon is active.

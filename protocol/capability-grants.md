@@ -162,3 +162,10 @@ capabilities.list
 ```
 
 Desktop, CLI, and explicit Developer roles may inspect these projections. The browser bridge cannot list or count authority records. Both operations are ordinary actor-bound daemon requests and therefore retain exact request replay and collision semantics.
+
+
+## Offline administration
+
+`greenways-admin capability issue` and `capability revoke` are the first mutation surfaces. Both require the daemon socket to be inactive before opening the identity and capability metadata files. Issuance accepts only the exact capability and application approval fields; arbitrary constraints are intentionally absent from the first CLI. Revocation accepts only an existing grant ID and bounded reason.
+
+The signed grant or revocation is committed before the command reports success. Re-running a revocation returns the existing immutable revocation. No corresponding mutation operation exists on ordinary local IPC.
