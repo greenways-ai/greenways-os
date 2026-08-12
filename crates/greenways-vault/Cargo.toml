@@ -1,5 +1,5 @@
 [package]
-name = "greenwaysd"
+name = "greenways-vault"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,11 +7,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-greenways-local = { path = "../../crates/greenways-local" }
-greenways-protocol = { path = "../../crates/greenways-protocol" }
-greenways-vault = { path = "../../crates/greenways-vault" }
+greenways-protocol = { path = "../greenways-protocol" }
+keyring = { version = "=3.6.3", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
 serde.workspace = true
 serde_json.workspace = true
+zeroize = "1.9.0"
 
 [lints]
 workspace = true

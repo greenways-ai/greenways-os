@@ -1,11 +1,12 @@
 use greenways_local::{GreenwaysPaths, LocalClient};
-use greenways_protocol::{DaemonPaths, DaemonStatus, LocalResponse, Outcome};
+use greenways_protocol::{DaemonPaths, DaemonStatus, LocalResponse, Outcome, VaultStatus};
 use std::{env, path::PathBuf, process};
 
 #[derive(Debug)]
 enum Command {
     Status,
     Paths,
+    Vault,
 }
 
 #[derive(Debug)]
@@ -29,6 +30,7 @@ fn run() -> Result<(), String> {
     let response = match options.command {
         Command::Status => client.status(),
         Command::Paths => client.paths(),
+        Command::Vault => client.vault_status(),
     }
     .map_err(|error| error.to_string())?;
 
@@ -70,6 +72,19 @@ fn run() -> Result<(), String> {
             println!("  state:  {}", paths.state_file);
             println!("  socket: {}", paths.socket_file);
         }
+        Command::Vault => {
+            let status: VaultStatus = serde_json::from_value(
+                response
+                    .value
+                    .ok_or_else(|| "vault status response had no value".to_owned())?,
+            )
+            .map_err(|_| "vault status response was invalid".to_owned())?;
+            println!("Greenways provider vault");
+            println!("  metadata:    {}", status.metadata_state);
+            println!("  credentials: {}", status.credential_store);
+            println!("  profiles:    {}", status.provider_profile_count);
+            println!("  projects secrets: {}", status.secret_projection);
+        }
     }
     Ok(())
 }
@@ -92,6 +107,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let command = match arguments.next().as_deref() {
         Some("status") => Command::Status,
         Some("paths") => Command::Paths,
+        Some("vault") => Command::Vault,
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -131,7 +147,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
 
 fn print_help() {
     println!(
-        "Usage: greenways <status|paths> [--home PATH] [--json]\n\
+        "Usage: greenways <status|paths|vault> [--home PATH] [--json]\n\
          \n\
          Reads the local authoritative greenwaysd service through its closed IPC protocol."
     );

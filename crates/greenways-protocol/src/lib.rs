@@ -8,6 +8,7 @@ pub const LOCAL_PROTOCOL: &str = "greenways-local/0-alpha";
 pub const LOCAL_RESULT_PROTOCOL: &str = "greenways-local-result/0-alpha";
 pub const DAEMON_STATUS_PROTOCOL: &str = "greenways-daemon-status/0-alpha";
 pub const DAEMON_PATHS_PROTOCOL: &str = "greenways-daemon-paths/0-alpha";
+pub const VAULT_STATUS_PROTOCOL: &str = "greenways-vault-status/0-alpha";
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
 pub const MAX_RESPONSE_BYTES: usize = 256 * 1024;
 
@@ -51,6 +52,15 @@ impl LocalRequest {
             protocol: LOCAL_PROTOCOL.to_owned(),
             request_id: request_id.into(),
             operation: "paths".to_owned(),
+            arguments: Map::new(),
+        }
+    }
+
+    pub fn vault_status(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "vault.status".to_owned(),
             arguments: Map::new(),
         }
     }
@@ -127,6 +137,16 @@ pub struct DaemonPaths {
     pub socket_file: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VaultStatus {
+    pub protocol: String,
+    pub metadata_state: String,
+    pub credential_store: String,
+    pub provider_profile_count: u64,
+    pub secret_projection: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProtocolError {
     code: &'static str,
@@ -188,7 +208,10 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
             "Greenways local request ID is invalid.",
         ));
     }
-    if !matches!(request.operation.as_str(), "status" | "paths") {
+    if !matches!(
+        request.operation.as_str(),
+        "status" | "paths" | "vault.status"
+    ) {
         return Err(ProtocolError::new(
             "unsupported-operation",
             "Greenways local operation is not available.",

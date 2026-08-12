@@ -73,3 +73,19 @@ cargo run -p greenways-cli -- paths
 See [`../../protocol/daemon.md`](../../protocol/daemon.md) for the normative
 direction and [`../../docs/daemon-migration-inventory.md`](../../docs/daemon-migration-inventory.md)
 for the extension-to-daemon responsibility map.
+
+# Greenways provider vault
+
+The daemon now owns provider-profile metadata and stores credential bytes in the operating-system keyring. Use the offline `greenways-admin` command while `greenwaysd` is stopped:
+
+```sh
+printf '%s' "$OPENAI_API_KEY" | \
+  cargo run -p greenways-admin -- provider add \
+    --id openai.personal \
+    --provider openai \
+    --label "Personal OpenAI"
+
+cargo run -p greenways-admin -- provider list
+```
+
+The ordinary `greenways vault` command reads only the redacted `vault.status` projection. Provider credentials, keyring handles and profile labels are not available through the public local protocol.
