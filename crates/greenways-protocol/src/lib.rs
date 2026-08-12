@@ -64,6 +64,33 @@ impl LocalRequest {
             arguments: Map::new(),
         }
     }
+
+    pub fn session_open(request_id: impl Into<String>, arguments: Map<String, Value>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "client.session.open".to_owned(),
+            arguments,
+        }
+    }
+
+    pub fn whoami(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "client.whoami".to_owned(),
+            arguments: Map::new(),
+        }
+    }
+
+    pub fn clients_list(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "authority.clients.list".to_owned(),
+            arguments: Map::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -210,14 +237,26 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
     }
     if !matches!(
         request.operation.as_str(),
-        "status" | "paths" | "vault.status"
+        "status"
+            | "paths"
+            | "vault.status"
+            | "client.session.open"
+            | "client.whoami"
+            | "authority.clients.list"
     ) {
         return Err(ProtocolError::new(
             "unsupported-operation",
             "Greenways local operation is not available.",
         ));
     }
-    if !request.arguments.is_empty() {
+    if request.operation == "client.session.open" {
+        if request.arguments.is_empty() {
+            return Err(ProtocolError::new(
+                "invalid-arguments",
+                "Local session opening requires one credential object.",
+            ));
+        }
+    } else if !request.arguments.is_empty() {
         return Err(ProtocolError::new(
             "invalid-arguments",
             "This Greenways local operation accepts no arguments.",
@@ -424,6 +463,30 @@ mod tests {
                 .code(),
             "invalid-arguments"
         );
+    }
+
+    #[test]
+    fn validates_session_and_privileged_operation_shapes() {
+        let mut credential = Map::new();
+        credential.insert(
+            "protocol".to_owned(),
+            Value::String("greenways-local-client-credential/0-alpha".to_owned()),
+        );
+        let session = LocalRequest::session_open("local/request/session0001", credential);
+        assert!(validate_request(&session).is_ok());
+        assert_eq!(
+            LocalRequest::whoami("local/request/whoami0001").operation,
+            "client.whoami"
+        );
+        assert_eq!(
+            LocalRequest::clients_list("local/request/clients001").operation,
+            "authority.clients.list"
+        );
+        assert!(validate_request(&LocalRequest::session_open(
+            "local/request/session0002",
+            Map::new(),
+        ))
+        .is_err());
     }
 
     #[test]

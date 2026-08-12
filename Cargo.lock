@@ -183,6 +183,7 @@ dependencies = [
 name = "greenways-cli"
 version = "0.1.0"
 dependencies = [
+ "greenways-authority",
  "greenways-local",
  "greenways-protocol",
  "serde_json",
@@ -192,7 +193,10 @@ dependencies = [
 name = "greenways-local"
 version = "0.1.0"
 dependencies = [
+ "greenways-authority",
  "greenways-protocol",
+ "serde_json",
+ "zeroize",
 ]
 
 [[package]]

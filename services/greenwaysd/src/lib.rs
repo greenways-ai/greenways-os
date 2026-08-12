@@ -1,4 +1,7 @@
-use greenways_authority::{AuthorityError, LocalClientRegistry};
+use greenways_authority::{
+    new_local_session, parse_local_client_credential_arguments, valid_client_id, AuthorityError,
+    LocalClient, LocalClientRegistry, LocalClientRole, LocalSession,
+};
 use greenways_local::GreenwaysPaths;
 use greenways_protocol::{
     canonical_request, decode_request, encode_response_line, new_node_id, request_digest,
@@ -12,9 +15,14 @@ use std::{
     error::Error,
     fmt,
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
+    thread,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -23,6 +31,9 @@ const RECEIPT_PROTOCOL: &str = "greenways-local-receipt/0-alpha";
 const MAX_STATE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_RECEIPTS: usize = 64;
 const INVALID_REQUEST_ID: &str = "local/request/invalid0";
+const SESSION_TTL_MS: u64 = 5 * 60 * 1000;
+const SESSION_REQUEST_LIMIT: u32 = 128;
+const MAX_CONCURRENT_CONNECTIONS: usize = 32;
 
 #[derive(Debug)]
 pub enum DaemonError {
@@ -100,12 +111,21 @@ impl From<VaultError> for DaemonError {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RequestActor {
+    client_id: String,
+    role: LocalClientRole,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RequestReceipt {
     protocol: String,
     request_id: String,
     digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    actor: Option<RequestActor>,
     request: String,
     response: LocalResponse,
     committed_at_unix_ms: u64,
@@ -178,7 +198,41 @@ impl Daemon {
         request: LocalRequest,
         observed_at_unix_ms: u64,
     ) -> Result<LocalResponse, DaemonError> {
+        self.handle_request_as_at(request, None, observed_at_unix_ms)
+    }
+
+    fn handle_request_as_at(
+        &mut self,
+        request: LocalRequest,
+        actor: Option<RequestActor>,
+        observed_at_unix_ms: u64,
+    ) -> Result<LocalResponse, DaemonError> {
         greenways_protocol::validate_request(&request)?;
+        if request.operation == "client.session.open" {
+            return Ok(LocalResponse::error(
+                request.request_id,
+                "unsupported-operation",
+                "Session establishment is a connection-level operation.",
+            ));
+        }
+        if requires_authenticated_session(&request.operation) && actor.is_none() {
+            return Ok(LocalResponse::error(
+                request.request_id,
+                "authentication-required",
+                "This Greenways local operation requires an authenticated session.",
+            ));
+        }
+        if request.operation == "authority.clients.list"
+            && actor
+                .as_ref()
+                .is_some_and(|actor| !role_may_list_clients(actor.role))
+        {
+            return Ok(LocalResponse::error(
+                request.request_id,
+                "authority-denied",
+                "This local client role cannot inspect Greenways authority state.",
+            ));
+        }
         let digest = request_digest(&request)?;
         if let Some(receipt) = self
             .state
@@ -186,7 +240,7 @@ impl Daemon {
             .iter()
             .find(|receipt| receipt.request_id == request.request_id)
         {
-            if receipt.digest != digest {
+            if receipt.digest != digest || receipt.actor != actor {
                 return Ok(LocalResponse::error(
                     request.request_id,
                     "request-id-collision",
@@ -238,6 +292,26 @@ impl Daemon {
                     DaemonError::State("vault status projection could not be encoded".to_owned())
                 })?,
             ),
+            "client.whoami" => {
+                let actor = actor.as_ref().ok_or_else(|| {
+                    DaemonError::State("authenticated actor disappeared".to_owned())
+                })?;
+                let client = self.clients.get(&actor.client_id)?;
+                LocalResponse::ok(
+                    request.request_id.clone(),
+                    serde_json::to_value(client).map_err(|_| {
+                        DaemonError::State(
+                            "local client projection could not be encoded".to_owned(),
+                        )
+                    })?,
+                )
+            }
+            "authority.clients.list" => LocalResponse::ok(
+                request.request_id.clone(),
+                serde_json::to_value(self.clients.clients()).map_err(|_| {
+                    DaemonError::State("local client list could not be encoded".to_owned())
+                })?,
+            ),
             "paths" => {
                 let paths = DaemonPaths {
                     protocol: greenways_protocol::DAEMON_PATHS_PROTOCOL.to_owned(),
@@ -268,6 +342,7 @@ impl Daemon {
             protocol: RECEIPT_PROTOCOL.to_owned(),
             request_id: request.request_id,
             digest,
+            actor,
             request: request_text,
             response: response.clone(),
             committed_at_unix_ms: observed_at_unix_ms,
@@ -335,17 +410,31 @@ fn serve_unix(paths: GreenwaysPaths, once: bool) -> Result<(), DaemonError> {
     let listener = UnixListener::bind(&paths.socket_file)?;
     fs::set_permissions(&paths.socket_file, fs::Permissions::from_mode(0o600))?;
     let _socket_guard = SocketGuard(paths.socket_file.clone());
-    let mut daemon = Daemon::open(paths)?;
+    let daemon = Arc::new(Mutex::new(Daemon::open(paths)?));
+    let active = Arc::new(AtomicUsize::new(0));
 
     for incoming in listener.incoming() {
         match incoming {
-            Ok(mut stream) => {
-                if let Err(error) = handle_connection(&mut stream, &mut daemon) {
+            Ok(mut stream) if once => {
+                if let Err(error) = handle_connection(&mut stream, Arc::clone(&daemon)) {
                     eprintln!("greenwaysd: contained local connection failure: {error}");
                 }
-                if once {
-                    break;
+                break;
+            }
+            Ok(mut stream) => {
+                let previous = active.fetch_add(1, Ordering::AcqRel);
+                if previous >= MAX_CONCURRENT_CONNECTIONS {
+                    active.fetch_sub(1, Ordering::AcqRel);
+                    continue;
                 }
+                let daemon = Arc::clone(&daemon);
+                let active = Arc::clone(&active);
+                thread::spawn(move || {
+                    let _connection_guard = ConnectionGuard(active);
+                    if let Err(error) = handle_connection(&mut stream, daemon) {
+                        eprintln!("greenwaysd: contained local connection failure: {error}");
+                    }
+                });
             }
             Err(error) => return Err(DaemonError::Io(error)),
         }
@@ -356,40 +445,246 @@ fn serve_unix(paths: GreenwaysPaths, once: bool) -> Result<(), DaemonError> {
 #[cfg(unix)]
 fn handle_connection(
     stream: &mut std::os::unix::net::UnixStream,
-    daemon: &mut Daemon,
+    daemon: Arc<Mutex<Daemon>>,
 ) -> Result<(), DaemonError> {
     use std::net::Shutdown;
 
-    let mut bytes = Vec::new();
-    (&mut *stream)
-        .take((MAX_REQUEST_BYTES + 1) as u64)
-        .read_to_end(&mut bytes)?;
-
-    let response = if bytes.len() > MAX_REQUEST_BYTES {
-        LocalResponse::error(
-            INVALID_REQUEST_ID,
-            "request-too-large",
-            "Greenways local requests are limited to 64 KiB.",
-        )
-    } else {
-        match decode_request(&bytes) {
-            Ok(request) => {
-                let request_id = request.request_id.clone();
-                match daemon.handle_request(request) {
-                    Ok(response) => response,
-                    Err(_) => LocalResponse::error(
-                        request_id,
-                        "daemon-unavailable",
-                        "Greenways daemon could not safely complete the request.",
+    let mut reader = BufReader::new(stream.try_clone()?);
+    let mut session: Option<ConnectionSession> = None;
+    loop {
+        let mut bytes = match read_request_line(&mut reader)? {
+            ReadRequest::Eof => break,
+            ReadRequest::TooLarge => {
+                write_response(
+                    stream,
+                    &LocalResponse::error(
+                        INVALID_REQUEST_ID,
+                        "request-too-large",
+                        "Greenways local requests are limited to 64 KiB.",
                     ),
+                )?;
+                break;
+            }
+            ReadRequest::Bytes(bytes) => bytes,
+        };
+        let decoded = decode_request(&bytes);
+        bytes.fill(0);
+        let request = match decoded {
+            Ok(request) => request,
+            Err(error) => {
+                write_response(
+                    stream,
+                    &LocalResponse::error(INVALID_REQUEST_ID, error.code(), error.message()),
+                )?;
+                break;
+            }
+        };
+
+        if request.operation == "client.session.open" {
+            if session.is_some() {
+                write_response(
+                    stream,
+                    &LocalResponse::error(
+                        request.request_id,
+                        "already-authenticated",
+                        "This Greenways local connection already has a session.",
+                    ),
+                )?;
+                break;
+            }
+            let observed_at = now_unix_ms()?;
+            let request_id = request.request_id;
+            match open_connection_session(&daemon, &request_id, request.arguments, observed_at) {
+                Ok(opened) => {
+                    let response = LocalResponse::ok(
+                        request_id,
+                        serde_json::to_value(&opened.session).map_err(|_| {
+                            DaemonError::State("local session could not be encoded".to_owned())
+                        })?,
+                    );
+                    write_response(stream, &response)?;
+                    session = Some(opened);
+                }
+                Err(response) => {
+                    write_response(stream, &response)?;
+                    break;
                 }
             }
-            Err(error) => LocalResponse::error(INVALID_REQUEST_ID, error.code(), error.message()),
+            continue;
         }
-    };
-    stream.write_all(&encode_response_line(&response)?)?;
+
+        let observed_at = now_unix_ms()?;
+        let actor = if let Some(opened) = session.as_mut() {
+            match opened.authorize_at(observed_at) {
+                Ok(actor) => Some(actor),
+                Err(code) => {
+                    write_response(
+                        stream,
+                        &LocalResponse::error(
+                            request.request_id,
+                            code,
+                            "The Greenways local session is no longer usable.",
+                        ),
+                    )?;
+                    break;
+                }
+            }
+        } else if requires_authenticated_session(&request.operation) {
+            write_response(
+                stream,
+                &LocalResponse::error(
+                    request.request_id,
+                    "authentication-required",
+                    "This Greenways local operation requires an authenticated session.",
+                ),
+            )?;
+            break;
+        } else {
+            None
+        };
+
+        let request_id = request.request_id.clone();
+        let response = match daemon.lock() {
+            Ok(mut daemon) => daemon.handle_request_as_at(request, actor, observed_at),
+            Err(_) => Err(DaemonError::State(
+                "daemon authority lock was poisoned".to_owned(),
+            )),
+        }
+        .unwrap_or_else(|_| {
+            LocalResponse::error(
+                request_id,
+                "daemon-unavailable",
+                "Greenways daemon could not safely complete the request.",
+            )
+        });
+        write_response(stream, &response)?;
+    }
     stream.shutdown(Shutdown::Write)?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn write_response(
+    stream: &mut std::os::unix::net::UnixStream,
+    response: &LocalResponse,
+) -> Result<(), DaemonError> {
+    stream.write_all(&encode_response_line(response)?)?;
+    stream.flush()?;
+    Ok(())
+}
+
+#[cfg(unix)]
+enum ReadRequest {
+    Eof,
+    TooLarge,
+    Bytes(Vec<u8>),
+}
+
+#[cfg(unix)]
+fn read_request_line(
+    reader: &mut BufReader<std::os::unix::net::UnixStream>,
+) -> Result<ReadRequest, DaemonError> {
+    let mut bytes = Vec::new();
+    let read = reader
+        .take((MAX_REQUEST_BYTES + 1) as u64)
+        .read_until(b'\n', &mut bytes)?;
+    if read == 0 {
+        return Ok(ReadRequest::Eof);
+    }
+    if bytes.len() > MAX_REQUEST_BYTES || !bytes.ends_with(b"\n") {
+        return Ok(ReadRequest::TooLarge);
+    }
+    Ok(ReadRequest::Bytes(bytes))
+}
+
+struct ConnectionSession {
+    session: LocalSession,
+}
+
+impl ConnectionSession {
+    fn open(client: &LocalClient, observed_at_unix_ms: u64) -> Result<Self, AuthorityError> {
+        Ok(Self {
+            session: new_local_session(
+                client,
+                observed_at_unix_ms,
+                SESSION_TTL_MS,
+                SESSION_REQUEST_LIMIT,
+            )?,
+        })
+    }
+
+    fn authorize_at(&mut self, observed_at_unix_ms: u64) -> Result<RequestActor, &'static str> {
+        if observed_at_unix_ms >= self.session.expires_at_unix_ms {
+            return Err("session-expired");
+        }
+        if self.session.remaining_requests == 0 {
+            return Err("session-exhausted");
+        }
+        self.session.remaining_requests -= 1;
+        Ok(RequestActor {
+            client_id: self.session.client_id.clone(),
+            role: self.session.role,
+        })
+    }
+}
+
+fn open_connection_session(
+    daemon: &Arc<Mutex<Daemon>>,
+    request_id: &str,
+    arguments: serde_json::Map<String, serde_json::Value>,
+    observed_at_unix_ms: u64,
+) -> Result<ConnectionSession, LocalResponse> {
+    let credential = parse_local_client_credential_arguments(arguments).map_err(|_| {
+        LocalResponse::error(
+            request_id,
+            "authentication-rejected",
+            "The Greenways local client credential was rejected.",
+        )
+    })?;
+    let client = daemon
+        .lock()
+        .map_err(|_| {
+            LocalResponse::error(
+                request_id,
+                "daemon-unavailable",
+                "Greenways daemon could not safely authenticate the client.",
+            )
+        })?
+        .clients
+        .verify_credential(&credential)
+        .map_err(|_| {
+            LocalResponse::error(
+                request_id,
+                "authentication-rejected",
+                "The Greenways local client credential was rejected.",
+            )
+        })?;
+    ConnectionSession::open(&client, observed_at_unix_ms).map_err(|_| {
+        LocalResponse::error(
+            request_id,
+            "authentication-rejected",
+            "The Greenways local client credential was rejected.",
+        )
+    })
+}
+
+fn requires_authenticated_session(operation: &str) -> bool {
+    matches!(operation, "client.whoami" | "authority.clients.list")
+}
+
+fn role_may_list_clients(role: LocalClientRole) -> bool {
+    matches!(
+        role,
+        LocalClientRole::Desktop | LocalClientRole::Cli | LocalClientRole::Developer
+    )
+}
+
+struct ConnectionGuard(Arc<AtomicUsize>);
+
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 fn load_state(path: &Path) -> Result<DaemonState, DaemonError> {
@@ -444,6 +739,18 @@ fn validate_state(state: &DaemonState) -> Result<(), DaemonError> {
             return Err(DaemonError::State("receipt digest is invalid".to_owned()));
         }
         let request = decode_request(receipt.request.as_bytes())?;
+        if request.operation == "client.session.open" {
+            return Err(DaemonError::State(
+                "session credentials cannot appear in durable receipts".to_owned(),
+            ));
+        }
+        if receipt
+            .actor
+            .as_ref()
+            .is_some_and(|actor| !valid_client_id(&actor.client_id))
+        {
+            return Err(DaemonError::State("receipt actor is invalid".to_owned()));
+        }
         if request.request_id != receipt.request_id
             || request_digest(&request)? != receipt.digest
             || receipt.response.request_id != receipt.request_id
@@ -555,7 +862,8 @@ impl Drop for SocketGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use greenways_local::LocalClient;
+    use greenways_authority::{LocalClientRegistry, LocalClientRole};
+    use greenways_local::{AuthenticatedLocalClient, LocalClient as PublicLocalClient};
     use greenways_protocol::{new_request_id, Outcome, VaultStatus};
     use std::{thread, time::Duration};
 
@@ -580,6 +888,17 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[cfg(unix)]
+    fn wait_for_socket(path: &Path) {
+        for _ in 0..200 {
+            if path.exists() {
+                return;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        panic!("Greenways daemon socket did not appear");
     }
 
     #[test]
@@ -683,6 +1002,135 @@ mod tests {
         assert!(!encoded.contains("Personal OpenAI"));
     }
 
+    #[test]
+    fn binds_durable_request_ownership_to_the_authenticated_actor() {
+        let home = TestHome::new("actor-replay");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let request_id = "local/request/actorreplay1";
+        let first_actor = RequestActor {
+            client_id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::Cli,
+        };
+        let second_actor = RequestActor {
+            client_id: "local/client/ffeeddccbbaa99887766554433221100".to_owned(),
+            role: LocalClientRole::Cli,
+        };
+        let first = daemon
+            .handle_request_as_at(LocalRequest::status(request_id), Some(first_actor), 2_000)
+            .expect("first actor should complete");
+        assert_eq!(first.outcome, Outcome::Ok);
+        let collision = daemon
+            .handle_request_as_at(LocalRequest::status(request_id), Some(second_actor), 3_000)
+            .expect("second actor should receive a closed collision");
+        assert_eq!(
+            collision.error.expect("collision error").code,
+            "request-id-collision"
+        );
+    }
+
+    #[test]
+    fn connection_sessions_expire_and_exhaust_without_bearer_tokens() {
+        let client = LocalClient {
+            protocol: greenways_authority::LOCAL_CLIENT_PROTOCOL.to_owned(),
+            id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::Developer,
+            label: "Developer".to_owned(),
+            created_at_unix_ms: 1,
+            revoked_at_unix_ms: None,
+        };
+        let mut session = ConnectionSession {
+            session: new_local_session(&client, 1_000, 100, 2).expect("session should open"),
+        };
+        assert!(session.authorize_at(1_001).is_ok());
+        assert!(session.authorize_at(1_002).is_ok());
+        assert_eq!(session.authorize_at(1_003), Err("session-exhausted"));
+        let mut expired = ConnectionSession {
+            session: new_local_session(&client, 1_000, 10, 2).expect("session should open"),
+        };
+        assert_eq!(expired.authorize_at(1_010), Err("session-expired"));
+        let encoded = serde_json::to_string(&session.session).expect("session should encode");
+        assert!(!encoded.contains("gwc_"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn authenticates_a_cli_session_and_returns_role_scoped_authority() {
+        let home = TestHome::new("auth-socket");
+        let paths = home.paths();
+        let credential_path = paths.home.join("clients").join("cli.json");
+        let mut registry =
+            LocalClientRegistry::open(paths.home.join("state").join("local-clients.json"))
+                .expect("client registry should open");
+        let issued = registry
+            .issue_to_file(
+                LocalClientRole::Cli,
+                "Greenways CLI",
+                &credential_path,
+                1_000,
+            )
+            .expect("CLI client should issue");
+        drop(registry);
+
+        let server_paths = paths.clone();
+        let handle = thread::spawn(move || serve(server_paths, true));
+        wait_for_socket(&paths.socket_file);
+        let mut client = AuthenticatedLocalClient::from_paths(&paths, &credential_path)
+            .expect("CLI should authenticate");
+        assert_eq!(client.session().client_id, issued.id);
+        let whoami = client.whoami().expect("whoami should complete");
+        let projected: LocalClient =
+            serde_json::from_value(whoami.value.expect("whoami value")).expect("whoami projection");
+        assert_eq!(projected.id, issued.id);
+        let clients = client.clients().expect("CLI should list clients");
+        let listed: Vec<LocalClient> =
+            serde_json::from_value(clients.value.expect("client list value"))
+                .expect("client list projection");
+        assert_eq!(listed.len(), 1);
+        drop(client);
+        handle
+            .join()
+            .expect("server thread should join")
+            .expect("server should exit cleanly");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn browser_bridge_session_cannot_list_authority_state() {
+        let home = TestHome::new("browser-role");
+        let paths = home.paths();
+        let credential_path = paths.home.join("clients").join("browser.json");
+        let mut registry =
+            LocalClientRegistry::open(paths.home.join("state").join("local-clients.json"))
+                .expect("client registry should open");
+        registry
+            .issue_to_file(
+                LocalClientRole::BrowserBridge,
+                "Chrome bridge",
+                &credential_path,
+                1_000,
+            )
+            .expect("browser client should issue");
+        drop(registry);
+
+        let server_paths = paths.clone();
+        let handle = thread::spawn(move || serve(server_paths, true));
+        wait_for_socket(&paths.socket_file);
+        let mut client = AuthenticatedLocalClient::from_paths(&paths, &credential_path)
+            .expect("browser should authenticate");
+        assert_eq!(
+            client.whoami().expect("whoami should complete").outcome,
+            Outcome::Ok
+        );
+        let denied = client.clients().expect("denial should be a response");
+        assert_eq!(denied.outcome, Outcome::Error);
+        assert_eq!(denied.error.expect("denial error").code, "authority-denied");
+        drop(client);
+        handle
+            .join()
+            .expect("server thread should join")
+            .expect("server should exit cleanly");
+    }
+
     #[cfg(unix)]
     #[test]
     fn serves_status_across_the_real_unix_socket_boundary() {
@@ -698,7 +1146,7 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
 
-        let response = LocalClient::from_paths(&paths)
+        let response = PublicLocalClient::from_paths(&paths)
             .status()
             .expect("client should read daemon status");
         assert_eq!(response.outcome, Outcome::Ok);

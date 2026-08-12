@@ -7,7 +7,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+greenways-authority = { path = "../greenways-authority" }
 greenways-protocol = { path = "../greenways-protocol" }
+serde_json.workspace = true
+zeroize = "1.9.0"
 
 [lints]
 workspace = true
