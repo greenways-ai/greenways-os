@@ -25,6 +25,13 @@ jobs:
           if ! git merge --no-commit --no-ff origin/main; then
             echo 'Conflicting files:'
             git diff --name-only --diff-filter=U
+            echo 'Combined conflict hunks:'
+            git diff --cc --no-color -- \
+              cli/greenways/src/main.rs \
+              crates/greenways-local/src/lib.rs \
+              crates/greenways-protocol/src/lib.rs \
+              services/greenwaysd/README.md \
+              services/greenwaysd/src/lib.rs
             exit 1
           fi
 
