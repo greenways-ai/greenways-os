@@ -23,6 +23,16 @@ jobs:
             | base64 --decode \
             | gzip --decompress \
             > /tmp/provider-invoke-apply.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/provider-invoke-apply.py')
+          source = path.read_text()
+          old = 'Session opening requires one credential object.'
+          new = 'Local session opening requires one credential object.'
+          if source.count(old) != 1:
+              raise SystemExit('expected one stale session-error marker')
+          path.write_text(source.replace(old, new, 1))
+          PY
           python /tmp/provider-invoke-apply.py
 
       - name: Install pinned Rust toolchain
