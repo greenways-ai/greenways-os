@@ -1,4 +1,5 @@
 use greenways_authority::LocalClient as AuthorityClient;
+use greenways_capabilities::{CapabilityAuthorityStatus, CapabilityGrantView};
 use greenways_identity::{ProfileIdentityStatus, SignedProfileIdentity};
 use greenways_local::{
     decode_client, decode_clients, decode_provider_result, AuthenticatedLocalClient,
@@ -26,6 +27,8 @@ enum Command {
     Invoke,
     IdentityStatus,
     IdentityCard,
+    CapabilitiesStatus,
+    Capabilities,
 }
 
 impl Command {
@@ -38,6 +41,8 @@ impl Command {
                 | Self::Invoke
                 | Self::IdentityStatus
                 | Self::IdentityCard
+                | Self::CapabilitiesStatus
+                | Self::Capabilities
         )
     }
 }
@@ -95,6 +100,8 @@ fn run() -> Result<(), String> {
             }
             Command::IdentityStatus => client.identity_status(),
             Command::IdentityCard => client.identity_public_card(),
+            Command::CapabilitiesStatus => client.capabilities_status(),
+            Command::Capabilities => client.capabilities(),
             _ => unreachable!("credential command was already classified"),
         }
         .map_err(|error| error.to_string())?
@@ -134,6 +141,8 @@ fn run() -> Result<(), String> {
         ),
         Command::IdentityStatus => print_identity_status(response)?,
         Command::IdentityCard => print_identity_card(response)?,
+        Command::CapabilitiesStatus => print_capabilities_status(response)?,
+        Command::Capabilities => print_capabilities(response)?,
     }
     Ok(())
 }
@@ -264,6 +273,55 @@ fn print_identity_card(response: LocalResponse) -> Result<(), String> {
     Ok(())
 }
 
+fn print_capabilities_status(response: LocalResponse) -> Result<(), String> {
+    let status: CapabilityAuthorityStatus = serde_json::from_value(
+        response
+            .value
+            .ok_or_else(|| "capability status response had no value".to_owned())?,
+    )
+    .map_err(|_| "capability status response was invalid".to_owned())?;
+    println!("Greenways capability authority");
+    println!("  state:    {}", status.state);
+    println!("  revision: {}", status.revision);
+    println!("  grants:   {}", status.grant_count);
+    println!("  active:   {}", status.active_grant_count);
+    println!("  revoked:  {}", status.revoked_grant_count);
+    println!("  expired:  {}", status.expired_grant_count);
+    println!("  arbitrary signing: {}", status.arbitrary_signing);
+    Ok(())
+}
+
+fn print_capabilities(response: LocalResponse) -> Result<(), String> {
+    let grants: Vec<CapabilityGrantView> = serde_json::from_value(
+        response
+            .value
+            .ok_or_else(|| "capability list response had no value".to_owned())?,
+    )
+    .map_err(|_| "capability list response was invalid".to_owned())?;
+    println!("Greenways application capability grants");
+    if grants.is_empty() {
+        println!("  none");
+        return Ok(());
+    }
+    for view in grants {
+        let state = if view.active {
+            "active"
+        } else if view.revocation.is_some() {
+            "revoked"
+        } else {
+            "expired"
+        };
+        println!(
+            "  {}  {}  {}@{}  ({state})",
+            view.grant.grant.id,
+            view.grant.grant.capability,
+            view.grant.grant.subject.app_id,
+            view.grant.grant.subject.version
+        );
+    }
+    Ok(())
+}
+
 fn print_client(prefix: &str, client: AuthorityClient) {
     let state = if client.revoked_at_unix_ms.is_some() {
         "revoked"
@@ -318,6 +376,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         Some("invoke") => Command::Invoke,
         Some("identity-status") => Command::IdentityStatus,
         Some("identity-card") => Command::IdentityCard,
+        Some("capabilities-status") => Command::CapabilitiesStatus,
+        Some("capabilities") => Command::Capabilities,
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -390,13 +450,13 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     }
     if command.requires_credential() && credential.is_none() {
         return Err(
-            "--credential is required for vault, whoami, clients, invoke, and identity commands"
+            "--credential is required for vault, whoami, clients, invoke, identity, and capability commands"
                 .to_owned(),
         );
     }
     if !command.requires_credential() && credential.is_some() {
         return Err(
-            "--credential is accepted only by vault, whoami, clients, invoke, and identity commands"
+            "--credential is accepted only by vault, whoami, clients, invoke, identity, and capability commands"
                 .to_owned(),
         );
     }
@@ -435,6 +495,8 @@ greenways invoke --credential PATH --profile ID --model ID \
   [--max-output-tokens N] [--timeout-ms N] [--home PATH] [--json]
 greenways identity-status --credential PATH [--home PATH] [--json]
 greenways identity-card --credential PATH [--home PATH] [--json]
+greenways capabilities-status --credential PATH [--home PATH] [--json]
+greenways capabilities --credential PATH [--home PATH] [--json]
          \n\
          Public reads use one-shot local IPC. Authority reads open a short-lived connection-bound\n\
          session from a private enrolled-client credential file. invoke reads one user prompt from\n\
@@ -458,6 +520,8 @@ mod tests {
         assert!(parse(&["clients"]).is_err());
         assert!(parse(&["identity-status"]).is_err());
         assert!(parse(&["identity-card"]).is_err());
+        assert!(parse(&["capabilities-status"]).is_err());
+        assert!(parse(&["capabilities"]).is_err());
         assert!(parse(&["vault", "--credential", "/tmp/client.json"]).is_ok());
         assert!(parse(&["whoami", "--credential", "/tmp/client.json",]).is_ok());
         assert!(parse(&["status", "--credential", "/tmp/client.json",]).is_err());

@@ -241,6 +241,14 @@ impl AuthenticatedLocalClient {
         self.send(&LocalRequest::identity_public_card(new_request_id()?))
     }
 
+    pub fn capabilities_status(&mut self) -> Result<LocalResponse, LocalError> {
+        self.send(&LocalRequest::capabilities_status(new_request_id()?))
+    }
+
+    pub fn capabilities(&mut self) -> Result<LocalResponse, LocalError> {
+        self.send(&LocalRequest::capabilities_list(new_request_id()?))
+    }
+
     pub fn send(&mut self, request: &LocalRequest) -> Result<LocalResponse, LocalError> {
         if request.operation == "client.session.open" {
             return Err(LocalError::AuthenticationRejected);
