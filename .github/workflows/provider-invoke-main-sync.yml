@@ -19,6 +19,8 @@ jobs:
 
       - name: Merge current main
         run: |
+          git config user.name "ChatGPT Codex Connector"
+          git config user.email "chatgpt-codex-connector@users.noreply.github.com"
           git fetch origin main
           if ! git merge --no-commit --no-ff origin/main; then
             echo 'Conflicting files:'
@@ -46,8 +48,6 @@ jobs:
 
       - name: Commit and push merged branch
         run: |
-          git config user.name "ChatGPT Codex Connector"
-          git config user.email "chatgpt-codex-connector@users.noreply.github.com"
           git add -A
           git commit -m "Merge daemon profile identity into provider invocation"
           git push origin HEAD:${GITHUB_REF_NAME}
