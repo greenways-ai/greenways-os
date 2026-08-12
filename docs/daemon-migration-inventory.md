@@ -53,3 +53,7 @@ state, not permission to revive a separate writable browser profile.
 ## Provider credentials
 
 Provider-profile metadata moves to `greenwaysd` and provider credential bytes move to the operating-system credential store. The first migration slice exposes only redacted `vault.status`; mutation is offline through `greenways-admin` while the daemon is stopped. The Chrome extension keeps its separate, credential-free foreground ChatGPT provider until the reviewed browser bridge cutover.
+
+## Profile identity
+
+Profile identity is now daemon-owned. One self-signed P-256 public card is persisted with an opaque operating-system keyring handle; ordinary clients receive only status or the signed public card. There is no generic signing or key export route. The browser-resident controller identity remains a compatibility source until an explicit prepare–verify–commit migration replaces it.

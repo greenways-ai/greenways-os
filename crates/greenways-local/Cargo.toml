@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 greenways-authority = { path = "../greenways-authority" }
+greenways-identity = { path = "../greenways-identity" }
 greenways-protocol = { path = "../greenways-protocol" }
 serde_json.workspace = true
 zeroize = "1.9.0"
