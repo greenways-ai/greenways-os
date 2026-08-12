@@ -17,26 +17,378 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Merge current main
+      - name: Merge current main and resolve additive authority conflicts
         run: |
           git config user.name "ChatGPT Codex Connector"
           git config user.email "chatgpt-codex-connector@users.noreply.github.com"
           git fetch origin main
-          if ! git merge --no-commit --no-ff origin/main; then
-            echo 'Conflicting files:'
-            git diff --name-only --diff-filter=U
-            echo 'Combined conflict hunks:'
-            git diff --cc --no-color -- \
-              cli/greenways/src/main.rs \
-              crates/greenways-local/src/lib.rs \
-              crates/greenways-protocol/src/lib.rs \
-              services/greenwaysd/README.md \
-              services/greenwaysd/src/lib.rs
-            exit 1
-          fi
+          git merge --no-commit --no-ff origin/main || true
+
+          python - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+          import re
+
+          CONFLICT = re.compile(
+              r"(?ms)^<<<<<<< HEAD\n.*?^=======\n.*?^>>>>>>> origin/main\n"
+          )
+
+          def block(value: str) -> str:
+              return dedent(value).lstrip("\n")
+
+          def resolve(path: str, replacements: list[str]) -> None:
+              target = Path(path)
+              text = target.read_text()
+              matches = list(CONFLICT.finditer(text))
+              if len(matches) != len(replacements):
+                  print(f"{path}: expected {len(replacements)} conflicts, found {len(matches)}")
+                  for index, match in enumerate(matches):
+                      print(f"--- conflict {index} ---")
+                      print(match.group(0))
+                  raise SystemExit(1)
+              output = []
+              cursor = 0
+              for match, replacement in zip(matches, replacements, strict=True):
+                  output.append(text[cursor:match.start()])
+                  output.append(replacement)
+                  cursor = match.end()
+              output.append(text[cursor:])
+              target.write_text("".join(output))
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"{path}: expected one exact post-merge marker, found {count}: {old!r}"
+                  )
+              target.write_text(text.replace(old, new, 1))
+
+          resolve(
+              "cli/greenways/src/main.rs",
+              [
+                  block("""
+                      Invoke,
+                      IdentityStatus,
+                      IdentityCard,
+                  """),
+                  block("""
+                          matches!(
+                              self,
+                              Self::Whoami
+                                  | Self::Clients
+                                  | Self::Invoke
+                                  | Self::IdentityStatus
+                                  | Self::IdentityCard
+                          )
+                  """),
+                  block("""
+                              Command::Invoke => {
+                                  let invocation = ProviderInvocation::new(
+                                      options
+                                          .profile
+                                          .ok_or_else(|| "--profile is required for invoke".to_owned())?,
+                                      options
+                                          .model
+                                          .ok_or_else(|| "--model is required for invoke".to_owned())?,
+                                      vec![ModelMessage {
+                                          role: ModelMessageRole::User,
+                                          content: read_prompt_from_stdin()?,
+                                      }],
+                                      options.max_output_tokens,
+                                      options.timeout_ms,
+                                  )
+                                  .map_err(|error| error.to_string())?;
+                                  client.invoke(invocation)
+                              }
+                              Command::IdentityStatus => client.identity_status(),
+                              Command::IdentityCard => client.identity_public_card(),
+                  """),
+                  block("""
+                          Command::Invoke => print_provider_result(
+                              decode_provider_result(&response).map_err(|error| error.to_string())?,
+                          ),
+                          Command::IdentityStatus => print_identity_status(response)?,
+                          Command::IdentityCard => print_identity_card(response)?,
+                  """),
+                  block("""
+                      fn print_provider_result(result: ProviderResult) {
+                          println!("{}", result.output);
+                          eprintln!(
+                              "greenways: {} via {} ({})",
+                              result.model, result.provider, result.profile_id
+                          );
+                          if let Some(usage) = result.usage {
+                              eprintln!(
+                                  "greenways: tokens input={} output={} total={}",
+                                  optional_number(usage.input_tokens),
+                                  optional_number(usage.output_tokens),
+                                  optional_number(usage.total_tokens),
+                              );
+                          }
+                      }
+
+                      fn optional_number(value: Option<u64>) -> String {
+                          value.map_or_else(|| "unknown".to_owned(), |value| value.to_string())
+                      }
+
+                      fn print_identity_status(response: LocalResponse) -> Result<(), String> {
+                          let status: ProfileIdentityStatus = serde_json::from_value(
+                              response
+                                  .value
+                                  .ok_or_else(|| "identity status response had no value".to_owned())?,
+                          )
+                          .map_err(|_| "identity status response was invalid".to_owned())?;
+                          println!("Greenways profile identity");
+                          println!("  state:      {}", status.state);
+                          println!("  custody:    {}", status.key_custody);
+                          println!(
+                              "  identity:   {}",
+                              status.identity_id.as_deref().unwrap_or("not configured")
+                          );
+                          println!(
+                              "  key:        {}",
+                              status.key_id.as_deref().unwrap_or("not configured")
+                          );
+                          println!("  algorithm:  {}", status.algorithm);
+                          Ok(())
+                      }
+
+                      fn print_identity_card(response: LocalResponse) -> Result<(), String> {
+                          let identity: SignedProfileIdentity = serde_json::from_value(
+                              response
+                                  .value
+                                  .ok_or_else(|| "public identity response had no value".to_owned())?,
+                          )
+                          .map_err(|_| "public identity response was invalid".to_owned())?;
+                          println!("Greenways public profile identity");
+                          println!("  id:      {}", identity.subject.id);
+                          println!("  handle:  {}", identity.subject.handle);
+                          println!("  key:     {}", identity.subject.key_id);
+                          println!("  root:    {}", identity.subject_root);
+                          Ok(())
+                  """),
+                  block("""
+                              Some("invoke") => Command::Invoke,
+                              Some("identity-status") => Command::IdentityStatus,
+                              Some("identity-card") => Command::IdentityCard,
+                  """),
+                  block("""
+                          return Err(
+                              "--credential is required for whoami, clients, invoke, and identity commands"
+                                  .to_owned(),
+                          );
+                  """),
+                  block("""
+                               greenways invoke --credential PATH --profile ID --model ID \\
+                                 [--max-output-tokens N] [--timeout-ms N] [--home PATH] [--json]\n\
+                               greenways identity-status --credential PATH [--home PATH] [--json]\n\
+                               greenways identity-card --credential PATH [--home PATH] [--json]\n\
+                  """),
+              ],
+          )
+
+          replace_once(
+              "cli/greenways/src/main.rs",
+              'return Err("--credential is accepted only by whoami, clients, and invoke".to_owned());',
+              'return Err(\n'
+              '            "--credential is accepted only by whoami, clients, invoke, and identity commands"\n'
+              '                .to_owned(),\n'
+              '        );',
+          )
+          replace_once(
+              "cli/greenways/src/main.rs",
+              "         invoke reads one user prompt from stdin. Credentials and prompt text are never accepted\\n\\\n"
+              "         as command-line values. Browser-bridge invocation remains disabled until application grants land.\"",
+              "         Public reads use one-shot local IPC. Authority reads open a short-lived connection-bound\\n\\\n"
+              "         session from a private enrolled-client credential file. invoke reads one user prompt from\\n\\\n"
+              "         stdin; credentials and prompt text are never accepted as command-line values. Browser-bridge\\n\\\n"
+              "         provider invocation remains disabled until application grants land.\"",
+          )
+
+          resolve(
+              "crates/greenways-local/src/lib.rs",
+              [
+                  block("""
+                          pub fn invoke(
+                              &mut self,
+                              invocation: ProviderInvocation,
+                          ) -> Result<LocalResponse, LocalError> {
+                              self.send(&LocalRequest::provider_invoke(
+                                  new_request_id()?,
+                                  invocation,
+                              )?)
+                          }
+
+                          pub fn identity_status(&mut self) -> Result<LocalResponse, LocalError> {
+                              self.send(&LocalRequest::identity_status(new_request_id()?))
+                          }
+
+                          pub fn identity_public_card(&mut self) -> Result<LocalResponse, LocalError> {
+                              self.send(&LocalRequest::identity_public_card(new_request_id()?))
+                  """),
+              ],
+          )
+
+          resolve(
+              "crates/greenways-protocol/src/lib.rs",
+              [
+                  block("""
+                          pub fn provider_invoke(
+                              request_id: impl Into<String>,
+                              invocation: ProviderInvocation,
+                          ) -> Result<Self, ProtocolError> {
+                              let arguments = invocation.into_arguments().map_err(|_| {
+                                  ProtocolError::new(
+                                      "invalid-arguments",
+                                      "Provider invocation arguments are invalid.",
+                                  )
+                              })?;
+                              Ok(Self {
+                                  protocol: LOCAL_PROTOCOL.to_owned(),
+                                  request_id: request_id.into(),
+                                  operation: "provider.invoke".to_owned(),
+                                  arguments,
+                              })
+                          }
+
+                          pub fn identity_status(request_id: impl Into<String>) -> Self {
+                              Self {
+                                  protocol: LOCAL_PROTOCOL.to_owned(),
+                                  request_id: request_id.into(),
+                                  operation: "identity.status".to_owned(),
+                                  arguments: Map::new(),
+                              }
+                          }
+
+                          pub fn identity_public_card(request_id: impl Into<String>) -> Self {
+                              Self {
+                                  protocol: LOCAL_PROTOCOL.to_owned(),
+                                  request_id: request_id.into(),
+                                  operation: "identity.public-card".to_owned(),
+                                  arguments: Map::new(),
+                              }
+                  """),
+                  block("""
+                              | "provider.invoke"
+                              | "identity.status"
+                              | "identity.public-card"
+                  """),
+                  block("""
+                          fn validates_one_closed_provider_invocation() {
+                              let invocation = greenways_provider::ProviderInvocation::new(
+                                  "openai.personal",
+                                  "gpt-5",
+                                  vec![greenways_provider::ModelMessage {
+                                      role: greenways_provider::ModelMessageRole::User,
+                                      content: "Hello".to_owned(),
+                                  }],
+                                  128,
+                                  5_000,
+                              )
+                              .expect("provider invocation should be valid");
+                              let request = LocalRequest::provider_invoke(
+                                  "local/request/provider0001",
+                                  invocation,
+                              )
+                              .expect("provider request should encode");
+                              assert!(validate_request(&request).is_ok());
+                              let mut changed = request;
+                              changed.arguments.insert(
+                                  "endpoint".to_owned(),
+                                  Value::String("https://evil.example".to_owned()),
+                              );
+                              assert!(validate_request(&changed).is_err());
+                          }
+
+                          #[test]
+                          fn publishes_closed_profile_identity_reads() {
+                              let status = LocalRequest::identity_status("local/request/identity001");
+                              let card =
+                                  LocalRequest::identity_public_card("local/request/identity002");
+                              assert!(validate_request(&status).is_ok());
+                              assert!(validate_request(&card).is_ok());
+                              assert!(status.arguments.is_empty());
+                              assert!(card.arguments.is_empty());
+                  """),
+              ],
+          )
+
+          resolve(
+              "services/greenwaysd/README.md",
+              [
+                  block("""
+                      ## Authenticated provider invocation
+
+                      The daemon now accepts the closed `provider.invoke` operation from authenticated Desktop, CLI and developer sessions. It resolves credentials only inside the daemon, calls one fixed provider endpoint, and returns a normalized text result. Browser-bridge invocation remains denied until daemon-owned application grants bind the exact app, origin, profile, model and limits.
+
+                      Provider calls use a prepared durable claim before network access. Completed calls are replayable by exact actor and request bytes; uncertain calls are never retried automatically. See `protocol/provider-invoke.md`.
+
+                      ## Profile identity
+
+                      `greenwaysd` now opens a daemon-owned profile identity vault. Identity creation is an offline administrative operation while the daemon is stopped:
+
+                      ```sh
+                      cargo run -p greenways-admin -- identity create --handle river.studio
+                      cargo run -p greenways-admin -- identity status
+                      ```
+
+                      The private P-256 key is stored in the operating-system keyring. Daemon metadata contains only a private key handle and the self-signed public identity card. Authenticated Desktop, CLI, browser-bridge, and Developer sessions may read `identity.status` and `identity.public-card`; no local operation exports the private key or signs caller-selected bytes.
+
+                      The first signing vocabulary contains exactly one subject: `greenways-profile-identity-subject/0-alpha`. Node enrolment, source mandates, application grants, and MCP pairing will be introduced as separate closed typed subjects in later PRs.
+                  """),
+              ],
+          )
+
+          resolve(
+              "services/greenwaysd/src/lib.rs",
+              [
+                  block("""
+                              "client.whoami"
+                                  | "authority.clients.list"
+                                  | "provider.invoke"
+                                  | "identity.status"
+                                  | "identity.public-card"
+                  """),
+              ],
+          )
+
+          unresolved = []
+          for path in [
+              "cli/greenways/src/main.rs",
+              "crates/greenways-local/src/lib.rs",
+              "crates/greenways-protocol/src/lib.rs",
+              "services/greenwaysd/README.md",
+              "services/greenwaysd/src/lib.rs",
+          ]:
+              if "<<<<<<<" in Path(path).read_text():
+                  unresolved.append(path)
+          if unresolved:
+              raise SystemExit(f"unresolved source conflicts: {unresolved}")
+
+          Path("Cargo.lock").unlink(missing_ok=True)
+          PY
+
+          git add \
+            cli/greenways/src/main.rs \
+            crates/greenways-local/src/lib.rs \
+            crates/greenways-protocol/src/lib.rs \
+            services/greenwaysd/README.md \
+            services/greenwaysd/src/lib.rs
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+
+      - name: Regenerate lockfile and finish merge resolution
+        run: |
+          cargo +1.85.1 generate-lockfile
+          git add Cargo.lock
+          if git diff --name-only --diff-filter=U | grep -q .; then
+            echo 'Unresolved merge files:'
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
 
       - name: Format merged workspace
         run: cargo +1.85.1 fmt --all
@@ -50,8 +402,11 @@ jobs:
       - name: Verify merged patch
         run: git diff --check
 
-      - name: Remove sync workflow
-        run: rm -f .github/workflows/provider-invoke-main-sync.yml
+      - name: Remove sync material
+        run: |
+          rm -f .github/agent/provider-invoke-main-sync-trigger
+          rmdir .github/agent 2>/dev/null || true
+          rm -f .github/workflows/provider-invoke-main-sync.yml
 
       - name: Commit and push merged branch
         run: |
