@@ -1,0 +1,113 @@
+name: Application approval full review
+
+on:
+  push:
+    branches:
+      - agent/greenwaysd-application-approvals-51
+
+permissions:
+  contents: write
+
+jobs:
+  review:
+    if: github.event.head_commit.message == 'Run application approval full review'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            extension/package-lock.json
+            services/mcp-gateway/package-lock.json
+            services/packages/package-lock.json
+            services/assets/package-lock.json
+            services/devtools-node/package-lock.json
+
+      - name: Enforce HAL namespaces
+        run: |
+          if grep -R -E --include='*.hal' -n \
+            -e '\(ns[[:space:]]+greenways\.' \
+            -e '\[[[:space:]]*greenways\.' \
+            -e '\([[:space:]]*greenways\.' \
+            -e '[[:space:]]greenways\.[A-Za-z0-9_.-]+/' \
+            ..; then
+            echo "Legacy greenways.* HAL namespace found" >&2
+            exit 1
+          fi
+
+      - name: Test and build extension
+        working-directory: extension
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npm run build:web
+
+      - name: Install browser
+        working-directory: extension
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        working-directory: extension
+        run: npm run test:browser
+
+      - name: Package and verify release archive
+        working-directory: extension
+        run: |
+          npm run package:extension
+          npm run test:release
+
+      - name: Test Home Link service
+        working-directory: services/home-node
+        run: npm test
+
+      - name: Test MCP gateway and Worker build
+        working-directory: services/mcp-gateway
+        run: npm ci && npm run check
+
+      - name: Test identity service
+        working-directory: services/identity
+        run: npm test
+
+      - name: Test package registry service
+        working-directory: services/packages
+        run: npm ci && npm test
+
+      - name: Test asset registry service
+        working-directory: services/assets
+        run: npm ci && npm run check
+
+      - name: Test DevTools native host
+        working-directory: services/devtools-node
+        run: npm ci && npm test
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+
+      - name: Check Rust formatting
+        run: cargo +1.85.1 fmt --all -- --check
+
+      - name: Test Rust workspace
+        run: cargo +1.85.1 test --workspace --all-targets
+
+      - name: Lint Rust workspace
+        run: cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+
+      - name: Remove review workflow and trigger
+        run: |
+          rm -f .github/workflows/application-approvals-full-review.yml
+          rm -f .github/agent/application-approvals-full-review-trigger
+
+      - name: Verify and commit reviewed tree
+        run: |
+          git diff --check
+          git config user.name "ChatGPT Codex Connector"
+          git config user.email "chatgpt-codex-connector@users.noreply.github.com"
+          git add -A
+          git commit -m "Validate signed application approval registry"
+          git push origin HEAD:${GITHUB_REF_NAME}
