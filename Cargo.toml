@@ -6,6 +6,7 @@ members = [
   "crates/greenways-identity",
   "crates/greenways-local",
   "crates/greenways-protocol",
+  "crates/greenways-provider",
   "crates/greenways-vault",
   "services/greenwaysd",
 ]

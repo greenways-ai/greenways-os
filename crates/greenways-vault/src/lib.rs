@@ -1,4 +1,8 @@
+mod invoke;
+
 use greenways_protocol::{VaultStatus, VAULT_STATUS_PROTOCOL};
+use greenways_provider::{ProviderInvocation, ProviderResult};
+use invoke::{ProviderTransport, SystemProviderTransport};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -70,6 +74,8 @@ pub enum VaultError {
     Conflict(String),
     NotFound(String),
     CredentialUnavailable,
+    ProviderRejected,
+    ProviderUncertain,
 }
 
 impl fmt::Display for VaultError {
@@ -88,6 +94,12 @@ impl fmt::Display for VaultError {
                 formatter,
                 "The operating-system credential store could not complete the request"
             ),
+            Self::ProviderRejected => {
+                write!(formatter, "The model provider rejected the request")
+            }
+            Self::ProviderUncertain => {
+                write!(formatter, "The model provider request outcome is uncertain")
+            }
         }
     }
 }
@@ -197,6 +209,7 @@ pub struct ProviderVault {
     metadata_path: PathBuf,
     registry: ProviderRegistry,
     credentials: Arc<dyn CredentialStore>,
+    transport: Arc<dyn ProviderTransport>,
 }
 
 impl fmt::Debug for ProviderVault {
@@ -212,12 +225,29 @@ impl fmt::Debug for ProviderVault {
 
 impl ProviderVault {
     pub fn open_system(metadata_path: impl Into<PathBuf>) -> Result<Self, VaultError> {
-        Self::open_with_store(metadata_path.into(), Arc::new(SystemCredentialStore))
+        Self::open_with_dependencies(
+            metadata_path.into(),
+            Arc::new(SystemCredentialStore),
+            Arc::new(SystemProviderTransport),
+        )
     }
 
+    #[cfg(test)]
     fn open_with_store(
         metadata_path: PathBuf,
         credentials: Arc<dyn CredentialStore>,
+    ) -> Result<Self, VaultError> {
+        Self::open_with_dependencies(
+            metadata_path,
+            credentials,
+            Arc::new(SystemProviderTransport),
+        )
+    }
+
+    fn open_with_dependencies(
+        metadata_path: PathBuf,
+        credentials: Arc<dyn CredentialStore>,
+        transport: Arc<dyn ProviderTransport>,
     ) -> Result<Self, VaultError> {
         let registry = if metadata_path.exists() {
             load_registry(&metadata_path)?
@@ -229,6 +259,7 @@ impl ProviderVault {
             metadata_path,
             registry,
             credentials,
+            transport,
         })
     }
 
@@ -251,6 +282,35 @@ impl ProviderVault {
             .collect::<Vec<_>>();
         profiles.sort_by(|left, right| left.id.cmp(&right.id));
         profiles
+    }
+
+    pub fn invoke(
+        &self,
+        invocation: &ProviderInvocation,
+        completed_at_unix_ms: u64,
+    ) -> Result<ProviderResult, VaultError> {
+        greenways_provider::validate_invocation(invocation)
+            .map_err(|error| VaultError::Invalid(error.message().to_owned()))?;
+        if completed_at_unix_ms == 0 {
+            return Err(VaultError::Invalid(
+                "provider completion time must be positive".to_owned(),
+            ));
+        }
+        let profile = self
+            .registry
+            .profiles
+            .iter()
+            .find(|profile| profile.id == invocation.profile_id)
+            .ok_or_else(|| VaultError::NotFound(invocation.profile_id.clone()))?;
+        let secret = self.credentials.get(&profile.id)?;
+        self.transport
+            .invoke(
+                profile.provider,
+                secret.as_slice(),
+                invocation,
+                completed_at_unix_ms,
+            )
+            .map_err(VaultError::from)
     }
 
     pub fn add_profile(
@@ -420,9 +480,12 @@ fn validate_secret(secret: &[u8]) -> Result<(), VaultError> {
             "provider credential must be 8-{MAX_PROVIDER_SECRET_BYTES} bytes"
         )));
     }
-    if secret.iter().any(|byte| matches!(byte, 0 | b'\r' | b'\n')) {
+    if secret
+        .iter()
+        .any(|byte| !byte.is_ascii_graphic() || matches!(byte, 0 | b'\r' | b'\n'))
+    {
         return Err(VaultError::Invalid(
-            "provider credential cannot contain NUL or line breaks".to_owned(),
+            "provider credential must contain printable ASCII without whitespace".to_owned(),
         ));
     }
     Ok(())
@@ -548,6 +611,36 @@ mod tests {
         values: Mutex<HashMap<String, Vec<u8>>>,
     }
 
+    #[derive(Default)]
+    struct RecordingTransport {
+        secrets: Mutex<Vec<Vec<u8>>>,
+    }
+
+    impl ProviderTransport for RecordingTransport {
+        fn invoke(
+            &self,
+            provider: ProviderKind,
+            secret: &[u8],
+            invocation: &ProviderInvocation,
+            completed_at_unix_ms: u64,
+        ) -> Result<ProviderResult, invoke::ProviderCallError> {
+            self.secrets
+                .lock()
+                .expect("recording transport lock")
+                .push(secret.to_vec());
+            Ok(ProviderResult {
+                protocol: greenways_provider::PROVIDER_RESULT_PROTOCOL.to_owned(),
+                provider: provider.as_str().to_owned(),
+                profile_id: invocation.profile_id.clone(),
+                model: invocation.model.clone(),
+                provider_response_id: Some("resp_test0001".to_owned()),
+                output: "Hello from the provider".to_owned(),
+                usage: None,
+                completed_at_unix_ms,
+            })
+        }
+    }
+
     impl CredentialStore for MemoryCredentialStore {
         fn set(&self, profile_id: &str, secret: &[u8]) -> Result<(), VaultError> {
             self.values
@@ -634,6 +727,47 @@ mod tests {
             &secret
         );
         assert!(!format!("{vault:?}").contains("sk-provider-secret"));
+    }
+
+    #[test]
+    fn invokes_through_the_credential_without_projecting_it() {
+        let home = TestHome::new("invoke");
+        let store = Arc::new(MemoryCredentialStore::default());
+        let transport = Arc::new(RecordingTransport::default());
+        let mut vault =
+            ProviderVault::open_with_dependencies(home.registry(), store, transport.clone())
+                .expect("memory vault should open");
+        vault
+            .add_profile(
+                "openai.personal",
+                ProviderKind::OpenAi,
+                "Personal OpenAI",
+                b"sk-provider-secret-123".to_vec(),
+                1_000,
+            )
+            .expect("profile should be added");
+        let invocation = ProviderInvocation::new(
+            "openai.personal",
+            "gpt-5",
+            vec![greenways_provider::ModelMessage {
+                role: greenways_provider::ModelMessageRole::User,
+                content: "Hello".to_owned(),
+            }],
+            128,
+            5_000,
+        )
+        .expect("invocation should be valid");
+        let result = vault
+            .invoke(&invocation, 2_000)
+            .expect("provider should complete");
+        assert_eq!(result.output, "Hello from the provider");
+        assert_eq!(
+            transport.secrets.lock().expect("transport lock").as_slice(),
+            &[b"sk-provider-secret-123".to_vec()]
+        );
+        let encoded = serde_json::to_string(&result).expect("result should encode");
+        assert!(!encoded.contains("sk-provider-secret"));
+        assert!(!encoded.contains("credentialHandle"));
     }
 
     #[test]

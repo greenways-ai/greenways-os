@@ -6,6 +6,7 @@ use greenways_protocol::{
     decode_response, encode_request_line, new_request_id, LocalRequest, LocalResponse, Outcome,
     ProtocolError, MAX_RESPONSE_BYTES,
 };
+use greenways_provider::{ProviderInvocation, ProviderResult};
 use serde_json::{Map, Value};
 use std::{
     env,
@@ -225,6 +226,13 @@ impl AuthenticatedLocalClient {
         self.send(&LocalRequest::clients_list(new_request_id()?))
     }
 
+    pub fn invoke(&mut self, invocation: ProviderInvocation) -> Result<LocalResponse, LocalError> {
+        self.send(&LocalRequest::provider_invoke(
+            new_request_id()?,
+            invocation,
+        )?)
+    }
+
     pub fn identity_status(&mut self) -> Result<LocalResponse, LocalError> {
         self.send(&LocalRequest::identity_status(new_request_id()?))
     }
@@ -385,6 +393,18 @@ pub fn decode_clients(response: &LocalResponse) -> Result<Vec<AuthorityClient>, 
     }
     serde_json::from_value(response.value.clone().ok_or(LocalError::ResponseMismatch)?)
         .map_err(LocalError::from)
+}
+
+pub fn decode_provider_result(response: &LocalResponse) -> Result<ProviderResult, LocalError> {
+    if response.outcome != Outcome::Ok {
+        return Err(LocalError::AuthenticationRejected);
+    }
+    let result: ProviderResult =
+        serde_json::from_value(response.value.clone().ok_or(LocalError::ResponseMismatch)?)?;
+    result
+        .validate()
+        .map_err(|_| LocalError::ResponseMismatch)?;
+    Ok(result)
 }
 
 #[cfg(test)]

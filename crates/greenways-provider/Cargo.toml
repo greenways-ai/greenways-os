@@ -1,5 +1,5 @@
 [package]
-name = "greenways-protocol"
+name = "greenways-provider"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,11 +7,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-greenways-provider = { path = "../greenways-provider" }
-getrandom.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sha2.workspace = true
 
 [lints]
 workspace = true

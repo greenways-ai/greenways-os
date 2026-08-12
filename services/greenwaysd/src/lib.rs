@@ -1,3 +1,5 @@
+mod provider;
+
 use greenways_authority::{
     new_local_session, parse_local_client_credential_arguments, valid_client_id, AuthorityError,
     LocalClient, LocalClientRegistry, LocalClientRole, LocalSession,
@@ -10,6 +12,10 @@ use greenways_protocol::{
     LocalResponse, ProtocolError, MAX_REQUEST_BYTES,
 };
 use greenways_vault::{ProviderVault, VaultError};
+use provider::{
+    role_may_invoke_provider, trim_receipts_to_fit, validate_provider_claim,
+    ProviderInvocationClaim, MAX_PROVIDER_INVOCATION_CLAIMS,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -153,6 +159,8 @@ struct DaemonState {
     last_started_at_unix_ms: u64,
     revision: u64,
     receipts: Vec<RequestReceipt>,
+    #[serde(default)]
+    provider_invocations: Vec<ProviderInvocationClaim>,
 }
 
 #[derive(Debug)]
@@ -188,6 +196,7 @@ impl Daemon {
                 last_started_at_unix_ms: observed_at_unix_ms,
                 revision: 0,
                 receipts: Vec::new(),
+                provider_invocations: Vec::new(),
             }
         };
         state.generation = state
@@ -250,6 +259,20 @@ impl Daemon {
                 "This local client role cannot inspect Greenways authority state.",
             ));
         }
+        if request.operation == "provider.invoke" {
+            let actor = actor.ok_or_else(|| {
+                DaemonError::State("authenticated provider request has no actor".to_owned())
+            })?;
+            if !role_may_invoke_provider(actor.role) {
+                return Ok(LocalResponse::error(
+                    request.request_id,
+                    "authority-denied",
+                    "This local client role cannot invoke daemon provider credentials.",
+                ));
+            }
+            return self.handle_provider_invocation_at(request, actor, observed_at_unix_ms);
+        }
+
         let digest = request_digest(&request)?;
         if let Some(receipt) = self
             .state
@@ -398,8 +421,9 @@ impl Daemon {
         let previous = self.state.clone();
         self.state.revision = next_revision;
         self.state.receipts.push(receipt);
-        if self.state.receipts.len() > MAX_RECEIPTS {
-            self.state.receipts.remove(0);
+        if let Err(error) = trim_receipts_to_fit(&mut self.state) {
+            self.state = previous;
+            return Err(error);
         }
         if let Err(error) = write_state(&self.paths.state_file, &self.state) {
             self.state = previous;
@@ -710,7 +734,11 @@ fn open_connection_session(
 fn requires_authenticated_session(operation: &str) -> bool {
     matches!(
         operation,
-        "client.whoami" | "authority.clients.list" | "identity.status" | "identity.public-card"
+        "client.whoami"
+            | "authority.clients.list"
+            | "provider.invoke"
+            | "identity.status"
+            | "identity.public-card"
     )
 }
 
@@ -764,6 +792,11 @@ fn validate_state(state: &DaemonState) -> Result<(), DaemonError> {
             "receipt history is unbounded".to_owned(),
         ));
     }
+    if state.provider_invocations.len() > MAX_PROVIDER_INVOCATION_CLAIMS {
+        return Err(DaemonError::State(
+            "provider invocation claim history is unbounded".to_owned(),
+        ));
+    }
 
     let mut request_ids = HashSet::new();
     for receipt in &state.receipts {
@@ -807,6 +840,14 @@ fn validate_state(state: &DaemonState) -> Result<(), DaemonError> {
                 "receipt timestamp predates daemon state".to_owned(),
             ));
         }
+    }
+    for claim in &state.provider_invocations {
+        if !request_ids.insert(claim.request_id.clone()) {
+            return Err(DaemonError::State(
+                "provider invocation request ID is not unique".to_owned(),
+            ));
+        }
+        validate_provider_claim(claim, state.created_at_unix_ms)?;
     }
     Ok(())
 }
@@ -906,7 +947,8 @@ mod tests {
     use super::*;
     use greenways_authority::{LocalClientRegistry, LocalClientRole};
     use greenways_local::{AuthenticatedLocalClient, LocalClient as PublicLocalClient};
-    use greenways_protocol::{new_request_id, Outcome, VaultStatus};
+    use greenways_protocol::{new_request_id, request_digest, Outcome, VaultStatus};
+    use greenways_provider::{ModelMessage, ModelMessageRole, ProviderInvocation};
     use std::{thread, time::Duration};
 
     struct TestHome(PathBuf);
@@ -1068,6 +1110,116 @@ mod tests {
             collision.error.expect("collision error").code,
             "request-id-collision"
         );
+    }
+
+    fn provider_request(request_id: &str, profile_id: &str) -> LocalRequest {
+        LocalRequest::provider_invoke(
+            request_id,
+            ProviderInvocation::new(
+                profile_id,
+                "gpt-5",
+                vec![ModelMessage {
+                    role: ModelMessageRole::User,
+                    content: "Hello".to_owned(),
+                }],
+                128,
+                5_000,
+            )
+            .expect("provider invocation should be valid"),
+        )
+        .expect("provider request should encode")
+    }
+
+    fn request_actor(role: LocalClientRole, suffix: &str) -> RequestActor {
+        RequestActor {
+            client_id: format!("local/client/{suffix}"),
+            role,
+        }
+    }
+
+    #[test]
+    fn provider_invocation_requires_an_authenticated_non_browser_role() {
+        let home = TestHome::new("provider-role");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let unauthenticated = daemon
+            .handle_request_as_at(
+                provider_request("local/request/providerauth1", "missing.profile"),
+                None,
+                2_000,
+            )
+            .expect("unauthenticated denial should complete");
+        assert_eq!(
+            unauthenticated.error.expect("authentication error").code,
+            "authentication-required"
+        );
+        let browser = daemon
+            .handle_request_as_at(
+                provider_request("local/request/providerbrowser1", "missing.profile"),
+                Some(request_actor(
+                    LocalClientRole::BrowserBridge,
+                    "00112233445566778899aabbccddeeff",
+                )),
+                3_000,
+            )
+            .expect("browser denial should complete");
+        assert_eq!(
+            browser.error.expect("browser error").code,
+            "authority-denied"
+        );
+        assert!(daemon.state.provider_invocations.is_empty());
+    }
+
+    #[test]
+    fn definitive_provider_errors_are_receipted_and_replayed() {
+        let home = TestHome::new("provider-replay");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
+        let request = provider_request("local/request/providerreplay1", "missing.profile");
+        let first = daemon
+            .handle_request_as_at(request.clone(), Some(actor.clone()), 2_000)
+            .expect("missing profile should complete");
+        assert_eq!(
+            first.error.as_ref().expect("missing profile error").code,
+            "provider-profile-missing"
+        );
+        assert!(daemon.state.provider_invocations.is_empty());
+        let revision = daemon.state.revision;
+        let replay = daemon
+            .handle_request_as_at(request, Some(actor), 3_000)
+            .expect("provider error should replay");
+        assert_eq!(replay, first);
+        assert_eq!(daemon.state.revision, revision);
+    }
+
+    #[test]
+    fn prepared_provider_claims_never_retry_automatically() {
+        let home = TestHome::new("provider-uncertain");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let actor = request_actor(
+            LocalClientRole::Developer,
+            "00112233445566778899aabbccddeeff",
+        );
+        let request = provider_request("local/request/provideruncertain1", "missing.profile");
+        let digest = request_digest(&request).expect("request should hash");
+        daemon
+            .prepare_provider_invocation(ProviderInvocationClaim {
+                protocol: provider::PROVIDER_INVOCATION_CLAIM_PROTOCOL.to_owned(),
+                request_id: request.request_id.clone(),
+                digest,
+                actor: actor.clone(),
+                prepared_at_unix_ms: 2_000,
+            })
+            .expect("claim should prepare");
+        let revision = daemon.state.revision;
+        let response = daemon
+            .handle_request_as_at(request, Some(actor), 3_000)
+            .expect("uncertain claim should complete");
+        assert_eq!(
+            response.error.expect("uncertain error").code,
+            "provider-invocation-uncertain"
+        );
+        assert_eq!(daemon.state.revision, revision);
+        assert_eq!(daemon.state.provider_invocations.len(), 1);
     }
 
     #[test]

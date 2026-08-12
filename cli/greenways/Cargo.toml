@@ -15,6 +15,7 @@ greenways-authority = { path = "../../crates/greenways-authority" }
 greenways-identity = { path = "../../crates/greenways-identity" }
 greenways-local = { path = "../../crates/greenways-local" }
 greenways-protocol = { path = "../../crates/greenways-protocol" }
+greenways-provider = { path = "../../crates/greenways-provider" }
 serde_json.workspace = true
 
 [lints]
