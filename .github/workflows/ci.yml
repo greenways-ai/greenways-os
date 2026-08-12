@@ -93,3 +93,16 @@ jobs:
             extension/release/greenways-os-extension-v*.zip.sha256
             extension/release/greenways-os-extension-v*.json
           if-no-files-found: error
+
+  daemon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Check formatting
+        run: cargo +1.85.1 fmt --all --check
+      - name: Test workspace
+        run: cargo +1.85.1 test --workspace --all-targets
+      - name: Lint workspace
+        run: cargo +1.85.1 clippy --workspace --all-targets -- -D warnings

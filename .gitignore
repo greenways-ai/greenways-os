@@ -3,6 +3,7 @@ dist/
 test-results/
 playwright-report/
 release/
+target/
 .DS_Store
 .wrangler/
 .wrangler-dist/

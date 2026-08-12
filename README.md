@@ -1,6 +1,8 @@
 # Greenways OS
 
-Greenways OS is a programmable browser operating system built around one resident Hara kernel in a Chrome Manifest V3 service worker.
+> **Architecture direction:** Greenways is migrating to an authoritative `greenwaysd` service shared by Greenways Desktop and Greenways Server. Flutter is the management frontend and the Chrome extension becomes a browser bridge. Track the release train in [issue #49](https://github.com/greenways-ai/greenways-os/issues/49).
+
+The current developer release remains a programmable browser operating system built around one resident Hara kernel in a Chrome Manifest V3 service worker while that migration is implemented.
 
 The current developer release contains:
 
