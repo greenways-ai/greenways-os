@@ -89,3 +89,7 @@ cargo run -p greenways-admin -- provider list
 ```
 
 The ordinary `greenways vault` command reads only the redacted `vault.status` projection. Provider credentials, keyring handles and profile labels are not available through the public local protocol.
+
+The daemon does not expose credential reads, arbitrary signing, provider invocation, or secret-store handles. Typed provider invocation will be added behind authenticated daemon authority rather than returning credentials to local clients.
+
+Local clients are now enrolled through a separate daemon-owned registry. Desktop, CLI, browser-bridge, and developer roles are fixed at offline issuance, only a SHA-256 credential digest is stored, and revocation is final. Socket authentication and expiring sessions remain a follow-up; enrolment alone does not grant ordinary IPC new powers.

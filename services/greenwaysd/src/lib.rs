@@ -1,3 +1,4 @@
+use greenways_authority::{AuthorityError, LocalClientRegistry};
 use greenways_local::GreenwaysPaths;
 use greenways_protocol::{
     canonical_request, decode_request, encode_response_line, new_node_id, request_digest,
@@ -27,6 +28,7 @@ const INVALID_REQUEST_ID: &str = "local/request/invalid0";
 pub enum DaemonError {
     Io(io::Error),
     Protocol(ProtocolError),
+    Authority(AuthorityError),
     Vault(VaultError),
     State(String),
     AlreadyRunning(PathBuf),
@@ -38,6 +40,9 @@ impl fmt::Display for DaemonError {
         match self {
             Self::Io(error) => write!(formatter, "Greenways daemon I/O failed: {error}"),
             Self::Protocol(error) => write!(formatter, "Greenways daemon protocol failed: {error}"),
+            Self::Authority(error) => {
+                write!(formatter, "Greenways daemon authority failed: {error}")
+            }
             Self::Vault(error) => write!(formatter, "Greenways daemon vault failed: {error}"),
             Self::State(message) => {
                 write!(formatter, "Greenways daemon state is invalid: {message}")
@@ -64,6 +69,7 @@ impl Error for DaemonError {
         match self {
             Self::Io(error) => Some(error),
             Self::Protocol(error) => Some(error),
+            Self::Authority(error) => Some(error),
             Self::Vault(error) => Some(error),
             _ => None,
         }
@@ -79,6 +85,12 @@ impl From<io::Error> for DaemonError {
 impl From<ProtocolError> for DaemonError {
     fn from(value: ProtocolError) -> Self {
         Self::Protocol(value)
+    }
+}
+
+impl From<AuthorityError> for DaemonError {
+    fn from(value: AuthorityError) -> Self {
+        Self::Authority(value)
     }
 }
 
@@ -115,6 +127,7 @@ struct DaemonState {
 pub struct Daemon {
     paths: GreenwaysPaths,
     state: DaemonState,
+    clients: LocalClientRegistry,
     vault: ProviderVault,
 }
 
@@ -125,6 +138,8 @@ impl Daemon {
 
     fn open_at(paths: GreenwaysPaths, observed_at_unix_ms: u64) -> Result<Self, DaemonError> {
         ensure_private_dir(&paths.home)?;
+        let clients =
+            LocalClientRegistry::open(paths.home.join("state").join("local-clients.json"))?;
         let vault = ProviderVault::open_system(paths.home.join("state").join("providers.json"))?;
         let mut state = if paths.state_file.exists() {
             load_state(&paths.state_file)?
@@ -149,6 +164,7 @@ impl Daemon {
         Ok(Self {
             paths,
             state,
+            clients,
             vault,
         })
     }
@@ -197,11 +213,16 @@ impl Daemon {
                     process_id: process::id(),
                     started_at_unix_ms: self.state.last_started_at_unix_ms,
                     observed_at_unix_ms,
-                    profile_mode: if self.vault.status().provider_profile_count == 0 {
-                        "unconfigured".to_owned()
-                    } else {
-                        "provider-configured".to_owned()
-                    },
+                    profile_mode: match (
+                        self.vault.status().provider_profile_count > 0,
+                        self.clients.active_client_count() > 0,
+                    ) {
+                        (false, false) => "unconfigured",
+                        (true, false) => "provider-configured",
+                        (false, true) => "local-clients-configured",
+                        (true, true) => "configured",
+                    }
+                    .to_owned(),
                     authority_mode: "daemon".to_owned(),
                 };
                 LocalResponse::ok(
