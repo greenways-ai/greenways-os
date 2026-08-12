@@ -91,6 +91,24 @@ impl LocalRequest {
             arguments: Map::new(),
         }
     }
+
+    pub fn identity_status(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "identity.status".to_owned(),
+            arguments: Map::new(),
+        }
+    }
+
+    pub fn identity_public_card(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "identity.public-card".to_owned(),
+            arguments: Map::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -243,6 +261,8 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
             | "client.session.open"
             | "client.whoami"
             | "authority.clients.list"
+            | "identity.status"
+            | "identity.public-card"
     ) {
         return Err(ProtocolError::new(
             "unsupported-operation",
@@ -487,6 +507,16 @@ mod tests {
             Map::new(),
         ))
         .is_err());
+    }
+
+    #[test]
+    fn publishes_closed_profile_identity_reads() {
+        let status = LocalRequest::identity_status("local/request/identity001");
+        let card = LocalRequest::identity_public_card("local/request/identity002");
+        assert!(validate_request(&status).is_ok());
+        assert!(validate_request(&card).is_ok());
+        assert!(status.arguments.is_empty());
+        assert!(card.arguments.is_empty());
     }
 
     #[test]

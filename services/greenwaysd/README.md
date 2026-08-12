@@ -93,3 +93,17 @@ The ordinary `greenways vault` command reads only the redacted `vault.status` pr
 The daemon does not expose credential reads, arbitrary signing, provider invocation, or secret-store handles. Typed provider invocation will be added behind authenticated daemon authority rather than returning credentials to local clients.
 
 Local clients are enrolled through a separate daemon-owned registry. Desktop, CLI, browser-bridge, and developer roles are fixed at offline issuance, only a SHA-256 credential digest is stored, and revocation is final. A valid credential now opens a five-minute, 128-request session bound to the same Unix connection. `client.whoami` is available to every role; authority inventory remains denied to the browser bridge. Session credentials never enter durable receipts, while subsequent receipts are bound to the daemon-derived client ID and role.
+
+
+## Profile identity
+
+`greenwaysd` now opens a daemon-owned profile identity vault. Identity creation is an offline administrative operation while the daemon is stopped:
+
+```sh
+cargo run -p greenways-admin -- identity create --handle river.studio
+cargo run -p greenways-admin -- identity status
+```
+
+The private P-256 key is stored in the operating-system keyring. Daemon metadata contains only a private key handle and the self-signed public identity card. Authenticated Desktop, CLI, browser-bridge, and Developer sessions may read `identity.status` and `identity.public-card`; no local operation exports the private key or signs caller-selected bytes.
+
+The first signing vocabulary contains exactly one subject: `greenways-profile-identity-subject/0-alpha`. Node enrolment, source mandates, application grants, and MCP pairing will be introduced as separate closed typed subjects in later PRs.

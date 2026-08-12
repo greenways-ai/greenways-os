@@ -2,6 +2,7 @@ use greenways_authority::{
     new_local_session, parse_local_client_credential_arguments, valid_client_id, AuthorityError,
     LocalClient, LocalClientRegistry, LocalClientRole, LocalSession,
 };
+use greenways_identity::{IdentityError, ProfileIdentityVault};
 use greenways_local::GreenwaysPaths;
 use greenways_protocol::{
     canonical_request, decode_request, encode_response_line, new_node_id, request_digest,
@@ -40,6 +41,7 @@ pub enum DaemonError {
     Io(io::Error),
     Protocol(ProtocolError),
     Authority(AuthorityError),
+    Identity(IdentityError),
     Vault(VaultError),
     State(String),
     AlreadyRunning(PathBuf),
@@ -53,6 +55,9 @@ impl fmt::Display for DaemonError {
             Self::Protocol(error) => write!(formatter, "Greenways daemon protocol failed: {error}"),
             Self::Authority(error) => {
                 write!(formatter, "Greenways daemon authority failed: {error}")
+            }
+            Self::Identity(error) => {
+                write!(formatter, "Greenways daemon identity failed: {error}")
             }
             Self::Vault(error) => write!(formatter, "Greenways daemon vault failed: {error}"),
             Self::State(message) => {
@@ -81,6 +86,7 @@ impl Error for DaemonError {
             Self::Io(error) => Some(error),
             Self::Protocol(error) => Some(error),
             Self::Authority(error) => Some(error),
+            Self::Identity(error) => Some(error),
             Self::Vault(error) => Some(error),
             _ => None,
         }
@@ -102,6 +108,12 @@ impl From<ProtocolError> for DaemonError {
 impl From<AuthorityError> for DaemonError {
     fn from(value: AuthorityError) -> Self {
         Self::Authority(value)
+    }
+}
+
+impl From<IdentityError> for DaemonError {
+    fn from(value: IdentityError) -> Self {
+        Self::Identity(value)
     }
 }
 
@@ -148,6 +160,7 @@ pub struct Daemon {
     paths: GreenwaysPaths,
     state: DaemonState,
     clients: LocalClientRegistry,
+    identity: ProfileIdentityVault,
     vault: ProviderVault,
 }
 
@@ -160,6 +173,9 @@ impl Daemon {
         ensure_private_dir(&paths.home)?;
         let clients =
             LocalClientRegistry::open(paths.home.join("state").join("local-clients.json"))?;
+        let identity = ProfileIdentityVault::open_system(
+            paths.home.join("state").join("profile-identity.json"),
+        )?;
         let vault = ProviderVault::open_system(paths.home.join("state").join("providers.json"))?;
         let mut state = if paths.state_file.exists() {
             load_state(&paths.state_file)?
@@ -185,6 +201,7 @@ impl Daemon {
             paths,
             state,
             clients,
+            identity,
             vault,
         })
     }
@@ -268,13 +285,16 @@ impl Daemon {
                     started_at_unix_ms: self.state.last_started_at_unix_ms,
                     observed_at_unix_ms,
                     profile_mode: match (
+                        self.identity.public_identity().is_some(),
                         self.vault.status().provider_profile_count > 0,
                         self.clients.active_client_count() > 0,
                     ) {
-                        (false, false) => "unconfigured",
-                        (true, false) => "provider-configured",
-                        (false, true) => "local-clients-configured",
-                        (true, true) => "configured",
+                        (false, false, false) => "unconfigured",
+                        (false, true, false) => "provider-configured",
+                        (false, false, true) => "local-clients-configured",
+                        (false, true, true) => "configured",
+                        (true, false, false) => "identity-configured",
+                        (true, _, _) => "configured",
                     }
                     .to_owned(),
                     authority_mode: "daemon".to_owned(),
@@ -292,6 +312,25 @@ impl Daemon {
                     DaemonError::State("vault status projection could not be encoded".to_owned())
                 })?,
             ),
+            "identity.status" => LocalResponse::ok(
+                request.request_id.clone(),
+                serde_json::to_value(self.identity.status()).map_err(|_| {
+                    DaemonError::State("identity status projection could not be encoded".to_owned())
+                })?,
+            ),
+            "identity.public-card" => match self.identity.public_identity() {
+                Some(identity) => LocalResponse::ok(
+                    request.request_id.clone(),
+                    serde_json::to_value(identity).map_err(|_| {
+                        DaemonError::State("public identity card could not be encoded".to_owned())
+                    })?,
+                ),
+                None => LocalResponse::error(
+                    request.request_id.clone(),
+                    "identity-unconfigured",
+                    "Create a Greenways profile identity before requesting its public card.",
+                ),
+            },
             "client.whoami" => {
                 let actor = actor.as_ref().ok_or_else(|| {
                     DaemonError::State("authenticated actor disappeared".to_owned())
@@ -669,7 +708,10 @@ fn open_connection_session(
 }
 
 fn requires_authenticated_session(operation: &str) -> bool {
-    matches!(operation, "client.whoami" | "authority.clients.list")
+    matches!(
+        operation,
+        "client.whoami" | "authority.clients.list" | "identity.status" | "identity.public-card"
+    )
 }
 
 fn role_may_list_clients(role: LocalClientRole) -> bool {
@@ -1026,6 +1068,40 @@ mod tests {
             collision.error.expect("collision error").code,
             "request-id-collision"
         );
+    }
+
+    #[test]
+    fn profile_identity_reads_require_an_authenticated_actor() {
+        let home = TestHome::new("identity-auth");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let public = daemon
+            .handle_request_at(
+                LocalRequest::identity_status("local/request/identityauth1"),
+                2_000,
+            )
+            .expect("identity status should return a closed response");
+        assert_eq!(public.outcome, Outcome::Error);
+        assert_eq!(
+            public.error.expect("authentication error").code,
+            "authentication-required"
+        );
+        let actor = RequestActor {
+            client_id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::BrowserBridge,
+        };
+        let authenticated = daemon
+            .handle_request_as_at(
+                LocalRequest::identity_status("local/request/identityauth2"),
+                Some(actor),
+                3_000,
+            )
+            .expect("authenticated identity status should complete");
+        assert_eq!(authenticated.outcome, Outcome::Ok);
+        let status: greenways_identity::ProfileIdentityStatus =
+            serde_json::from_value(authenticated.value.expect("identity status value"))
+                .expect("identity status projection");
+        assert_eq!(status.state, "unconfigured");
+        assert!(!status.private_key_projection);
     }
 
     #[test]

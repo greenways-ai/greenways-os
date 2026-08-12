@@ -1,4 +1,5 @@
 use greenways_authority::LocalClient as AuthorityClient;
+use greenways_identity::{ProfileIdentityStatus, SignedProfileIdentity};
 use greenways_local::{
     decode_client, decode_clients, AuthenticatedLocalClient, GreenwaysPaths, LocalClient,
 };
@@ -12,11 +13,16 @@ enum Command {
     Vault,
     Whoami,
     Clients,
+    IdentityStatus,
+    IdentityCard,
 }
 
 impl Command {
     const fn requires_credential(self) -> bool {
-        matches!(self, Self::Whoami | Self::Clients)
+        matches!(
+            self,
+            Self::Whoami | Self::Clients | Self::IdentityStatus | Self::IdentityCard
+        )
     }
 }
 
@@ -48,6 +54,8 @@ fn run() -> Result<(), String> {
         match options.command {
             Command::Whoami => client.whoami(),
             Command::Clients => client.clients(),
+            Command::IdentityStatus => client.identity_status(),
+            Command::IdentityCard => client.identity_public_card(),
             _ => unreachable!("credential command was already classified"),
         }
         .map_err(|error| error.to_string())?
@@ -83,6 +91,8 @@ fn run() -> Result<(), String> {
         Command::Clients => {
             print_clients(decode_clients(&response).map_err(|error| error.to_string())?)
         }
+        Command::IdentityStatus => print_identity_status(response)?,
+        Command::IdentityCard => print_identity_card(response)?,
     }
     Ok(())
 }
@@ -130,6 +140,43 @@ fn print_vault(response: LocalResponse) -> Result<(), String> {
     println!("  credentials: {}", status.credential_store);
     println!("  profiles:    {}", status.provider_profile_count);
     println!("  projects secrets: {}", status.secret_projection);
+    Ok(())
+}
+
+fn print_identity_status(response: LocalResponse) -> Result<(), String> {
+    let status: ProfileIdentityStatus = serde_json::from_value(
+        response
+            .value
+            .ok_or_else(|| "identity status response had no value".to_owned())?,
+    )
+    .map_err(|_| "identity status response was invalid".to_owned())?;
+    println!("Greenways profile identity");
+    println!("  state:      {}", status.state);
+    println!("  custody:    {}", status.key_custody);
+    println!(
+        "  identity:   {}",
+        status.identity_id.as_deref().unwrap_or("not configured")
+    );
+    println!(
+        "  key:        {}",
+        status.key_id.as_deref().unwrap_or("not configured")
+    );
+    println!("  algorithm:  {}", status.algorithm);
+    Ok(())
+}
+
+fn print_identity_card(response: LocalResponse) -> Result<(), String> {
+    let identity: SignedProfileIdentity = serde_json::from_value(
+        response
+            .value
+            .ok_or_else(|| "public identity response had no value".to_owned())?,
+    )
+    .map_err(|_| "public identity response was invalid".to_owned())?;
+    println!("Greenways public profile identity");
+    println!("  id:      {}", identity.subject.id);
+    println!("  handle:  {}", identity.subject.handle);
+    println!("  key:     {}", identity.subject.key_id);
+    println!("  root:    {}", identity.subject_root);
     Ok(())
 }
 
@@ -184,6 +231,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         Some("vault") => Command::Vault,
         Some("whoami") => Command::Whoami,
         Some("clients") => Command::Clients,
+        Some("identity-status") => Command::IdentityStatus,
+        Some("identity-card") => Command::IdentityCard,
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -223,7 +272,9 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         }
     }
     if command.requires_credential() && credential.is_none() {
-        return Err("--credential is required for whoami and clients".to_owned());
+        return Err(
+            "--credential is required for whoami, clients, and identity commands".to_owned(),
+        );
     }
     if !command.requires_credential() && credential.is_some() {
         return Err("--credential is accepted only by whoami and clients".to_owned());
@@ -243,6 +294,8 @@ fn print_help() {
          greenways <status|paths|vault> [--home PATH] [--json]\n\
          greenways whoami --credential PATH [--home PATH] [--json]\n\
          greenways clients --credential PATH [--home PATH] [--json]\n\
+         greenways identity-status --credential PATH [--home PATH] [--json]\n\
+         greenways identity-card --credential PATH [--home PATH] [--json]\n\
          \n\
          Public reads use one-shot local IPC. Authority reads open a short-lived connection-bound\n\
          session from a private enrolled-client credential file."
@@ -261,6 +314,8 @@ mod tests {
     fn requires_credentials_only_for_authority_commands() {
         assert!(parse(&["whoami"]).is_err());
         assert!(parse(&["clients"]).is_err());
+        assert!(parse(&["identity-status"]).is_err());
+        assert!(parse(&["identity-card"]).is_err());
         assert!(parse(&["whoami", "--credential", "/tmp/client.json",]).is_ok());
         assert!(parse(&["status", "--credential", "/tmp/client.json",]).is_err());
     }
