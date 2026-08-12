@@ -1,9 +1,9 @@
 use greenways_identity::{
-    new_capability_grant_id, new_capability_revocation_id,
-    validate_application_approval_subject, verify_signed_capability_grant,
-    verify_signed_capability_revocation, ApplicationApprovalSubject,
-    CapabilityConstraintValue, CapabilityGrantRequest, CapabilityRevocationRequest,
-    ProfileIdentityVault, SignedCapabilityGrant, SignedCapabilityRevocation,
+    new_capability_grant_id, new_capability_revocation_id, validate_application_approval_subject,
+    verify_signed_capability_grant, verify_signed_capability_revocation,
+    ApplicationApprovalSubject, CapabilityConstraintValue, CapabilityGrantRequest,
+    CapabilityRevocationRequest, ProfileIdentityVault, SignedCapabilityGrant,
+    SignedCapabilityRevocation,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -181,13 +181,22 @@ impl fmt::Display for CapabilityError {
                 write!(formatter, "Greenways capability signing failed: {error}")
             }
             Self::Invalid(message) => {
-                write!(formatter, "Greenways capability authority is invalid: {message}")
+                write!(
+                    formatter,
+                    "Greenways capability authority is invalid: {message}"
+                )
             }
             Self::Conflict(message) => {
-                write!(formatter, "Greenways capability authority conflict: {message}")
+                write!(
+                    formatter,
+                    "Greenways capability authority conflict: {message}"
+                )
             }
             Self::NotFound(message) => {
-                write!(formatter, "Greenways capability grant was not found: {message}")
+                write!(
+                    formatter,
+                    "Greenways capability grant was not found: {message}"
+                )
             }
         }
     }
@@ -251,16 +260,21 @@ impl CapabilityAuthority {
         Ok(Self { state_path, state })
     }
 
-    pub fn status(&self, observed_at_unix_ms: u64) -> Result<CapabilityAuthorityStatus, CapabilityError> {
+    pub fn status(
+        &self,
+        observed_at_unix_ms: u64,
+    ) -> Result<CapabilityAuthorityStatus, CapabilityError> {
         validate_timestamp(observed_at_unix_ms, "capability status time")?;
         let views = self.list(observed_at_unix_ms)?;
         let active = views.iter().filter(|view| view.active).count();
-        let revoked = views.iter().filter(|view| view.revocation.is_some()).count();
+        let revoked = views
+            .iter()
+            .filter(|view| view.revocation.is_some())
+            .count();
         let expired = views
             .iter()
             .filter(|view| {
-                view.revocation.is_none()
-                    && is_expired(&view.grant, observed_at_unix_ms)
+                view.revocation.is_none() && is_expired(&view.grant, observed_at_unix_ms)
             })
             .count();
         Ok(CapabilityAuthorityStatus {
@@ -276,7 +290,10 @@ impl CapabilityAuthority {
         })
     }
 
-    pub fn list(&self, observed_at_unix_ms: u64) -> Result<Vec<CapabilityGrantView>, CapabilityError> {
+    pub fn list(
+        &self,
+        observed_at_unix_ms: u64,
+    ) -> Result<Vec<CapabilityGrantView>, CapabilityError> {
         validate_timestamp(observed_at_unix_ms, "capability list time")?;
         Ok(self
             .state
@@ -403,6 +420,7 @@ impl CapabilityAuthority {
         let signed = signer.sign_capability_revocation(CapabilityRevocationRequest {
             id: new_capability_revocation_id()?,
             grant_id: grant_id.to_owned(),
+            grant_subject_root: grant.subject_root.clone(),
             reason: reason.to_owned(),
             revoked_at_unix_ms: observed_at_unix_ms,
         })?;
@@ -534,14 +552,11 @@ fn validate_issue_request(
             "capability must already be canonical".to_owned(),
         ));
     }
-    definition(&capability).ok_or_else(|| {
-        CapabilityError::Invalid("capability is not operation-grantable".to_owned())
-    })
+    definition(&capability)
+        .ok_or_else(|| CapabilityError::Invalid("capability is not operation-grantable".to_owned()))
 }
 
-fn validate_signed_grant_semantics(
-    signed: &SignedCapabilityGrant,
-) -> Result<(), CapabilityError> {
+fn validate_signed_grant_semantics(signed: &SignedCapabilityGrant) -> Result<(), CapabilityError> {
     let definition = definition(&signed.grant.capability).ok_or_else(|| {
         CapabilityError::Invalid("stored capability is not operation-grantable".to_owned())
     })?;
@@ -603,6 +618,7 @@ fn validate_state(state: &CapabilityAuthorityState) -> Result<(), CapabilityErro
             })?;
         if grant.grant.issuer_identity_id != revocation.revocation.issuer_identity_id
             || grant.grant.issuer_key_id != revocation.revocation.issuer_key_id
+            || grant.subject_root != revocation.revocation.grant_subject_root
             || revocation.revocation.revoked_at_unix_ms < grant.grant.issued_at_unix_ms
         {
             return Err(CapabilityError::Invalid(
@@ -625,10 +641,7 @@ fn load_state(path: &Path) -> Result<CapabilityAuthorityState, CapabilityError> 
     Ok(state)
 }
 
-fn persist_state(
-    path: &Path,
-    state: &CapabilityAuthorityState,
-) -> Result<(), CapabilityError> {
+fn persist_state(path: &Path, state: &CapabilityAuthorityState) -> Result<(), CapabilityError> {
     validate_state(state)?;
     let mut bytes = serde_json::to_vec_pretty(state)?;
     bytes.push(b'\n');
@@ -669,17 +682,14 @@ fn persist_state(
 }
 
 fn definition(capability: &str) -> Option<&'static CapabilityDefinition> {
-    DEFINITIONS.iter().find(|definition| definition.id == capability)
+    DEFINITIONS
+        .iter()
+        .find(|definition| definition.id == capability)
 }
 
-fn publisher_is_trusted(
-    definition: &CapabilityDefinition,
-    publisher_id: &str,
-) -> bool {
+fn publisher_is_trusted(definition: &CapabilityDefinition, publisher_id: &str) -> bool {
     definition.trusted_publishers.is_empty()
-        || definition
-            .trusted_publishers
-            .contains(&publisher_id)
+        || definition.trusted_publishers.contains(&publisher_id)
 }
 
 fn normalize_capability(value: &str) -> Result<String, CapabilityError> {
@@ -701,15 +711,15 @@ fn valid_token(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 80
         && value.bytes().all(|byte| {
-            byte.is_ascii_lowercase()
-                || byte.is_ascii_digit()
-                || matches!(byte, b'.' | b'_' | b'-')
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
         })
 }
 
 fn validate_timestamp(value: u64, label: &str) -> Result<(), CapabilityError> {
     if value == 0 {
-        Err(CapabilityError::Invalid(format!("{label} must be positive")))
+        Err(CapabilityError::Invalid(format!(
+            "{label} must be positive"
+        )))
     } else {
         Ok(())
     }
@@ -833,10 +843,12 @@ mod tests {
             "hara-lang",
             "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         );
-        assert!(!authority
-            .check(&changed, "model/generate", 3_000)
-            .expect("changed approval decision")
-            .allowed);
+        assert!(
+            !authority
+                .check(&changed, "model/generate", 3_000)
+                .expect("changed approval decision")
+                .allowed
+        );
 
         let revocation = authority
             .revoke(&signer, &grant.grant.id, "user-revoked", 4_000)
@@ -847,7 +859,10 @@ mod tests {
             .expect("revoked decision should complete");
         assert!(!denied.allowed);
         assert_eq!(denied.reason, "grant-revoked");
-        assert_eq!(authority.status(5_000).expect("status").revoked_grant_count, 1);
+        assert_eq!(
+            authority.status(5_000).expect("status").revoked_grant_count,
+            1
+        );
     }
 
     #[test]
@@ -937,10 +952,9 @@ mod tests {
                 },
             )
             .expect("grant should issue");
-        let mut state: serde_json::Value = serde_json::from_slice(
-            &fs::read(home.capabilities()).expect("capability state"),
-        )
-        .expect("capability state JSON");
+        let mut state: serde_json::Value =
+            serde_json::from_slice(&fs::read(home.capabilities()).expect("capability state"))
+                .expect("capability state JSON");
         state["grants"][0]["grant"]["capability"] =
             serde_json::Value::String("tahto/write".to_owned());
         fs::write(

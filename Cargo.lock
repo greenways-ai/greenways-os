@@ -309,6 +309,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "greenways-capabilities"
+version = "0.1.0"
+dependencies = [
+ "greenways-identity",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "greenways-cli"
 version = "0.1.0"
 dependencies = [
