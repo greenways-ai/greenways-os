@@ -120,16 +120,14 @@ jobs:
               '--credential is accepted only by vault, whoami, clients, invoke, identity, and capability commands',
               1,
           )
-          help_line = 'greenways identity-card --credential PATH [--home PATH] [--json]\\n'
-          if text.count(help_line) != 1:
-              raise SystemExit('identity-card help line was not found exactly once')
-          text = text.replace(
-              help_line,
-              help_line
-              + 'greenways capabilities-status --credential PATH [--home PATH] [--json]\\n'
-              + 'greenways capabilities --credential PATH [--home PATH] [--json]\\n',
-              1,
+          marker = 'greenways identity-card --credential PATH [--home PATH] [--json]'
+          if text.count(marker) != 1:
+              raise SystemExit('identity-card help marker was not found exactly once')
+          insertion = (
+              '\ngreenways capabilities-status --credential PATH [--home PATH] [--json]'
+              '\ngreenways capabilities --credential PATH [--home PATH] [--json]'
           )
+          text = text.replace(marker, marker + insertion, 1)
           path.write_text(text)
           PY
 
