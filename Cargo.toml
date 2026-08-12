@@ -3,6 +3,7 @@ members = [
   "cli/greenways",
   "cli/greenways-admin",
   "crates/greenways-authority",
+  "crates/greenways-capabilities",
   "crates/greenways-identity",
   "crates/greenways-local",
   "crates/greenways-protocol",
