@@ -1,5 +1,5 @@
 [package]
-name = "greenwaysd"
+name = "greenways-admin"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,9 +8,7 @@ repository.workspace = true
 
 [dependencies]
 greenways-local = { path = "../../crates/greenways-local" }
-greenways-protocol = { path = "../../crates/greenways-protocol" }
 greenways-vault = { path = "../../crates/greenways-vault" }
-serde.workspace = true
 serde_json.workspace = true
 
 [lints]

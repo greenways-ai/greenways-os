@@ -1,8 +1,10 @@
 [workspace]
 members = [
   "cli/greenways",
+  "cli/greenways-admin",
   "crates/greenways-local",
   "crates/greenways-protocol",
+  "crates/greenways-vault",
   "services/greenwaysd",
 ]
 resolver = "2"

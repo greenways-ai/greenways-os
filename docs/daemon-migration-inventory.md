@@ -48,3 +48,7 @@ No PR may remove the current extension authority merely because a daemon process
 is reachable. The profile must contain an explicit runtime mode and completed
 migration receipt. A daemon disconnect in daemon mode is a visible unavailable
 state, not permission to revive a separate writable browser profile.
+
+## Provider credentials
+
+Provider-profile metadata moves to `greenwaysd` and provider credential bytes move to the operating-system credential store. The first migration slice exposes only redacted `vault.status`; mutation is offline through `greenways-admin` while the daemon is stopped. The Chrome extension keeps its separate, credential-free foreground ChatGPT provider until the reviewed browser bridge cutover.

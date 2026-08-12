@@ -4,6 +4,7 @@ use greenways_protocol::{
     validate_digest, validate_node_id, validate_response, DaemonPaths, DaemonStatus, LocalRequest,
     LocalResponse, ProtocolError, MAX_REQUEST_BYTES,
 };
+use greenways_vault::{ProviderVault, VaultError};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -26,6 +27,7 @@ const INVALID_REQUEST_ID: &str = "local/request/invalid0";
 pub enum DaemonError {
     Io(io::Error),
     Protocol(ProtocolError),
+    Vault(VaultError),
     State(String),
     AlreadyRunning(PathBuf),
     UnsupportedPlatform,
@@ -36,6 +38,7 @@ impl fmt::Display for DaemonError {
         match self {
             Self::Io(error) => write!(formatter, "Greenways daemon I/O failed: {error}"),
             Self::Protocol(error) => write!(formatter, "Greenways daemon protocol failed: {error}"),
+            Self::Vault(error) => write!(formatter, "Greenways daemon vault failed: {error}"),
             Self::State(message) => {
                 write!(formatter, "Greenways daemon state is invalid: {message}")
             }
@@ -61,6 +64,7 @@ impl Error for DaemonError {
         match self {
             Self::Io(error) => Some(error),
             Self::Protocol(error) => Some(error),
+            Self::Vault(error) => Some(error),
             _ => None,
         }
     }
@@ -75,6 +79,12 @@ impl From<io::Error> for DaemonError {
 impl From<ProtocolError> for DaemonError {
     fn from(value: ProtocolError) -> Self {
         Self::Protocol(value)
+    }
+}
+
+impl From<VaultError> for DaemonError {
+    fn from(value: VaultError) -> Self {
+        Self::Vault(value)
     }
 }
 
@@ -105,6 +115,7 @@ struct DaemonState {
 pub struct Daemon {
     paths: GreenwaysPaths,
     state: DaemonState,
+    vault: ProviderVault,
 }
 
 impl Daemon {
@@ -114,6 +125,7 @@ impl Daemon {
 
     fn open_at(paths: GreenwaysPaths, observed_at_unix_ms: u64) -> Result<Self, DaemonError> {
         ensure_private_dir(&paths.home)?;
+        let vault = ProviderVault::open_system(paths.home.join("state").join("providers.json"))?;
         let mut state = if paths.state_file.exists() {
             load_state(&paths.state_file)?
         } else {
@@ -134,7 +146,11 @@ impl Daemon {
         state.last_started_at_unix_ms = observed_at_unix_ms;
         validate_state(&state)?;
         write_state(&paths.state_file, &state)?;
-        Ok(Self { paths, state })
+        Ok(Self {
+            paths,
+            state,
+            vault,
+        })
     }
 
     pub fn handle_request(&mut self, request: LocalRequest) -> Result<LocalResponse, DaemonError> {
@@ -181,7 +197,11 @@ impl Daemon {
                     process_id: process::id(),
                     started_at_unix_ms: self.state.last_started_at_unix_ms,
                     observed_at_unix_ms,
-                    profile_mode: "unconfigured".to_owned(),
+                    profile_mode: if self.vault.status().provider_profile_count == 0 {
+                        "unconfigured".to_owned()
+                    } else {
+                        "provider-configured".to_owned()
+                    },
                     authority_mode: "daemon".to_owned(),
                 };
                 LocalResponse::ok(
@@ -191,6 +211,12 @@ impl Daemon {
                     })?,
                 )
             }
+            "vault.status" => LocalResponse::ok(
+                request.request_id.clone(),
+                serde_json::to_value(self.vault.status()).map_err(|_| {
+                    DaemonError::State("vault status projection could not be encoded".to_owned())
+                })?,
+            ),
             "paths" => {
                 let paths = DaemonPaths {
                     protocol: greenways_protocol::DAEMON_PATHS_PROTOCOL.to_owned(),
@@ -509,7 +535,7 @@ impl Drop for SocketGuard {
 mod tests {
     use super::*;
     use greenways_local::LocalClient;
-    use greenways_protocol::{new_request_id, Outcome};
+    use greenways_protocol::{new_request_id, Outcome, VaultStatus};
     use std::{thread, time::Duration};
 
     struct TestHome(PathBuf);
@@ -591,6 +617,49 @@ mod tests {
             Daemon::open_at(paths, 1_000),
             Err(DaemonError::State(_))
         ));
+    }
+
+    #[test]
+    fn projects_only_redacted_provider_vault_status() {
+        let home = TestHome::new("vault-status");
+        let paths = home.paths();
+        let registry_path = paths.home.join("state").join("providers.json");
+        fs::create_dir_all(registry_path.parent().expect("provider registry parent"))
+            .expect("provider registry directory");
+        fs::write(
+            &registry_path,
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "protocol": "greenways-provider-registry/0-alpha",
+                "revision": 1,
+                "profiles": [{
+                    "protocol": "greenways-provider-profile/0-alpha",
+                    "id": "openai.personal",
+                    "provider": "openai",
+                    "label": "Personal OpenAI",
+                    "createdAtUnixMs": 1_000,
+                    "updatedAtUnixMs": 1_000
+                }]
+            }))
+            .expect("provider registry JSON"),
+        )
+        .expect("provider registry should be written");
+
+        let mut daemon = Daemon::open_at(paths, 1_500).expect("daemon should open");
+        let response = daemon
+            .handle_request_at(
+                LocalRequest::vault_status("local/request/vaultstat1"),
+                2_000,
+            )
+            .expect("vault status should complete");
+        let status: VaultStatus =
+            serde_json::from_value(response.value.expect("vault status should have a value"))
+                .expect("vault status should be valid");
+        assert_eq!(status.provider_profile_count, 1);
+        assert_eq!(status.credential_store, "system-keyring");
+        assert!(!status.secret_projection);
+        let encoded = serde_json::to_string(&status).expect("status should encode");
+        assert!(!encoded.contains("openai.personal"));
+        assert!(!encoded.contains("Personal OpenAI"));
     }
 
     #[cfg(unix)]
