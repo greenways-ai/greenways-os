@@ -99,3 +99,16 @@ Local clients are enrolled through a separate daemon-owned registry. Desktop, CL
 The daemon now accepts the closed `provider.invoke` operation from authenticated Desktop, CLI and developer sessions. It resolves credentials only inside the daemon, calls one fixed provider endpoint, and returns a normalized text result. Browser-bridge invocation remains denied until daemon-owned application grants bind the exact app, origin, profile, model and limits.
 
 Provider calls use a prepared durable claim before network access. Completed calls are replayable by exact actor and request bytes; uncertain calls are never retried automatically. See `protocol/provider-invoke.md`.
+
+## Profile identity
+
+`greenwaysd` now opens a daemon-owned profile identity vault. Identity creation is an offline administrative operation while the daemon is stopped:
+
+```sh
+cargo run -p greenways-admin -- identity create --handle river.studio
+cargo run -p greenways-admin -- identity status
+```
+
+The private P-256 key is stored in the operating-system keyring. Daemon metadata contains only a private key handle and the self-signed public identity card. Authenticated Desktop, CLI, browser-bridge, and Developer sessions may read `identity.status` and `identity.public-card`; no local operation exports the private key or signs caller-selected bytes.
+
+The first signing vocabulary contains exactly one subject: `greenways-profile-identity-subject/0-alpha`. Node enrolment, source mandates, application grants, and MCP pairing will be introduced as separate closed typed subjects in later PRs.

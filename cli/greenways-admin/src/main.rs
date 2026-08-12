@@ -1,4 +1,5 @@
 use greenways_authority::{LocalClient, LocalClientRegistry, LocalClientRole};
+use greenways_identity::{ProfileIdentityStatus, ProfileIdentityVault, SignedProfileIdentity};
 use greenways_local::GreenwaysPaths;
 use greenways_vault::{ProviderKind, ProviderProfile, ProviderVault, MAX_PROVIDER_SECRET_BYTES};
 use serde_json::json;
@@ -14,6 +15,7 @@ use std::{
 enum Command {
     Provider(ProviderCommand),
     Client(ClientCommand),
+    Identity(IdentityCommand),
 }
 
 #[derive(Debug)]
@@ -46,6 +48,12 @@ enum ClientCommand {
 }
 
 #[derive(Debug)]
+enum IdentityCommand {
+    Status,
+    Create { handle: String },
+}
+
+#[derive(Debug)]
 struct Options {
     command: Command,
     home: Option<PathBuf>,
@@ -65,6 +73,7 @@ fn run() -> Result<(), String> {
     match options.command {
         Command::Provider(command) => run_provider(command, &paths, options.json),
         Command::Client(command) => run_client(command, &paths, options.json),
+        Command::Identity(command) => run_identity(command, &paths, options.json),
     }
 }
 
@@ -147,6 +156,77 @@ fn run_client(command: ClientCommand, paths: &GreenwaysPaths, json: bool) -> Res
             print_client("Revoked", &client, json)
         }
     }
+}
+
+fn run_identity(
+    command: IdentityCommand,
+    paths: &GreenwaysPaths,
+    json: bool,
+) -> Result<(), String> {
+    let metadata_path = paths.home.join("state").join("profile-identity.json");
+    match command {
+        IdentityCommand::Status => {
+            let identity = ProfileIdentityVault::open_system(metadata_path)
+                .map_err(|error| error.to_string())?;
+            print_identity_status(&identity.status(), json)
+        }
+        IdentityCommand::Create { handle } => {
+            assert_daemon_stopped(&paths.socket_file)?;
+            let mut identity = ProfileIdentityVault::open_system(metadata_path)
+                .map_err(|error| error.to_string())?;
+            let card = identity
+                .create(&handle, now_unix_ms()?)
+                .map_err(|error| error.to_string())?;
+            print_identity_card("Created", &card, json)
+        }
+    }
+}
+
+fn print_identity_status(status: &ProfileIdentityStatus, json: bool) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(status)
+                .map_err(|_| "could not encode profile identity status".to_owned())?
+        );
+    } else {
+        println!("Greenways profile identity");
+        println!("  state:      {}", status.state);
+        println!("  custody:    {}", status.key_custody);
+        println!(
+            "  identity:   {}",
+            status.identity_id.as_deref().unwrap_or("not configured")
+        );
+        println!(
+            "  key:        {}",
+            status.key_id.as_deref().unwrap_or("not configured")
+        );
+        println!("  algorithm:  {}", status.algorithm);
+        println!("  private key projected: {}", status.private_key_projection);
+    }
+    Ok(())
+}
+
+fn print_identity_card(
+    prefix: &str,
+    card: &SignedProfileIdentity,
+    json: bool,
+) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(card)
+                .map_err(|_| "could not encode public profile identity".to_owned())?
+        );
+    } else {
+        println!("{prefix} Greenways profile identity.");
+        println!("  id:      {}", card.subject.id);
+        println!("  handle:  {}", card.subject.handle);
+        println!("  key:     {}", card.subject.key_id);
+        println!("  root:    {}", card.subject_root);
+        println!("  custody: system-keyring");
+    }
+    Ok(())
 }
 
 fn print_profiles(profiles: &[ProviderProfile], json: bool) -> Result<(), String> {
@@ -324,6 +404,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let group = match arguments.next().as_deref() {
         Some("provider") => "provider",
         Some("client") => "client",
+        Some("identity") => "identity",
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -345,6 +426,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let mut label = None;
     let mut role = None;
     let mut output = None;
+    let mut handle = None;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -397,6 +479,13 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                         .ok_or_else(|| "--output requires a path".to_owned())?,
                 ));
             }
+            "--handle" => {
+                handle = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--handle requires a profile handle".to_owned())?,
+                );
+            }
             "-h" | "--help" => {
                 print_help();
                 process::exit(0);
@@ -405,6 +494,9 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         }
     }
 
+    if group != "identity" && handle.is_some() {
+        return Err(format!("{group} {action} does not accept --handle"));
+    }
     let required_id = || id.clone().ok_or_else(|| "--id is required".to_owned());
     let command = match (group, action.as_str()) {
         ("provider", "list") => {
@@ -462,6 +554,25 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&output, "--output", "client revoke")?;
             Command::Client(ClientCommand::Revoke { id: required_id()? })
         }
+        ("identity", "status") => {
+            require_absent(&id, "--id", "identity status")?;
+            require_absent(&provider, "--provider", "identity status")?;
+            require_absent(&label, "--label", "identity status")?;
+            require_absent(&role, "--role", "identity status")?;
+            require_absent(&output, "--output", "identity status")?;
+            require_absent(&handle, "--handle", "identity status")?;
+            Command::Identity(IdentityCommand::Status)
+        }
+        ("identity", "create") => {
+            require_absent(&id, "--id", "identity create")?;
+            require_absent(&provider, "--provider", "identity create")?;
+            require_absent(&label, "--label", "identity create")?;
+            require_absent(&role, "--role", "identity create")?;
+            require_absent(&output, "--output", "identity create")?;
+            Command::Identity(IdentityCommand::Create {
+                handle: handle.ok_or_else(|| "--handle is required".to_owned())?,
+            })
+        }
         _ => return Err(format!("unsupported {group} action: {action}")),
     };
 
@@ -490,8 +601,10 @@ fn print_help() {
          greenways-admin client list [--home PATH] [--json]\n\
          greenways-admin client issue --role ROLE --label LABEL --output PATH [--home PATH] [--json]\n\
          greenways-admin client revoke --id ID [--home PATH] [--json]\n\
+         greenways-admin identity status [--home PATH] [--json]\n\
+         greenways-admin identity create --handle HANDLE [--home PATH] [--json]\n\
          \n\
-         Provider credentials are read from stdin and placed directly into the operating-system\n\
+         Provider credentials and profile private keys are placed directly into operating-system\n\
          credential store. Local client credentials are written once to a new private file.\n\
          Neither secret is accepted as a command-line argument or printed. Stop greenwaysd before\n\
          mutating provider or local-client authority."
@@ -564,6 +677,26 @@ mod tests {
             revoke.command,
             Command::Client(ClientCommand::Revoke { .. })
         ));
+    }
+
+    #[test]
+    fn parses_closed_profile_identity_commands() {
+        let create = parse(&["identity", "create", "--handle", "river.studio", "--json"])
+            .expect("identity create should parse");
+        assert!(matches!(
+            create.command,
+            Command::Identity(IdentityCommand::Create { .. })
+        ));
+        assert!(parse(&["identity", "create"]).is_err());
+        assert!(parse(&[
+            "identity",
+            "create",
+            "--handle",
+            "river.studio",
+            "--key",
+            "secret",
+        ])
+        .is_err());
     }
 
     #[test]

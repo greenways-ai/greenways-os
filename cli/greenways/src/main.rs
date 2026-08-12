@@ -1,4 +1,5 @@
 use greenways_authority::LocalClient as AuthorityClient;
+use greenways_identity::{ProfileIdentityStatus, SignedProfileIdentity};
 use greenways_local::{
     decode_client, decode_clients, decode_provider_result, AuthenticatedLocalClient,
     GreenwaysPaths, LocalClient,
@@ -23,11 +24,16 @@ enum Command {
     Whoami,
     Clients,
     Invoke,
+    IdentityStatus,
+    IdentityCard,
 }
 
 impl Command {
     const fn requires_credential(self) -> bool {
-        matches!(self, Self::Whoami | Self::Clients | Self::Invoke)
+        matches!(
+            self,
+            Self::Whoami | Self::Clients | Self::Invoke | Self::IdentityStatus | Self::IdentityCard
+        )
     }
 }
 
@@ -81,6 +87,8 @@ fn run() -> Result<(), String> {
                 .map_err(|error| error.to_string())?;
                 client.invoke(invocation)
             }
+            Command::IdentityStatus => client.identity_status(),
+            Command::IdentityCard => client.identity_public_card(),
             _ => unreachable!("credential command was already classified"),
         }
         .map_err(|error| error.to_string())?
@@ -119,6 +127,8 @@ fn run() -> Result<(), String> {
         Command::Invoke => print_provider_result(
             decode_provider_result(&response).map_err(|error| error.to_string())?,
         ),
+        Command::IdentityStatus => print_identity_status(response)?,
+        Command::IdentityCard => print_identity_card(response)?,
     }
     Ok(())
 }
@@ -212,6 +222,43 @@ fn optional_number(value: Option<u64>) -> String {
     value.map_or_else(|| "unknown".to_owned(), |value| value.to_string())
 }
 
+fn print_identity_status(response: LocalResponse) -> Result<(), String> {
+    let status: ProfileIdentityStatus = serde_json::from_value(
+        response
+            .value
+            .ok_or_else(|| "identity status response had no value".to_owned())?,
+    )
+    .map_err(|_| "identity status response was invalid".to_owned())?;
+    println!("Greenways profile identity");
+    println!("  state:      {}", status.state);
+    println!("  custody:    {}", status.key_custody);
+    println!(
+        "  identity:   {}",
+        status.identity_id.as_deref().unwrap_or("not configured")
+    );
+    println!(
+        "  key:        {}",
+        status.key_id.as_deref().unwrap_or("not configured")
+    );
+    println!("  algorithm:  {}", status.algorithm);
+    Ok(())
+}
+
+fn print_identity_card(response: LocalResponse) -> Result<(), String> {
+    let identity: SignedProfileIdentity = serde_json::from_value(
+        response
+            .value
+            .ok_or_else(|| "public identity response had no value".to_owned())?,
+    )
+    .map_err(|_| "public identity response was invalid".to_owned())?;
+    println!("Greenways public profile identity");
+    println!("  id:      {}", identity.subject.id);
+    println!("  handle:  {}", identity.subject.handle);
+    println!("  key:     {}", identity.subject.key_id);
+    println!("  root:    {}", identity.subject_root);
+    Ok(())
+}
+
 fn print_client(prefix: &str, client: AuthorityClient) {
     let state = if client.revoked_at_unix_ms.is_some() {
         "revoked"
@@ -264,6 +311,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         Some("whoami") => Command::Whoami,
         Some("clients") => Command::Clients,
         Some("invoke") => Command::Invoke,
+        Some("identity-status") => Command::IdentityStatus,
+        Some("identity-card") => Command::IdentityCard,
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -335,10 +384,16 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         }
     }
     if command.requires_credential() && credential.is_none() {
-        return Err("--credential is required for whoami, clients, and invoke".to_owned());
+        return Err(
+            "--credential is required for whoami, clients, invoke, and identity commands"
+                .to_owned(),
+        );
     }
     if !command.requires_credential() && credential.is_some() {
-        return Err("--credential is accepted only by whoami, clients, and invoke".to_owned());
+        return Err(
+            "--credential is accepted only by whoami, clients, invoke, and identity commands"
+                .to_owned(),
+        );
     }
     if matches!(command, Command::Invoke) {
         if profile.is_none() || model.is_none() {
@@ -370,10 +425,15 @@ fn print_help() {
          greenways <status|paths|vault> [--home PATH] [--json]\n\
          greenways whoami --credential PATH [--home PATH] [--json]\n\
          greenways clients --credential PATH [--home PATH] [--json]\n\
-         greenways invoke --credential PATH --profile ID --model ID \\\n           [--max-output-tokens N] [--timeout-ms N] [--home PATH] [--json]\n\
+greenways invoke --credential PATH --profile ID --model ID \
+  [--max-output-tokens N] [--timeout-ms N] [--home PATH] [--json]
+greenways identity-status --credential PATH [--home PATH] [--json]
+greenways identity-card --credential PATH [--home PATH] [--json]
          \n\
-         invoke reads one user prompt from stdin. Credentials and prompt text are never accepted\n\
-         as command-line values. Browser-bridge invocation remains disabled until application grants land."
+         Public reads use one-shot local IPC. Authority reads open a short-lived connection-bound\n\
+         session from a private enrolled-client credential file. invoke reads one user prompt from\n\
+         stdin; credentials and prompt text are never accepted as command-line values. Browser-bridge\n\
+         provider invocation remains disabled until application grants land."
     );
 }
 
@@ -389,6 +449,8 @@ mod tests {
     fn requires_credentials_only_for_authority_commands() {
         assert!(parse(&["whoami"]).is_err());
         assert!(parse(&["clients"]).is_err());
+        assert!(parse(&["identity-status"]).is_err());
+        assert!(parse(&["identity-card"]).is_err());
         assert!(parse(&["whoami", "--credential", "/tmp/client.json",]).is_ok());
         assert!(parse(&["status", "--credential", "/tmp/client.json",]).is_err());
     }
