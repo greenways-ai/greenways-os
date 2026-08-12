@@ -1,4 +1,5 @@
 use getrandom::getrandom;
+use greenways_provider::ProviderInvocation;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -90,6 +91,24 @@ impl LocalRequest {
             operation: "authority.clients.list".to_owned(),
             arguments: Map::new(),
         }
+    }
+
+    pub fn provider_invoke(
+        request_id: impl Into<String>,
+        invocation: ProviderInvocation,
+    ) -> Result<Self, ProtocolError> {
+        let arguments = invocation.into_arguments().map_err(|_| {
+            ProtocolError::new(
+                "invalid-arguments",
+                "Provider invocation arguments are invalid.",
+            )
+        })?;
+        Ok(Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "provider.invoke".to_owned(),
+            arguments,
+        })
     }
 }
 
@@ -243,24 +262,36 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
             | "client.session.open"
             | "client.whoami"
             | "authority.clients.list"
+            | "provider.invoke"
     ) {
         return Err(ProtocolError::new(
             "unsupported-operation",
             "Greenways local operation is not available.",
         ));
     }
-    if request.operation == "client.session.open" {
-        if request.arguments.is_empty() {
+    match request.operation.as_str() {
+        "client.session.open" if request.arguments.is_empty() => {
             return Err(ProtocolError::new(
                 "invalid-arguments",
-                "Local session opening requires one credential object.",
+                "Session opening requires one credential object.",
             ));
         }
-    } else if !request.arguments.is_empty() {
-        return Err(ProtocolError::new(
-            "invalid-arguments",
-            "This Greenways local operation accepts no arguments.",
-        ));
+        "provider.invoke" => {
+            ProviderInvocation::from_arguments(&request.arguments).map_err(|_| {
+                ProtocolError::new(
+                    "invalid-arguments",
+                    "Provider invocation arguments are invalid.",
+                )
+            })?;
+        }
+        "client.session.open" => {}
+        _ if !request.arguments.is_empty() => {
+            return Err(ProtocolError::new(
+                "invalid-arguments",
+                "This Greenways local operation accepts no arguments.",
+            ));
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -487,6 +518,30 @@ mod tests {
             Map::new(),
         ))
         .is_err());
+    }
+
+    #[test]
+    fn validates_one_closed_provider_invocation() {
+        let invocation = greenways_provider::ProviderInvocation::new(
+            "openai.personal",
+            "gpt-5",
+            vec![greenways_provider::ModelMessage {
+                role: greenways_provider::ModelMessageRole::User,
+                content: "Hello".to_owned(),
+            }],
+            128,
+            5_000,
+        )
+        .expect("provider invocation should be valid");
+        let request = LocalRequest::provider_invoke("local/request/provider0001", invocation)
+            .expect("provider request should encode");
+        assert!(validate_request(&request).is_ok());
+        let mut changed = request;
+        changed.arguments.insert(
+            "endpoint".to_owned(),
+            Value::String("https://evil.example".to_owned()),
+        );
+        assert!(validate_request(&changed).is_err());
     }
 
     #[test]

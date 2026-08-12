@@ -10,6 +10,7 @@ repository.workspace = true
 greenways-authority = { path = "../../crates/greenways-authority" }
 greenways-local = { path = "../../crates/greenways-local" }
 greenways-protocol = { path = "../../crates/greenways-protocol" }
+greenways-provider = { path = "../../crates/greenways-provider" }
 greenways-vault = { path = "../../crates/greenways-vault" }
 serde.workspace = true
 serde_json.workspace = true

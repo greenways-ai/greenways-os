@@ -1,5 +1,5 @@
 [package]
-name = "greenways-local"
+name = "greenways-provider"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,11 +7,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-greenways-authority = { path = "../greenways-authority" }
-greenways-protocol = { path = "../greenways-protocol" }
-greenways-provider = { path = "../greenways-provider" }
+serde.workspace = true
 serde_json.workspace = true
-zeroize = "1.9.0"
 
 [lints]
 workspace = true

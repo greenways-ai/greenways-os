@@ -1,9 +1,19 @@
 use greenways_authority::LocalClient as AuthorityClient;
 use greenways_local::{
-    decode_client, decode_clients, AuthenticatedLocalClient, GreenwaysPaths, LocalClient,
+    decode_client, decode_clients, decode_provider_result, AuthenticatedLocalClient,
+    GreenwaysPaths, LocalClient,
 };
 use greenways_protocol::{DaemonPaths, DaemonStatus, LocalResponse, Outcome, VaultStatus};
-use std::{env, path::PathBuf, process};
+use greenways_provider::{
+    ModelMessage, ModelMessageRole, ProviderInvocation, ProviderResult, DEFAULT_MAX_OUTPUT_TOKENS,
+    DEFAULT_TIMEOUT_MS, MAX_PROVIDER_INPUT_BYTES,
+};
+use std::{
+    env,
+    io::{self, IsTerminal, Read},
+    path::PathBuf,
+    process,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum Command {
@@ -12,11 +22,12 @@ enum Command {
     Vault,
     Whoami,
     Clients,
+    Invoke,
 }
 
 impl Command {
     const fn requires_credential(self) -> bool {
-        matches!(self, Self::Whoami | Self::Clients)
+        matches!(self, Self::Whoami | Self::Clients | Self::Invoke)
     }
 }
 
@@ -25,6 +36,10 @@ struct Options {
     command: Command,
     home: Option<PathBuf>,
     credential: Option<PathBuf>,
+    profile: Option<String>,
+    model: Option<String>,
+    max_output_tokens: u32,
+    timeout_ms: u64,
     json: bool,
 }
 
@@ -48,6 +63,24 @@ fn run() -> Result<(), String> {
         match options.command {
             Command::Whoami => client.whoami(),
             Command::Clients => client.clients(),
+            Command::Invoke => {
+                let invocation = ProviderInvocation::new(
+                    options
+                        .profile
+                        .ok_or_else(|| "--profile is required for invoke".to_owned())?,
+                    options
+                        .model
+                        .ok_or_else(|| "--model is required for invoke".to_owned())?,
+                    vec![ModelMessage {
+                        role: ModelMessageRole::User,
+                        content: read_prompt_from_stdin()?,
+                    }],
+                    options.max_output_tokens,
+                    options.timeout_ms,
+                )
+                .map_err(|error| error.to_string())?;
+                client.invoke(invocation)
+            }
             _ => unreachable!("credential command was already classified"),
         }
         .map_err(|error| error.to_string())?
@@ -83,8 +116,34 @@ fn run() -> Result<(), String> {
         Command::Clients => {
             print_clients(decode_clients(&response).map_err(|error| error.to_string())?)
         }
+        Command::Invoke => print_provider_result(
+            decode_provider_result(&response).map_err(|error| error.to_string())?,
+        ),
     }
     Ok(())
+}
+
+fn read_prompt_from_stdin() -> Result<String, String> {
+    if io::stdin().is_terminal() {
+        return Err(
+            "provider prompt text must be piped through stdin; it is never accepted as a command-line argument"
+                .to_owned(),
+        );
+    }
+    let mut bytes = Vec::new();
+    io::stdin()
+        .take((MAX_PROVIDER_INPUT_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "could not read provider prompt from stdin".to_owned())?;
+    if bytes.len() > MAX_PROVIDER_INPUT_BYTES {
+        return Err("provider prompt exceeds its input byte limit".to_owned());
+    }
+    let prompt =
+        String::from_utf8(bytes).map_err(|_| "provider prompt must be valid UTF-8".to_owned())?;
+    if prompt.trim().is_empty() {
+        return Err("provider prompt cannot be empty".to_owned());
+    }
+    Ok(prompt)
 }
 
 fn print_status(response: LocalResponse) -> Result<(), String> {
@@ -131,6 +190,26 @@ fn print_vault(response: LocalResponse) -> Result<(), String> {
     println!("  profiles:    {}", status.provider_profile_count);
     println!("  projects secrets: {}", status.secret_projection);
     Ok(())
+}
+
+fn print_provider_result(result: ProviderResult) {
+    println!("{}", result.output);
+    eprintln!(
+        "greenways: {} via {} ({})",
+        result.model, result.provider, result.profile_id
+    );
+    if let Some(usage) = result.usage {
+        eprintln!(
+            "greenways: tokens input={} output={} total={}",
+            optional_number(usage.input_tokens),
+            optional_number(usage.output_tokens),
+            optional_number(usage.total_tokens),
+        );
+    }
+}
+
+fn optional_number(value: Option<u64>) -> String {
+    value.map_or_else(|| "unknown".to_owned(), |value| value.to_string())
 }
 
 fn print_client(prefix: &str, client: AuthorityClient) {
@@ -184,6 +263,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         Some("vault") => Command::Vault,
         Some("whoami") => Command::Whoami,
         Some("clients") => Command::Clients,
+        Some("invoke") => Command::Invoke,
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -197,6 +277,10 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
 
     let mut home = None;
     let mut credential = None;
+    let mut profile = None;
+    let mut model = None;
+    let mut max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS;
+    let mut timeout_ms = DEFAULT_TIMEOUT_MS;
     let mut json = false;
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -214,6 +298,34 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                         .ok_or_else(|| "--credential requires a path".to_owned())?,
                 ));
             }
+            "--profile" => {
+                profile = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--profile requires an ID".to_owned())?,
+                );
+            }
+            "--model" => {
+                model = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--model requires an ID".to_owned())?,
+                );
+            }
+            "--max-output-tokens" => {
+                max_output_tokens = arguments
+                    .next()
+                    .ok_or_else(|| "--max-output-tokens requires a number".to_owned())?
+                    .parse()
+                    .map_err(|_| "--max-output-tokens must be an integer".to_owned())?;
+            }
+            "--timeout-ms" => {
+                timeout_ms = arguments
+                    .next()
+                    .ok_or_else(|| "--timeout-ms requires a number".to_owned())?
+                    .parse()
+                    .map_err(|_| "--timeout-ms must be an integer".to_owned())?;
+            }
             "--json" => json = true,
             "-h" | "--help" => {
                 print_help();
@@ -223,16 +335,31 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         }
     }
     if command.requires_credential() && credential.is_none() {
-        return Err("--credential is required for whoami and clients".to_owned());
+        return Err("--credential is required for whoami, clients, and invoke".to_owned());
     }
     if !command.requires_credential() && credential.is_some() {
-        return Err("--credential is accepted only by whoami and clients".to_owned());
+        return Err("--credential is accepted only by whoami, clients, and invoke".to_owned());
+    }
+    if matches!(command, Command::Invoke) {
+        if profile.is_none() || model.is_none() {
+            return Err("invoke requires --profile and --model".to_owned());
+        }
+    } else if profile.is_some()
+        || model.is_some()
+        || max_output_tokens != DEFAULT_MAX_OUTPUT_TOKENS
+        || timeout_ms != DEFAULT_TIMEOUT_MS
+    {
+        return Err("provider selection and limits are accepted only by invoke".to_owned());
     }
 
     Ok(Options {
         command,
         home,
         credential,
+        profile,
+        model,
+        max_output_tokens,
+        timeout_ms,
         json,
     })
 }
@@ -243,9 +370,10 @@ fn print_help() {
          greenways <status|paths|vault> [--home PATH] [--json]\n\
          greenways whoami --credential PATH [--home PATH] [--json]\n\
          greenways clients --credential PATH [--home PATH] [--json]\n\
+         greenways invoke --credential PATH --profile ID --model ID \\\n           [--max-output-tokens N] [--timeout-ms N] [--home PATH] [--json]\n\
          \n\
-         Public reads use one-shot local IPC. Authority reads open a short-lived connection-bound\n\
-         session from a private enrolled-client credential file."
+         invoke reads one user prompt from stdin. Credentials and prompt text are never accepted\n\
+         as command-line values. Browser-bridge invocation remains disabled until application grants land."
     );
 }
 
@@ -263,5 +391,32 @@ mod tests {
         assert!(parse(&["clients"]).is_err());
         assert!(parse(&["whoami", "--credential", "/tmp/client.json",]).is_ok());
         assert!(parse(&["status", "--credential", "/tmp/client.json",]).is_err());
+    }
+
+    #[test]
+    fn closes_provider_invoke_options() {
+        assert!(parse(&[
+            "invoke",
+            "--credential",
+            "/tmp/client.json",
+            "--profile",
+            "openai.personal",
+            "--model",
+            "gpt-5",
+        ])
+        .is_ok());
+        assert!(parse(&[
+            "invoke",
+            "--credential",
+            "/tmp/client.json",
+            "--profile",
+            "openai.personal",
+            "--model",
+            "gpt-5",
+            "--endpoint",
+            "https://evil.example",
+        ])
+        .is_err());
+        assert!(parse(&["status", "--model", "gpt-5"]).is_err());
     }
 }

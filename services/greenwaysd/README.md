@@ -93,3 +93,9 @@ The ordinary `greenways vault` command reads only the redacted `vault.status` pr
 The daemon does not expose credential reads, arbitrary signing, provider invocation, or secret-store handles. Typed provider invocation will be added behind authenticated daemon authority rather than returning credentials to local clients.
 
 Local clients are enrolled through a separate daemon-owned registry. Desktop, CLI, browser-bridge, and developer roles are fixed at offline issuance, only a SHA-256 credential digest is stored, and revocation is final. A valid credential now opens a five-minute, 128-request session bound to the same Unix connection. `client.whoami` is available to every role; authority inventory remains denied to the browser bridge. Session credentials never enter durable receipts, while subsequent receipts are bound to the daemon-derived client ID and role.
+
+## Authenticated provider invocation
+
+The daemon now accepts the closed `provider.invoke` operation from authenticated Desktop, CLI and developer sessions. It resolves credentials only inside the daemon, calls one fixed provider endpoint, and returns a normalized text result. Browser-bridge invocation remains denied until daemon-owned application grants bind the exact app, origin, profile, model and limits.
+
+Provider calls use a prepared durable claim before network access. Completed calls are replayable by exact actor and request bytes; uncertain calls are never retried automatically. See `protocol/provider-invoke.md`.

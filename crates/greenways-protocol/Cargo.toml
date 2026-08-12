@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+greenways-provider = { path = "../greenways-provider" }
 getrandom.workspace = true
 serde.workspace = true
 serde_json.workspace = true
