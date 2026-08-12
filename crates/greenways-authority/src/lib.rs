@@ -1,5 +1,6 @@
 use getrandom::getrandom;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
@@ -15,10 +16,12 @@ use zeroize::Zeroize;
 pub const LOCAL_CLIENT_REGISTRY_PROTOCOL: &str = "greenways-local-client-registry/0-alpha";
 pub const LOCAL_CLIENT_PROTOCOL: &str = "greenways-local-client/0-alpha";
 pub const LOCAL_CLIENT_CREDENTIAL_PROTOCOL: &str = "greenways-local-client-credential/0-alpha";
+pub const LOCAL_SESSION_PROTOCOL: &str = "greenways-local-session/0-alpha";
 const MAX_REGISTRY_BYTES: usize = 1024 * 1024;
 const MAX_CREDENTIAL_BYTES: usize = 16 * 1024;
 const MAX_CLIENTS: usize = 256;
 const CLIENT_ID_PREFIX: &str = "local/client/";
+const SESSION_ID_PREFIX: &str = "local/session/";
 const TOKEN_PREFIX: &str = "gwc_";
 const DIGEST_PREFIX: &str = "sha256:";
 
@@ -92,6 +95,137 @@ impl Drop for LocalClientCredential {
     fn drop(&mut self) {
         self.token.zeroize();
     }
+}
+
+impl LocalClientCredential {
+    pub fn into_session_arguments(mut self) -> Map<String, Value> {
+        let mut arguments = Map::new();
+        arguments.insert(
+            "protocol".to_owned(),
+            Value::String(std::mem::take(&mut self.protocol)),
+        );
+        arguments.insert(
+            "clientId".to_owned(),
+            Value::String(std::mem::take(&mut self.client_id)),
+        );
+        arguments.insert(
+            "role".to_owned(),
+            Value::String(self.role.as_str().to_owned()),
+        );
+        arguments.insert(
+            "token".to_owned(),
+            Value::String(std::mem::take(&mut self.token)),
+        );
+        arguments.insert(
+            "issuedAtUnixMs".to_owned(),
+            Value::from(self.issued_at_unix_ms),
+        );
+        arguments
+    }
+}
+
+pub fn parse_local_client_credential_arguments(
+    mut arguments: Map<String, Value>,
+) -> Result<LocalClientCredential, AuthorityError> {
+    const KEYS: [&str; 5] = ["protocol", "clientId", "role", "token", "issuedAtUnixMs"];
+    if arguments.len() != KEYS.len() || KEYS.iter().any(|key| !arguments.contains_key(*key)) {
+        zeroize_json_map(&mut arguments);
+        return Err(AuthorityError::CredentialRejected);
+    }
+
+    let parsed = (|| {
+        let protocol = take_string(&mut arguments, "protocol")?;
+        let client_id = take_string(&mut arguments, "clientId")?;
+        let role = LocalClientRole::parse(&take_string(&mut arguments, "role")?)
+            .map_err(|_| AuthorityError::CredentialRejected)?;
+        let issued_at_unix_ms = take_u64(&mut arguments, "issuedAtUnixMs")?;
+        let token = take_string(&mut arguments, "token")?;
+        let credential = LocalClientCredential {
+            protocol,
+            client_id,
+            role,
+            token,
+            issued_at_unix_ms,
+        };
+        validate_credential(&credential).map_err(|_| AuthorityError::CredentialRejected)?;
+        Ok(credential)
+    })();
+    if parsed.is_err() {
+        zeroize_json_map(&mut arguments);
+    }
+    parsed
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LocalSession {
+    pub protocol: String,
+    pub id: String,
+    pub client_id: String,
+    pub role: LocalClientRole,
+    pub label: String,
+    pub opened_at_unix_ms: u64,
+    pub expires_at_unix_ms: u64,
+    pub remaining_requests: u32,
+}
+
+pub fn validate_local_session(
+    session: &LocalSession,
+    expected_client_id: &str,
+    expected_role: LocalClientRole,
+) -> Result<(), AuthorityError> {
+    let valid = session.protocol == LOCAL_SESSION_PROTOCOL
+        && valid_session_id(&session.id)
+        && session.client_id == expected_client_id
+        && valid_client_id(&session.client_id)
+        && session.role == expected_role
+        && normalize_label(&session.label).is_ok()
+        && session.opened_at_unix_ms > 0
+        && session.expires_at_unix_ms > session.opened_at_unix_ms
+        && session.expires_at_unix_ms - session.opened_at_unix_ms <= 24 * 60 * 60 * 1000
+        && (1..=1024).contains(&session.remaining_requests);
+    if valid {
+        Ok(())
+    } else {
+        Err(AuthorityError::CredentialRejected)
+    }
+}
+
+pub fn new_local_session(
+    client: &LocalClient,
+    opened_at_unix_ms: u64,
+    ttl_ms: u64,
+    maximum_requests: u32,
+) -> Result<LocalSession, AuthorityError> {
+    if client.revoked_at_unix_ms.is_some() || !valid_client_id(&client.id) {
+        return Err(AuthorityError::CredentialRejected);
+    }
+    validate_timestamp(opened_at_unix_ms)?;
+    if ttl_ms == 0 || ttl_ms > 24 * 60 * 60 * 1000 {
+        return Err(AuthorityError::Invalid(
+            "local session lifetime is outside its bound".to_owned(),
+        ));
+    }
+    if maximum_requests == 0 || maximum_requests > 1024 {
+        return Err(AuthorityError::Invalid(
+            "local session request budget is outside its bound".to_owned(),
+        ));
+    }
+    let expires_at_unix_ms = opened_at_unix_ms
+        .checked_add(ttl_ms)
+        .ok_or_else(|| AuthorityError::Invalid("local session expiry overflowed".to_owned()))?;
+    let session = LocalSession {
+        protocol: LOCAL_SESSION_PROTOCOL.to_owned(),
+        id: new_session_id()?,
+        client_id: client.id.clone(),
+        role: client.role,
+        label: client.label.clone(),
+        opened_at_unix_ms,
+        expires_at_unix_ms,
+        remaining_requests: maximum_requests,
+    };
+    validate_local_session(&session, &client.id, client.role)?;
+    Ok(session)
 }
 
 #[derive(Debug)]
@@ -303,7 +437,7 @@ impl LocalClientRegistry {
             return Err(error);
         }
         self.state = next;
-        self.client(&id)
+        self.get(&id)
     }
 
     pub fn revoke(
@@ -339,7 +473,7 @@ impl LocalClientRegistry {
         next.clients[index].revoked_at_unix_ms = Some(observed_at_unix_ms);
         persist_registry(&self.path, &next)?;
         self.state = next;
-        self.client(&id)
+        self.get(&id)
     }
 
     pub fn verify_credential(
@@ -363,7 +497,8 @@ impl LocalClientRegistry {
         Ok(client.public())
     }
 
-    fn client(&self, id: &str) -> Result<LocalClient, AuthorityError> {
+    pub fn get(&self, id: &str) -> Result<LocalClient, AuthorityError> {
+        let id = normalize_client_id(id)?;
         self.state
             .clients
             .iter()
@@ -539,6 +674,48 @@ fn persist_registry(path: &Path, registry: &ClientRegistryState) -> Result<(), A
     Ok(())
 }
 
+fn take_string(arguments: &mut Map<String, Value>, key: &str) -> Result<String, AuthorityError> {
+    match arguments.remove(key) {
+        Some(Value::String(value)) => Ok(value),
+        Some(mut value) => {
+            zeroize_json_value(&mut value);
+            Err(AuthorityError::CredentialRejected)
+        }
+        None => Err(AuthorityError::CredentialRejected),
+    }
+}
+
+fn take_u64(arguments: &mut Map<String, Value>, key: &str) -> Result<u64, AuthorityError> {
+    match arguments.remove(key) {
+        Some(Value::Number(value)) => value.as_u64().ok_or(AuthorityError::CredentialRejected),
+        Some(mut value) => {
+            zeroize_json_value(&mut value);
+            Err(AuthorityError::CredentialRejected)
+        }
+        None => Err(AuthorityError::CredentialRejected),
+    }
+}
+
+fn zeroize_json_map(arguments: &mut Map<String, Value>) {
+    for value in arguments.values_mut() {
+        zeroize_json_value(value);
+    }
+    arguments.clear();
+}
+
+fn zeroize_json_value(value: &mut Value) {
+    match value {
+        Value::String(value) => value.zeroize(),
+        Value::Array(values) => {
+            for value in values {
+                zeroize_json_value(value);
+            }
+        }
+        Value::Object(values) => zeroize_json_map(values),
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
+}
+
 fn validate_credential(credential: &LocalClientCredential) -> Result<(), AuthorityError> {
     if credential.protocol != LOCAL_CLIENT_CREDENTIAL_PROTOCOL
         || normalize_client_id(&credential.client_id)? != credential.client_id
@@ -552,13 +729,20 @@ fn validate_credential(credential: &LocalClientCredential) -> Result<(), Authori
     Ok(())
 }
 
+pub fn valid_client_id(value: &str) -> bool {
+    value
+        .strip_prefix(CLIENT_ID_PREFIX)
+        .is_some_and(|suffix| suffix.len() == 32 && suffix.bytes().all(is_lower_hex))
+}
+
+pub fn valid_session_id(value: &str) -> bool {
+    value
+        .strip_prefix(SESSION_ID_PREFIX)
+        .is_some_and(|suffix| suffix.len() == 32 && suffix.bytes().all(is_lower_hex))
+}
+
 fn normalize_client_id(value: &str) -> Result<String, AuthorityError> {
-    let Some(suffix) = value.strip_prefix(CLIENT_ID_PREFIX) else {
-        return Err(AuthorityError::Invalid(
-            "local client id is invalid".to_owned(),
-        ));
-    };
-    if suffix.len() != 32 || !suffix.bytes().all(is_lower_hex) {
+    if !valid_client_id(value) {
         return Err(AuthorityError::Invalid(
             "local client id is invalid".to_owned(),
         ));
@@ -603,6 +787,14 @@ fn new_client_id() -> Result<String, AuthorityError> {
         AuthorityError::Invalid("secure client-id randomness is unavailable".to_owned())
     })?;
     Ok(format!("{CLIENT_ID_PREFIX}{}", lower_hex(&bytes)))
+}
+
+fn new_session_id() -> Result<String, AuthorityError> {
+    let mut bytes = [0_u8; 16];
+    getrandom(&mut bytes).map_err(|_| {
+        AuthorityError::Invalid("secure session-id randomness is unavailable".to_owned())
+    })?;
+    Ok(format!("{SESSION_ID_PREFIX}{}", lower_hex(&bytes)))
 }
 
 fn new_client_token() -> Result<String, AuthorityError> {
@@ -809,6 +1001,57 @@ mod tests {
         )
         .expect("tampered registry should write");
         assert!(LocalClientRegistry::open(home.registry()).is_err());
+    }
+
+    #[test]
+    fn creates_a_bounded_session_without_copying_the_credential() {
+        let client = LocalClient {
+            protocol: LOCAL_CLIENT_PROTOCOL.to_owned(),
+            id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::BrowserBridge,
+            label: "Chrome bridge".to_owned(),
+            created_at_unix_ms: 1_000,
+            revoked_at_unix_ms: None,
+        };
+        let session =
+            new_local_session(&client, 2_000, 300_000, 128).expect("session should be created");
+        assert!(valid_session_id(&session.id));
+        assert_eq!(session.client_id, client.id);
+        assert_eq!(session.role, LocalClientRole::BrowserBridge);
+        assert_eq!(session.expires_at_unix_ms, 302_000);
+        assert_eq!(session.remaining_requests, 128);
+        let encoded = serde_json::to_string(&session).expect("session should encode");
+        assert!(!encoded.contains(TOKEN_PREFIX));
+        validate_local_session(&session, &client.id, client.role).expect("session should validate");
+        let mut changed = session.clone();
+        changed.protocol = "greenways-local-session/changed".to_owned();
+        assert!(validate_local_session(&changed, &client.id, client.role).is_err());
+        assert!(new_local_session(&client, 2_000, 0, 128).is_err());
+        assert!(new_local_session(&client, 2_000, 300_000, 0).is_err());
+    }
+
+    #[test]
+    fn moves_a_session_credential_through_one_closed_argument_map() {
+        let credential = LocalClientCredential {
+            protocol: LOCAL_CLIENT_CREDENTIAL_PROTOCOL.to_owned(),
+            client_id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::Cli,
+            token: "gwc_0000000000000000000000000000000000000000000000000000000000000000"
+                .to_owned(),
+            issued_at_unix_ms: 1_000,
+        };
+        let arguments = credential.into_session_arguments();
+        let parsed = parse_local_client_credential_arguments(arguments)
+            .expect("credential arguments should parse");
+        assert_eq!(parsed.role, LocalClientRole::Cli);
+        assert!(validate_token(&parsed.token));
+
+        let mut extra = parsed.into_session_arguments();
+        extra.insert("authority".to_owned(), Value::String("root".to_owned()));
+        assert!(matches!(
+            parse_local_client_credential_arguments(extra),
+            Err(AuthorityError::CredentialRejected)
+        ));
     }
 
     #[test]

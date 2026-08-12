@@ -92,8 +92,19 @@ Issuance and revocation require `greenwaysd` to be stopped so the offline admini
 - A changed token, role, issue time, or client ID is rejected with one non-diagnostic credential error.
 - Registry and credential files are closed, versioned, bounded, atomically written, and private to the operating-system user.
 
-## Current exclusion
+## Authenticated connection sessions
 
-This slice creates durable enrolment only. It does not yet authenticate socket requests or expose privileged operations.
+An enrolled credential may now open `client.session.open` as a connection-level operation. The credential is verified against daemon authority and immediately dropped; its token is never copied into the session or durable receipt.
 
-The next slice will add a connection-bound, expiring `greenways-local-session/0-alpha` created from a valid credential. Session authority will be derived from the daemon registry, never from caller JSON.
+The returned `greenways-local-session/0-alpha` projection contains only the session ID, daemon-derived client ID and role, label, opening/expiry times, and bounded remaining-request count. The session remains attached to that Unix connection, expires after five minutes, and permits at most 128 requests.
+
+The first authenticated semantic operations are:
+
+```text
+client.whoami
+authority.clients.list
+```
+
+`client.whoami` is available to every enrolled role. `authority.clients.list` is available only to Desktop, CLI, and explicit Developer roles; the browser bridge is denied.
+
+Durable request receipts now bind replay ownership to the authenticated client ID and fixed role. Reusing the same request ID from another client is a collision even when the semantic request bytes are identical. Session establishment is never persisted because it contains the credential proof.
