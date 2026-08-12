@@ -52,76 +52,75 @@ jobs:
 
           operations[23] = (
               'crates/greenways-local/src/lib.rs',
-              '''    pub fn clients(&mut self) -> Result<LocalResponse, LocalError> {
-                  self.send(&LocalRequest::clients_list(new_request_id()?))
-              }
-
-              pub fn send(''',
-              '''    pub fn clients(&mut self) -> Result<LocalResponse, LocalError> {
-                  self.send(&LocalRequest::clients_list(new_request_id()?))
-              }
-
-              pub fn invoke(
-                  &mut self,
-                  invocation: ProviderInvocation,
-              ) -> Result<LocalResponse, LocalError> {
-                  self.send(&LocalRequest::provider_invoke(
-                      new_request_id()?,
-                      invocation,
-                  )?)
-              }
-
-              pub fn send(''',
+              '    pub fn clients(&mut self) -> Result<LocalResponse, LocalError> {\n'
+              '        self.send(&LocalRequest::clients_list(new_request_id()?))\n'
+              '    }\n\n'
+              '    pub fn send(',
+              '    pub fn clients(&mut self) -> Result<LocalResponse, LocalError> {\n'
+              '        self.send(&LocalRequest::clients_list(new_request_id()?))\n'
+              '    }\n\n'
+              '    pub fn invoke(\n'
+              '        &mut self,\n'
+              '        invocation: ProviderInvocation,\n'
+              '    ) -> Result<LocalResponse, LocalError> {\n'
+              '        self.send(&LocalRequest::provider_invoke(\n'
+              '            new_request_id()?,\n'
+              '            invocation,\n'
+              '        )?)\n'
+              '    }\n\n'
+              '    pub fn send(',
           )
           operations[25] = (
               'services/greenwaysd/src/lib.rs',
-              '''use greenways_authority::{
-                  new_local_session,''',
-              '''mod provider;
+              'use greenways_authority::{\n    new_local_session,',
+              'mod provider;\n\nuse greenways_authority::{\n    new_local_session,',
+          )
 
-              use greenways_authority::{
-                  new_local_session,''',
+          old_authority = (
+              '        if request.operation == "authority.clients.list"\n'
+              '            && actor\n'
+              '                .as_ref()\n'
+              '                .is_some_and(|actor| !role_may_list_clients(actor.role))\n'
+              '        {\n'
+              '            return Ok(LocalResponse::error(\n'
+              '                request.request_id,\n'
+              '                "authority-denied",\n'
+              '                "This local client role cannot inspect Greenways authority state.",\n'
+              '            ));\n'
+              '        }\n'
+              '        let digest = request_digest(&request)?;'
+          )
+          new_authority = (
+              '        if request.operation == "authority.clients.list"\n'
+              '            && actor\n'
+              '                .as_ref()\n'
+              '                .is_some_and(|actor| !role_may_list_clients(actor.role))\n'
+              '        {\n'
+              '            return Ok(LocalResponse::error(\n'
+              '                request.request_id,\n'
+              '                "authority-denied",\n'
+              '                "This local client role cannot inspect Greenways authority state.",\n'
+              '            ));\n'
+              '        }\n'
+              '        if request.operation == "provider.invoke" {\n'
+              '            let actor = actor.ok_or_else(|| {\n'
+              '                DaemonError::State("authenticated provider request has no actor".to_owned())\n'
+              '            })?;\n'
+              '            if !role_may_invoke_provider(actor.role) {\n'
+              '                return Ok(LocalResponse::error(\n'
+              '                    request.request_id,\n'
+              '                    "authority-denied",\n'
+              '                    "This local client role cannot invoke daemon provider credentials.",\n'
+              '                ));\n'
+              '            }\n'
+              '            return self.handle_provider_invocation_at(request, actor, observed_at_unix_ms);\n'
+              '        }\n\n'
+              '        let digest = request_digest(&request)?;'
           )
           operations[29] = (
               'services/greenwaysd/src/lib.rs',
-              '''        if request.operation == "authority.clients.list"
-                  && actor
-                      .as_ref()
-                      .is_some_and(|actor| !role_may_list_clients(actor.role))
-              {
-                  return Ok(LocalResponse::error(
-                      request.request_id,
-                      "authority-denied",
-                      "This local client role cannot inspect Greenways authority state.",
-                  ));
-              }
-              let digest = request_digest(&request)?;''',
-              '''        if request.operation == "authority.clients.list"
-                  && actor
-                      .as_ref()
-                      .is_some_and(|actor| !role_may_list_clients(actor.role))
-              {
-                  return Ok(LocalResponse::error(
-                      request.request_id,
-                      "authority-denied",
-                      "This local client role cannot inspect Greenways authority state.",
-                  ));
-              }
-              if request.operation == "provider.invoke" {
-                  let actor = actor.ok_or_else(|| {
-                      DaemonError::State("authenticated provider request has no actor".to_owned())
-                  })?;
-                  if !role_may_invoke_provider(actor.role) {
-                      return Ok(LocalResponse::error(
-                          request.request_id,
-                          "authority-denied",
-                          "This local client role cannot invoke daemon provider credentials.",
-                      ));
-                  }
-                  return self.handle_provider_invocation_at(request, actor, observed_at_unix_ms);
-              }
-
-              let digest = request_digest(&request)?;''',
+              old_authority,
+              new_authority,
           )
 
           operation_assignment.value = ast.parse(repr(operations), mode='eval').body
