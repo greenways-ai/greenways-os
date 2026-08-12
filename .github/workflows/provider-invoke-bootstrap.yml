@@ -17,14 +17,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct and apply provider invocation slice
+      - name: Reconstruct and reconcile provider invocation slice
         run: |
           cat .github/agent/provider-invoke/apply.gz.b64.part-* \
             | base64 --decode \
             | gzip --decompress \
             > /tmp/provider-invoke-apply.py
           python - <<'PY'
+          import ast
           from pathlib import Path
+
           path = Path('/tmp/provider-invoke-apply.py')
           source = path.read_text()
           old = 'Session opening requires one credential object.'
@@ -34,6 +36,29 @@ jobs:
           source = source.replace(old, new, 1)
           source = source.replace(r"b\'\r\'", r"b\'\\r\'")
           source = source.replace(r"b\'\n\'", r"b\'\\n\'")
+
+          module = ast.parse(source)
+          operations = None
+          for node in module.body:
+              if isinstance(node, ast.Assign) and any(
+                  isinstance(target, ast.Name) and target.id == 'OPERATIONS'
+                  for target in node.targets
+              ):
+                  operations = ast.literal_eval(node.value)
+                  break
+          if operations is None:
+              raise SystemExit('bootstrap operations were not found')
+
+          missing = []
+          for index, (filename, expected, _) in enumerate(operations):
+              count = Path(filename).read_text().count(expected)
+              if count != 1:
+                  missing.append((index, filename, count, expected[:140]))
+          if missing:
+              for index, filename, count, expected in missing:
+                  print(f'MISSING[{index}] {filename}: count={count}: {expected!r}')
+              raise SystemExit(f'{len(missing)} exact replacement markers require reconciliation')
+
           path.write_text(source)
           PY
           python /tmp/provider-invoke-apply.py
