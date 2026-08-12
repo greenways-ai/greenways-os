@@ -31,7 +31,10 @@ jobs:
           new = 'Local session opening requires one credential object.'
           if old not in source:
               raise SystemExit('stale session-error marker was not found')
-          path.write_text(source.replace(old, new, 1))
+          source = source.replace(old, new, 1)
+          source = source.replace(r"b\'\r\'", r"b\'\\r\'")
+          source = source.replace(r"b\'\n\'", r"b\'\\n\'")
+          path.write_text(source)
           PY
           python /tmp/provider-invoke-apply.py
 
