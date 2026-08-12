@@ -68,20 +68,22 @@ jobs:
 
           path = Path('crates/greenways-identity/src/lib.rs')
           text = path.read_text()
-          old = '''        assert_eq!(
-              vault.status().typed_subjects,
-              vec![PROFILE_IDENTITY_SUBJECT_PROTOCOL.to_owned()]
-          );
-          '''
-          new = '''        assert_eq!(
-              vault.status().typed_subjects,
-              vec![
-                  PROFILE_IDENTITY_SUBJECT_PROTOCOL.to_owned(),
-                  CAPABILITY_GRANT_SUBJECT_PROTOCOL.to_owned(),
-                  CAPABILITY_REVOCATION_SUBJECT_PROTOCOL.to_owned(),
-              ]
-          );
-          '''
+          old = (
+              "        assert_eq!(\n"
+              "            vault.status().typed_subjects,\n"
+              "            vec![PROFILE_IDENTITY_SUBJECT_PROTOCOL.to_owned()]\n"
+              "        );\n"
+          )
+          new = (
+              "        assert_eq!(\n"
+              "            vault.status().typed_subjects,\n"
+              "            vec![\n"
+              "                PROFILE_IDENTITY_SUBJECT_PROTOCOL.to_owned(),\n"
+              "                CAPABILITY_GRANT_SUBJECT_PROTOCOL.to_owned(),\n"
+              "                CAPABILITY_REVOCATION_SUBJECT_PROTOCOL.to_owned(),\n"
+              "            ]\n"
+              "        );\n"
+          )
           if text.count(old) != 1:
               raise SystemExit('identity typed-subject test anchor was not found exactly once')
           path.write_text(text.replace(old, new, 1))
