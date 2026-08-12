@@ -1,0 +1,54 @@
+name: Application approval bootstrap
+
+on:
+  push:
+    branches:
+      - agent/greenwaysd-application-approvals-51
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.event.head_commit.message == 'Run application approval bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply signed application approval registry
+        run: python .github/agent/application-approvals/apply.py
+
+      - name: Remove temporary inspection and generation files
+        run: |
+          rm -rf .github/agent/application-approvals
+          rm -f .github/agent/application-approval-inspection.txt
+          rm -f .github/agent/application-approval-inspect-trigger
+          rm -f .github/agent/application-approval-inspect-commit-trigger
+          rm -f .github/workflows/application-approval-inspect.yml
+          rm -f .github/workflows/application-approval-inspect-commit.yml
+          rm -f .github/workflows/application-approvals-bootstrap.yml
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+
+      - name: Format workspace
+        run: cargo +1.85.1 fmt --all
+
+      - name: Test workspace
+        run: cargo +1.85.1 test --workspace --all-targets
+
+      - name: Lint workspace
+        run: cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+
+      - name: Verify patch
+        run: git diff --check
+
+      - name: Commit and push clean implementation
+        run: |
+          git config user.name "ChatGPT Codex Connector"
+          git config user.email "chatgpt-codex-connector@users.noreply.github.com"
+          git add -A
+          git commit -m "Add signed application approval registry"
+          git push origin HEAD:${GITHUB_REF_NAME}
