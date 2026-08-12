@@ -1,0 +1,51 @@
+name: Capability authority reads bootstrap
+
+on:
+  push:
+    branches:
+      - agent/greenwaysd-capability-reads-51
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Run capability authority reads bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/greenwaysd-capability-reads-51
+          fetch-depth: 0
+
+      - name: Apply authenticated capability reads
+        run: python3 .github/agent/capability-reads/apply.py
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+
+      - name: Validate exact final source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.85.1 fmt --all
+          cargo +1.85.1 fmt --all -- --check
+          cargo +1.85.1 test --workspace --all-targets
+          cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+          git diff --check
+
+      - name: Remove bootstrap files
+        run: |
+          rm -rf .github/agent/capability-reads
+          rm -f .github/workflows/capability-reads-bootstrap.yml
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name 'greenways-os-ci'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add authenticated capability authority reads' -m 'Expose role-scoped capability status and list projections. Refs #51.'
+          git push origin HEAD:agent/greenwaysd-capability-reads-51
