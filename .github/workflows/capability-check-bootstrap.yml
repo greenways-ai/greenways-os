@@ -18,9 +18,14 @@ jobs:
           ref: agent/greenwaysd-capability-check-51
           fetch-depth: 0
 
-      - name: Decode and apply the exact capability decision slice
+      - name: Reassemble and verify the exact capability decision patch
+        shell: bash
         run: |
-          base64 --decode .github/agent/capability-check/apply.py.gz.b64 | gzip --decompress > /tmp/capability-check-apply.py
+          set -euo pipefail
+          cat .github/agent/capability-check/part-* > /tmp/capability-check-apply.py.gz.b64
+          echo 'db2dabe00402d03c2b137472d638383022b1827740332e2cedfd857fa4719571  /tmp/capability-check-apply.py.gz.b64' | sha256sum --check --strict
+          base64 --decode /tmp/capability-check-apply.py.gz.b64 | gzip --decompress > /tmp/capability-check-apply.py
+          echo 'f54418ad5522b4af11bedf5528fa87ef78ada924d88fef1f55109a941a8c01b7  /tmp/capability-check-apply.py' | sha256sum --check --strict
           python3 /tmp/capability-check-apply.py
 
       - name: Install pinned Rust toolchain
