@@ -1,0 +1,102 @@
+name: Daemon capability runtime bootstrap
+
+on:
+  push:
+    branches:
+      - agent/greenwaysd-capability-runtime-51
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Run daemon capability runtime bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Materialize reviewed runtime generators
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github/agent/capability-ipc .github/agent/capability-admin
+          git show 6b8513376915f33654764d2ceaac84a0a51d3f5e:.github/agent/capability-ipc/apply.py > .github/agent/capability-ipc/apply.py
+          git show 6b8513376915f33654764d2ceaac84a0a51d3f5e:.github/agent/capability-admin/apply.py > .github/agent/capability-admin/apply.py
+
+      - name: Adapt generators to current daemon and CLI boundaries
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          ipc = Path('.github/agent/capability-ipc/apply.py')
+          text = ipc.read_text()
+          replacements = [
+              (
+                  "'''            Self::Whoami | Self::Clients | Self::IdentityStatus | Self::IdentityCard\n'''",
+                  "'''            Self::Vault\n                | Self::Whoami\n                | Self::Clients\n                | Self::Invoke\n                | Self::IdentityStatus\n                | Self::IdentityCard\n'''",
+              ),
+              (
+                  "'''            Self::Whoami\n                | Self::Clients\n                | Self::IdentityStatus\n                | Self::IdentityCard\n                | Self::CapabilitiesStatus\n                | Self::Capabilities\n'''",
+                  "'''            Self::Vault\n                | Self::Whoami\n                | Self::Clients\n                | Self::Invoke\n                | Self::IdentityStatus\n                | Self::IdentityCard\n                | Self::CapabilitiesStatus\n                | Self::Capabilities\n'''",
+              ),
+              (
+                  "'''            \"--credential is required for whoami, clients, and identity commands\".to_owned(),\n'''",
+                  "'''            \"--credential is required for vault, whoami, clients, invoke, and identity commands\"\n                .to_owned(),\n'''",
+              ),
+              (
+                  "'''            \"--credential is required for whoami, clients, identity, and capability commands\"\n                .to_owned(),\n'''",
+                  "'''            \"--credential is required for vault, whoami, clients, invoke, identity, and capability commands\"\n                .to_owned(),\n'''",
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'capability IPC compatibility anchor count {count}: {old[:100]!r}')
+              text = text.replace(old, new)
+          ipc.write_text(text)
+
+          admin = Path('.github/agent/capability-admin/apply.py')
+          text = admin.read_text()
+          old = "'''use greenways_identity::{\n    ProfileIdentityStatus, ProfileIdentityVault, SignedProfileIdentity,\n};\nuse greenways_local::GreenwaysPaths;\n'''"
+          new = "'''use greenways_identity::{ProfileIdentityStatus, ProfileIdentityVault, SignedProfileIdentity};\nuse greenways_local::GreenwaysPaths;\n'''"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'capability admin import anchor count {count}')
+          admin.write_text(text.replace(old, new))
+          PY
+
+      - name: Apply authenticated daemon reads and offline administration
+        run: |
+          python .github/agent/capability-ipc/apply.py
+          python .github/agent/capability-admin/apply.py
+
+      - name: Remove temporary generators and bootstrap workflow
+        run: |
+          rm -rf .github/agent/capability-ipc
+          rm -rf .github/agent/capability-admin
+          rm -f .github/workflows/capability-runtime-bootstrap.yml
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+
+      - name: Format workspace
+        run: cargo +1.85.1 fmt --all
+
+      - name: Test workspace
+        run: cargo +1.85.1 test --workspace --all-targets
+
+      - name: Lint workspace
+        run: cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+
+      - name: Verify patch
+        run: git diff --check
+
+      - name: Commit and push clean implementation
+        run: |
+          git config user.name "ChatGPT Codex Connector"
+          git config user.email "chatgpt-codex-connector@users.noreply.github.com"
+          git add -A
+          git commit -m "Wire daemon capability authority"
+          git push origin HEAD:${GITHUB_REF_NAME}
