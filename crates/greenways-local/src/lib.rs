@@ -2,6 +2,7 @@ use greenways_authority::{
     read_credential_file, validate_local_session, AuthorityError, LocalClient as AuthorityClient,
     LocalClientCredential, LocalSession,
 };
+use greenways_capabilities::{CapabilityDecision, CheckCapability};
 use greenways_protocol::{
     decode_response, encode_request_line, new_request_id, LocalRequest, LocalResponse, Outcome,
     ProtocolError, MAX_RESPONSE_BYTES,
@@ -249,6 +250,13 @@ impl AuthenticatedLocalClient {
         self.send(&LocalRequest::capabilities_list(new_request_id()?))
     }
 
+    pub fn capability_check(
+        &mut self,
+        check: CheckCapability,
+    ) -> Result<LocalResponse, LocalError> {
+        self.send(&LocalRequest::capabilities_check(new_request_id()?, check)?)
+    }
+
     pub fn send(&mut self, request: &LocalRequest) -> Result<LocalResponse, LocalError> {
         if request.operation == "client.session.open" {
             return Err(LocalError::AuthenticationRejected);
@@ -403,6 +411,20 @@ pub fn decode_clients(response: &LocalResponse) -> Result<Vec<AuthorityClient>, 
         .map_err(LocalError::from)
 }
 
+pub fn decode_capability_decision(
+    response: &LocalResponse,
+) -> Result<CapabilityDecision, LocalError> {
+    if response.outcome != Outcome::Ok {
+        return Err(LocalError::AuthenticationRejected);
+    }
+    let decision: CapabilityDecision =
+        serde_json::from_value(response.value.clone().ok_or(LocalError::ResponseMismatch)?)?;
+    if decision.protocol != greenways_capabilities::CAPABILITY_DECISION_PROTOCOL {
+        return Err(LocalError::ResponseMismatch);
+    }
+    Ok(decision)
+}
+
 pub fn decode_provider_result(response: &LocalResponse) -> Result<ProviderResult, LocalError> {
     if response.outcome != Outcome::Ok {
         return Err(LocalError::AuthenticationRejected);
@@ -430,6 +452,42 @@ mod tests {
             paths.socket_file,
             PathBuf::from("/tmp/greenways-test/run/greenwaysd.sock")
         );
+    }
+
+    #[test]
+    fn decodes_only_the_closed_capability_decision_protocol() {
+        let response = LocalResponse::ok(
+            "local/request/capcheck001",
+            serde_json::json!({
+                "protocol": "greenways-capability-decision/0-alpha",
+                "allowed": false,
+                "reason": "approval-not-found",
+                "grantId": null,
+                "grantSubjectRoot": null,
+                "capability": "model/generate",
+                "approvalDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+                "observedAtUnixMs": 1
+            }),
+        );
+        assert!(
+            !decode_capability_decision(&response)
+                .expect("decision should decode")
+                .allowed
+        );
+        let changed = LocalResponse::ok(
+            "local/request/capcheck002",
+            serde_json::json!({
+                "protocol": "other/1",
+                "allowed": false,
+                "reason": "approval-not-found",
+                "grantId": null,
+                "grantSubjectRoot": null,
+                "capability": "model/generate",
+                "approvalDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+                "observedAtUnixMs": 1
+            }),
+        );
+        assert!(decode_capability_decision(&changed).is_err());
     }
 
     #[test]

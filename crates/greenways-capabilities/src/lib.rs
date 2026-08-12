@@ -1,11 +1,12 @@
 use greenways_identity::{
-    new_capability_grant_id, new_capability_revocation_id, validate_application_approval_subject,
-    verify_signed_capability_grant, verify_signed_capability_revocation,
-    ApplicationApprovalSubject, CapabilityConstraintValue, CapabilityGrantRequest,
-    CapabilityRevocationRequest, ProfileIdentityVault, SignedCapabilityGrant,
-    SignedCapabilityRevocation,
+    new_capability_grant_id, new_capability_revocation_id, normalize_operation_capability,
+    validate_application_approval_subject, verify_signed_capability_grant,
+    verify_signed_capability_revocation, ApplicationApprovalSubject, CapabilityConstraintValue,
+    CapabilityGrantRequest, CapabilityRevocationRequest, ProfileIdentityVault,
+    SignedCapabilityGrant, SignedCapabilityRevocation,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, HashSet},
     error::Error,
@@ -21,6 +22,7 @@ pub const CAPABILITY_AUTHORITY_STATE_PROTOCOL: &str =
 pub const CAPABILITY_AUTHORITY_STATUS_PROTOCOL: &str =
     "greenways-capability-authority-status/0-alpha";
 pub const CAPABILITY_DECISION_PROTOCOL: &str = "greenways-capability-decision/0-alpha";
+pub const CAPABILITY_CHECK_PROTOCOL: &str = "greenways-capability-check/0-alpha";
 
 const MAX_STATE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_GRANTS: usize = 512;
@@ -97,6 +99,56 @@ const DEFINITIONS: &[CapabilityDefinition] = &[
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CheckCapability {
+    pub protocol: String,
+    pub subject: ApplicationApprovalSubject,
+    pub capability: String,
+}
+
+impl CheckCapability {
+    pub fn new(
+        subject: ApplicationApprovalSubject,
+        capability: impl AsRef<str>,
+    ) -> Result<Self, CapabilityError> {
+        let check = Self {
+            protocol: CAPABILITY_CHECK_PROTOCOL.to_owned(),
+            subject,
+            capability: normalize_capability(capability.as_ref())?,
+        };
+        check.validate()?;
+        Ok(check)
+    }
+
+    pub fn validate(&self) -> Result<(), CapabilityError> {
+        validate_application_approval_subject(&self.subject)?;
+        if self.protocol != CAPABILITY_CHECK_PROTOCOL
+            || normalize_capability(&self.capability)? != self.capability
+        {
+            return Err(CapabilityError::Invalid(
+                "capability check is invalid".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn into_arguments(self) -> Result<Map<String, Value>, CapabilityError> {
+        match serde_json::to_value(self)? {
+            Value::Object(arguments) => Ok(arguments),
+            _ => Err(CapabilityError::Invalid(
+                "capability check arguments are invalid".to_owned(),
+            )),
+        }
+    }
+
+    pub fn from_arguments(arguments: &Map<String, Value>) -> Result<Self, CapabilityError> {
+        let check: Self = serde_json::from_value(Value::Object(arguments.clone()))?;
+        check.validate()?;
+        Ok(check)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IssueCapabilityGrant {
     pub capability: String,
     pub subject: ApplicationApprovalSubject,
@@ -135,9 +187,42 @@ pub struct CapabilityDecision {
     pub allowed: bool,
     pub reason: String,
     pub grant_id: Option<String>,
+    pub grant_subject_root: Option<String>,
     pub capability: String,
     pub approval_digest: String,
     pub observed_at_unix_ms: u64,
+}
+
+impl CapabilityDecision {
+    pub fn denied(
+        check: &CheckCapability,
+        reason: &str,
+        observed_at_unix_ms: u64,
+    ) -> Result<Self, CapabilityError> {
+        check.validate()?;
+        validate_timestamp(observed_at_unix_ms, "capability decision time")?;
+        if !matches!(
+            reason,
+            "approval-not-found"
+                | "approval-subject-mismatch"
+                | "approval-revoked"
+                | "approval-not-yet-effective"
+                | "capability-not-declared"
+        ) {
+            return Err(CapabilityError::Invalid(
+                "application denial reason is unsupported".to_owned(),
+            ));
+        }
+        Ok(decision(
+            false,
+            reason,
+            None,
+            None,
+            check.capability.clone(),
+            &check.subject,
+            observed_at_unix_ms,
+        ))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -438,6 +523,15 @@ impl CapabilityAuthority {
         Ok(signed)
     }
 
+    pub fn check_request(
+        &self,
+        check: &CheckCapability,
+        observed_at_unix_ms: u64,
+    ) -> Result<CapabilityDecision, CapabilityError> {
+        check.validate()?;
+        self.check(&check.subject, &check.capability, observed_at_unix_ms)
+    }
+
     pub fn check(
         &self,
         subject: &ApplicationApprovalSubject,
@@ -451,6 +545,7 @@ impl CapabilityAuthority {
             return Ok(decision(
                 false,
                 "capability-not-grantable",
+                None,
                 None,
                 capability,
                 subject,
@@ -473,6 +568,7 @@ impl CapabilityAuthority {
                 false,
                 "no-current-grant",
                 None,
+                None,
                 capability,
                 subject,
                 observed_at_unix_ms,
@@ -488,6 +584,7 @@ impl CapabilityAuthority {
                 false,
                 "grant-revoked",
                 Some(grant.grant.id.clone()),
+                Some(grant.subject_root.clone()),
                 capability,
                 subject,
                 observed_at_unix_ms,
@@ -498,6 +595,7 @@ impl CapabilityAuthority {
                 false,
                 "grant-expired",
                 Some(grant.grant.id.clone()),
+                Some(grant.subject_root.clone()),
                 capability,
                 subject,
                 observed_at_unix_ms,
@@ -507,6 +605,7 @@ impl CapabilityAuthority {
             true,
             "granted",
             Some(grant.grant.id.clone()),
+            Some(grant.subject_root.clone()),
             capability,
             subject,
             observed_at_unix_ms,
@@ -518,6 +617,7 @@ fn decision(
     allowed: bool,
     reason: &str,
     grant_id: Option<String>,
+    grant_subject_root: Option<String>,
     capability: String,
     subject: &ApplicationApprovalSubject,
     observed_at_unix_ms: u64,
@@ -527,6 +627,7 @@ fn decision(
         allowed,
         reason: reason.to_owned(),
         grant_id,
+        grant_subject_root,
         capability,
         approval_digest: subject.approval_digest.clone(),
         observed_at_unix_ms,
@@ -692,27 +793,8 @@ fn publisher_is_trusted(definition: &CapabilityDefinition, publisher_id: &str) -
         || definition.trusted_publishers.contains(&publisher_id)
 }
 
-fn normalize_capability(value: &str) -> Result<String, CapabilityError> {
-    let value = value.trim().to_ascii_lowercase();
-    let mut parts = value.split('/');
-    let Some(left) = parts.next() else {
-        return Err(CapabilityError::Invalid("capability is invalid".to_owned()));
-    };
-    let Some(right) = parts.next() else {
-        return Err(CapabilityError::Invalid("capability is invalid".to_owned()));
-    };
-    if parts.next().is_some() || !valid_token(left) || !valid_token(right) {
-        return Err(CapabilityError::Invalid("capability is invalid".to_owned()));
-    }
-    Ok(value)
-}
-
-fn valid_token(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 80
-        && value.bytes().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
-        })
+pub fn normalize_capability(value: &str) -> Result<String, CapabilityError> {
+    normalize_operation_capability(value).map_err(CapabilityError::from)
 }
 
 fn validate_timestamp(value: u64, label: &str) -> Result<(), CapabilityError> {
@@ -838,6 +920,10 @@ mod tests {
             .expect("capability decision should complete");
         assert!(allowed.allowed);
         assert_eq!(allowed.grant_id.as_deref(), Some(grant.grant.id.as_str()));
+        assert_eq!(
+            allowed.grant_subject_root.as_deref(),
+            Some(grant.subject_root.as_str())
+        );
 
         let changed = subject(
             "hara-lang",
@@ -863,6 +949,32 @@ mod tests {
             authority.status(5_000).expect("status").revoked_grant_count,
             1
         );
+    }
+
+    #[test]
+    fn round_trips_one_closed_exact_capability_check() {
+        let approval = subject("hara-lang", DIGEST_TEST_VALUE);
+        let check = CheckCapability::new(approval.clone(), "Model/Generate")
+            .expect("check should normalize");
+        assert_eq!(check.capability, "model/generate");
+        let arguments = check
+            .clone()
+            .into_arguments()
+            .expect("arguments should encode");
+        assert_eq!(
+            CheckCapability::from_arguments(&arguments).expect("arguments should decode"),
+            check
+        );
+        let mut changed = arguments;
+        changed.insert("extra".to_owned(), Value::Bool(true));
+        assert!(CheckCapability::from_arguments(&changed).is_err());
+
+        let denial = CapabilityDecision::denied(&check, "approval-not-found", 3_000)
+            .expect("closed denial should build");
+        assert!(!denial.allowed);
+        assert_eq!(denial.approval_digest, approval.approval_digest);
+        assert!(denial.grant_id.is_none());
+        assert!(denial.grant_subject_root.is_none());
     }
 
     #[test]

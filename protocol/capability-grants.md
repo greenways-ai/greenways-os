@@ -1,6 +1,6 @@
 # Greenways daemon capability grants
 
-Status: signed authority-core slice for issue #51.
+Status: executable signed application-and-capability authority for issue #51 and repair issue #76.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ profile-key signed grant
           └── separate signed revocation
 ```
 
-This slice establishes record semantics and durable authority storage. Local IPC and administration are added in a subsequent integration PR.
+The daemon now combines this grant authority with the signed application approval registry. A grant is usable only after the exact application approval is active and the operation is present in its signed declared-capability set.
 
 ## Exact application subject
 
@@ -113,15 +113,24 @@ mcp/pair            greenways-ai
 
 A decision compares the complete current application subject and capability against signed records at an explicit observation time.
 
+The closed `greenways-capability-check/0-alpha` request contains exactly one application approval subject and one operation capability. `greenwaysd` first evaluates the signed application approval and only then evaluates the signed grant.
+
 Possible reasons are closed and non-secret:
 
 ```text
+approval-not-found
+approval-subject-mismatch
+approval-revoked
+approval-not-yet-effective
+capability-not-declared
 granted
 no-current-grant
 grant-expired
 grant-revoked
 capability-not-grantable
 ```
+
+An allowed decision also identifies the exact grant ID and grant subject root. Application denials contain no grant reference because grant lookup has not occurred.
 
 A grant for an old approval digest is not a partial match and is never carried to an update.
 
@@ -141,10 +150,12 @@ Corrupt or edited records fail closed during startup. No key material, key handl
 
 ## Signing boundary
 
-The profile key can now sign only three explicit subjects:
+The profile key can now sign only five explicit subjects:
 
 ```text
 greenways-profile-identity-subject/0-alpha
+greenways-application-approval-subject/0-alpha
+greenways-application-revocation-subject/0-alpha
 greenways-capability-grant-subject/0-alpha
 greenways-capability-revocation-subject/0-alpha
 ```
@@ -154,18 +165,22 @@ There remains no `crypto.sign`, `identity.sign`, arbitrary-byte signing, private
 
 ## Daemon read integration
 
-`greenwaysd` opens and validates the private capability authority file during startup. The first authenticated local operations are:
+`greenwaysd` opens and validates both the private application and capability authority files during startup. Authenticated local operations are:
 
 ```text
 capabilities.status
 capabilities.list
+capabilities.check
 ```
 
-Desktop, CLI, and explicit Developer roles may inspect these projections. The browser bridge cannot list or count authority records. Both operations are ordinary actor-bound daemon requests and therefore retain exact request replay and collision semantics.
+Desktop, CLI, and explicit Developer roles may inspect status and inventory. The browser bridge cannot list or count authority records, but it may request one exact `capabilities.check` decision for a reviewed application operation. All three remain actor-bound daemon requests with exact replay and request-ID collision semantics.
 
 
 ## Offline administration
 
-`greenways-admin capability issue` and `capability revoke` are the first mutation surfaces. Both require the daemon socket to be inactive before opening the identity and capability metadata files. Issuance accepts only the exact capability and application approval fields; arbitrary constraints are intentionally absent from the first CLI. Revocation accepts only an existing grant ID and bounded reason.
+`greenways-admin capability issue` and `capability revoke` are the first mutation surfaces. Both require the daemon socket to be inactive before opening the identity and capability metadata files. Issuance accepts only the exact capability and application approval fields; before signing, it reopens the signed application registry and requires an active exact approval that declared that capability. Arbitrary constraints are intentionally absent from the first CLI. Revocation accepts only an existing grant ID and bounded reason.
 
 The signed grant or revocation is committed before the command reports success. Re-running a revocation returns the existing immutable revocation. No corresponding mutation operation exists on ordinary local IPC.
+
+
+See [`application-approvals.md`](application-approvals.md) for the signed manifest, lock, declared-capability, and revocation authority that precedes every grant decision.

@@ -1,9 +1,13 @@
 use greenways_authority::LocalClient as AuthorityClient;
-use greenways_capabilities::{CapabilityAuthorityStatus, CapabilityGrantView};
-use greenways_identity::{ProfileIdentityStatus, SignedProfileIdentity};
+use greenways_capabilities::{
+    CapabilityAuthorityStatus, CapabilityDecision, CapabilityGrantView, CheckCapability,
+};
+use greenways_identity::{
+    ApplicationApprovalSubject, ProfileIdentityStatus, SignedProfileIdentity,
+};
 use greenways_local::{
-    decode_client, decode_clients, decode_provider_result, AuthenticatedLocalClient,
-    GreenwaysPaths, LocalClient,
+    decode_capability_decision, decode_client, decode_clients, decode_provider_result,
+    AuthenticatedLocalClient, GreenwaysPaths, LocalClient,
 };
 use greenways_protocol::{DaemonPaths, DaemonStatus, LocalResponse, Outcome, VaultStatus};
 use greenways_provider::{
@@ -29,6 +33,7 @@ enum Command {
     IdentityCard,
     CapabilitiesStatus,
     Capabilities,
+    CapabilityCheck,
 }
 
 impl Command {
@@ -43,6 +48,7 @@ impl Command {
                 | Self::IdentityCard
                 | Self::CapabilitiesStatus
                 | Self::Capabilities
+                | Self::CapabilityCheck
         )
     }
 }
@@ -56,6 +62,12 @@ struct Options {
     model: Option<String>,
     max_output_tokens: u32,
     timeout_ms: u64,
+    capability: Option<String>,
+    app_id: Option<String>,
+    app_version: Option<String>,
+    publisher_id: Option<String>,
+    approval_digest: Option<String>,
+    lock_digest: Option<String>,
     json: bool,
 }
 
@@ -102,6 +114,31 @@ fn run() -> Result<(), String> {
             Command::IdentityCard => client.identity_public_card(),
             Command::CapabilitiesStatus => client.capabilities_status(),
             Command::Capabilities => client.capabilities(),
+            Command::CapabilityCheck => {
+                let check = CheckCapability::new(
+                    ApplicationApprovalSubject {
+                        kind: "app".to_owned(),
+                        app_id: options
+                            .app_id
+                            .ok_or_else(|| "--app-id is required".to_owned())?,
+                        version: options
+                            .app_version
+                            .ok_or_else(|| "--app-version is required".to_owned())?,
+                        publisher_id: options
+                            .publisher_id
+                            .ok_or_else(|| "--publisher is required".to_owned())?,
+                        lock_digest: options.lock_digest,
+                        approval_digest: options
+                            .approval_digest
+                            .ok_or_else(|| "--approval-digest is required".to_owned())?,
+                    },
+                    options
+                        .capability
+                        .ok_or_else(|| "--capability is required".to_owned())?,
+                )
+                .map_err(|error| error.to_string())?;
+                client.capability_check(check)
+            }
             _ => unreachable!("credential command was already classified"),
         }
         .map_err(|error| error.to_string())?
@@ -143,6 +180,9 @@ fn run() -> Result<(), String> {
         Command::IdentityCard => print_identity_card(response)?,
         Command::CapabilitiesStatus => print_capabilities_status(response)?,
         Command::Capabilities => print_capabilities(response)?,
+        Command::CapabilityCheck => print_capability_decision(
+            decode_capability_decision(&response).map_err(|error| error.to_string())?,
+        ),
     }
     Ok(())
 }
@@ -322,6 +362,22 @@ fn print_capabilities(response: LocalResponse) -> Result<(), String> {
     Ok(())
 }
 
+fn print_capability_decision(decision: CapabilityDecision) {
+    println!("Greenways capability decision");
+    println!("  allowed:    {}", decision.allowed);
+    println!("  reason:     {}", decision.reason);
+    println!("  capability: {}", decision.capability);
+    println!("  approval:   {}", decision.approval_digest);
+    println!(
+        "  grant:      {}",
+        decision.grant_id.as_deref().unwrap_or("none")
+    );
+    println!(
+        "  grant root: {}",
+        decision.grant_subject_root.as_deref().unwrap_or("none")
+    );
+}
+
 fn print_client(prefix: &str, client: AuthorityClient) {
     let state = if client.revoked_at_unix_ms.is_some() {
         "revoked"
@@ -378,6 +434,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         Some("identity-card") => Command::IdentityCard,
         Some("capabilities-status") => Command::CapabilitiesStatus,
         Some("capabilities") => Command::Capabilities,
+        Some("capability-check") => Command::CapabilityCheck,
         Some("-h") | Some("--help") | None => {
             print_help();
             process::exit(0);
@@ -395,6 +452,12 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let mut model = None;
     let mut max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS;
     let mut timeout_ms = DEFAULT_TIMEOUT_MS;
+    let mut capability = None;
+    let mut app_id = None;
+    let mut app_version = None;
+    let mut publisher_id = None;
+    let mut approval_digest = None;
+    let mut lock_digest = None;
     let mut json = false;
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -440,6 +503,48 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                     .parse()
                     .map_err(|_| "--timeout-ms must be an integer".to_owned())?;
             }
+            "--capability" => {
+                capability = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--capability requires an operation".to_owned())?,
+                );
+            }
+            "--app-id" => {
+                app_id = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--app-id requires an application id".to_owned())?,
+                );
+            }
+            "--app-version" => {
+                app_version = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--app-version requires a version".to_owned())?,
+                );
+            }
+            "--publisher" => {
+                publisher_id = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--publisher requires a publisher id".to_owned())?,
+                );
+            }
+            "--approval-digest" => {
+                approval_digest = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--approval-digest requires sha256 evidence".to_owned())?,
+                );
+            }
+            "--lock-digest" => {
+                lock_digest = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--lock-digest requires sha256 evidence".to_owned())?,
+                );
+            }
             "--json" => json = true,
             "-h" | "--help" => {
                 print_help();
@@ -460,16 +565,52 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                 .to_owned(),
         );
     }
-    if matches!(command, Command::Invoke) {
-        if profile.is_none() || model.is_none() {
-            return Err("invoke requires --profile and --model".to_owned());
-        }
-    } else if profile.is_some()
+    let has_provider_fields = profile.is_some()
         || model.is_some()
         || max_output_tokens != DEFAULT_MAX_OUTPUT_TOKENS
-        || timeout_ms != DEFAULT_TIMEOUT_MS
-    {
-        return Err("provider selection and limits are accepted only by invoke".to_owned());
+        || timeout_ms != DEFAULT_TIMEOUT_MS;
+    let has_capability_fields = capability.is_some()
+        || app_id.is_some()
+        || app_version.is_some()
+        || publisher_id.is_some()
+        || approval_digest.is_some()
+        || lock_digest.is_some();
+    match command {
+        Command::Invoke => {
+            if profile.is_none() || model.is_none() {
+                return Err("invoke requires --profile and --model".to_owned());
+            }
+            if has_capability_fields {
+                return Err(
+                    "application authority fields are accepted only by capability-check".to_owned(),
+                );
+            }
+        }
+        Command::CapabilityCheck => {
+            if has_provider_fields {
+                return Err("provider selection and limits are accepted only by invoke".to_owned());
+            }
+            if capability.is_none()
+                || app_id.is_none()
+                || app_version.is_none()
+                || publisher_id.is_none()
+                || approval_digest.is_none()
+            {
+                return Err(
+                    "capability-check requires --capability, --app-id, --app-version, --publisher, and --approval-digest"
+                        .to_owned(),
+                );
+            }
+        }
+        _ if has_provider_fields => {
+            return Err("provider selection and limits are accepted only by invoke".to_owned());
+        }
+        _ if has_capability_fields => {
+            return Err(
+                "application authority fields are accepted only by capability-check".to_owned(),
+            );
+        }
+        _ => {}
     }
 
     Ok(Options {
@@ -480,6 +621,12 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         model,
         max_output_tokens,
         timeout_ms,
+        capability,
+        app_id,
+        app_version,
+        publisher_id,
+        approval_digest,
+        lock_digest,
         json,
     })
 }
@@ -497,6 +644,9 @@ greenways identity-status --credential PATH [--home PATH] [--json]
 greenways identity-card --credential PATH [--home PATH] [--json]
 greenways capabilities-status --credential PATH [--home PATH] [--json]
 greenways capabilities --credential PATH [--home PATH] [--json]
+greenways capability-check --credential PATH --capability OP --app-id ID \
+  --app-version VERSION --publisher PUBLISHER --approval-digest SHA256 \
+  [--lock-digest SHA256] [--home PATH] [--json]
          \n\
          Public reads use one-shot local IPC. Authority reads open a short-lived connection-bound\n\
          session from a private enrolled-client credential file. invoke reads one user prompt from\n\
@@ -522,9 +672,58 @@ mod tests {
         assert!(parse(&["identity-card"]).is_err());
         assert!(parse(&["capabilities-status"]).is_err());
         assert!(parse(&["capabilities"]).is_err());
+        assert!(parse(&["capability-check"]).is_err());
         assert!(parse(&["vault", "--credential", "/tmp/client.json"]).is_ok());
         assert!(parse(&["whoami", "--credential", "/tmp/client.json",]).is_ok());
         assert!(parse(&["status", "--credential", "/tmp/client.json",]).is_err());
+    }
+
+    #[test]
+    fn parses_only_one_exact_capability_check_shape() {
+        assert!(parse(&[
+            "capability-check",
+            "--credential",
+            "/tmp/browser.json",
+            "--capability",
+            "model/generate",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        ])
+        .is_ok());
+        assert!(parse(&[
+            "capability-check",
+            "--credential",
+            "/tmp/browser.json",
+            "--capability",
+            "model/generate",
+            "--app-id",
+            "hara-playground",
+        ])
+        .is_err());
+        assert!(parse(&[
+            "capability-check",
+            "--credential",
+            "/tmp/browser.json",
+            "--capability",
+            "model/generate",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "--endpoint",
+            "https://evil.example",
+        ])
+        .is_err());
     }
 
     #[test]

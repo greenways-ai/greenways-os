@@ -39,6 +39,16 @@ pub const SIGNED_CAPABILITY_REVOCATION_PROTOCOL: &str =
     "greenways-signed-capability-revocation/0-alpha";
 pub const CAPABILITY_REVOCATION_SUBJECT_PROTOCOL: &str =
     "greenways-capability-revocation-subject/0-alpha";
+pub const APPLICATION_APPROVAL_PROTOCOL: &str = "greenways-application-approval/0-alpha";
+pub const SIGNED_APPLICATION_APPROVAL_PROTOCOL: &str =
+    "greenways-signed-application-approval/0-alpha";
+pub const APPLICATION_APPROVAL_SUBJECT_PROTOCOL: &str =
+    "greenways-application-approval-subject/0-alpha";
+pub const APPLICATION_REVOCATION_PROTOCOL: &str = "greenways-application-revocation/0-alpha";
+pub const SIGNED_APPLICATION_REVOCATION_PROTOCOL: &str =
+    "greenways-signed-application-revocation/0-alpha";
+pub const APPLICATION_REVOCATION_SUBJECT_PROTOCOL: &str =
+    "greenways-application-revocation-subject/0-alpha";
 pub const PROFILE_IDENTITY_ALGORITHM: &str = "p256-sha256-fixed";
 
 #[cfg(feature = "test-support")]
@@ -50,12 +60,15 @@ const KEY_SERVICE: &str = "ai.greenways.profile-identity";
 const IDENTITY_PREFIX: &str = "identity/";
 const CAPABILITY_GRANT_PREFIX: &str = "grant/";
 const CAPABILITY_REVOCATION_PREFIX: &str = "revocation/";
+const APPLICATION_REVOCATION_PREFIX: &str = "application-revocation/";
 const KEY_HANDLE_PREFIX: &str = "profile-key-";
 const DIGEST_PREFIX: &str = "sha256:";
 const MAX_STATE_BYTES: usize = 512 * 1024;
 const MAX_HANDLE_BYTES: usize = 48;
 const MAX_CONSTRAINTS: usize = 32;
 const MAX_CONSTRAINT_TEXT_BYTES: usize = 240;
+const MAX_DECLARED_CAPABILITIES: usize = 64;
+const MAX_REVOCATION_REASON_BYTES: usize = 160;
 const PRIVATE_KEY_BYTES_LIMIT: usize = 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -99,6 +112,78 @@ pub struct ProfileIdentityStatus {
     pub algorithm: String,
     pub private_key_projection: bool,
     pub typed_subjects: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApplicationDescriptor {
+    pub app_id: String,
+    pub version: String,
+    pub publisher_id: String,
+    pub manifest_digest: String,
+    pub lock_digest: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApplicationApprovalRequest {
+    pub application: ApplicationDescriptor,
+    pub declared_capabilities: Vec<String>,
+    pub approved_at_unix_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApplicationApprovalBody {
+    pub protocol: String,
+    pub application: ApplicationDescriptor,
+    pub declared_capabilities: Vec<String>,
+    pub approved_at_unix_ms: u64,
+    pub issuer_identity_id: String,
+    pub issuer_key_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SignedApplicationApproval {
+    pub protocol: String,
+    pub approval: ApplicationApprovalBody,
+    pub issuer: SignedProfileIdentity,
+    pub subject_root: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApplicationRevocationRequest {
+    pub id: String,
+    pub approval_subject_root: String,
+    pub application: ApplicationDescriptor,
+    pub reason: String,
+    pub revoked_at_unix_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApplicationRevocationBody {
+    pub protocol: String,
+    pub id: String,
+    pub approval_subject_root: String,
+    pub application: ApplicationDescriptor,
+    pub reason: String,
+    pub revoked_at_unix_ms: u64,
+    pub issuer_identity_id: String,
+    pub issuer_key_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SignedApplicationRevocation {
+    pub protocol: String,
+    pub revocation: ApplicationRevocationBody,
+    pub issuer: SignedProfileIdentity,
+    pub subject_root: String,
+    pub signature: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -203,6 +288,20 @@ struct StoredProfileIdentity {
 struct ProfileIdentitySubject<'a> {
     protocol: &'static str,
     identity: &'a ProfileIdentityCard,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplicationApprovalTypedSubject<'a> {
+    protocol: &'static str,
+    approval: &'a ApplicationApprovalBody,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplicationRevocationTypedSubject<'a> {
+    protocol: &'static str,
+    revocation: &'a ApplicationRevocationBody,
 }
 
 #[derive(Serialize)]
@@ -413,6 +512,8 @@ impl ProfileIdentityVault {
                 PROFILE_IDENTITY_SUBJECT_PROTOCOL.to_owned(),
                 CAPABILITY_GRANT_SUBJECT_PROTOCOL.to_owned(),
                 CAPABILITY_REVOCATION_SUBJECT_PROTOCOL.to_owned(),
+                APPLICATION_APPROVAL_SUBJECT_PROTOCOL.to_owned(),
+                APPLICATION_REVOCATION_SUBJECT_PROTOCOL.to_owned(),
             ],
         }
     }
@@ -507,6 +608,68 @@ impl ProfileIdentityVault {
         self.load_signing_key().map(|_| ())
     }
 
+    pub fn sign_application_approval(
+        &self,
+        request: ApplicationApprovalRequest,
+    ) -> Result<SignedApplicationApproval, IdentityError> {
+        let issuer = self.public_identity().ok_or_else(|| {
+            IdentityError::Invalid("profile identity is not configured".to_owned())
+        })?;
+        let approval = ApplicationApprovalBody {
+            protocol: APPLICATION_APPROVAL_PROTOCOL.to_owned(),
+            application: request.application,
+            declared_capabilities: normalize_declared_capabilities(&request.declared_capabilities)?,
+            approved_at_unix_ms: request.approved_at_unix_ms,
+            issuer_identity_id: issuer.subject.id.clone(),
+            issuer_key_id: issuer.subject.key_id.clone(),
+        };
+        validate_application_approval_body(&approval)?;
+        let bytes = application_approval_subject_bytes(&approval)?;
+        let signing_key = self.load_signing_key()?;
+        let signature: Signature = signing_key.sign(&bytes);
+        let signed = SignedApplicationApproval {
+            protocol: SIGNED_APPLICATION_APPROVAL_PROTOCOL.to_owned(),
+            approval,
+            issuer,
+            subject_root: digest_bytes(&bytes),
+            signature: Base64UrlUnpadded::encode_string(&signature.to_bytes()),
+        };
+        verify_signed_application_approval(&signed)?;
+        Ok(signed)
+    }
+
+    pub fn sign_application_revocation(
+        &self,
+        request: ApplicationRevocationRequest,
+    ) -> Result<SignedApplicationRevocation, IdentityError> {
+        let issuer = self.public_identity().ok_or_else(|| {
+            IdentityError::Invalid("profile identity is not configured".to_owned())
+        })?;
+        let revocation = ApplicationRevocationBody {
+            protocol: APPLICATION_REVOCATION_PROTOCOL.to_owned(),
+            id: request.id,
+            approval_subject_root: request.approval_subject_root,
+            application: request.application,
+            reason: request.reason,
+            revoked_at_unix_ms: request.revoked_at_unix_ms,
+            issuer_identity_id: issuer.subject.id.clone(),
+            issuer_key_id: issuer.subject.key_id.clone(),
+        };
+        validate_application_revocation_body(&revocation)?;
+        let bytes = application_revocation_subject_bytes(&revocation)?;
+        let signing_key = self.load_signing_key()?;
+        let signature: Signature = signing_key.sign(&bytes);
+        let signed = SignedApplicationRevocation {
+            protocol: SIGNED_APPLICATION_REVOCATION_PROTOCOL.to_owned(),
+            revocation,
+            issuer,
+            subject_root: digest_bytes(&bytes),
+            signature: Base64UrlUnpadded::encode_string(&signature.to_bytes()),
+        };
+        verify_signed_application_revocation(&signed)?;
+        Ok(signed)
+    }
+
     pub fn sign_capability_grant(
         &self,
         request: CapabilityGrantRequest,
@@ -581,6 +744,78 @@ pub fn new_capability_revocation_id() -> Result<String, IdentityError> {
     random_identifier(CAPABILITY_REVOCATION_PREFIX)
 }
 
+pub fn new_application_revocation_id() -> Result<String, IdentityError> {
+    random_identifier(APPLICATION_REVOCATION_PREFIX)
+}
+
+pub fn normalize_operation_capability(value: &str) -> Result<String, IdentityError> {
+    let value = value.trim().to_ascii_lowercase();
+    let mut parts = value.split('/');
+    let valid = matches!(
+        (parts.next(), parts.next(), parts.next()),
+        (Some(left), Some(right), None)
+            if valid_identifier(left) && valid_identifier(right)
+    );
+    if !valid {
+        return Err(IdentityError::Invalid(
+            "operation capability is invalid".to_owned(),
+        ));
+    }
+    Ok(value)
+}
+
+pub fn normalize_declared_capabilities(values: &[String]) -> Result<Vec<String>, IdentityError> {
+    if values.len() > MAX_DECLARED_CAPABILITIES {
+        return Err(IdentityError::Invalid(
+            "application declares too many capabilities".to_owned(),
+        ));
+    }
+    let mut normalized = values
+        .iter()
+        .map(|value| normalize_operation_capability(value))
+        .collect::<Result<Vec<_>, _>>()?;
+    normalized.sort();
+    if normalized.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(IdentityError::Invalid(
+            "application capability declarations must be unique".to_owned(),
+        ));
+    }
+    Ok(normalized)
+}
+
+pub fn validate_application_descriptor(
+    application: &ApplicationDescriptor,
+) -> Result<(), IdentityError> {
+    if !valid_identifier(&application.app_id)
+        || !valid_semver(&application.version)
+        || !valid_identifier(&application.publisher_id)
+        || !valid_digest(&application.manifest_digest)
+        || application
+            .lock_digest
+            .as_ref()
+            .is_some_and(|digest| !valid_digest(digest))
+    {
+        return Err(IdentityError::Invalid(
+            "application descriptor is invalid".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+pub fn application_approval_subject(
+    signed: &SignedApplicationApproval,
+) -> Result<ApplicationApprovalSubject, IdentityError> {
+    verify_signed_application_approval(signed)?;
+    Ok(ApplicationApprovalSubject {
+        kind: "app".to_owned(),
+        app_id: signed.approval.application.app_id.clone(),
+        version: signed.approval.application.version.clone(),
+        publisher_id: signed.approval.application.publisher_id.clone(),
+        lock_digest: signed.approval.application.lock_digest.clone(),
+        approval_digest: signed.subject_root.clone(),
+    })
+}
+
 pub fn validate_application_approval_subject(
     subject: &ApplicationApprovalSubject,
 ) -> Result<(), IdentityError> {
@@ -599,6 +834,58 @@ pub fn validate_application_approval_subject(
         ));
     }
     Ok(())
+}
+
+pub fn verify_signed_application_approval(
+    signed: &SignedApplicationApproval,
+) -> Result<(), IdentityError> {
+    if signed.protocol != SIGNED_APPLICATION_APPROVAL_PROTOCOL {
+        return Err(IdentityError::Invalid(
+            "signed application approval protocol is unsupported".to_owned(),
+        ));
+    }
+    verify_signed_profile_identity(&signed.issuer)?;
+    validate_application_approval_body(&signed.approval)?;
+    if signed.approval.issuer_identity_id != signed.issuer.subject.id
+        || signed.approval.issuer_key_id != signed.issuer.subject.key_id
+    {
+        return Err(IdentityError::Invalid(
+            "application approval issuer does not match its signing identity".to_owned(),
+        ));
+    }
+    let bytes = application_approval_subject_bytes(&signed.approval)?;
+    verify_typed_signature(
+        &signed.issuer.subject.public_key,
+        &bytes,
+        &signed.subject_root,
+        &signed.signature,
+    )
+}
+
+pub fn verify_signed_application_revocation(
+    signed: &SignedApplicationRevocation,
+) -> Result<(), IdentityError> {
+    if signed.protocol != SIGNED_APPLICATION_REVOCATION_PROTOCOL {
+        return Err(IdentityError::Invalid(
+            "signed application revocation protocol is unsupported".to_owned(),
+        ));
+    }
+    verify_signed_profile_identity(&signed.issuer)?;
+    validate_application_revocation_body(&signed.revocation)?;
+    if signed.revocation.issuer_identity_id != signed.issuer.subject.id
+        || signed.revocation.issuer_key_id != signed.issuer.subject.key_id
+    {
+        return Err(IdentityError::Invalid(
+            "application revocation issuer does not match its signing identity".to_owned(),
+        ));
+    }
+    let bytes = application_revocation_subject_bytes(&signed.revocation)?;
+    verify_typed_signature(
+        &signed.issuer.subject.public_key,
+        &bytes,
+        &signed.subject_root,
+        &signed.signature,
+    )
 }
 
 pub fn verify_signed_capability_grant(signed: &SignedCapabilityGrant) -> Result<(), IdentityError> {
@@ -649,6 +936,45 @@ pub fn verify_signed_capability_revocation(
         &signed.subject_root,
         &signed.signature,
     )
+}
+
+fn validate_application_approval_body(
+    approval: &ApplicationApprovalBody,
+) -> Result<(), IdentityError> {
+    validate_application_descriptor(&approval.application)?;
+    if approval.protocol != APPLICATION_APPROVAL_PROTOCOL
+        || approval.approved_at_unix_ms == 0
+        || !validate_identity_id(&approval.issuer_identity_id)
+        || !valid_digest(&approval.issuer_key_id)
+        || normalize_declared_capabilities(&approval.declared_capabilities)?
+            != approval.declared_capabilities
+    {
+        return Err(IdentityError::Invalid(
+            "application approval body is invalid".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_application_revocation_body(
+    revocation: &ApplicationRevocationBody,
+) -> Result<(), IdentityError> {
+    validate_application_descriptor(&revocation.application)?;
+    if revocation.protocol != APPLICATION_REVOCATION_PROTOCOL
+        || !valid_record_id(&revocation.id, APPLICATION_REVOCATION_PREFIX)
+        || !valid_digest(&revocation.approval_subject_root)
+        || revocation.reason.is_empty()
+        || revocation.reason.len() > MAX_REVOCATION_REASON_BYTES
+        || revocation.reason.chars().any(char::is_control)
+        || revocation.revoked_at_unix_ms == 0
+        || !validate_identity_id(&revocation.issuer_identity_id)
+        || !valid_digest(&revocation.issuer_key_id)
+    {
+        return Err(IdentityError::Invalid(
+            "application revocation body is invalid".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_capability_grant_body(grant: &CapabilityGrantBody) -> Result<(), IdentityError> {
@@ -707,6 +1033,26 @@ fn validate_capability_revocation_body(
         ));
     }
     Ok(())
+}
+
+fn application_approval_subject_bytes(
+    approval: &ApplicationApprovalBody,
+) -> Result<Vec<u8>, IdentityError> {
+    serde_json::to_vec(&ApplicationApprovalTypedSubject {
+        protocol: APPLICATION_APPROVAL_SUBJECT_PROTOCOL,
+        approval,
+    })
+    .map_err(IdentityError::from)
+}
+
+fn application_revocation_subject_bytes(
+    revocation: &ApplicationRevocationBody,
+) -> Result<Vec<u8>, IdentityError> {
+    serde_json::to_vec(&ApplicationRevocationTypedSubject {
+        protocol: APPLICATION_REVOCATION_SUBJECT_PROTOCOL,
+        revocation,
+    })
+    .map_err(IdentityError::from)
 }
 
 fn capability_grant_subject_bytes(grant: &CapabilityGrantBody) -> Result<Vec<u8>, IdentityError> {
@@ -775,8 +1121,7 @@ fn valid_identifier(value: &str) -> bool {
 }
 
 fn valid_capability(value: &str) -> bool {
-    let mut parts = value.split('/');
-    matches!((parts.next(), parts.next(), parts.next()), (Some(left), Some(right), None) if valid_identifier(left) && valid_identifier(right))
+    normalize_operation_capability(value).is_ok_and(|normalized| normalized == value)
 }
 
 fn valid_constraint_key(value: &str) -> bool {
@@ -1230,6 +1575,8 @@ mod tests {
                 PROFILE_IDENTITY_SUBJECT_PROTOCOL.to_owned(),
                 CAPABILITY_GRANT_SUBJECT_PROTOCOL.to_owned(),
                 CAPABILITY_REVOCATION_SUBJECT_PROTOCOL.to_owned(),
+                APPLICATION_APPROVAL_SUBJECT_PROTOCOL.to_owned(),
+                APPLICATION_REVOCATION_SUBJECT_PROTOCOL.to_owned(),
             ]
         );
 
@@ -1353,8 +1700,70 @@ mod tests {
                 PROFILE_IDENTITY_SUBJECT_PROTOCOL.to_owned(),
                 CAPABILITY_GRANT_SUBJECT_PROTOCOL.to_owned(),
                 CAPABILITY_REVOCATION_SUBJECT_PROTOCOL.to_owned(),
+                APPLICATION_APPROVAL_SUBJECT_PROTOCOL.to_owned(),
+                APPLICATION_REVOCATION_SUBJECT_PROTOCOL.to_owned(),
             ]
         );
+    }
+
+    #[test]
+    fn signs_only_closed_application_approvals_and_revocations() {
+        let home = TestHome::new("application-signing");
+        let store = Arc::new(MemoryProfileKeyStore::default());
+        let mut vault = open_memory(&home, store);
+        vault
+            .create("authority", 1_000)
+            .expect("identity should be created");
+        let application = ApplicationDescriptor {
+            app_id: "hara-playground".to_owned(),
+            version: "1.2.3".to_owned(),
+            publisher_id: "hara-lang".to_owned(),
+            manifest_digest:
+                "sha256:1111111111111111111111111111111111111111111111111111111111111111".to_owned(),
+            lock_digest: Some(
+                "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+                    .to_owned(),
+            ),
+        };
+        let approval = vault
+            .sign_application_approval(ApplicationApprovalRequest {
+                application: application.clone(),
+                declared_capabilities: vec!["tahto/read".to_owned(), "Model/Generate".to_owned()],
+                approved_at_unix_ms: 2_000,
+            })
+            .expect("application approval should sign");
+        verify_signed_application_approval(&approval).expect("approval should verify");
+        assert_eq!(
+            approval.approval.declared_capabilities,
+            vec!["model/generate".to_owned(), "tahto/read".to_owned()]
+        );
+        let subject = application_approval_subject(&approval).expect("subject should derive");
+        assert_eq!(subject.approval_digest, approval.subject_root);
+
+        let revocation = vault
+            .sign_application_revocation(ApplicationRevocationRequest {
+                id: new_application_revocation_id().expect("revocation id"),
+                approval_subject_root: approval.subject_root.clone(),
+                application,
+                reason: "user-revoked".to_owned(),
+                revoked_at_unix_ms: 3_000,
+            })
+            .expect("application revocation should sign");
+        verify_signed_application_revocation(&revocation).expect("revocation should verify");
+
+        let mut changed = approval.clone();
+        changed.approval.application.manifest_digest = format!("sha256:{}", "3".repeat(64));
+        assert!(verify_signed_application_approval(&changed).is_err());
+        assert!(vault
+            .sign_application_approval(ApplicationApprovalRequest {
+                application: approval.approval.application,
+                declared_capabilities: vec![
+                    "model/generate".to_owned(),
+                    "MODEL/GENERATE".to_owned(),
+                ],
+                approved_at_unix_ms: 4_000,
+            })
+            .is_err());
     }
 
     #[cfg(unix)]
