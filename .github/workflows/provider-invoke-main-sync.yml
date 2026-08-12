@@ -1,0 +1,53 @@
+name: Provider invocation main sync
+
+on:
+  push:
+    branches:
+      - agent/greenwaysd-provider-invoke-51
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Run provider invocation main sync'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge current main
+        run: |
+          git fetch origin main
+          if ! git merge --no-commit --no-ff origin/main; then
+            echo 'Conflicting files:'
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+
+      - name: Format merged workspace
+        run: cargo +1.85.1 fmt --all
+
+      - name: Test merged workspace
+        run: cargo +1.85.1 test --workspace --all-targets
+
+      - name: Lint merged workspace
+        run: cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+
+      - name: Verify merged patch
+        run: git diff --check
+
+      - name: Remove sync workflow
+        run: rm -f .github/workflows/provider-invoke-main-sync.yml
+
+      - name: Commit and push merged branch
+        run: |
+          git config user.name "ChatGPT Codex Connector"
+          git config user.email "chatgpt-codex-connector@users.noreply.github.com"
+          git add -A
+          git commit -m "Merge daemon profile identity into provider invocation"
+          git push origin HEAD:${GITHUB_REF_NAME}
