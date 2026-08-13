@@ -1129,6 +1129,9 @@ fn valid_constraint_key(value: &str) -> bool {
 }
 
 fn forbidden_constraint_key(value: &str) -> bool {
+    if value == "provider.max-output-tokens" {
+        return false;
+    }
     [
         "secret",
         "token",
@@ -1674,12 +1677,44 @@ mod tests {
                 id: new_capability_grant_id().expect("grant id"),
                 capability: "model/generate".to_owned(),
                 subject,
-                constraints: BTreeMap::new(),
+                constraints: BTreeMap::from([
+                    (
+                        "provider.profile-id".to_owned(),
+                        CapabilityConstraintValue::Text("openai.personal".to_owned()),
+                    ),
+                    (
+                        "provider.model".to_owned(),
+                        CapabilityConstraintValue::Text("gpt-5".to_owned()),
+                    ),
+                    (
+                        "provider.max-output-tokens".to_owned(),
+                        CapabilityConstraintValue::Integer(512),
+                    ),
+                    (
+                        "provider.max-timeout-ms".to_owned(),
+                        CapabilityConstraintValue::Integer(30_000),
+                    ),
+                ]),
                 issued_at_unix_ms: 2_000,
                 expires_at_unix_ms: Some(10_000),
             })
             .expect("grant should sign");
         verify_signed_capability_grant(&grant).expect("grant should verify");
+        let mut secret_constraints = grant.grant.constraints.clone();
+        secret_constraints.insert(
+            "provider.secret-token".to_owned(),
+            CapabilityConstraintValue::Text("not-a-secret".to_owned()),
+        );
+        assert!(vault
+            .sign_capability_grant(CapabilityGrantRequest {
+                id: new_capability_grant_id().expect("rejected grant id"),
+                capability: "model/generate".to_owned(),
+                subject: grant.grant.subject.clone(),
+                constraints: secret_constraints,
+                issued_at_unix_ms: 2_500,
+                expires_at_unix_ms: Some(10_000),
+            })
+            .is_err());
         let revocation = vault
             .sign_capability_revocation(CapabilityRevocationRequest {
                 id: new_capability_revocation_id().expect("revocation id"),

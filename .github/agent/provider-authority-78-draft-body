@@ -1,1 +1,0 @@
-Enforce exact application approval and typed model/generate grant policy before provider claims, vault lookup, credential access, or network execution. Preserve attributable replay evidence and legacy claim fencing. Closes #78.

@@ -63,7 +63,7 @@ The current operation policy is:
 
 Roles come from the daemon-owned local-client registry. Request JSON cannot select or expand them. Local roles authenticate an installation process; they are not Greenway membership, room membership, source mandates, application grants, or provider grants.
 
-Current inventory reads accept an empty argument object. `capabilities.check` accepts one closed `greenways-capability-check/0-alpha` value containing the exact signed application subject and one operation capability. `provider.invoke` accepts only the closed, bounded provider invocation value and fixed provider adapters. Unknown fields, operations, protocols, malformed request IDs, unauthenticated privileged operations, and role-denied operations fail closed. Request bytes are limited to 64 KiB; responses are limited to 256 KiB.
+Current inventory reads accept an empty argument object. `capabilities.check` accepts one closed `greenways-capability-check/0-alpha` value containing the exact signed application subject and one operation capability. `provider.invoke` requires one closed `greenways-authorised-provider-invocation/0-alpha` wrapper containing an exact `model/generate` check and one bounded provider invocation. The daemon validates the active signed application approval and typed signed provider grant before claim ownership, vault lookup, or network access. Unknown fields, operations, protocols, malformed request IDs, unauthenticated privileged operations, and role-denied operations fail closed. Request bytes are limited to 64 KiB; responses are limited to 256 KiB.
 
 ## Durable request semantics
 
@@ -80,7 +80,7 @@ commit time
 
 An exact request replays only for the same authenticated actor. Reusing a request ID with different bytes or from another client or role returns `request-id-collision`. Session IDs and credential tokens are never durable. Authentication and role denial happen before durable request ownership.
 
-Provider invocation uses a separate bounded claim ledger. The daemon durably claims an actor-bound request before external execution, replays definitive results and provider errors without calling the provider again, and retains an uncertain claim when the external outcome cannot be known. An uncertain request is not retried automatically because doing so could duplicate a billable effect.
+Provider invocation uses a separate bounded claim ledger only after exact application and grant-policy authorization succeeds. Each new claim and completed provider receipt carries the approval digest, exact signed grant ID/root, provider profile/model/actual limits, and exact authorization time bound to the canonical request digest. The daemon replays definitive results and provider errors without calling the provider again, and retains an uncertain claim when the external outcome cannot be known. An uncertain request is not retried automatically because doing so could duplicate a billable effect. Legacy receipts and uncertain claims remain replayable, but a new legacy-shaped invocation is denied before claim or vault access.
 
 State is written to a private temporary file, fsynced, atomically renamed, and followed by parent-directory sync.
 

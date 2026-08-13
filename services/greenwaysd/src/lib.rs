@@ -5,18 +5,23 @@ use greenways_authority::{
     new_local_session, parse_local_client_credential_arguments, valid_client_id, AuthorityError,
     LocalClient, LocalClientRegistry, LocalClientRole, LocalSession,
 };
-use greenways_capabilities::{CapabilityAuthority, CapabilityDecision, CapabilityError};
+use greenways_capabilities::{
+    CapabilityAuthority, CapabilityDecision, CapabilityError, ModelGeneratePolicy,
+};
 use greenways_identity::{IdentityError, ProfileIdentityVault};
 use greenways_local::GreenwaysPaths;
 use greenways_protocol::{
     canonical_request, capability_check_from_request, decode_request, encode_response_line,
-    new_node_id, request_digest, validate_digest, validate_node_id, validate_response, DaemonPaths,
-    DaemonStatus, LocalRequest, LocalResponse, ProtocolError, MAX_REQUEST_BYTES,
+    new_node_id, provider_invocation_from_request, request_digest, validate_digest,
+    validate_node_id, validate_response, DaemonPaths, DaemonStatus, LocalRequest, LocalResponse,
+    ProtocolError, ProviderInvocationRequest, MAX_REQUEST_BYTES,
 };
+#[cfg(test)]
+use greenways_vault::ProviderInvocationProbe;
 use greenways_vault::{ProviderVault, VaultError};
 use provider::{
     role_may_invoke_provider, trim_receipts_to_fit, validate_provider_claim,
-    ProviderInvocationClaim, MAX_PROVIDER_INVOCATION_CLAIMS,
+    ProviderInvocationAuthorityEvidence, ProviderInvocationClaim, MAX_PROVIDER_INVOCATION_CLAIMS,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -37,6 +42,7 @@ use std::{
 
 const STATE_PROTOCOL: &str = "greenways-daemon-state/0-alpha";
 const RECEIPT_PROTOCOL: &str = "greenways-local-receipt/0-alpha";
+const PROVIDER_RECEIPT_PROTOCOL: &str = "greenways-authorised-provider-invocation-receipt/0-alpha";
 const MAX_STATE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_RECEIPTS: usize = 64;
 const INVALID_REQUEST_ID: &str = "local/request/invalid0";
@@ -176,6 +182,8 @@ struct RequestReceipt {
     actor: Option<RequestActor>,
     request: String,
     response: LocalResponse,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    provider_authority: Option<ProviderInvocationAuthorityEvidence>,
     committed_at_unix_ms: u64,
 }
 
@@ -202,6 +210,8 @@ pub struct Daemon {
     capabilities: CapabilityAuthority,
     identity: ProfileIdentityVault,
     vault: ProviderVault,
+    #[cfg(test)]
+    provider_invocation_probe: ProviderInvocationProbe,
 }
 
 impl Daemon {
@@ -220,7 +230,11 @@ impl Daemon {
         let identity = ProfileIdentityVault::open_system(
             paths.home.join("state").join("profile-identity.json"),
         )?;
+        #[cfg(not(test))]
         let vault = ProviderVault::open_system(paths.home.join("state").join("providers.json"))?;
+        #[cfg(test)]
+        let (vault, provider_invocation_probe) =
+            ProviderVault::open_test(paths.home.join("state").join("providers.json"))?;
         let mut state = if paths.state_file.exists() {
             load_state(&paths.state_file)?
         } else {
@@ -241,6 +255,7 @@ impl Daemon {
             .ok_or_else(|| DaemonError::State("generation overflowed".to_owned()))?;
         state.last_started_at_unix_ms = observed_at_unix_ms;
         validate_state(&state)?;
+        validate_provider_authority_references(&state, &applications, &capabilities)?;
         write_state(&paths.state_file, &state)?;
         Ok(Self {
             paths,
@@ -250,6 +265,8 @@ impl Daemon {
             capabilities,
             identity,
             vault,
+            #[cfg(test)]
+            provider_invocation_probe,
         })
     }
 
@@ -509,6 +526,7 @@ impl Daemon {
             actor,
             request: request_text,
             response: response.clone(),
+            provider_authority: None,
             committed_at_unix_ms: observed_at_unix_ms,
         };
         self.commit_receipt(receipt, next_revision)?;
@@ -920,7 +938,7 @@ fn validate_state(state: &DaemonState) -> Result<(), DaemonError> {
 
     let mut request_ids = HashSet::new();
     for receipt in &state.receipts {
-        if receipt.protocol != RECEIPT_PROTOCOL {
+        if receipt.protocol != RECEIPT_PROTOCOL && receipt.protocol != PROVIDER_RECEIPT_PROTOCOL {
             return Err(DaemonError::State(
                 "receipt protocol is unsupported".to_owned(),
             ));
@@ -954,6 +972,54 @@ fn validate_state(state: &DaemonState) -> Result<(), DaemonError> {
                 "receipt identity does not match its exact request".to_owned(),
             ));
         }
+        if request.operation == "provider.invoke" {
+            let provider_actor = receipt.actor.as_ref().ok_or_else(|| {
+                DaemonError::State("provider receipt has no authenticated actor".to_owned())
+            })?;
+            if !role_may_invoke_provider(provider_actor.role) {
+                return Err(DaemonError::State(
+                    "provider receipt actor role is invalid".to_owned(),
+                ));
+            }
+            match provider_invocation_from_request(&request)? {
+                ProviderInvocationRequest::Authorized(authorized) => {
+                    if receipt.protocol != PROVIDER_RECEIPT_PROTOCOL {
+                        return Err(DaemonError::State(
+                            "authorized provider receipt protocol is invalid".to_owned(),
+                        ));
+                    }
+                    let authority = receipt.provider_authority.as_ref().ok_or_else(|| {
+                        DaemonError::State(
+                            "authorized provider receipt has no authority evidence".to_owned(),
+                        )
+                    })?;
+                    authority.validate(&receipt.digest)?;
+                    if authority.authorized_at_unix_ms < state.created_at_unix_ms
+                        || authority.authorized_at_unix_ms > receipt.committed_at_unix_ms
+                        || authority.approval_digest != authorized.check.subject.approval_digest
+                        || authority.capability != authorized.check.capability
+                        || !authority.matches_invocation(&authorized.invocation)
+                    {
+                        return Err(DaemonError::State(
+                            "provider receipt authority does not match its exact request"
+                                .to_owned(),
+                        ));
+                    }
+                }
+                ProviderInvocationRequest::Legacy(_) => {
+                    if receipt.protocol != RECEIPT_PROTOCOL || receipt.provider_authority.is_some()
+                    {
+                        return Err(DaemonError::State(
+                            "legacy provider receipt has unexpected authority evidence".to_owned(),
+                        ));
+                    }
+                }
+            }
+        } else if receipt.protocol != RECEIPT_PROTOCOL || receipt.provider_authority.is_some() {
+            return Err(DaemonError::State(
+                "non-provider receipt has provider authority evidence".to_owned(),
+            ));
+        }
         validate_response(&receipt.response)?;
         if receipt.committed_at_unix_ms < state.created_at_unix_ms {
             return Err(DaemonError::State(
@@ -968,6 +1034,122 @@ fn validate_state(state: &DaemonState) -> Result<(), DaemonError> {
             ));
         }
         validate_provider_claim(claim, state.created_at_unix_ms)?;
+    }
+    Ok(())
+}
+
+fn validate_provider_authority_references(
+    state: &DaemonState,
+    applications: &ApplicationApprovalAuthority,
+    capabilities: &CapabilityAuthority,
+) -> Result<(), DaemonError> {
+    for receipt in &state.receipts {
+        let Some(authority) = &receipt.provider_authority else {
+            continue;
+        };
+        let request = decode_request(receipt.request.as_bytes())?;
+        let ProviderInvocationRequest::Authorized(authorized) =
+            provider_invocation_from_request(&request)?
+        else {
+            return Err(DaemonError::State(
+                "provider receipt authority references a legacy request".to_owned(),
+            ));
+        };
+        let subject = applications
+            .subject(&authority.approval_digest)
+            .map_err(|_| {
+                DaemonError::State(
+                    "provider receipt authority references an unknown application approval"
+                        .to_owned(),
+                )
+            })?;
+        let requested = ModelGeneratePolicy::new(
+            authority.profile_id.clone(),
+            authority.model.clone(),
+            authority.max_output_tokens,
+            authority.timeout_ms,
+        )
+        .map_err(|_| {
+            DaemonError::State("provider receipt authority policy is invalid".to_owned())
+        })?;
+        if subject != authorized.check.subject
+            || !authority.matches_invocation(&authorized.invocation)
+            || !applications
+                .matches_active_exact_at(
+                    &subject,
+                    &authority.capability,
+                    authority.authorized_at_unix_ms,
+                )
+                .map_err(|_| {
+                    DaemonError::State(
+                        "provider receipt application authority evidence is invalid".to_owned(),
+                    )
+                })?
+            || !capabilities
+                .matches_active_provider_grant_evidence_for_policy(
+                    &subject,
+                    &authority.grant_evidence(),
+                    &requested,
+                    authority.authorized_at_unix_ms,
+                )
+                .map_err(|_| {
+                    DaemonError::State(
+                        "provider receipt authority grant evidence is invalid".to_owned(),
+                    )
+                })?
+        {
+            return Err(DaemonError::State(
+                "provider receipt authority was redirected".to_owned(),
+            ));
+        }
+    }
+    for claim in &state.provider_invocations {
+        let Some(authority) = &claim.authority else {
+            continue;
+        };
+        let subject = applications
+            .subject(&authority.approval_digest)
+            .map_err(|_| {
+                DaemonError::State(
+                    "provider claim authority references an unknown application approval"
+                        .to_owned(),
+                )
+            })?;
+        let requested = ModelGeneratePolicy::new(
+            authority.profile_id.clone(),
+            authority.model.clone(),
+            authority.max_output_tokens,
+            authority.timeout_ms,
+        )
+        .map_err(|_| DaemonError::State("provider claim authority policy is invalid".to_owned()))?;
+        if !applications
+            .matches_active_exact_at(
+                &subject,
+                &authority.capability,
+                authority.authorized_at_unix_ms,
+            )
+            .map_err(|_| {
+                DaemonError::State(
+                    "provider claim application authority evidence is invalid".to_owned(),
+                )
+            })?
+            || !capabilities
+                .matches_active_provider_grant_evidence_for_policy(
+                    &subject,
+                    &authority.grant_evidence(),
+                    &requested,
+                    authority.authorized_at_unix_ms,
+                )
+                .map_err(|_| {
+                    DaemonError::State(
+                        "provider claim authority grant evidence is invalid".to_owned(),
+                    )
+                })?
+        {
+            return Err(DaemonError::State(
+                "provider claim authority was redirected".to_owned(),
+            ));
+        }
     }
     Ok(())
 }
@@ -1067,15 +1249,21 @@ mod tests {
     use super::*;
     use greenways_applications::ApplicationApprovalAuthority;
     use greenways_authority::{LocalClientRegistry, LocalClientRole};
-    use greenways_capabilities::{CheckCapability, IssueCapabilityGrant};
+    use greenways_capabilities::{
+        CheckCapability, IssueCapabilityGrant, ModelGeneratePolicy, ProviderInvocationAuthority,
+        MODEL_GENERATE_CAPABILITY,
+    };
     use greenways_identity::{
         application_approval_subject, ApplicationApprovalRequest, ApplicationApprovalSubject,
         ApplicationDescriptor, ProfileIdentityVault, DIGEST_TEST_VALUE,
     };
     use greenways_local::{AuthenticatedLocalClient, LocalClient as PublicLocalClient};
-    use greenways_protocol::{new_request_id, request_digest, Outcome, VaultStatus};
+    use greenways_protocol::{
+        new_request_id, request_digest, AuthorizedProviderInvocation, Outcome, VaultStatus,
+        LOCAL_PROTOCOL,
+    };
     use greenways_provider::{ModelMessage, ModelMessageRole, ProviderInvocation};
-    use std::{collections::BTreeMap, thread, time::Duration};
+    use std::{thread, time::Duration};
 
     struct TestHome(PathBuf);
 
@@ -1111,7 +1299,9 @@ mod tests {
         panic!("Greenways daemon socket did not appear");
     }
 
-    fn configure_exact_application_authority(home: &TestHome) -> ApplicationApprovalSubject {
+    fn configure_exact_application_authority_with_identity(
+        home: &TestHome,
+    ) -> (ProfileIdentityVault, ApplicationApprovalSubject) {
         let paths = home.paths();
         let mut identity =
             ProfileIdentityVault::open_test(paths.home.join("state").join("profile-identity.json"))
@@ -1147,15 +1337,21 @@ mod tests {
             .issue(
                 &identity,
                 IssueCapabilityGrant {
-                    capability: "model/generate".to_owned(),
+                    capability: MODEL_GENERATE_CAPABILITY.to_owned(),
                     subject: subject.clone(),
-                    constraints: BTreeMap::new(),
+                    constraints: ModelGeneratePolicy::new("missing.profile", "gpt-5", 512, 30_000)
+                        .expect("provider policy should build")
+                        .constraints(),
                     issued_at_unix_ms: 3_000,
                     expires_at_unix_ms: None,
                 },
             )
             .expect("capability grant should commit");
-        subject
+        (identity, subject)
+    }
+
+    fn configure_exact_application_authority(home: &TestHome) -> ApplicationApprovalSubject {
+        configure_exact_application_authority_with_identity(home).1
     }
 
     #[test]
@@ -1320,22 +1516,53 @@ mod tests {
         );
     }
 
-    fn provider_request(request_id: &str, profile_id: &str) -> LocalRequest {
-        LocalRequest::provider_invoke(
-            request_id,
-            ProviderInvocation::new(
-                profile_id,
-                "gpt-5",
-                vec![ModelMessage {
-                    role: ModelMessageRole::User,
-                    content: "Hello".to_owned(),
-                }],
-                128,
-                5_000,
-            )
-            .expect("provider invocation should be valid"),
+    fn unregistered_application_subject() -> ApplicationApprovalSubject {
+        ApplicationApprovalSubject {
+            kind: "app".to_owned(),
+            app_id: "hara-playground".to_owned(),
+            version: "1.2.3".to_owned(),
+            publisher_id: "hara-lang".to_owned(),
+            lock_digest: None,
+            approval_digest: DIGEST_TEST_VALUE.to_owned(),
+        }
+    }
+
+    fn provider_invocation(profile_id: &str) -> ProviderInvocation {
+        ProviderInvocation::new(
+            profile_id,
+            "gpt-5",
+            vec![ModelMessage {
+                role: ModelMessageRole::User,
+                content: "Hello".to_owned(),
+            }],
+            128,
+            5_000,
         )
-        .expect("provider request should encode")
+        .expect("provider invocation should be valid")
+    }
+
+    fn provider_request(
+        request_id: &str,
+        subject: &ApplicationApprovalSubject,
+        profile_id: &str,
+    ) -> LocalRequest {
+        let check = CheckCapability::new(subject.clone(), MODEL_GENERATE_CAPABILITY)
+            .expect("provider capability should be valid");
+        let authorized = AuthorizedProviderInvocation::new(check, provider_invocation(profile_id))
+            .expect("authorized provider invocation should be valid");
+        LocalRequest::provider_invoke(request_id, authorized)
+            .expect("provider request should encode")
+    }
+
+    fn legacy_provider_request(request_id: &str, profile_id: &str) -> LocalRequest {
+        LocalRequest {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.to_owned(),
+            operation: "provider.invoke".to_owned(),
+            arguments: provider_invocation(profile_id)
+                .into_arguments()
+                .expect("legacy provider arguments should encode"),
+        }
     }
 
     fn request_actor(role: LocalClientRole, suffix: &str) -> RequestActor {
@@ -1348,12 +1575,13 @@ mod tests {
     #[test]
     fn provider_invocation_requires_an_authenticated_non_browser_role() {
         let home = TestHome::new("provider-role");
-        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let subject = configure_exact_application_authority(&home);
+        let mut daemon = Daemon::open_at(home.paths(), 4_000).expect("daemon should open");
         let unauthenticated = daemon
             .handle_request_as_at(
-                provider_request("local/request/providerauth1", "missing.profile"),
+                provider_request("local/request/providerauth1", &subject, "missing.profile"),
                 None,
-                2_000,
+                5_000,
             )
             .expect("unauthenticated denial should complete");
         assert_eq!(
@@ -1362,12 +1590,16 @@ mod tests {
         );
         let browser = daemon
             .handle_request_as_at(
-                provider_request("local/request/providerbrowser1", "missing.profile"),
+                provider_request(
+                    "local/request/providerbrowser1",
+                    &subject,
+                    "missing.profile",
+                ),
                 Some(request_actor(
                     LocalClientRole::BrowserBridge,
                     "00112233445566778899aabbccddeeff",
                 )),
-                3_000,
+                6_000,
             )
             .expect("browser denial should complete");
         assert_eq!(
@@ -1375,46 +1607,205 @@ mod tests {
             "authority-denied"
         );
         assert!(daemon.state.provider_invocations.is_empty());
+        assert!(daemon.state.receipts.is_empty());
+        assert_eq!(daemon.provider_invocation_probe.attempts(), 0);
     }
 
     #[test]
-    fn definitive_provider_errors_are_receipted_and_replayed() {
-        let home = TestHome::new("provider-replay");
-        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+    fn provider_authority_denials_precede_claim_and_vault_access() {
+        let home = TestHome::new("provider-authority-denial");
+        let subject = configure_exact_application_authority(&home);
+        let mut daemon = Daemon::open_at(home.paths(), 4_000).expect("daemon should open");
         let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
-        let request = provider_request("local/request/providerreplay1", "missing.profile");
+
+        let changed_profile = daemon
+            .handle_request_as_at(
+                provider_request("local/request/providerpolicy1", &subject, "other.profile"),
+                Some(actor.clone()),
+                5_000,
+            )
+            .expect("policy denial should complete");
+        assert_eq!(
+            changed_profile.error.expect("policy error").code,
+            "provider-authority-denied"
+        );
+
+        let missing_approval = daemon
+            .handle_request_as_at(
+                provider_request(
+                    "local/request/providerapproval1",
+                    &unregistered_application_subject(),
+                    "missing.profile",
+                ),
+                Some(actor.clone()),
+                6_000,
+            )
+            .expect("approval denial should complete");
+        assert_eq!(
+            missing_approval.error.expect("approval error").code,
+            "provider-authority-denied"
+        );
+
+        let legacy = daemon
+            .handle_request_as_at(
+                legacy_provider_request("local/request/providerlegacy1", "missing.profile"),
+                Some(actor),
+                7_000,
+            )
+            .expect("legacy denial should complete");
+        assert_eq!(
+            legacy.error.expect("legacy error").code,
+            "provider-authority-required"
+        );
+
+        assert!(daemon.state.provider_invocations.is_empty());
+        assert!(daemon.state.receipts.is_empty());
+        assert_eq!(daemon.state.revision, 0);
+        assert_eq!(daemon.provider_invocation_probe.attempts(), 0);
+    }
+
+    #[test]
+    fn definitive_provider_errors_carry_authority_evidence_and_replay() {
+        let home = TestHome::new("provider-replay");
+        let subject = configure_exact_application_authority(&home);
+        let mut daemon = Daemon::open_at(home.paths(), 4_000).expect("daemon should open");
+        let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
+        let request =
+            provider_request("local/request/providerreplay1", &subject, "missing.profile");
         let first = daemon
-            .handle_request_as_at(request.clone(), Some(actor.clone()), 2_000)
+            .handle_request_as_at(request.clone(), Some(actor.clone()), 5_000)
             .expect("missing profile should complete");
         assert_eq!(
             first.error.as_ref().expect("missing profile error").code,
             "provider-profile-missing"
         );
+        assert_eq!(daemon.provider_invocation_probe.attempts(), 1);
         assert!(daemon.state.provider_invocations.is_empty());
+        assert_eq!(daemon.state.receipts.len(), 1);
+        let receipt = &daemon.state.receipts[0];
+        assert_eq!(receipt.protocol, PROVIDER_RECEIPT_PROTOCOL);
+        assert!(receipt.provider_authority.is_some());
         let revision = daemon.state.revision;
         let replay = daemon
-            .handle_request_as_at(request, Some(actor), 3_000)
+            .handle_request_as_at(request, Some(actor), 6_000)
             .expect("provider error should replay");
         assert_eq!(replay, first);
         assert_eq!(daemon.state.revision, revision);
+        assert_eq!(daemon.provider_invocation_probe.attempts(), 1);
     }
 
     #[test]
-    fn prepared_provider_claims_never_retry_automatically() {
+    fn authorized_provider_receipts_replay_after_restart_without_vault_access() {
+        let home = TestHome::new("provider-restart-replay");
+        let subject = configure_exact_application_authority(&home);
+        let paths = home.paths();
+        let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
+        let request = provider_request(
+            "local/request/providerrestart1",
+            &subject,
+            "missing.profile",
+        );
+
+        let mut first = Daemon::open_at(paths.clone(), 4_000).expect("daemon should open");
+        let response = first
+            .handle_request_as_at(request.clone(), Some(actor.clone()), 5_000)
+            .expect("missing profile should commit one definitive receipt");
+        assert_eq!(
+            response.error.as_ref().expect("missing profile error").code,
+            "provider-profile-missing"
+        );
+        assert_eq!(first.provider_invocation_probe.attempts(), 1);
+        assert_eq!(first.state.receipts.len(), 1);
+        drop(first);
+
+        let mut restarted = Daemon::open_at(paths, 6_000).expect("daemon should restart");
+        assert_eq!(restarted.provider_invocation_probe.attempts(), 0);
+        let replay = restarted
+            .handle_request_as_at(request, Some(actor), 7_000)
+            .expect("exact provider receipt should replay after restart");
+        assert_eq!(replay, response);
+        assert_eq!(restarted.provider_invocation_probe.attempts(), 0);
+        assert_eq!(restarted.state.receipts.len(), 1);
+        assert!(restarted.state.receipts[0].provider_authority.is_some());
+    }
+
+    #[test]
+    fn completed_provider_receipts_replay_after_later_application_revocation() {
+        let home = TestHome::new("provider-replay-after-revocation");
+        let (identity, subject) = configure_exact_application_authority_with_identity(&home);
+        let paths = home.paths();
+        let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
+        let request = provider_request(
+            "local/request/providerrevokedreplay1",
+            &subject,
+            "missing.profile",
+        );
+
+        let mut first = Daemon::open_at(paths.clone(), 4_000).expect("daemon should open");
+        let response = first
+            .handle_request_as_at(request.clone(), Some(actor.clone()), 5_000)
+            .expect("provider result should commit");
+        assert_eq!(
+            response.error.as_ref().expect("missing profile error").code,
+            "provider-profile-missing"
+        );
+        assert_eq!(first.provider_invocation_probe.attempts(), 1);
+        drop(first);
+
+        let mut applications =
+            ApplicationApprovalAuthority::open(paths.home.join("state").join("applications.json"))
+                .expect("application authority should reopen");
+        applications
+            .revoke(&identity, &subject.approval_digest, "user-revoked", 6_000)
+            .expect("application approval should revoke after provider authorization");
+
+        let mut restarted = Daemon::open_at(paths, 7_000)
+            .expect("historically authorized receipt should survive restart");
+        assert_eq!(restarted.provider_invocation_probe.attempts(), 0);
+        let replay = restarted
+            .handle_request_as_at(request, Some(actor.clone()), 8_000)
+            .expect("completed request should replay after later revocation");
+        assert_eq!(replay, response);
+        assert_eq!(restarted.provider_invocation_probe.attempts(), 0);
+
+        let denied = restarted
+            .handle_request_as_at(
+                provider_request(
+                    "local/request/providerrevokednew1",
+                    &subject,
+                    "missing.profile",
+                ),
+                Some(actor),
+                9_000,
+            )
+            .expect("new request should receive a closed authority denial");
+        assert_eq!(
+            denied.error.expect("revoked authority error").code,
+            "provider-authority-denied"
+        );
+        assert_eq!(restarted.provider_invocation_probe.attempts(), 0);
+        assert!(restarted.state.provider_invocations.is_empty());
+        assert_eq!(restarted.state.receipts.len(), 1);
+    }
+
+    #[test]
+    fn prepared_legacy_provider_claims_never_retry_automatically() {
         let home = TestHome::new("provider-uncertain");
         let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
         let actor = request_actor(
             LocalClientRole::Developer,
             "00112233445566778899aabbccddeeff",
         );
-        let request = provider_request("local/request/provideruncertain1", "missing.profile");
+        let request =
+            legacy_provider_request("local/request/provideruncertain1", "missing.profile");
         let digest = request_digest(&request).expect("request should hash");
         daemon
             .prepare_provider_invocation(ProviderInvocationClaim {
-                protocol: provider::PROVIDER_INVOCATION_CLAIM_PROTOCOL.to_owned(),
+                protocol: provider::LEGACY_PROVIDER_INVOCATION_CLAIM_PROTOCOL.to_owned(),
                 request_id: request.request_id.clone(),
                 digest,
                 actor: actor.clone(),
+                authority: None,
                 prepared_at_unix_ms: 2_000,
             })
             .expect("claim should prepare");
@@ -1428,6 +1819,174 @@ mod tests {
         );
         assert_eq!(daemon.state.revision, revision);
         assert_eq!(daemon.state.provider_invocations.len(), 1);
+        assert_eq!(daemon.provider_invocation_probe.attempts(), 0);
+    }
+
+    #[test]
+    fn restart_rejects_redirected_provider_claim_authority_evidence() {
+        let home = TestHome::new("provider-claim-authority-corrupt");
+        let subject = configure_exact_application_authority(&home);
+        let paths = home.paths();
+        let mut daemon = Daemon::open_at(paths.clone(), 4_000).expect("daemon should open");
+        let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
+        let request = provider_request(
+            "local/request/providerclaimcorrupt1",
+            &subject,
+            "missing.profile",
+        );
+        let digest = request_digest(&request).expect("provider request should hash");
+        let authorized = match provider_invocation_from_request(&request)
+            .expect("provider request should decode")
+        {
+            ProviderInvocationRequest::Authorized(authorized) => authorized,
+            ProviderInvocationRequest::Legacy(_) => panic!("provider request should be authorized"),
+        };
+        let application = daemon
+            .applications
+            .authorize_exact(
+                &authorized.check.subject,
+                &authorized.check.capability,
+                5_000,
+            )
+            .expect("application authority should decide");
+        assert!(application.allowed);
+        let grant = match daemon
+            .capabilities
+            .authorize_provider_invocation(&authorized.check, &authorized.invocation, 5_000)
+            .expect("provider grant should decide")
+        {
+            ProviderInvocationAuthority::Allowed(grant) => grant,
+            ProviderInvocationAuthority::Denied(reason) => {
+                panic!("provider grant should allow, denied with {reason}")
+            }
+        };
+        let authority = ProviderInvocationAuthorityEvidence::from_grant(
+            &digest,
+            grant,
+            &authorized.invocation,
+            5_000,
+        )
+        .expect("provider evidence should bind");
+        daemon
+            .prepare_provider_invocation(ProviderInvocationClaim {
+                protocol: provider::PROVIDER_INVOCATION_CLAIM_PROTOCOL.to_owned(),
+                request_id: request.request_id,
+                digest,
+                actor,
+                authority: Some(authority),
+                prepared_at_unix_ms: 5_000,
+            })
+            .expect("provider claim should prepare");
+
+        let claim = daemon
+            .state
+            .provider_invocations
+            .first_mut()
+            .expect("provider claim should exist");
+        let digest = claim.digest.clone();
+        let authority = claim
+            .authority
+            .as_mut()
+            .expect("provider claim should carry authority");
+        authority.profile_id = "other.profile".to_owned();
+        authority.binding_digest = authority
+            .expected_binding_digest(&digest)
+            .expect("changed evidence should rebind structurally");
+        let mut bytes = serde_json::to_vec_pretty(&daemon.state).expect("state should encode");
+        bytes.push(b'\n');
+        fs::write(&paths.state_file, bytes).expect("corrupt state should be written");
+        drop(daemon);
+        assert!(Daemon::open_at(paths, 6_000).is_err());
+    }
+
+    #[test]
+    fn restart_rejects_provider_receipt_policy_request_mismatch() {
+        let home = TestHome::new("provider-policy-corrupt");
+        let subject = configure_exact_application_authority(&home);
+        let paths = home.paths();
+        let mut daemon = Daemon::open_at(paths.clone(), 4_000).expect("daemon should open");
+        let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
+        let request = provider_request(
+            "local/request/providerpolicycorrupt1",
+            &subject,
+            "missing.profile",
+        );
+        daemon
+            .handle_request_as_at(request, Some(actor), 5_000)
+            .expect("provider result should commit");
+
+        let receipt = daemon
+            .state
+            .receipts
+            .first_mut()
+            .expect("provider receipt should exist");
+        let stored_request = decode_request(receipt.request.as_bytes())
+            .expect("stored provider request should decode");
+        let mut authorized = match provider_invocation_from_request(&stored_request)
+            .expect("stored provider request should parse")
+        {
+            ProviderInvocationRequest::Authorized(authorized) => authorized,
+            ProviderInvocationRequest::Legacy(_) => panic!("stored request should be authorized"),
+        };
+        authorized.invocation.profile_id = "other.profile".to_owned();
+        let changed_request = LocalRequest::provider_invoke(stored_request.request_id, *authorized)
+            .expect("changed provider request should encode");
+        receipt.request = String::from_utf8(
+            canonical_request(&changed_request).expect("changed request should canonicalize"),
+        )
+        .expect("changed request should be UTF-8");
+        receipt.digest = request_digest(&changed_request).expect("changed request should hash");
+        let digest = receipt.digest.clone();
+        let authority = receipt
+            .provider_authority
+            .as_mut()
+            .expect("provider receipt should carry authority");
+        authority.profile_id = "other.profile".to_owned();
+        authority.binding_digest = authority
+            .expected_binding_digest(&digest)
+            .expect("changed evidence should rebind structurally");
+
+        let mut bytes = serde_json::to_vec_pretty(&daemon.state).expect("state should encode");
+        bytes.push(b'\n');
+        fs::write(&paths.state_file, bytes).expect("corrupt state should be written");
+        drop(daemon);
+        assert!(Daemon::open_at(paths, 6_000).is_err());
+    }
+
+    #[test]
+    fn restart_rejects_redirected_provider_authority_evidence() {
+        let home = TestHome::new("provider-authority-corrupt");
+        let subject = configure_exact_application_authority(&home);
+        let paths = home.paths();
+        let mut daemon = Daemon::open_at(paths.clone(), 4_000).expect("daemon should open");
+        let actor = request_actor(LocalClientRole::Cli, "00112233445566778899aabbccddeeff");
+        let request = provider_request(
+            "local/request/providercorrupt1",
+            &subject,
+            "missing.profile",
+        );
+        daemon
+            .handle_request_as_at(request, Some(actor), 5_000)
+            .expect("provider result should commit");
+        let receipt = daemon
+            .state
+            .receipts
+            .first_mut()
+            .expect("provider receipt should exist");
+        let digest = receipt.digest.clone();
+        let authority = receipt
+            .provider_authority
+            .as_mut()
+            .expect("provider receipt should have authority");
+        authority.grant_id = "grant/ffffffffffffffffffffffffffffffff".to_owned();
+        authority.binding_digest = authority
+            .expected_binding_digest(&digest)
+            .expect("changed evidence should rebind structurally");
+        let mut bytes = serde_json::to_vec_pretty(&daemon.state).expect("state should encode");
+        bytes.push(b'\n');
+        fs::write(&paths.state_file, bytes).expect("corrupt state should be written");
+        drop(daemon);
+        assert!(Daemon::open_at(paths, 6_000).is_err());
     }
 
     #[test]

@@ -118,7 +118,7 @@ The current role policy is:
 
 `status` and `paths` remain bounded public local reads. Every other operation in the table requires an enrolled connection-bound session.
 
-Durable ordinary request receipts bind replay ownership to the authenticated client ID and fixed role. Reusing the same request ID from another client is a collision even when the semantic request bytes are identical. Provider invocation uses a separate prepared-claim path so uncertain external outcomes are never automatically repeated. Session establishment is never persisted because it contains the credential proof.
+Durable ordinary request receipts bind replay ownership to the authenticated client ID and fixed role. Reusing the same request ID from another client is a collision even when the semantic request bytes are identical. Provider invocation first requires exact signed application and typed `model/generate` grant authority. Only an allowed request reaches the separate prepared-claim path, so denied applications cannot reserve a claim, inspect provider-profile existence, touch credentials, or start network work. Uncertain external outcomes are never automatically repeated. Session establishment is never persisted because it contains the credential proof.
 
 ## Local role is not shared-resource authority
 

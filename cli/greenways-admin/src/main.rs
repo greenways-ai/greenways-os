@@ -4,6 +4,7 @@ use greenways_applications::{
 use greenways_authority::{LocalClient, LocalClientRegistry, LocalClientRole};
 use greenways_capabilities::{
     CapabilityAuthority, CapabilityAuthorityStatus, CapabilityGrantView, IssueCapabilityGrant,
+    ModelGeneratePolicy, MODEL_GENERATE_CAPABILITY,
 };
 use greenways_identity::{
     ApplicationApprovalRequest, ApplicationApprovalSubject, ApplicationDescriptor,
@@ -15,7 +16,6 @@ use greenways_local::GreenwaysPaths;
 use greenways_vault::{ProviderKind, ProviderProfile, ProviderVault, MAX_PROVIDER_SECRET_BYTES};
 use serde_json::json;
 use std::{
-    collections::BTreeMap,
     env,
     io::{self, IsTerminal, Read},
     path::{Path, PathBuf},
@@ -97,6 +97,7 @@ enum CapabilityCommand {
         approval_digest: String,
         lock_digest: Option<String>,
         expires_at_unix_ms: Option<u64>,
+        provider_policy: Option<ModelGeneratePolicy>,
     },
     Revoke {
         grant_id: String,
@@ -510,6 +511,7 @@ fn run_capability(
             approval_digest,
             lock_digest,
             expires_at_unix_ms,
+            provider_policy,
         } => {
             assert_daemon_stopped(&paths.socket_file)?;
             let identity = ProfileIdentityVault::open_system(
@@ -546,7 +548,9 @@ fn run_capability(
                     IssueCapabilityGrant {
                         capability,
                         subject,
-                        constraints: BTreeMap::new(),
+                        constraints: provider_policy
+                            .map(|policy| policy.constraints())
+                            .unwrap_or_default(),
                         issued_at_unix_ms: observed_at_unix_ms,
                         expires_at_unix_ms,
                     },
@@ -881,6 +885,10 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let mut approval_digest = None;
     let mut lock_digest = None;
     let mut expires_at_unix_ms = None;
+    let mut provider_profile_id = None;
+    let mut provider_model = None;
+    let mut provider_max_output_tokens = None;
+    let mut provider_max_timeout_ms = None;
     let mut grant_id = None;
     let mut reason = None;
 
@@ -1001,6 +1009,46 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                 }
                 expires_at_unix_ms = Some(parsed);
             }
+            "--provider-profile" => {
+                provider_profile_id = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--provider-profile requires a profile ID".to_owned())?,
+                );
+            }
+            "--provider-model" => {
+                provider_model = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--provider-model requires a model ID".to_owned())?,
+                );
+            }
+            "--provider-max-output-tokens" => {
+                provider_max_output_tokens = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| {
+                            "--provider-max-output-tokens requires a positive integer".to_owned()
+                        })?
+                        .parse::<u32>()
+                        .map_err(|_| {
+                            "--provider-max-output-tokens requires a positive integer".to_owned()
+                        })?,
+                );
+            }
+            "--provider-max-timeout-ms" => {
+                provider_max_timeout_ms = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| {
+                            "--provider-max-timeout-ms requires a positive integer".to_owned()
+                        })?
+                        .parse::<u64>()
+                        .map_err(|_| {
+                            "--provider-max-timeout-ms requires a positive integer".to_owned()
+                        })?,
+                );
+            }
             "--grant-id" => {
                 grant_id = Some(
                     arguments
@@ -1023,6 +1071,10 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         }
     }
 
+    let has_provider_policy_fields = provider_profile_id.is_some()
+        || provider_model.is_some()
+        || provider_max_output_tokens.is_some()
+        || provider_max_timeout_ms.is_some();
     let has_application_fields = !capabilities.is_empty()
         || app_id.is_some()
         || app_version.is_some()
@@ -1031,6 +1083,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         || approval_digest.is_some()
         || lock_digest.is_some()
         || expires_at_unix_ms.is_some()
+        || has_provider_policy_fields
         || grant_id.is_some()
         || reason.is_some();
     let required_id = || id.clone().ok_or_else(|| "--id is required".to_owned());
@@ -1155,6 +1208,11 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             )?;
             require_absent(&grant_id, "--grant-id", "application approve")?;
             require_absent(&reason, "--reason", "application approve")?;
+            if has_provider_policy_fields {
+                return Err(
+                    "application approve accepts no provider grant policy fields".to_owned(),
+                );
+            }
             if capabilities.is_empty() {
                 return Err("application approve requires at least one --capability".to_owned());
             }
@@ -1177,6 +1235,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                 || manifest_digest.is_some()
                 || lock_digest.is_some()
                 || expires_at_unix_ms.is_some()
+                || has_provider_policy_fields
                 || grant_id.is_some()
             {
                 return Err("application revoke accepts only approval digest and reason".to_owned());
@@ -1206,11 +1265,37 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             if capabilities.len() != 1 {
                 return Err("capability issue requires exactly one --capability".to_owned());
             }
+            let capability = capabilities
+                .into_iter()
+                .next()
+                .ok_or_else(|| "--capability is required".to_owned())?;
+            let provider_policy = if capability == MODEL_GENERATE_CAPABILITY {
+                Some(
+                    ModelGeneratePolicy::new(
+                        provider_profile_id.ok_or_else(|| {
+                            "model/generate requires --provider-profile".to_owned()
+                        })?,
+                        provider_model
+                            .ok_or_else(|| "model/generate requires --provider-model".to_owned())?,
+                        provider_max_output_tokens.ok_or_else(|| {
+                            "model/generate requires --provider-max-output-tokens".to_owned()
+                        })?,
+                        provider_max_timeout_ms.ok_or_else(|| {
+                            "model/generate requires --provider-max-timeout-ms".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| error.to_string())?,
+                )
+            } else {
+                if has_provider_policy_fields {
+                    return Err(
+                        "provider grant policy fields are valid only for model/generate".to_owned(),
+                    );
+                }
+                None
+            };
             Command::Capability(CapabilityCommand::Issue {
-                capability: capabilities
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| "--capability is required".to_owned())?,
+                capability,
                 app_id: app_id.ok_or_else(|| "--app-id is required".to_owned())?,
                 app_version: app_version.ok_or_else(|| "--app-version is required".to_owned())?,
                 publisher_id: publisher_id.ok_or_else(|| "--publisher is required".to_owned())?,
@@ -1218,6 +1303,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                     .ok_or_else(|| "--approval-digest is required".to_owned())?,
                 lock_digest,
                 expires_at_unix_ms,
+                provider_policy,
             })
         }
         ("capability", "revoke") => {
@@ -1230,6 +1316,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                 || approval_digest.is_some()
                 || lock_digest.is_some()
                 || expires_at_unix_ms.is_some()
+                || has_provider_policy_fields
             {
                 return Err("capability revoke accepts only grant id and reason".to_owned());
             }
@@ -1284,13 +1371,16 @@ fn print_help() {
 \
            --publisher PUBLISHER --approval-digest SHA256 [--lock-digest SHA256] \
 \
-           [--expires-at-unix-ms INTEGER] [--home PATH] [--json]\n\
+           [--provider-profile ID --provider-model ID --provider-max-output-tokens N \
+\
+            --provider-max-timeout-ms N] [--expires-at-unix-ms INTEGER] [--home PATH] [--json]\n\
          greenways-admin capability revoke --grant-id ID --reason TEXT [--home PATH] [--json]\n\
          \n\
          Provider credentials and profile private keys are placed directly into operating-system\n\
          credential store. Local client credentials are written once to a new private file.\n\
-         Neither secret is accepted as a command-line argument or printed. Stop greenwaysd before\n\
-         mutating provider, application, capability, or local-client authority."
+         Neither secret is accepted as a command-line argument or printed. A model/generate grant\n\
+         requires the four explicit provider-policy fields. Stop greenwaysd before mutating provider,\n\
+         application, capability, or local-client authority."
     );
 }
 
@@ -1448,6 +1538,14 @@ mod tests {
             "hara-lang",
             "--approval-digest",
             "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "--provider-profile",
+            "openai.personal",
+            "--provider-model",
+            "gpt-5",
+            "--provider-max-output-tokens",
+            "512",
+            "--provider-max-timeout-ms",
+            "30000",
         ])
         .expect("capability issue should parse");
         assert!(matches!(
@@ -1468,6 +1566,53 @@ mod tests {
             Command::Capability(CapabilityCommand::Revoke { .. })
         ));
         assert!(parse(&["capability", "issue", "--capability", "model/generate",]).is_err());
+        assert!(parse(&[
+            "capability",
+            "issue",
+            "--capability",
+            "model/generate",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        ])
+        .is_err());
+        assert!(parse(&[
+            "capability",
+            "issue",
+            "--capability",
+            "tahto/read",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        ])
+        .is_ok());
+        assert!(parse(&[
+            "capability",
+            "issue",
+            "--capability",
+            "tahto/read",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "--provider-profile",
+            "openai.personal",
+        ])
+        .is_err());
         assert!(parse(&["identity", "status", "--capability", "model/generate",]).is_err());
     }
 

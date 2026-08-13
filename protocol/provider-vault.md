@@ -86,9 +86,9 @@ Profile IDs, labels, opaque credential handles, and provider credentials are nev
 
 ## Typed invocation
 
-`provider.invoke` consumes one closed, bounded provider invocation inside `greenwaysd` and returns one normalized bounded result. Desktop, CLI, and explicit Developer roles may use this migration path. The browser bridge remains denied until one exact reviewed application grant can be checked for one exact invocation.
+`provider.invoke` consumes one closed authorized wrapper inside `greenwaysd` and returns one normalized bounded result. Desktop, CLI, and explicit Developer roles may call it only when an active exact application approval declares `model/generate` and an active signed grant permits the exact provider profile, model, output limit, and timeout. The browser bridge remains denied.
 
-Definitive provider results and provider errors are durably replayable for the same authenticated actor. A prepared request with an uncertain external outcome is fenced rather than retried automatically, preventing accidental duplicate billable calls.
+Authority denial occurs before provider-profile lookup, credential-store access, durable provider claim ownership, or network access. Definitive provider results and provider errors are durably replayable for the same authenticated actor with attributable approval/grant evidence. A prepared request with an uncertain external outcome is fenced rather than retried automatically, preventing accidental duplicate billable calls.
 
 ## Transaction semantics
 

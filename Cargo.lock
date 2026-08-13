@@ -324,6 +324,7 @@ name = "greenways-capabilities"
 version = "0.1.0"
 dependencies = [
  "greenways-identity",
+ "greenways-provider",
  "serde",
  "serde_json",
 ]
@@ -417,6 +418,7 @@ dependencies = [
  "greenways-vault",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

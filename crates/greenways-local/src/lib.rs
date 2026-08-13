@@ -4,10 +4,10 @@ use greenways_authority::{
 };
 use greenways_capabilities::{CapabilityDecision, CheckCapability};
 use greenways_protocol::{
-    decode_response, encode_request_line, new_request_id, LocalRequest, LocalResponse, Outcome,
-    ProtocolError, MAX_RESPONSE_BYTES,
+    decode_response, encode_request_line, new_request_id, AuthorizedProviderInvocation,
+    LocalRequest, LocalResponse, Outcome, ProtocolError, MAX_RESPONSE_BYTES,
 };
-use greenways_provider::{ProviderInvocation, ProviderResult};
+use greenways_provider::ProviderResult;
 use serde_json::{Map, Value};
 use std::{
     env,
@@ -227,7 +227,10 @@ impl AuthenticatedLocalClient {
         self.send(&LocalRequest::clients_list(new_request_id()?))
     }
 
-    pub fn invoke(&mut self, invocation: ProviderInvocation) -> Result<LocalResponse, LocalError> {
+    pub fn invoke(
+        &mut self,
+        invocation: AuthorizedProviderInvocation,
+    ) -> Result<LocalResponse, LocalError> {
         self.send(&LocalRequest::provider_invoke(
             new_request_id()?,
             invocation,

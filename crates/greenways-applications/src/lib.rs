@@ -442,6 +442,44 @@ impl ApplicationApprovalAuthority {
         Ok(authorization(true, "approved", subject, normalized))
     }
 
+    pub fn matches_active_exact_at(
+        &self,
+        subject: &ApplicationApprovalSubject,
+        capability: &str,
+        observed_at_unix_ms: u64,
+    ) -> Result<bool, ApplicationApprovalError> {
+        validate_application_approval_subject(subject)?;
+        validate_timestamp(observed_at_unix_ms, "application evidence time")?;
+        let normalized = normalize_operation_capability(capability)?;
+        if normalized != capability {
+            return Err(ApplicationApprovalError::Invalid(
+                "capability must already be canonical".to_owned(),
+            ));
+        }
+        let Some(approval) = self
+            .state
+            .approvals
+            .iter()
+            .find(|approval| approval.subject_root == subject.approval_digest)
+        else {
+            return Ok(false);
+        };
+        if application_approval_subject(approval)? != *subject
+            || approval.approval.approved_at_unix_ms > observed_at_unix_ms
+            || self.state.revocations.iter().any(|revocation| {
+                revocation.revocation.approval_subject_root == approval.subject_root
+                    && revocation.revocation.revoked_at_unix_ms <= observed_at_unix_ms
+            })
+        {
+            return Ok(false);
+        }
+        Ok(approval
+            .approval
+            .declared_capabilities
+            .iter()
+            .any(|declared| declared == &normalized))
+    }
+
     pub fn subject(
         &self,
         approval_subject_root: &str,
@@ -790,6 +828,12 @@ mod tests {
 
         let reopened =
             ApplicationApprovalAuthority::open(home.state()).expect("authority should reopen");
+        assert!(reopened
+            .matches_active_exact_at(&subject, "model/generate", 3_000)
+            .expect("pre-revocation evidence should validate"));
+        assert!(!reopened
+            .matches_active_exact_at(&subject, "model/generate", 6_000)
+            .expect("post-revocation evidence should be denied"));
         let denied = reopened
             .authorize_exact(&subject, "model/generate", 6_000)
             .expect("revoked decision should evaluate");
