@@ -6,7 +6,9 @@
 
 Its product and code identity is `greenways.beacon`. The executable is `greenways-beacon`; `greenways-home` is a temporary compatibility alias during migration from the first Home Link prototype.
 
-Beacon is built as a Hara application on Hoplite. Hoplite owns the HTTP/Nginx edge, immutable route plan and local management realm. Hara owns the inspectable discovery and gateway policy.
+Beacon is built as a Hara application on Hoplite. Hoplite owns the generic
+HTTP/Nginx edge and immutable route plan. Greenways OS owns local application
+approval and credentials; Beacon owns its explicit gateway policy.
 
 Beacon is not Hestia and does not contain a second private-office authority. Greenways Space composes Hestia, Ignatius and other Greenways services behind a signed service catalogue.
 
@@ -108,7 +110,8 @@ The legacy `greenways-home/0-alpha` prototype has a useful per-browser P-256 pai
 
 1. Ship Beacon as the new Hoplite edge and product identity.
 2. Keep the old Home Link implementation available only for existing paired browsers.
-3. Define `greenways-beacon-device/0-alpha` using browser-held non-extractable keys and Hoplite-owned application authentication/store adapters.
+3. Define `greenways-beacon-device/0-alpha` using browser-held non-extractable
+   keys and Greenways-owned authentication and storage adapters.
 4. Let a user explicitly bind or re-enrol each browser with Beacon.
 5. Remove the Node HTTP service after exports, revocation and recovery have conformance coverage.
 
@@ -137,7 +140,7 @@ No migration silently copies a reusable administrator credential or treats posse
 
 ### Beacon 0.2 — Device grants
 
-- Hoplite application-realm browser enrolment;
+- Greenways-owned browser enrolment exposed through ordinary Beacon routes;
 - per-browser names, revocation and signed presence;
 - explicit migration from legacy Home Link identities; and
 - local device and route inspection in the Greenways visual language.
