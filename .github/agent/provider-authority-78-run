@@ -1,5 +1,5 @@
 issue=78
 base=dynamic-current-main
 patch=sha256:c31906a82eb7c3ad653e6cc1f2a7a15af4c2dfba48f8a68c19d90c59452a4646
-attempt=5
-requested=2026-08-13T12:15:00+10:00
+attempt=6
+requested=2026-08-13T12:25:00+10:00
