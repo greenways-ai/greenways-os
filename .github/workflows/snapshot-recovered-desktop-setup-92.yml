@@ -1,0 +1,35 @@
+name: Snapshot recovered Desktop setup source
+
+on:
+  push:
+    branches:
+      - agent/recovered-desktop-setup-inspection-92
+    paths:
+      - .github/agent/recovered-desktop-setup-inspection-92-snapshot
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/recovered-desktop-setup-inspection-92
+          fetch-depth: 0
+      - name: Package recovered source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude=.git \
+            --exclude=.github/workflows/snapshot-recovered-desktop-setup-92.yml \
+            --exclude=.github/agent/recovered-desktop-setup-inspection-92-snapshot \
+            -czf /tmp/greenways-os-recovered-desktop-setup-92.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenways-os-recovered-desktop-setup-92-source
+          path: /tmp/greenways-os-recovered-desktop-setup-92.tar.gz
+          retention-days: 1
+          if-no-files-found: error
