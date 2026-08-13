@@ -45,7 +45,7 @@ jobs:
             .github/agent/provider-authority-78-v4/part-06 \
             > /tmp/provider-authority-78.patch.gz.b64
           base64 --decode --ignore-garbage /tmp/provider-authority-78.patch.gz.b64 > /tmp/provider-authority-78.patch.gz
-          test "$(sha256sum /tmp/provider-authority-78.patch.gz | cut -d' ' -f1)" = '0bfed10a0deed0d50b2ddfc66295222027bd284cdbf029139f6eaeed63dc3d90'
+          test "$(sha256sum /tmp/provider-authority-78.patch.gz | cut -d' ' -f1)" = 'f8338a718676e8d21a86efcbbfad978152cb250496810e5c9e168f07fe7c38d6'
           gzip --decompress --stdout /tmp/provider-authority-78.patch.gz > /tmp/provider-authority-78.patch
           test "$(sha256sum /tmp/provider-authority-78.patch | cut -d' ' -f1)" = 'c31906a82eb7c3ad653e6cc1f2a7a15af4c2dfba48f8a68c19d90c59452a4646'
 
