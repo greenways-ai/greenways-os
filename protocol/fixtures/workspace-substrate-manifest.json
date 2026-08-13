@@ -1,0 +1,32 @@
+{
+  "protocol": "greenways.substrate.fixture/0-alpha",
+  "sourceRevisions": {
+    "greenways": "92968e489b36b95419a68e3fc996dd09a7bd8837",
+    "runtime": "e8b811759edbe7c387f914481cb9b3019fa4ce08"
+  },
+  "wire": {
+    "protocol": "greenways-substrate/0-alpha",
+    "length": "u32-big-endian",
+    "requestMax": 65536,
+    "serverMax": 262144
+  },
+  "positive": [
+    ["session-hello-request", 287, 291, "3cc63c5d13ef539758b2f5df54d3c69999c8a5a43d6a7adffadb8a6d340718a3", "89bc91be0b2722ddd03d38bc73c3202af7be30053ad1bacb7716b0bf20247185"],
+    ["data-query-recent-request", 255, 259, "35495d5bafe7ea68401e06ae15ef3437551a29a5b89d8fefd6d749599a633a9e", "0bc35aca40806ee7ab85b780f7c7d1c31b913ebf56ee273b973fe4f065ab66c7"],
+    ["data-transact-title-request", 408, 412, "2023c31cafb5e0a14b05bd026e54731935654927af55e197f0ed830bb2feef10", "4a89a9764678fb6b6b792b6a8f718b0df910b97270b413381edc7ee692003797"],
+    ["resource-subscribe", 178, 182, "359a0e92416a63a60813225e9c4f7b41e2855b2aa6a7a14efa7693376a4a7ed9", "8a8acb464d89c09027259b9541d4bb81ad458ee16703d68986ddbc1a80c087dd"],
+    ["resource-resolve-response", 613, 617, "3de3188f9ede2b450c45a490256c13d5b5864fe4c4a390991f11dbb0987ac5dc", "e6ab753888135f1566358906104f8edf6cf34cc2274657b14932664c7b250619"],
+    ["resource-changed-event", 324, 328, "d225074b07f3cf3b688122c60950d6dc5b52d232afa8ede0b0e6f00118006915", "ae733beb44c1cfe8476e367045eca1e99aab81686c66436d6f1452867d42f372"]
+  ],
+  "negative": [
+    ["zero-length", "protocol-mismatch"],
+    ["truncated-payload", "disconnect"],
+    ["request-over-limit", "request-too-large"],
+    ["wrong-magic", "malformed-hta"],
+    ["trailing-byte", "malformed-hta"],
+    ["noncanonical-record-order", "noncanonical-hta"],
+    ["unknown-action", "unknown-action"],
+    ["caller-context", "forged-context"],
+    ["response-over-limit", "response-too-large"]
+  ]
+}

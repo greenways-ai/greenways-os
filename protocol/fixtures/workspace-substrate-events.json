@@ -1,0 +1,46 @@
+{
+  "resource-subscribe": {
+    "kind": "subscribe",
+    "id": "sub-0000000000000001",
+    "space": "__NODE__",
+    "signal": "resource.changed",
+    "meta": {"uri": "greenways:tahto/collection/chats"}
+  },
+  "resource-resolve-response": {
+    "kind": "response",
+    "id": "res-0000000000000001",
+    "space": "__NODE__",
+    "meta": {},
+    "reply_to": "req-0000000000000002",
+    "status": "ok",
+    "data": {
+      "protocol": "greenways.resource/0-alpha",
+      "uri": "greenways:tahto/collection/chats",
+      "kind": "collection",
+      "service": "tahto.chats",
+      "operations": ["query", "transact", "subscribe"],
+      "head": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "availability": "local",
+      "limits": {
+        "max_page": 100,
+        "max_request_bytes": 65536,
+        "max_event_bytes": 262144,
+        "max_subscriptions": 32
+      }
+    },
+    "error": null
+  },
+  "resource-changed-event": {
+    "kind": "stream",
+    "id": "evt-0000000000000001",
+    "space": "__NODE__",
+    "meta": {},
+    "signal": "resource.changed",
+    "data": {
+      "uri": "greenways:tahto/collection/chats",
+      "head": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+      "revision": 2
+    },
+    "cause": "req-0000000000000004"
+  }
+}

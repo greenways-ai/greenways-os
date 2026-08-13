@@ -1,0 +1,41 @@
+{
+  "protocol": "greenways.chats.cutover/0-alpha",
+  "states": [
+    "legacy-writable",
+    "prepared",
+    "verified",
+    "committed",
+    "legacy-read-only"
+  ],
+  "transitions": [
+    ["legacy-writable", "prepared"],
+    ["prepared", "verified"],
+    ["verified", "committed"],
+    ["committed", "legacy-read-only"]
+  ],
+  "prepare": [
+    "freeze-snapshot",
+    "validate-records",
+    "record-digest",
+    "record-counts",
+    "record-source-version"
+  ],
+  "verify": [
+    "import-production-store",
+    "compare-chat-ids",
+    "compare-message-ids",
+    "compare-entity-digests",
+    "compare-pages",
+    "restart-and-requery"
+  ],
+  "commit": [
+    "bind-snapshot-digest",
+    "bind-collection-head",
+    "bind-verification-digest",
+    "switch-primary-reads",
+    "switch-primary-writes",
+    "mark-legacy-read-only"
+  ],
+  "rollbackBeforeCommit": "legacy-writable",
+  "writableAfterCommit": "daemon-only"
+}

@@ -11,6 +11,7 @@ members = [
   "crates/greenways-protocol",
   "crates/greenways-provider",
   "crates/greenways-vault",
+  "crates/greenways-workspace-contracts",
   "services/greenways-desktop-bridge",
   "services/greenwaysd",
 ]

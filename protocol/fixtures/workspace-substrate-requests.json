@@ -1,0 +1,41 @@
+{
+  "session-hello-request": {
+    "kind": "request",
+    "id": "req-0000000000000001",
+    "space": "__NODE__",
+    "meta": {},
+    "action": "@greenways/session/hello",
+    "args": [{
+      "protocol": "greenways.session.hello/0-alpha",
+      "client": "desktop",
+      "features": ["resource", "data", "subscription"]
+    }]
+  },
+  "data-query-recent-request": {
+    "kind": "request",
+    "id": "req-0000000000000003",
+    "space": "__NODE__",
+    "meta": {},
+    "action": "@greenways/data/query",
+    "args": [{
+      "uri": "greenways:tahto/collection/chats",
+      "selector": "recent",
+      "limit": 100,
+      "cursor": null
+    }]
+  },
+  "data-transact-title-request": {
+    "kind": "request",
+    "id": "req-0000000000000004",
+    "space": "__NODE__",
+    "meta": {},
+    "action": "@greenways/data/transact",
+    "args": [{
+      "uri": "greenways:tahto/collection/chats",
+      "mutation": "chat.title.set",
+      "expected_head": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "chat_id": "0123456789abcdef0123456789abcdef",
+      "title": "Chats contract fixture"
+    }]
+  }
+}
