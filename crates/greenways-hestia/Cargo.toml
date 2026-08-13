@@ -1,0 +1,16 @@
+[package]
+name = "greenways-hestia"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+greenways-capabilities = { path = "../greenways-capabilities" }
+greenways-identity = { path = "../greenways-identity" }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

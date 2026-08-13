@@ -5,6 +5,7 @@ members = [
   "crates/greenways-authority",
   "crates/greenways-applications",
   "crates/greenways-capabilities",
+  "crates/greenways-hestia",
   "crates/greenways-identity",
   "crates/greenways-local",
   "crates/greenways-protocol",
