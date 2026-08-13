@@ -212,14 +212,15 @@ final class RoomsView extends StatelessWidget {
       child: _PageFrame(
         eyebrow: 'HESTIA AUTHORITY',
         title: 'Rooms',
-        subtitle:
-            'Compiled import readiness without inferring room authority or membership.',
+        subtitle: 'Compiled import readiness without inferring room authority or membership.',
         children: imported == null
             ? const [_RoomsConnectionRequired()]
             : [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final readiness = _HestiaImportReadiness(imported: imported);
+                    final readiness = _HestiaImportReadiness(
+                      imported: imported,
+                    );
                     const ownership = _RoomOwnershipBoundary();
                     if (constraints.maxWidth < 820) {
                       return Column(
@@ -370,14 +371,12 @@ final class _RoomOwnershipBoundary extends StatelessWidget {
             const SizedBox(height: 18),
             const _BoundaryRow(
               owner: 'Hestia',
-              responsibility:
-                  'Room governance, membership, epochs, source mandates and canonical receipts.',
+              responsibility: 'Room governance, membership, epochs, source mandates and canonical receipts.',
             ),
             const SizedBox(height: 14),
             const _BoundaryRow(
               owner: 'Greenways',
-              responsibility:
-                  'Installation-local custody, verified imports, bounded projections and local execution.',
+              responsibility: 'Installation-local custody, verified imports, bounded projections and local execution.',
             ),
           ],
         ),
@@ -442,9 +441,8 @@ final class _RoomsEmptyState extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(
                 imported.admittedRoomProjectionCount.toString(),
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             const SizedBox(width: 16),
