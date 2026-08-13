@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 greenways-authority = { path = "../../crates/greenways-authority" }
+greenways-hestia = { path = "../../crates/greenways-hestia" }
 greenways-identity = { path = "../../crates/greenways-identity" }
 greenways-local = { path = "../../crates/greenways-local" }
 greenways-provider = { path = "../../crates/greenways-provider" }

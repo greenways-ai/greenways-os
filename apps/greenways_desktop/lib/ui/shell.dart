@@ -26,15 +26,18 @@ final class _DesktopShellState extends State<DesktopShell> {
         return LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 760;
-            final body = _destination == 0
-                ? OverviewView(
-                    snapshot: snapshot,
-                    controller: widget.controller,
-                  )
-                : ConnectionsView(
-                    snapshot: snapshot,
-                    controller: widget.controller,
-                  );
+            final body = switch (_destination) {
+              0 => OverviewView(
+                snapshot: snapshot,
+                controller: widget.controller,
+              ),
+              1 => RoomsView(snapshot: snapshot),
+              2 => ConnectionsView(
+                snapshot: snapshot,
+                controller: widget.controller,
+              ),
+              _ => throw StateError('Unsupported Desktop destination.'),
+            };
             return Scaffold(
               body: SafeArea(
                 child: wide
@@ -67,6 +70,11 @@ final class _DesktopShellState extends State<DesktopShell> {
                           icon: Icon(Icons.home_outlined),
                           selectedIcon: Icon(Icons.home),
                           label: 'Overview',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.meeting_room_outlined),
+                          selectedIcon: Icon(Icons.meeting_room),
+                          label: 'Rooms',
                         ),
                         NavigationDestination(
                           icon: Icon(Icons.hub_outlined),
@@ -142,10 +150,18 @@ final class _DesktopRail extends StatelessWidget {
             const SizedBox(height: 6),
             _RailDestination(
               selected: destination == 1,
+              icon: Icons.meeting_room_outlined,
+              selectedIcon: Icons.meeting_room,
+              label: 'Rooms',
+              onTap: () => onSelected(1),
+            ),
+            const SizedBox(height: 6),
+            _RailDestination(
+              selected: destination == 2,
               icon: Icons.hub_outlined,
               selectedIcon: Icons.hub,
               label: 'Connections',
-              onTap: () => onSelected(1),
+              onTap: () => onSelected(2),
             ),
             const Spacer(),
             Text(

@@ -45,6 +45,20 @@ The exact commands are `connect`, `refresh`, `disconnect`, and internal lifecycl
     "daemon": {},
     "actor": {},
     "identity": null,
+    "hestiaImport": {
+      "protocol": "greenways-hestia-import-status/0-alpha",
+      "state": "pinned",
+      "repository": "greenways-ai/hestia",
+      "revision": "64707d7a38216d800bcc22b8da215c3e6946e1bb",
+      "package": "@greenways/hestia-browser",
+      "artifactCount": 12,
+      "roomInvocationProtocol": "hestia-room-invocation/0-alpha",
+      "authorityDecisionProtocol": "hestia-room-authority-decision/0-alpha",
+      "preparedExecutionProtocol": "greenways-prepared-room-execution/0-alpha",
+      "verificationScope": "compiled-lock",
+      "roomProjectionsAdmitted": false,
+      "admittedRoomProjectionCount": 0
+    },
     "session": {},
     "error": null,
     "observedAtUnixMs": 1
@@ -65,7 +79,17 @@ protocol-mismatch
 disconnected
 ```
 
-A connected projection requires an exact active Desktop actor. Public identity may be absent while the daemon remains connected.
+A connected projection requires an exact active Desktop actor and the exact compiled Hestia import status. Public identity may be absent while the daemon remains connected. Connecting, disconnected, and failed projections must set `hestiaImport` to `null` rather than carrying partial authority metadata.
+
+## Compiled import readiness is not room authority
+
+`hestiaImport.state = pinned` means that the reviewed Hestia browser package closure named by the committed lock is compiled into this build. `verificationScope = compiled-lock` deliberately does not claim that a live room, membership, source mandate, application grant, route, or provider is verified.
+
+The bounded projection exposes only package identity, the exact imported artifact count, the inert cross-authority protocol versions, and the admitted room-projection count. Artifact names, paths, individual digests, Hestia record bodies, invitation material, membership proofs, roots, and canonical room receipts stay outside the Desktop protocol.
+
+In this readiness slice, `roomProjectionsAdmitted` is `false` and `admittedRoomProjectionCount` is `0`. The two fields must agree. Admission of canonical room projections requires a later authority-owned protocol and durable store; package pinning cannot stand in for that evidence.
+
+The daemon operation beneath this projection is the exact no-argument `hestia.import.status` request. It requires an authenticated local session. Desktop, CLI, and explicit Developer roles may read it; Browser Bridge is denied before metadata projection and before the ordinary durable request-receipt path.
 
 ## Confidentiality
 
@@ -79,4 +103,4 @@ Closing the macOS window hides the shell. It does not stop `greenwaysd`. The men
 
 ## Deliberate limits
 
-This protocol does not provide rooms, Hestia authority, provider invocation, browser page forwarding, application approval, capability inventory, recovery-key export, or generic daemon calls.
+This protocol exposes bounded pinned-import metadata and an empty Rooms readiness surface. It does not provide canonical rooms or memberships, source mandates, room application grants, roots, invitation or join transport, provider invocation, browser page forwarding, application approval, capability inventory, recovery-key export, or generic daemon calls. It also does not evaluate Hestia governance policy or change the menu-bar status from local-daemon state.

@@ -8,6 +8,7 @@ use greenways_authority::{
 use greenways_capabilities::{
     CapabilityAuthority, CapabilityDecision, CapabilityError, ModelGeneratePolicy,
 };
+use greenways_hestia::{HestiaImportError, HestiaImportStatus};
 use greenways_identity::{IdentityError, ProfileIdentityVault};
 use greenways_local::GreenwaysPaths;
 use greenways_protocol::{
@@ -58,6 +59,7 @@ pub enum DaemonError {
     Application(ApplicationApprovalError),
     Capability(CapabilityError),
     Identity(IdentityError),
+    Hestia(HestiaImportError),
     Vault(VaultError),
     State(String),
     AlreadyRunning(PathBuf),
@@ -86,6 +88,9 @@ impl fmt::Display for DaemonError {
             }
             Self::Identity(error) => {
                 write!(formatter, "Greenways daemon identity failed: {error}")
+            }
+            Self::Hestia(error) => {
+                write!(formatter, "Greenways daemon Hestia import failed: {error}")
             }
             Self::Vault(error) => write!(formatter, "Greenways daemon vault failed: {error}"),
             Self::State(message) => {
@@ -117,6 +122,7 @@ impl Error for DaemonError {
             Self::Application(error) => Some(error),
             Self::Capability(error) => Some(error),
             Self::Identity(error) => Some(error),
+            Self::Hestia(error) => Some(error),
             Self::Vault(error) => Some(error),
             _ => None,
         }
@@ -156,6 +162,12 @@ impl From<CapabilityError> for DaemonError {
 impl From<IdentityError> for DaemonError {
     fn from(value: IdentityError) -> Self {
         Self::Identity(value)
+    }
+}
+
+impl From<HestiaImportError> for DaemonError {
+    fn from(value: HestiaImportError) -> Self {
+        Self::Hestia(value)
     }
 }
 
@@ -208,6 +220,7 @@ pub struct Daemon {
     clients: LocalClientRegistry,
     applications: ApplicationApprovalAuthority,
     capabilities: CapabilityAuthority,
+    hestia_import: HestiaImportStatus,
     identity: ProfileIdentityVault,
     vault: ProviderVault,
     #[cfg(test)]
@@ -227,6 +240,7 @@ impl Daemon {
             ApplicationApprovalAuthority::open(paths.home.join("state").join("applications.json"))?;
         let capabilities =
             CapabilityAuthority::open(paths.home.join("state").join("capabilities.json"))?;
+        let hestia_import = HestiaImportStatus::from_compiled_lock()?;
         let identity = ProfileIdentityVault::open_system(
             paths.home.join("state").join("profile-identity.json"),
         )?;
@@ -263,6 +277,7 @@ impl Daemon {
             clients,
             applications,
             capabilities,
+            hestia_import,
             identity,
             vault,
             #[cfg(test)]
@@ -336,6 +351,17 @@ impl Daemon {
                 request.request_id,
                 "authority-denied",
                 "This local client role cannot inspect Greenways vault status.",
+            ));
+        }
+        if request.operation == "hestia.import.status"
+            && actor
+                .as_ref()
+                .is_some_and(|actor| !role_may_read_hestia_import_status(actor.role))
+        {
+            return Ok(LocalResponse::error(
+                request.request_id,
+                "authority-denied",
+                "This local client role cannot inspect Hestia import readiness.",
             ));
         }
         if request.operation == "provider.invoke" {
@@ -418,6 +444,14 @@ impl Daemon {
                 request.request_id.clone(),
                 serde_json::to_value(self.identity.status()).map_err(|_| {
                     DaemonError::State("identity status projection could not be encoded".to_owned())
+                })?,
+            ),
+            "hestia.import.status" => LocalResponse::ok(
+                request.request_id.clone(),
+                serde_json::to_value(&self.hestia_import).map_err(|_| {
+                    DaemonError::State(
+                        "Hestia import status projection could not be encoded".to_owned(),
+                    )
                 })?,
             ),
             "identity.public-card" => match self.identity.public_identity() {
@@ -859,6 +893,7 @@ fn requires_authenticated_session(operation: &str) -> bool {
             | "provider.invoke"
             | "identity.status"
             | "identity.public-card"
+            | "hestia.import.status"
             | "capabilities.status"
             | "capabilities.list"
             | "capabilities.check"
@@ -881,6 +916,13 @@ fn role_may_inspect_capabilities(role: LocalClientRole) -> bool {
 }
 
 fn role_may_read_vault_status(role: LocalClientRole) -> bool {
+    matches!(
+        role,
+        LocalClientRole::Desktop | LocalClientRole::Cli | LocalClientRole::Developer
+    )
+}
+
+fn role_may_read_hestia_import_status(role: LocalClientRole) -> bool {
     matches!(
         role,
         LocalClientRole::Desktop | LocalClientRole::Cli | LocalClientRole::Developer
@@ -1445,6 +1487,7 @@ mod tests {
             )
             .expect("public vault status should return a closed response");
         assert_eq!(public.outcome, Outcome::Error);
+        assert!(public.value.is_none());
         assert_eq!(
             public.error.expect("authentication error").code,
             "authentication-required"
@@ -1488,6 +1531,113 @@ mod tests {
         let encoded = serde_json::to_string(&status).expect("status should encode");
         assert!(!encoded.contains("openai.personal"));
         assert!(!encoded.contains("Personal OpenAI"));
+    }
+
+    #[test]
+    fn hestia_import_status_is_authenticated_role_scoped_and_bounded() {
+        let home = TestHome::new("hestia-import-status");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+
+        let public = daemon
+            .handle_request_at(
+                LocalRequest::hestia_import_status("local/request/hestia001"),
+                2_000,
+            )
+            .expect("public status request should return a response");
+        assert_eq!(public.outcome, Outcome::Error);
+        assert!(public.value.is_none());
+        assert_eq!(
+            public.error.expect("authentication error").code,
+            "authentication-required"
+        );
+        assert!(daemon.state.receipts.is_empty());
+
+        let browser = RequestActor {
+            client_id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::BrowserBridge,
+        };
+        let denied = daemon
+            .handle_request_as_at(
+                LocalRequest::hestia_import_status("local/request/hestia002"),
+                Some(browser),
+                3_000,
+            )
+            .expect("browser status request should return a response");
+        assert_eq!(denied.outcome, Outcome::Error);
+        assert!(denied.value.is_none());
+        assert_eq!(
+            denied.error.expect("authority error").code,
+            "authority-denied"
+        );
+        assert!(daemon.state.receipts.is_empty());
+
+        for (index, role) in [
+            LocalClientRole::Desktop,
+            LocalClientRole::Cli,
+            LocalClientRole::Developer,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let actor = RequestActor {
+                client_id: format!("local/client/{:032x}", index + 1),
+                role,
+            };
+            let response = daemon
+                .handle_request_as_at(
+                    LocalRequest::hestia_import_status(format!(
+                        "local/request/hestia{:03}",
+                        index + 3
+                    )),
+                    Some(actor),
+                    4_000 + index as u64,
+                )
+                .expect("allowed Hestia import status should complete");
+            assert_eq!(response.outcome, Outcome::Ok);
+            let status: HestiaImportStatus = serde_json::from_value(
+                response.value.expect("Hestia import status value"),
+            )
+            .expect("Hestia import status should decode");
+            status.validate().expect("Hestia import status should validate");
+            assert_eq!(status.protocol, "greenways-hestia-import-status/0-alpha");
+            assert_eq!(status.state, "pinned");
+            assert_eq!(status.repository, "greenways-ai/hestia");
+            assert_eq!(
+                status.revision,
+                "64707d7a38216d800bcc22b8da215c3e6946e1bb"
+            );
+            assert_eq!(status.package, "@greenways/hestia-browser");
+            assert_eq!(status.artifact_count, 12);
+            assert_eq!(
+                status.room_invocation_protocol,
+                "hestia-room-invocation/0-alpha"
+            );
+            assert_eq!(
+                status.authority_decision_protocol,
+                "hestia-room-authority-decision/0-alpha"
+            );
+            assert_eq!(
+                status.prepared_execution_protocol,
+                "greenways-prepared-room-execution/0-alpha"
+            );
+            assert_eq!(status.verification_scope, "compiled-lock");
+            assert!(!status.room_projections_admitted);
+            assert_eq!(status.admitted_room_projection_count, 0);
+            let encoded = serde_json::to_string(&status).expect("status should encode");
+            for forbidden in [
+                "browser/src",
+                "artifactPath",
+                "artifactDigest",
+                "governanceRoot",
+                "membershipRoot",
+                "invitation",
+                "credential",
+                "privateKey",
+            ] {
+                assert!(!encoded.contains(forbidden), "forbidden projection: {forbidden}");
+            }
+        }
+        assert_eq!(daemon.state.receipts.len(), 3);
     }
 
     #[test]
@@ -2000,6 +2150,7 @@ mod tests {
             )
             .expect("identity status should return a closed response");
         assert_eq!(public.outcome, Outcome::Error);
+        assert!(public.value.is_none());
         assert_eq!(
             public.error.expect("authentication error").code,
             "authentication-required"
@@ -2034,6 +2185,7 @@ mod tests {
             )
             .expect("public capability status should return a response");
         assert_eq!(public.outcome, Outcome::Error);
+        assert!(public.value.is_none());
         assert_eq!(
             public.error.expect("authentication error").code,
             "authentication-required"
@@ -2051,6 +2203,7 @@ mod tests {
             )
             .expect("browser denial should return a response");
         assert_eq!(denied.outcome, Outcome::Error);
+        assert!(denied.value.is_none());
         assert_eq!(
             denied.error.expect("authority error").code,
             "authority-denied"

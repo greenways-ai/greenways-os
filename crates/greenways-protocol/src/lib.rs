@@ -232,6 +232,15 @@ impl LocalRequest {
         }
     }
 
+    pub fn hestia_import_status(request_id: impl Into<String>) -> Self {
+        Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "hestia.import.status".to_owned(),
+            arguments: Map::new(),
+        }
+    }
+
     pub fn capabilities_status(request_id: impl Into<String>) -> Self {
         Self {
             protocol: LOCAL_PROTOCOL.to_owned(),
@@ -422,6 +431,7 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
             | "provider.invoke"
             | "identity.status"
             | "identity.public-card"
+            | "hestia.import.status"
             | "capabilities.status"
             | "capabilities.list"
             | "capabilities.check"
@@ -808,6 +818,52 @@ mod tests {
         assert!(validate_request(&card).is_ok());
         assert!(status.arguments.is_empty());
         assert!(card.arguments.is_empty());
+    }
+
+    #[test]
+    fn publishes_one_closed_exact_hestia_import_status_read() {
+        let request = LocalRequest::hestia_import_status("local/request/hestia001");
+        assert_eq!(request.operation, "hestia.import.status");
+        assert!(request.arguments.is_empty());
+        assert!(validate_request(&request).is_ok());
+        assert_eq!(
+            decode_request(&encode_request_line(&request).expect("request should encode"))
+                .expect("request should decode"),
+            request
+        );
+
+        let mut with_arguments = request.clone();
+        with_arguments
+            .arguments
+            .insert("roomId".to_owned(), Value::String("room/example".to_owned()));
+        assert_eq!(
+            validate_request(&with_arguments)
+                .expect_err("status read must reject arguments")
+                .code(),
+            "invalid-arguments"
+        );
+
+        for operation in ["hestia.import", "hestia.import.list", "hestia.status"] {
+            let mut changed = request.clone();
+            changed.operation = operation.to_owned();
+            assert_eq!(
+                validate_request(&changed)
+                    .expect_err("near-name operation must fail")
+                    .code(),
+                "unsupported-operation"
+            );
+        }
+    }
+
+    #[test]
+    fn hestia_import_status_rejects_unknown_request_fields() {
+        let bytes = br#"{"protocol":"greenways-local/0-alpha","requestId":"local/request/hestia002","operation":"hestia.import.status","arguments":{},"scope":"all"}"#;
+        assert_eq!(
+            decode_request(bytes)
+                .expect_err("unknown field must fail")
+                .code(),
+            "invalid-request"
+        );
     }
 
     #[test]
