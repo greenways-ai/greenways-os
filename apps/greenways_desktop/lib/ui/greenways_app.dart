@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../controller/connection_controller.dart';
+import '../controller/setup_controller.dart';
 import 'shell.dart';
 
 final class GreenwaysDesktopApp extends StatelessWidget {
-  const GreenwaysDesktopApp({super.key, required this.controller});
+  const GreenwaysDesktopApp({
+    super.key,
+    required this.connectionController,
+    required this.setupController,
+  });
 
-  final ConnectionController controller;
+  final ConnectionController connectionController;
+  final SetupController setupController;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +66,10 @@ final class GreenwaysDesktopApp extends StatelessWidget {
           ),
         ),
       ),
-      home: DesktopShell(controller: controller),
+      home: DesktopShell(
+        connectionController: connectionController,
+        setupController: setupController,
+      ),
     );
   }
 }

@@ -5,11 +5,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../model/connection_snapshot.dart';
+import '../model/setup_snapshot.dart';
 
 abstract interface class DesktopBridge {
   Future<DesktopConnectionSnapshot> connect();
   Future<DesktopConnectionSnapshot> refresh();
   Future<DesktopConnectionSnapshot> disconnect();
+  Future<DesktopSetupSnapshot> performSetup(DesktopSetupOperation operation);
   Future<void> close();
 }
 
@@ -28,7 +30,9 @@ final class ProcessDesktopBridge implements DesktopBridge {
   ProcessDesktopBridge({this._executableOverride});
 
   final String? _executableOverride;
-  final Map<String, Completer<DesktopConnectionSnapshot>> _pending = {};
+  final Map<String, Completer<DesktopConnectionSnapshot>> _pendingConnections =
+      {};
+  final Map<String, Completer<DesktopSetupSnapshot>> _pendingSetup = {};
   Process? _process;
   StreamSubscription<String>? _stdoutSubscription;
   StreamSubscription<String>? _stderrSubscription;
@@ -36,44 +40,96 @@ final class ProcessDesktopBridge implements DesktopBridge {
   bool _closing = false;
 
   @override
-  Future<DesktopConnectionSnapshot> connect() => _send('connect');
+  Future<DesktopConnectionSnapshot> connect() => _sendConnection('connect');
 
   @override
-  Future<DesktopConnectionSnapshot> refresh() => _send('refresh');
+  Future<DesktopConnectionSnapshot> refresh() => _sendConnection('refresh');
 
   @override
-  Future<DesktopConnectionSnapshot> disconnect() => _send('disconnect');
+  Future<DesktopConnectionSnapshot> disconnect() =>
+      _sendConnection('disconnect');
 
-  Future<DesktopConnectionSnapshot> _send(String command) async {
+  @override
+  Future<DesktopSetupSnapshot> performSetup(DesktopSetupOperation operation) =>
+      _sendSetup(operation.wireName);
+
+  Future<DesktopConnectionSnapshot> _sendConnection(String command) async {
     await _ensureProcess();
+    final process = _requireProcess();
+    final requestId = _nextRequestId();
+    final completer = Completer<DesktopConnectionSnapshot>();
+    _pendingConnections[requestId] = completer;
+    await _writeRequest(
+      process,
+      jsonEncode({
+        'protocol': desktopBridgeProtocol,
+        'requestId': requestId,
+        'command': command,
+      }),
+      onFailure: () => _pendingConnections.remove(requestId),
+    );
+    return _awaitResponse(
+      completer,
+      onTimeout: () => _pendingConnections.remove(requestId),
+    );
+  }
+
+  Future<DesktopSetupSnapshot> _sendSetup(String operation) async {
+    await _ensureProcess();
+    final process = _requireProcess();
+    final requestId = _nextRequestId();
+    final completer = Completer<DesktopSetupSnapshot>();
+    _pendingSetup[requestId] = completer;
+    await _writeRequest(
+      process,
+      jsonEncode({
+        'protocol': desktopSetupProtocol,
+        'requestId': requestId,
+        'operation': operation,
+      }),
+      onFailure: () => _pendingSetup.remove(requestId),
+    );
+    return _awaitResponse(
+      completer,
+      onTimeout: () => _pendingSetup.remove(requestId),
+    );
+  }
+
+  Process _requireProcess() {
     final process = _process;
     if (process == null) {
       throw const DesktopBridgeUnavailable(
         'The Greenways Desktop companion is unavailable.',
       );
     }
-    final requestId = _nextRequestId();
-    final completer = Completer<DesktopConnectionSnapshot>();
-    _pending[requestId] = completer;
-    final request = jsonEncode({
-      'protocol': desktopBridgeProtocol,
-      'requestId': requestId,
-      'command': command,
-    });
+    return process;
+  }
+
+  Future<void> _writeRequest(
+    Process process,
+    String request, {
+    required void Function() onFailure,
+  }) async {
     try {
       process.stdin.writeln(request);
       await process.stdin.flush();
     } on Object {
-      _pending.remove(requestId);
+      onFailure();
       await _resetProcess();
       throw const DesktopBridgeUnavailable(
         'The Greenways Desktop companion connection was interrupted.',
       );
     }
+  }
+
+  Future<T> _awaitResponse<T>(
+    Completer<T> completer, {
+    required void Function() onTimeout,
+  }) async {
     try {
       return await completer.future.timeout(const Duration(seconds: 6));
     } on TimeoutException {
-      _pending.remove(requestId);
+      onTimeout();
       await _resetProcess();
       throw const DesktopBridgeUnavailable(
         'The Greenways Desktop companion did not respond.',
@@ -148,13 +204,31 @@ final class ProcessDesktopBridge implements DesktopBridge {
       if (utf8.encode(line).length > _maximumBridgeResponseBytes) {
         throw const FormatException('Desktop bridge response is too large.');
       }
-      final decoded = jsonDecode(line);
-      final response = DesktopBridgeResponse.fromJson(_asStringObject(decoded));
-      final completer = _pending.remove(response.requestId);
-      if (completer == null) {
-        throw const FormatException('Desktop bridge response is unsolicited.');
+      final decoded = _asStringObject(jsonDecode(line));
+      final protocol = decoded['protocol'];
+      if (protocol == desktopBridgeResultProtocol) {
+        final response = DesktopBridgeResponse.fromJson(decoded);
+        final completer = _pendingConnections.remove(response.requestId);
+        if (completer == null) {
+          throw const FormatException(
+            'Desktop connection response is unsolicited.',
+          );
+        }
+        completer.complete(response.snapshot);
+        return;
       }
-      completer.complete(response.snapshot);
+      if (protocol == desktopSetupResultProtocol) {
+        final response = DesktopSetupResponse.fromJson(decoded);
+        final completer = _pendingSetup.remove(response.requestId);
+        if (completer == null) {
+          throw const FormatException('Desktop setup response is unsolicited.');
+        }
+        completer.complete(response.snapshot);
+        return;
+      }
+      throw const FormatException(
+        'Desktop bridge response protocol is unknown.',
+      );
     } on Object {
       _failPending(
         const DesktopBridgeUnavailable(
@@ -199,9 +273,16 @@ final class ProcessDesktopBridge implements DesktopBridge {
   }
 
   void _failPending(Object error) {
-    final pending = _pending.values.toList(growable: false);
-    _pending.clear();
-    for (final completer in pending) {
+    final pendingConnections = _pendingConnections.values.toList(
+      growable: false,
+    );
+    final pendingSetup = _pendingSetup.values.toList(growable: false);
+    _pendingConnections.clear();
+    _pendingSetup.clear();
+    for (final completer in pendingConnections) {
+      if (!completer.isCompleted) completer.completeError(error);
+    }
+    for (final completer in pendingSetup) {
       if (!completer.isCompleted) completer.completeError(error);
     }
   }

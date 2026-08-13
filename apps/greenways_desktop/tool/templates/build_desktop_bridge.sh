@@ -10,14 +10,17 @@ if [[ "$CONFIGURATION" != "Debug" ]]; then
 fi
 
 cd "$ROOT"
-cargo build -p greenways-desktop-bridge "${CARGO_FLAGS[@]}"
+cargo build -p greenways-desktop-bridge -p greenwaysd "${CARGO_FLAGS[@]}"
 
-SOURCE="$ROOT/target/$PROFILE/greenways-desktop-bridge"
-DESTINATION="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/greenways-desktop-bridge"
-mkdir -p "$(dirname "$DESTINATION")"
-install -m 0755 "$SOURCE" "$DESTINATION"
+RESOURCES="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+mkdir -p "$RESOURCES"
+for BINARY in greenways-desktop-bridge greenwaysd; do
+  SOURCE="$ROOT/target/$PROFILE/$BINARY"
+  DESTINATION="$RESOURCES/$BINARY"
+  install -m 0755 "$SOURCE" "$DESTINATION"
 
-if [[ "${CODE_SIGNING_ALLOWED:-NO}" == "YES" && -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]]; then
-  /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
-    --preserve-metadata=identifier,entitlements,flags "$DESTINATION"
-fi
+  if [[ "${CODE_SIGNING_ALLOWED:-NO}" == "YES" && -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]]; then
+    /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
+      --preserve-metadata=identifier,entitlements,flags "$DESTINATION"
+  fi
+done
