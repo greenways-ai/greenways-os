@@ -1,4 +1,4 @@
-name: Apply Desktop daemon setup service
+name: Export Desktop daemon setup source
 
 on:
   push:
@@ -8,26 +8,18 @@ on:
       - .github/agent/desktop-setup-daemon-service-92-apply
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
+  export:
     if: github.actor != 'github-actions[bot]'
-    runs-on: macos-15
-    timeout-minutes: 45
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/desktop-setup-daemon-service-92-apply
           fetch-depth: 0
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.47.0
-          cache: true
-      - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
-      - name: Verify and reconstruct the reviewed patch
+      - name: Reconstruct and apply reviewed source
         shell: bash
         run: |
           set -euo pipefail
@@ -38,29 +30,14 @@ jobs:
           from pathlib import Path
 
           names = (
-              'part-00',
-              'part-01',
-              'part-02a',
-              'part-02b',
-              'part-02c',
-              'part-02d',
-              'part-03a',
-              'part-03b',
-              'part-03c',
-              'part-03d',
-              'part-04a',
-              'part-04b',
-              'part-04c',
-              'part-04d',
-              'part-05a',
-              'part-05b',
+              'part-00', 'part-01',
+              'part-02a', 'part-02b', 'part-02c', 'part-02d',
+              'part-03a', 'part-03b', 'part-03c', 'part-03d',
+              'part-04a', 'part-04b', 'part-04c', 'part-04d',
+              'part-05a', 'part-05b',
           )
           encoded = b''.join(
-              b''.join(
-                  Path(f'.github/agent/desktop-setup-daemon-service-92.{name}')
-                  .read_bytes()
-                  .split()
-              )
+              b''.join(Path(f'.github/agent/desktop-setup-daemon-service-92.{name}').read_bytes().split())
               for name in names
           )
           assert len(encoded) == 43756
@@ -72,80 +49,27 @@ jobs:
           assert len(patch) == 181360
           assert hashlib.sha256(patch).hexdigest() == '59dc1a5b110adac6a0d827f2605372faf7a2d57bce7aa6e3b156fe1b46b6a6ba'
           Path('/tmp/desktop-setup-daemon-service-92.patch').write_bytes(patch)
-          fix = Path(
-              '.github/agent/desktop-setup-daemon-service-92-fix-01.patch'
-          ).read_bytes()
+
+          fix = Path('.github/agent/desktop-setup-daemon-service-92-fix-01.patch').read_bytes()
           assert len(fix) == 4722
           assert hashlib.sha256(fix).hexdigest() == '95b66966bfc53349bf55791acddc85e0531fd8c7e480f50f6aed211da27110c5'
           Path('/tmp/desktop-setup-daemon-service-92-fix-01.patch').write_bytes(fix)
           PY
-      - name: Apply, format, and validate the source slice
-        shell: bash
-        run: |
-          set -euo pipefail
+
           git fetch origin main
           git switch --detach origin/main
-          git switch -c agent/desktop-setup-daemon-service-92-impl
           git apply --check /tmp/desktop-setup-daemon-service-92.patch
           git apply /tmp/desktop-setup-daemon-service-92.patch
           git apply --check /tmp/desktop-setup-daemon-service-92-fix-01.patch
           git apply /tmp/desktop-setup-daemon-service-92-fix-01.patch
-
-          cargo +1.85.1 fmt --all
-          cargo +1.85.1 fmt --all -- --check
-          cargo +1.85.1 test --workspace --all-targets
-          cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
-
-          cd apps/greenways_desktop
-          flutter config --enable-macos-desktop
-          tool/build_macos.sh
-          cd ../..
-
-          git diff --check
-          cat > /tmp/expected-files <<'FILES'
-          Cargo.lock
-          apps/greenways_desktop/README.md
-          apps/greenways_desktop/lib/controller/setup_controller.dart
-          apps/greenways_desktop/lib/main.dart
-          apps/greenways_desktop/lib/model/setup_snapshot.dart
-          apps/greenways_desktop/lib/model/setup_snapshot_types.dart
-          apps/greenways_desktop/lib/model/setup_snapshot_validation.dart
-          apps/greenways_desktop/lib/services/desktop_bridge.dart
-          apps/greenways_desktop/lib/services/platform_shell.dart
-          apps/greenways_desktop/lib/ui/greenways_app.dart
-          apps/greenways_desktop/lib/ui/presentation.dart
-          apps/greenways_desktop/lib/ui/setup_view.dart
-          apps/greenways_desktop/lib/ui/setup_view_components.dart
-          apps/greenways_desktop/lib/ui/shell.dart
-          apps/greenways_desktop/test/desktop_shell_test.dart
-          apps/greenways_desktop/test/setup_controller_test.dart
-          apps/greenways_desktop/test/setup_snapshot_test.dart
-          apps/greenways_desktop/test/support/fakes.dart
-          apps/greenways_desktop/tool/build_macos.sh
-          apps/greenways_desktop/tool/templates/build_desktop_bridge.sh
-          protocol/desktop-setup.md
-          services/greenways-desktop-bridge/Cargo.toml
-          services/greenways-desktop-bridge/src/main.rs
-          services/greenways-desktop-bridge/src/setup/host.rs
-          services/greenways-desktop-bridge/src/setup/inspect.rs
-          services/greenways-desktop-bridge/src/setup/mod.rs
-          services/greenways-desktop-bridge/src/setup/service.rs
-          services/greenways-desktop-bridge/src/setup/tests.rs
-          FILES
-          sed -i '' 's/^          //' /tmp/expected-files
-          xargs git add -N -- < /tmp/expected-files
-          git diff --name-only | sort > /tmp/actual-files
-          diff -u /tmp/expected-files /tmp/actual-files
-          test -z "$(git status --porcelain | grep '^??' || true)"
-      - name: Publish the clean implementation branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'greenways-os-ci'
-          git config user.email 'actions@users.noreply.github.com'
-          xargs git add -- < /tmp/expected-files
-          git diff --cached --name-only | sort > /tmp/staged-files
-          diff -u /tmp/expected-files /tmp/staged-files
-          git commit -m 'Add Desktop daemon setup service'
-          git push origin HEAD:refs/heads/agent/desktop-setup-daemon-service-92-impl
-          git rev-parse HEAD
+          tar -czf /tmp/greenways-os-desktop-setup-daemon-service-92-patched.tar.gz \
+            --exclude=.git \
+            --exclude=.github/agent \
+            --exclude=.github/workflows/apply-desktop-setup-daemon-service-92.yml \
+            .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenways-os-desktop-setup-daemon-service-92-patched
+          path: /tmp/greenways-os-desktop-setup-daemon-service-92-patched.tar.gz
+          retention-days: 1
+          if-no-files-found: error
