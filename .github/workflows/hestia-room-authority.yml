@@ -21,5 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Generate the reviewed Hestia room authority lock
-        run: node extension/scripts/generate-hestia-room-authority-lock.mjs .imports/hestia --print
+      - name: Reject Hestia room authority lock drift
+        run: node extension/scripts/generate-hestia-room-authority-lock.mjs .imports/hestia --check
+      - name: Verify pinned Hestia fixture and canonical record conformance
+        run: node extension/scripts/verify-hestia-room-authority-import.mjs .imports/hestia
