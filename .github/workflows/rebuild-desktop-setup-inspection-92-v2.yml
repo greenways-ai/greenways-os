@@ -1,0 +1,210 @@
+name: Rebuild Desktop setup inspection boundary
+
+on:
+  push:
+    branches:
+      - agent/desktop-setup-inspection-92
+    paths:
+      - .github/workflows/rebuild-desktop-setup-inspection-92-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Rebuild Desktop setup inspection boundary'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: agent/desktop-setup-inspection-92
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Rebuild exact source from recovered Git objects
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          python3 - <<'PY'
+          import base64
+          import itertools
+          import json
+          import os
+          import shutil
+          import subprocess
+          import tempfile
+          import urllib.request
+          from difflib import SequenceMatcher
+          from pathlib import Path
+
+          repository = os.environ['REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          root = Path('.').resolve()
+          recovered_tree = 'f4c75c863158680c5f36fb7eadc72ee2eede0c48'
+          final_blob_ids = [
+              '23ee609fe514cb1fb7cd3f321ff3eabc225cf1a8',
+              '60991ceb2c5f0ef19cd006044465beb1a1d5e1be',
+          ]
+
+          def api(path):
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repository}/{path}',
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f'Bearer {token}',
+                      'User-Agent': 'greenways-os-desktop-setup-rebuild',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          def blob(sha):
+              value = api(f'git/blobs/{sha}')
+              if value.get('encoding') != 'base64':
+                  raise SystemExit(f'unsupported blob encoding for {sha}')
+              return base64.b64decode(value['content'])
+
+          main_tree = api('git/trees/main?recursive=1')['tree']
+          recovered_entries = api(f'git/trees/{recovered_tree}?recursive=1')['tree']
+          main = {entry['path']: entry for entry in main_tree if entry['type'] == 'blob'}
+          recovered = {
+              entry['path']: entry for entry in recovered_entries if entry['type'] == 'blob'
+          }
+
+          for path in sorted(set(main) - set(recovered)):
+              target = root / path
+              if target.exists():
+                  target.unlink()
+
+          for path, entry in recovered.items():
+              previous = main.get(path)
+              if previous is not None and previous['sha'] == entry['sha']:
+                  continue
+              target = root / path
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(blob(entry['sha']))
+
+          baseline = Path(tempfile.mkdtemp(prefix='desktop-setup-baseline-'))
+          shutil.copytree(root, baseline / 'repo', dirs_exist_ok=True, ignore=shutil.ignore_patterns('.git'))
+          baseline = baseline / 'repo'
+          contents = [(sha, blob(sha).decode('utf-8')) for sha in final_blob_ids]
+
+          def candidate_paths(text):
+              if text.lstrip().startswith(('[package]', '[workspace]')):
+                  pool = list(root.rglob('Cargo.toml'))
+              else:
+                  pool = list(root.rglob('*.rs'))
+              ranked = []
+              for candidate in pool:
+                  if '.git' in candidate.parts:
+                      continue
+                  try:
+                      current = candidate.read_text()
+                  except UnicodeDecodeError:
+                      continue
+                  ranked.append((SequenceMatcher(None, current, text).ratio(), candidate))
+              ranked.sort(key=lambda item: item[0], reverse=True)
+              paths = [candidate for _, candidate in ranked[:5]]
+              if not text.lstrip().startswith(('[package]', '[workspace]')):
+                  paths.extend([
+                      root / 'services/greenways-desktop-bridge/src/setup.rs',
+                      root / 'services/greenways-desktop-bridge/src/lib.rs',
+                      root / 'services/greenways-desktop-bridge/src/main.rs',
+                  ])
+              result = []
+              for path in paths:
+                  if path not in result:
+                      result.append(path)
+              return result
+
+          options = [candidate_paths(text) for _, text in contents]
+          chosen = None
+          attempts = 0
+          for targets in itertools.product(*options):
+              if len(set(targets)) != len(targets):
+                  continue
+              attempts += 1
+              for item in root.iterdir():
+                  if item.name == '.git':
+                      continue
+                  if item.is_dir():
+                      shutil.rmtree(item)
+                  else:
+                      item.unlink()
+              shutil.copytree(baseline, root, dirs_exist_ok=True)
+              for (_, text), target in zip(contents, targets):
+                  target = root / target.relative_to(root)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_text(text)
+
+              setup = root / 'services/greenways-desktop-bridge/src/setup.rs'
+              if not setup.exists() or 'greenways-desktop-setup/0-alpha' not in setup.read_text():
+                  continue
+              result = subprocess.run(
+                  ['cargo', '+1.85.1', 'check', '-p', 'greenways-desktop-bridge', '--all-targets'],
+                  cwd=root,
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+                  timeout=180,
+              )
+              if result.returncode == 0:
+                  chosen = targets
+                  break
+
+          if chosen is None:
+              raise SystemExit(f'no valid Rust placement found after {attempts} attempts')
+          print('selected Rust placement:')
+          for (sha, _), target in zip(contents, chosen):
+              print(f'  {sha} -> {target.relative_to(root)}')
+          PY
+      - name: Normalize and validate all recovered source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.85.1 fmt --all
+          cargo +1.85.1 test -p greenways-desktop-bridge --all-targets
+          cargo +1.85.1 clippy -p greenways-desktop-bridge --all-targets -- -D warnings
+          cd apps/greenways_desktop
+          flutter pub get
+          dart format lib test
+          flutter analyze
+          flutter test
+          cd ../..
+          grep -R -F 'greenways-desktop-setup/0-alpha' services/greenways-desktop-bridge apps/greenways_desktop
+          git diff --check
+      - name: Remove all reconstruction scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/reconstruct-desktop-setup-inspection-92.yml \
+            .github/workflows/rebuild-desktop-setup-inspection-92-v2.yml \
+            .github/workflows/validate-desktop-setup-inspection-92.yml \
+            .github/workflows/normalize-desktop-setup-inspection-92.yml \
+            .github/workflows/cleanup-desktop-setup-inspection-92.yml \
+            .github/workflows/snapshot-desktop-setup-92.yml \
+            .github/agent/desktop-setup-92-snapshot \
+            .github/agent/desktop-setup-inspection-92 \
+            .github/agent/desktop-setup-rust-23ee \
+            .github/agent/desktop-setup-rust-60991
+          test -z "$(git status --short | grep -E '(^|/)(payload|.*\.part-[0-9]+|desktop-setup.*92)' || true)"
+      - name: Publish verified source-only branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'greenways-os-ci'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add Desktop setup inspection boundary'
+          git push --force origin HEAD:agent/desktop-setup-inspection-92
