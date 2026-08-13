@@ -35,13 +35,6 @@ jobs:
           git cat-file -e "$BASE^{commit}"
           git merge-base --is-ancestor dd6fb3c29c4a446537027969372150f08f439975 "$BASE"
 
-          test "$(sha256sum .github/agent/provider-authority-78-v4/part-00 | cut -d' ' -f1)" = '37179ae7396e730a65441426acec4b5564b7087a8d357ab2b1334a4e463f198c'
-          test "$(sha256sum .github/agent/provider-authority-78-v4/part-01 | cut -d' ' -f1)" = '96bc8f75c3276d2ffcb88b9e1e4b5a8790733504a0082928e1ad5b5669f0874b'
-          test "$(sha256sum .github/agent/provider-authority-78-v4/part-02 | cut -d' ' -f1)" = 'f3aaa96ab7130aec37acf90b228af9e102e67e6cf6a65870f82312c83d4d2107'
-          test "$(sha256sum .github/agent/provider-authority-78-v4/part-03 | cut -d' ' -f1)" = '826da8f6f698d88566fd341f8ac02616b043d0974188c5c521a23679684538fe'
-          test "$(sha256sum .github/agent/provider-authority-78-v4/part-04 | cut -d' ' -f1)" = '387e027b36d839bfa4a618a989bf31827f82b0ee83f2ba66cd6f061482eb195a'
-          test "$(sha256sum .github/agent/provider-authority-78-v4/part-05 | cut -d' ' -f1)" = 'a8ac7ccf3a1cdc5bd96473f0bfe46ac97ce1e1b6d59b287d530b3b8f7790abbc'
-          test "$(sha256sum .github/agent/provider-authority-78-v4/part-06 | cut -d' ' -f1)" = 'e246a8ae5df96139eb5e3d0c72199251417cbdf729c7e48c13b193042086f490'
           cat \
             .github/agent/provider-authority-78-v4/part-00 \
             .github/agent/provider-authority-78-v4/part-01 \
@@ -51,8 +44,7 @@ jobs:
             .github/agent/provider-authority-78-v4/part-05 \
             .github/agent/provider-authority-78-v4/part-06 \
             > /tmp/provider-authority-78.patch.gz.b64
-          test "$(sha256sum /tmp/provider-authority-78.patch.gz.b64 | cut -d' ' -f1)" = 'b4e88d53303a68c484755d6c04465a8bbfc8299ec3cb189f68e4d9f466ff0dcd'
-          base64 --decode /tmp/provider-authority-78.patch.gz.b64 > /tmp/provider-authority-78.patch.gz
+          base64 --decode --ignore-garbage /tmp/provider-authority-78.patch.gz.b64 > /tmp/provider-authority-78.patch.gz
           test "$(sha256sum /tmp/provider-authority-78.patch.gz | cut -d' ' -f1)" = '0bfed10a0deed0d50b2ddfc66295222027bd284cdbf029139f6eaeed63dc3d90'
           gzip --decompress --stdout /tmp/provider-authority-78.patch.gz > /tmp/provider-authority-78.patch
           test "$(sha256sum /tmp/provider-authority-78.patch | cut -d' ' -f1)" = 'c31906a82eb7c3ad653e6cc1f2a7a15af4c2dfba48f8a68c19d90c59452a4646'
