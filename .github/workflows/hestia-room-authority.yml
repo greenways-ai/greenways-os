@@ -1,0 +1,25 @@
+name: Verify Hestia room authority import
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: greenways-ai/hestia
+          ref: d2dacedc4070eeff18a709866a53c6d6853ce268
+          path: .imports/hestia
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify the pinned Hestia room authority package and fixtures
+        run: node extension/scripts/verify-hestia-room-authority-import.mjs .imports/hestia

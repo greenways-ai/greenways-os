@@ -1,0 +1,14 @@
+{
+  "protocol": "greenways-hestia-room-authority-lock/0-alpha",
+  "repository": "greenways-ai/hestia",
+  "revision": "d2dacedc4070eeff18a709866a53c6d6853ce268",
+  "package": "@greenways/hestia-browser",
+  "importManifest": "browser/room-authority-import.json",
+  "module": "browser/src/room-authority.js",
+  "fixture": "browser/fixtures/room-authority-conformance.json",
+  "digests": {
+    "importManifest": "sha256:6fb64575d644c8b9c8a5f50327dd4b6777815585ea084c05aec113c966477019",
+    "module": "sha256:721029b5c5c00f1a9541046fea30af8eb0031ae64adc65590f7032af8edac89b",
+    "fixture": "sha256:4f8fcd07be40203f53075e59e49961fba2a0f3e57a50dee7319eabc4feb2003b"
+  }
+}
