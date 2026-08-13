@@ -16,10 +16,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: greenways-ai/hestia
-          ref: 3a9e8dd9dee53e7baaa15646192994d780539410
+          ref: 64707d7a38216d800bcc22b8da215c3e6946e1bb
           path: .imports/hestia
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Verify the pinned Hestia room authority package and fixtures
-        run: node extension/scripts/verify-hestia-room-authority-import.mjs .imports/hestia
+      - name: Generate the reviewed Hestia room authority lock
+        run: node extension/scripts/generate-hestia-room-authority-lock.mjs .imports/hestia --print
