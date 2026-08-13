@@ -40,5 +40,8 @@ fn selectors_are_closed_and_bounded() {
         selector: "where".to_owned(),
         ..recent()
     };
-    assert_eq!(unknown.validate().expect_err("selector").code, "unknown-selector");
+    assert_eq!(
+        unknown.validate().expect_err("selector").code,
+        "unknown-selector"
+    );
 }
