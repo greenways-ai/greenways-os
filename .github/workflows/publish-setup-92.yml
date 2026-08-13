@@ -27,28 +27,30 @@ jobs:
         run: |
           set -euo pipefail
           find .github/agent -name 'desktop-setup-daemon-service-92.part-*' -type f | sort | xargs cat | tr -d '[:space:]' | base64 --decode | gzip -d > /tmp/source.patch
+          git show origin/agent/desktop-setup-daemon-service-92-apply:.github/agent/desktop-setup-daemon-service-92-fix-01.patch > /tmp/fix-01.patch
           git fetch origin main
           git switch --detach origin/main
-          git switch -c agent/desktop-setup-service-92-clean
+          git switch -C agent/desktop-setup-service-92-clean
           git apply /tmp/source.patch
-          git apply .github/agent/desktop-setup-daemon-service-92-fix-01.patch
+          git apply /tmp/fix-01.patch
           python3 - <<'PY'
           from pathlib import Path
           path = Path('services/greenways-desktop-bridge/src/setup/tests.rs')
           text = path.read_text()
-          text = text.replace(
-              'let root = std::env::temp_dir().join(format!(\n            "greenways-desktop-setup-{label}-{}-{}",',
-              'let root = PathBuf::from(format!(\n            "/tmp/gwds-{label}-{}-{}",',
-              1,
-          )
+          old_root = 'std::env::temp_dir().join(format!('
+          old_name = '"greenways-desktop-setup-{label}-{}-{}"'
+          if old_root not in text or old_name not in text:
+              raise SystemExit('temporary-root source changed')
+          text = text.replace(old_root, 'PathBuf::from(format!(', 1)
+          text = text.replace(old_name, '"/tmp/gwds-{label}-{}-{}"', 1)
           path.write_text(text)
           path = Path('services/greenways-desktop-bridge/src/setup/mod.rs')
-          text = path.read_text().replace(
-              '    UnsupportedPlatform(String),\n',
-              '    #[cfg_attr(target_os = "macos", allow(dead_code))]\n    UnsupportedPlatform(String),\n',
-              1,
-          )
-          path.write_text(text)
+          text = path.read_text()
+          old = '    UnsupportedPlatform(String),\n'
+          new = '    #[cfg_attr(target_os = "macos", allow(dead_code))]\n    UnsupportedPlatform(String),\n'
+          if old not in text:
+              raise SystemExit('platform-error source changed')
+          path.write_text(text.replace(old, new, 1))
           PY
           cargo +1.85.1 fmt --all
           cargo +1.85.1 test --workspace --all-targets
@@ -63,4 +65,4 @@ jobs:
           git config user.email actions@users.noreply.github.com
           git add Cargo.lock apps/greenways_desktop protocol/desktop-setup.md services/greenways-desktop-bridge
           git commit -m 'Add Desktop setup service installation'
-          git push --force origin HEAD:agent/desktop-setup-service-92-clean
+          git push --force origin HEAD:agent/desktop-service-92-clean
