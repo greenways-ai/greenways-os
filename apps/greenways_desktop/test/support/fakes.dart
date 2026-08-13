@@ -1,4 +1,5 @@
 import 'package:greenways_desktop/model/connection_snapshot.dart';
+import 'package:greenways_desktop/model/setup_snapshot.dart';
 import 'package:greenways_desktop/services/desktop_bridge.dart';
 
 final class FakeDesktopBridge implements DesktopBridge {
@@ -6,19 +7,27 @@ final class FakeDesktopBridge implements DesktopBridge {
     DesktopConnectionSnapshot? connectResult,
     DesktopConnectionSnapshot? refreshResult,
     DesktopConnectionSnapshot? disconnectResult,
+    DesktopSetupSnapshot? setupResult,
     this.connectError,
+    this.setupError,
   }) : connectResult = connectResult ?? connectedSnapshot(),
        refreshResult = refreshResult ?? connectResult ?? connectedSnapshot(),
        disconnectResult =
-           disconnectResult ?? DesktopConnectionSnapshot.disconnected();
+           disconnectResult ?? DesktopConnectionSnapshot.disconnected(),
+       setupResult = setupResult ?? inspectedSetupSnapshot();
 
   DesktopConnectionSnapshot connectResult;
   DesktopConnectionSnapshot refreshResult;
   DesktopConnectionSnapshot disconnectResult;
+  DesktopSetupSnapshot setupResult;
   Object? connectError;
+  Object? setupError;
   int connects = 0;
   int refreshes = 0;
   int disconnects = 0;
+  int inspections = 0;
+  int daemonInstalls = 0;
+  int permissionRepairs = 0;
   bool closed = false;
 
   @override
@@ -39,6 +48,28 @@ final class FakeDesktopBridge implements DesktopBridge {
   Future<DesktopConnectionSnapshot> disconnect() async {
     disconnects += 1;
     return disconnectResult;
+  }
+
+  @override
+  Future<DesktopSetupSnapshot> performSetup(
+    DesktopSetupOperation operation,
+  ) async {
+    switch (operation) {
+      case DesktopSetupOperation.inspect:
+        inspections += 1;
+        break;
+      case DesktopSetupOperation.installDaemon:
+        daemonInstalls += 1;
+        break;
+      case DesktopSetupOperation.repairPermissions:
+        permissionRepairs += 1;
+        break;
+      default:
+        break;
+    }
+    final error = setupError;
+    if (error != null) throw error;
+    return setupResult;
   }
 
   @override
@@ -116,3 +147,109 @@ DesktopConnectionSnapshot failedSnapshot(DesktopConnectionState state) =>
       error: DesktopPublicError(code: state, message: 'Bounded failure.'),
       observedAtUnixMs: 2,
     );
+
+DesktopSetupSnapshot inspectedSetupSnapshot({
+  DesktopSetupState homeState = DesktopSetupState.ready,
+  DesktopSetupState daemonState = DesktopSetupState.ready,
+  DesktopSetupState desktopClientState = DesktopSetupState.ready,
+  DesktopSetupState identityState = DesktopSetupState.identityOptional,
+  DesktopSetupState browserState = DesktopSetupState.browserCompanionOptional,
+}) {
+  final components = [
+    _setupComponent(DesktopSetupComponentKind.greenwaysHome, homeState),
+    _setupComponent(
+      DesktopSetupComponentKind.daemon,
+      daemonState,
+      version: daemonState == DesktopSetupState.ready ? '0.1.0' : null,
+      publicId: daemonState == DesktopSetupState.ready
+          ? 'node/00112233445566778899aabbccddeeff'
+          : null,
+    ),
+    _setupComponent(
+      DesktopSetupComponentKind.desktopClient,
+      desktopClientState,
+    ),
+    _setupComponent(
+      DesktopSetupComponentKind.identity,
+      identityState,
+      publicId: identityState == DesktopSetupState.ready
+          ? 'identity/00112233445566778899aabbccddeeff'
+          : null,
+    ),
+    _setupComponent(DesktopSetupComponentKind.browserCompanion, browserState),
+  ];
+  return DesktopSetupSnapshot(
+    protocol: desktopSetupStatusProtocol,
+    state: _deriveSetupState(components),
+    components: components,
+    permittedActions: _setupActions(_deriveSetupState(components)),
+    observedAtUnixMs: 2,
+    error: null,
+  );
+}
+
+DesktopSetupComponent _setupComponent(
+  DesktopSetupComponentKind kind,
+  DesktopSetupState state, {
+  String? version,
+  String? publicId,
+}) => DesktopSetupComponent(
+  protocol: desktopSetupComponentProtocol,
+  kind: kind,
+  state: state,
+  version: version,
+  digest: null,
+  publicId: publicId,
+  errorCode: _setupErrorCode(kind, state),
+);
+
+String? _setupErrorCode(
+  DesktopSetupComponentKind kind,
+  DesktopSetupState state,
+) {
+  if (state == DesktopSetupState.ready ||
+      state == DesktopSetupState.identityOptional ||
+      state == DesktopSetupState.browserCompanionOptional) {
+    return null;
+  }
+  return '${kind.wireName}-${state.wireName}';
+}
+
+DesktopSetupState _deriveSetupState(List<DesktopSetupComponent> components) {
+  final states = components.map((component) => component.state).toSet();
+  for (final state in const [
+    DesktopSetupState.manualRecoveryRequired,
+    DesktopSetupState.permissionRepairRequired,
+    DesktopSetupState.credentialRoleMismatch,
+    DesktopSetupState.upgradeRequired,
+    DesktopSetupState.restartRequired,
+    DesktopSetupState.installRequired,
+    DesktopSetupState.credentialRequired,
+    DesktopSetupState.identityOptional,
+    DesktopSetupState.browserCompanionOptional,
+  ]) {
+    if (states.contains(state)) return state;
+  }
+  return states.every((state) => state == DesktopSetupState.ready)
+      ? DesktopSetupState.complete
+      : DesktopSetupState.ready;
+}
+
+List<DesktopSetupOperation> _setupActions(DesktopSetupState state) {
+  switch (state) {
+    case DesktopSetupState.installRequired:
+    case DesktopSetupState.upgradeRequired:
+    case DesktopSetupState.restartRequired:
+      return const [
+        DesktopSetupOperation.installDaemon,
+        DesktopSetupOperation.inspect,
+      ];
+    case DesktopSetupState.permissionRepairRequired:
+      return const [
+        DesktopSetupOperation.repairPermissions,
+        DesktopSetupOperation.inspect,
+      ];
+    default:
+      return const [DesktopSetupOperation.inspect];
+  }
+}

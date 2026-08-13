@@ -1,6 +1,12 @@
+mod setup;
+
 use greenways_desktop_bridge::{
     decode_request, encode_response, now_unix_ms, DaemonDesktopBackend, DesktopBridgeError,
     DesktopBridgeHost, DesktopBridgeResponse, MAX_DESKTOP_REQUEST_BYTES,
+};
+use setup::{
+    decode_setup_request, encode_setup_response, request_protocol, DesktopSetupHost,
+    DesktopSetupResponse, SystemDesktopSetupBackend, DESKTOP_SETUP_PROTOCOL,
 };
 use std::io::{self, BufRead, Write};
 
@@ -13,24 +19,44 @@ fn main() {
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     if std::env::args_os().len() != 1 {
-        return Err(
-            "greenways-desktop-bridge accepts no paths, roles, or daemon operations".into(),
-        );
+        return Err("greenways-desktop-bridge accepts no external setup inputs".into());
     }
     let backend = DaemonDesktopBackend::resolve()?;
-    let mut host = DesktopBridgeHost::new(backend, now_unix_ms()?);
+    let setup_inspector = SystemDesktopSetupBackend::resolve()?;
+    let observed_at_unix_ms = now_unix_ms()?;
+    let mut connection_host = DesktopBridgeHost::new(backend, observed_at_unix_ms);
+    let mut setup_host = DesktopSetupHost::new(setup_inspector, observed_at_unix_ms);
     let stdin = io::stdin();
     let mut input = stdin.lock();
     let mut stdout = io::stdout().lock();
 
     while let Some(line) = read_bounded_line(&mut input)? {
         let observed_at = now_unix_ms()?;
-        let decoded = match line {
-            Ok(line) => decode_request(&line),
-            Err(error) => Err(error),
+        let line = match line {
+            Ok(line) => line,
+            Err(error) => {
+                let response = DesktopBridgeResponse::invalid(error, observed_at);
+                stdout.write_all(&encode_response(&response)?)?;
+                stdout.flush()?;
+                continue;
+            }
         };
+
+        if request_protocol(&line).as_deref() == Some(DESKTOP_SETUP_PROTOCOL) {
+            let response = match decode_setup_request(&line) {
+                Ok(request) => setup_host
+                    .handle(request)
+                    .unwrap_or_else(|error| DesktopSetupResponse::invalid(error, observed_at)),
+                Err(error) => DesktopSetupResponse::invalid(error, observed_at),
+            };
+            stdout.write_all(&encode_setup_response(&response)?)?;
+            stdout.flush()?;
+            continue;
+        }
+
+        let decoded = decode_request(&line);
         let (response, quit) = match decoded {
-            Ok(request) => match host.handle(request) {
+            Ok(request) => match connection_host.handle(request) {
                 Ok(result) => result,
                 Err(error) => (DesktopBridgeResponse::invalid(error, observed_at), false),
             },

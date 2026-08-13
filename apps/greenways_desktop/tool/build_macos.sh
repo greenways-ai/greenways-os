@@ -13,3 +13,4 @@ flutter test
 flutter build macos --release
 
 test -x "build/macos/Build/Products/Release/Greenways Desktop.app/Contents/Resources/greenways-desktop-bridge"
+test -x "build/macos/Build/Products/Release/Greenways Desktop.app/Contents/Resources/greenwaysd"
