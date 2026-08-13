@@ -11,6 +11,19 @@ const greenwaysLocalProtocol = 'greenways-local/0-alpha';
 const localClientProtocol = 'greenways-local-client/0-alpha';
 const profileIdentityProtocol = 'greenways-profile-identity/0-alpha';
 const profileIdentityAlgorithm = 'p256-sha256-fixed';
+const hestiaImportStatusProtocol = 'greenways-hestia-import-status/0-alpha';
+const hestiaImportState = 'pinned';
+const hestiaImportRepository = 'greenways-ai/hestia';
+const hestiaImportRevision =
+    '64707d7a38216d800bcc22b8da215c3e6946e1bb';
+const hestiaImportPackage = '@greenways/hestia-browser';
+const hestiaImportArtifactCount = 12;
+const hestiaRoomInvocationProtocol = 'hestia-room-invocation/0-alpha';
+const hestiaAuthorityDecisionProtocol =
+    'hestia-room-authority-decision/0-alpha';
+const greenwaysPreparedRoomExecutionProtocol =
+    'greenways-prepared-room-execution/0-alpha';
+const hestiaImportVerificationScope = 'compiled-lock';
 const _maximumSafeInteger = 9007199254740991;
 
 final _nodeIdPattern = RegExp(r'^node/[0-9a-f]{32}$');
@@ -258,6 +271,131 @@ final class DesktopIdentityProjection {
   };
 }
 
+final class DesktopHestiaImportProjection {
+  const DesktopHestiaImportProjection({
+    required this.protocol,
+    required this.state,
+    required this.repository,
+    required this.revision,
+    required this.package,
+    required this.artifactCount,
+    required this.roomInvocationProtocol,
+    required this.authorityDecisionProtocol,
+    required this.preparedExecutionProtocol,
+    required this.verificationScope,
+    required this.roomProjectionsAdmitted,
+    required this.admittedRoomProjectionCount,
+  });
+
+  factory DesktopHestiaImportProjection.fromJson(Map<String, Object?> json) {
+    _requireExactKeys(json, const {
+      'protocol',
+      'state',
+      'repository',
+      'revision',
+      'package',
+      'artifactCount',
+      'roomInvocationProtocol',
+      'authorityDecisionProtocol',
+      'preparedExecutionProtocol',
+      'verificationScope',
+      'roomProjectionsAdmitted',
+      'admittedRoomProjectionCount',
+    });
+    final protocol = _text(json, 'protocol', maximum: 120);
+    final state = _text(json, 'state', maximum: 40);
+    final repository = _text(json, 'repository', maximum: 120);
+    final revision = _text(json, 'revision', maximum: 40);
+    final package = _text(json, 'package', maximum: 120);
+    final artifactCount = _integer(json, 'artifactCount');
+    final roomInvocationProtocol = _text(
+      json,
+      'roomInvocationProtocol',
+      maximum: 120,
+    );
+    final authorityDecisionProtocol = _text(
+      json,
+      'authorityDecisionProtocol',
+      maximum: 120,
+    );
+    final preparedExecutionProtocol = _text(
+      json,
+      'preparedExecutionProtocol',
+      maximum: 120,
+    );
+    final verificationScope = _text(
+      json,
+      'verificationScope',
+      maximum: 80,
+    );
+    final admitted = _boolean(json, 'roomProjectionsAdmitted');
+    final admittedCount = _integer(json, 'admittedRoomProjectionCount');
+    if (admitted != (admittedCount > 0)) {
+      throw const FormatException(
+        'Hestia room projection admission flag and count disagree.',
+      );
+    }
+    if (protocol != hestiaImportStatusProtocol ||
+        state != hestiaImportState ||
+        repository != hestiaImportRepository ||
+        revision != hestiaImportRevision ||
+        package != hestiaImportPackage ||
+        artifactCount != hestiaImportArtifactCount ||
+        roomInvocationProtocol != hestiaRoomInvocationProtocol ||
+        authorityDecisionProtocol != hestiaAuthorityDecisionProtocol ||
+        preparedExecutionProtocol != greenwaysPreparedRoomExecutionProtocol ||
+        verificationScope != hestiaImportVerificationScope ||
+        admitted ||
+        admittedCount != 0) {
+      throw const FormatException(
+        'Desktop Hestia import projection is invalid for this build.',
+      );
+    }
+    return DesktopHestiaImportProjection(
+      protocol: protocol,
+      state: state,
+      repository: repository,
+      revision: revision,
+      package: package,
+      artifactCount: artifactCount,
+      roomInvocationProtocol: roomInvocationProtocol,
+      authorityDecisionProtocol: authorityDecisionProtocol,
+      preparedExecutionProtocol: preparedExecutionProtocol,
+      verificationScope: verificationScope,
+      roomProjectionsAdmitted: admitted,
+      admittedRoomProjectionCount: admittedCount,
+    );
+  }
+
+  final String protocol;
+  final String state;
+  final String repository;
+  final String revision;
+  final String package;
+  final int artifactCount;
+  final String roomInvocationProtocol;
+  final String authorityDecisionProtocol;
+  final String preparedExecutionProtocol;
+  final String verificationScope;
+  final bool roomProjectionsAdmitted;
+  final int admittedRoomProjectionCount;
+
+  Map<String, Object?> toJson() => {
+    'protocol': protocol,
+    'state': state,
+    'repository': repository,
+    'revision': revision,
+    'package': package,
+    'artifactCount': artifactCount,
+    'roomInvocationProtocol': roomInvocationProtocol,
+    'authorityDecisionProtocol': authorityDecisionProtocol,
+    'preparedExecutionProtocol': preparedExecutionProtocol,
+    'verificationScope': verificationScope,
+    'roomProjectionsAdmitted': roomProjectionsAdmitted,
+    'admittedRoomProjectionCount': admittedRoomProjectionCount,
+  };
+}
+
 final class DesktopSessionProjection {
   const DesktopSessionProjection({
     required this.protocol,
@@ -328,6 +466,7 @@ final class DesktopConnectionSnapshot {
     required this.daemon,
     required this.actor,
     required this.identity,
+    required this.hestiaImport,
     required this.session,
     required this.error,
     required this.observedAtUnixMs,
@@ -341,6 +480,7 @@ final class DesktopConnectionSnapshot {
       'daemon',
       'actor',
       'identity',
+      'hestiaImport',
       'session',
       'error',
       'observedAtUnixMs',
@@ -353,6 +493,10 @@ final class DesktopConnectionSnapshot {
       identity: _nullableObject(
         json['identity'],
         DesktopIdentityProjection.fromJson,
+      ),
+      hestiaImport: _nullableObject(
+        json['hestiaImport'],
+        DesktopHestiaImportProjection.fromJson,
       ),
       session: _nullableObject(
         json['session'],
@@ -371,6 +515,7 @@ final class DesktopConnectionSnapshot {
     daemon: null,
     actor: null,
     identity: null,
+    hestiaImport: null,
     session: null,
     error: null,
     observedAtUnixMs: DateTime.now().millisecondsSinceEpoch,
@@ -382,6 +527,7 @@ final class DesktopConnectionSnapshot {
     daemon: null,
     actor: null,
     identity: null,
+    hestiaImport: null,
     session: null,
     error: null,
     observedAtUnixMs: DateTime.now().millisecondsSinceEpoch,
@@ -394,6 +540,7 @@ final class DesktopConnectionSnapshot {
         daemon: null,
         actor: null,
         identity: null,
+        hestiaImport: null,
         session: null,
         error: DesktopPublicError(
           code: DesktopConnectionState.bridgeUnavailable,
@@ -407,6 +554,7 @@ final class DesktopConnectionSnapshot {
   final DesktopDaemonProjection? daemon;
   final DesktopActorProjection? actor;
   final DesktopIdentityProjection? identity;
+  final DesktopHestiaImportProjection? hestiaImport;
   final DesktopSessionProjection? session;
   final DesktopPublicError? error;
   final int observedAtUnixMs;
@@ -419,7 +567,11 @@ final class DesktopConnectionSnapshot {
         'Desktop connection protocol is unsupported.',
       );
     }
-    final connectedShape = daemon != null && actor != null && session != null;
+    final connectedShape =
+        daemon != null &&
+        actor != null &&
+        hestiaImport != null &&
+        session != null;
     if (isConnected) {
       if (!connectedShape || error != null) {
         throw const FormatException(
@@ -431,6 +583,7 @@ final class DesktopConnectionSnapshot {
     if (daemon != null ||
         actor != null ||
         identity != null ||
+        hestiaImport != null ||
         session != null) {
       throw const FormatException(
         'Inactive Desktop projection exposes authority data.',
@@ -455,6 +608,7 @@ final class DesktopConnectionSnapshot {
     'daemon': daemon?.toJson(),
     'actor': actor?.toJson(),
     'identity': identity?.toJson(),
+    'hestiaImport': hestiaImport?.toJson(),
     'session': session?.toJson(),
     'error': error?.toJson(),
     'observedAtUnixMs': observedAtUnixMs,
@@ -489,6 +643,26 @@ final class DesktopConnectionSnapshot {
             'handle': identity!.handle,
             'keyId': identity!.keyId,
             'algorithm': identity!.algorithm,
+          },
+    'hestiaImport': hestiaImport == null
+        ? null
+        : {
+            'protocol': hestiaImport!.protocol,
+            'state': hestiaImport!.state,
+            'repository': hestiaImport!.repository,
+            'revision': hestiaImport!.revision,
+            'package': hestiaImport!.package,
+            'artifactCount': hestiaImport!.artifactCount,
+            'roomInvocationProtocol': hestiaImport!.roomInvocationProtocol,
+            'authorityDecisionProtocol':
+                hestiaImport!.authorityDecisionProtocol,
+            'preparedExecutionProtocol':
+                hestiaImport!.preparedExecutionProtocol,
+            'verificationScope': hestiaImport!.verificationScope,
+            'roomProjectionsAdmitted':
+                hestiaImport!.roomProjectionsAdmitted,
+            'admittedRoomProjectionCount':
+                hestiaImport!.admittedRoomProjectionCount,
           },
     'session': session == null
         ? null
@@ -566,6 +740,14 @@ String _text(Map<String, Object?> json, String field, {int maximum = 400}) {
       value.length > maximum ||
       value.runes.any((rune) => rune < 0x20 || rune == 0x7f)) {
     throw FormatException('$field must be bounded public text.');
+  }
+  return value;
+}
+
+bool _boolean(Map<String, Object?> json, String field) {
+  final value = json[field];
+  if (value is! bool) {
+    throw FormatException('$field must be a boolean.');
   }
   return value;
 }

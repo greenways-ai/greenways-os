@@ -199,6 +199,350 @@ final class ConnectionsView extends StatelessWidget {
   }
 }
 
+final class RoomsView extends StatelessWidget {
+  const RoomsView({super.key, required this.snapshot});
+
+  final DesktopConnectionSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final imported = snapshot.hestiaImport;
+    return KeyedSubtree(
+      key: const Key('rooms-view'),
+      child: _PageFrame(
+        eyebrow: 'HESTIA AUTHORITY',
+        title: 'Rooms',
+        subtitle:
+            'Compiled import readiness without inferring room authority or membership.',
+        children: imported == null
+            ? const [_RoomsConnectionRequired()]
+            : [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final readiness = _HestiaImportReadiness(imported: imported);
+                    const ownership = _RoomOwnershipBoundary();
+                    if (constraints.maxWidth < 820) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          readiness,
+                          const SizedBox(height: 16),
+                          ownership,
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: readiness),
+                        const SizedBox(width: 16),
+                        const Expanded(child: ownership),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 18),
+                _RoomsEmptyState(imported: imported),
+                const SizedBox(height: 18),
+                const _RoomAuthorityStages(),
+              ],
+      ),
+    );
+  }
+}
+
+final class _RoomsConnectionRequired extends StatelessWidget {
+  const _RoomsConnectionRequired();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.link_off,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Connection required',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Connect to greenwaysd to read this build’s pinned Hestia import readiness.',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Desktop infers no room, membership, source mandate, application grant or availability while disconnected.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _HestiaImportReadiness extends StatelessWidget {
+  const _HestiaImportReadiness({required this.imported});
+
+  final DesktopHestiaImportProjection imported;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('hestia-import-ready'),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.inventory_2_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Pinned import ready',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Chip(label: Text(imported.verificationScope)),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _DetailRow(label: 'Repository', value: imported.repository),
+            _DetailRow(label: 'Package', value: imported.package),
+            _DetailRow(
+              label: 'Revision',
+              value: '${imported.revision.substring(0, 12)}…',
+            ),
+            _DetailRow(
+              label: 'Artifacts',
+              value: '${imported.artifactCount} reviewed artifacts',
+              last: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _RoomOwnershipBoundary extends StatelessWidget {
+  const _RoomOwnershipBoundary();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.account_tree_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Ownership boundary',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            const _BoundaryRow(
+              owner: 'Hestia',
+              responsibility:
+                  'Room governance, membership, epochs, source mandates and canonical receipts.',
+            ),
+            const SizedBox(height: 14),
+            const _BoundaryRow(
+              owner: 'Greenways',
+              responsibility:
+                  'Installation-local custody, verified imports, bounded projections and local execution.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _BoundaryRow extends StatelessWidget {
+  const _BoundaryRow({required this.owner, required this.responsibility});
+
+  final String owner;
+  final String responsibility;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 82,
+          child: Text(
+            owner,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            responsibility,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _RoomsEmptyState extends StatelessWidget {
+  const _RoomsEmptyState({required this.imported});
+
+  final DesktopHestiaImportProjection imported;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('rooms-empty-state'),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                imported.admittedRoomProjectionCount.toString(),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No room projections admitted',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'The exact Hestia package closure is pinned, but no canonical room projection has crossed into this installation.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _RoomAuthorityStages extends StatelessWidget {
+  const _RoomAuthorityStages();
+
+  @override
+  Widget build(BuildContext context) {
+    const stages = [
+      (
+        'Hestia package pinned',
+        true,
+        'The reviewed package closure is compiled into this build.',
+      ),
+      (
+        'Room projection admitted',
+        false,
+        'No canonical room projection has been admitted.',
+      ),
+      (
+        'Membership active',
+        false,
+        'No membership is inferred from package readiness.',
+      ),
+      (
+        'Source mandated',
+        false,
+        'No room-owned application source has been selected.',
+      ),
+      (
+        'Room application granted',
+        false,
+        'No room application authority has been projected.',
+      ),
+      (
+        'Source available',
+        false,
+        'No local route or provider availability is implied.',
+      ),
+    ];
+    return Card(
+      key: const Key('rooms-authority-stages'),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Authority stages',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Each boundary becomes active only from explicit Hestia evidence and Greenways admission.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 18),
+            for (var index = 0; index < stages.length; index++)
+              _StageRow(
+                title: stages[index].$1,
+                complete: stages[index].$2,
+                detail: stages[index].$3,
+                last: index == stages.length - 1,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 final class _PageFrame extends StatelessWidget {
   const _PageFrame({
     required this.eyebrow,

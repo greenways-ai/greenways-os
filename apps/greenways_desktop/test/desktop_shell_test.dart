@@ -24,6 +24,17 @@ void main() {
     expect(find.byKey(const Key('desktop-rail')), findsOneWidget);
     expect(find.byKey(const Key('desktop-navigation-bar')), findsNothing);
     expect(find.text('Generation 4'), findsOneWidget);
+    expect(find.text('Rooms'), findsOneWidget);
+
+    await tester.tap(find.text('Rooms'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('rooms-view')), findsOneWidget);
+    expect(find.byKey(const Key('hestia-import-ready')), findsOneWidget);
+    expect(find.textContaining('64707d7a3821'), findsOneWidget);
+    expect(find.text('12 reviewed artifacts'), findsOneWidget);
+    expect(find.text('No room projections admitted'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     controller.dispose();
   });
 
@@ -42,6 +53,16 @@ void main() {
 
     expect(find.byKey(const Key('desktop-navigation-bar')), findsOneWidget);
     expect(find.text('Disconnected'), findsWidgets);
+    expect(find.text('Rooms'), findsOneWidget);
+
+    await tester.tap(find.text('Rooms'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('rooms-view')), findsOneWidget);
+    expect(find.text('Connection required'), findsOneWidget);
+    expect(find.textContaining('infers no room'), findsOneWidget);
+    expect(find.byKey(const Key('hestia-import-ready')), findsNothing);
+    expect(tester.takeException(), isNull);
     controller.dispose();
   });
 
@@ -103,6 +124,63 @@ void main() {
       find.textContaining('No compatibility authority fallback'),
       findsOneWidget,
     );
+    controller.dispose();
+  });
+
+  testWidgets('Rooms readiness is explicit and non-actionable', (tester) async {
+    tester.view.physicalSize = const Size(900, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    await controller.connect();
+
+    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rooms'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('rooms-empty-state')), findsOneWidget);
+    expect(find.byKey(const Key('rooms-authority-stages')), findsOneWidget);
+    expect(find.text('Hestia package pinned'), findsOneWidget);
+    expect(find.text('Room projection admitted'), findsOneWidget);
+    expect(find.text('Membership active'), findsOneWidget);
+    expect(find.text('Source mandated'), findsOneWidget);
+    expect(find.text('Room application granted'), findsOneWidget);
+    expect(find.text('Source available'), findsOneWidget);
+    for (final label in ['Create', 'Join', 'Approve', 'Install', 'Invoke']) {
+      expect(find.text(label), findsNothing);
+    }
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
+  testWidgets('compact connected Rooms readiness does not overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(520, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    await controller.connect();
+
+    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rooms'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('hestia-import-ready')), findsOneWidget);
+    expect(find.text('12 reviewed artifacts'), findsOneWidget);
+    expect(find.text('No room projections admitted'), findsOneWidget);
+    expect(find.byKey(const Key('rooms-authority-stages')), findsOneWidget);
+    expect(tester.takeException(), isNull);
     controller.dispose();
   });
 }

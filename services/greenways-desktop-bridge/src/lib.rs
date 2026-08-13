@@ -2,6 +2,7 @@ use greenways_authority::{
     read_credential_file, valid_client_id, AuthorityError, LocalClient, LocalClientRole,
     LocalSession, LOCAL_CLIENT_PROTOCOL, LOCAL_SESSION_PROTOCOL,
 };
+use greenways_hestia::HestiaImportStatus;
 use greenways_identity::{
     verify_signed_profile_identity, SignedProfileIdentity, PROFILE_IDENTITY_PROTOCOL,
     SIGNED_PROFILE_IDENTITY_PROTOCOL,
@@ -236,6 +237,7 @@ pub struct DesktopConnectionSnapshot {
     pub daemon: Option<DesktopDaemonProjection>,
     pub actor: Option<DesktopActorProjection>,
     pub identity: Option<DesktopIdentityProjection>,
+    pub hestia_import: Option<HestiaImportStatus>,
     pub session: Option<DesktopSessionProjection>,
     pub error: Option<DesktopPublicError>,
     pub observed_at_unix_ms: u64,
@@ -249,6 +251,7 @@ impl DesktopConnectionSnapshot {
             daemon: None,
             actor: None,
             identity: None,
+            hestia_import: None,
             session: None,
             error: None,
             observed_at_unix_ms,
@@ -262,6 +265,7 @@ impl DesktopConnectionSnapshot {
             daemon: None,
             actor: None,
             identity: None,
+            hestia_import: None,
             session: None,
             error: None,
             observed_at_unix_ms,
@@ -276,6 +280,7 @@ impl DesktopConnectionSnapshot {
             daemon: None,
             actor: None,
             identity: None,
+            hestia_import: None,
             session: None,
             error: Some(DesktopPublicError {
                 code: state,
@@ -293,6 +298,7 @@ impl DesktopConnectionSnapshot {
         }
         let connected_shape = self.daemon.is_some()
             && self.actor.is_some()
+            && self.hestia_import.is_some()
             && self.session.is_some()
             && self.error.is_none();
         match self.state {
@@ -306,6 +312,7 @@ impl DesktopConnectionSnapshot {
                 if self.daemon.is_some()
                     || self.actor.is_some()
                     || self.identity.is_some()
+                    || self.hestia_import.is_some()
                     || self.session.is_some()
                     || self.error.is_some() =>
             {
@@ -317,6 +324,7 @@ impl DesktopConnectionSnapshot {
             _ if self.daemon.is_some()
                 || self.actor.is_some()
                 || self.identity.is_some()
+                || self.hestia_import.is_some()
                 || self.session.is_some()
                 || self.error.is_none() =>
             {
@@ -334,6 +342,13 @@ impl DesktopConnectionSnapshot {
         }
         if let Some(identity) = &self.identity {
             identity.validate()?;
+        }
+        if let Some(hestia_import) = &self.hestia_import {
+            hestia_import.validate().map_err(|_| {
+                DesktopBridgeError::ProtocolMismatch(
+                    "The Desktop Hestia import projection is invalid.".to_owned(),
+                )
+            })?;
         }
         if let Some(session) = &self.session {
             session.validate()?;
@@ -610,6 +625,13 @@ impl DaemonDesktopBackend {
                     )
                 })?,
             ),
+            "hestia.import.status" => LocalRequest::hestia_import_status(
+                greenways_protocol::new_request_id().map_err(|_| {
+                    DesktopBridgeError::ProtocolMismatch(
+                        "The Desktop bridge could not allocate a local request ID.".to_owned(),
+                    )
+                })?,
+            ),
             _ => {
                 return Err(DesktopBridgeError::ProtocolMismatch(
                     "The Desktop bridge attempted an unsupported daemon operation.".to_owned(),
@@ -622,7 +644,7 @@ impl DaemonDesktopBackend {
     }
 
     fn connected_snapshot(&mut self) -> Result<DesktopConnectionSnapshot, DesktopBridgeError> {
-        self.require_request_capacity(3)?;
+        self.require_request_capacity(4)?;
         let expected_client_id = self
             .client
             .as_ref()
@@ -641,6 +663,8 @@ impl DaemonDesktopBackend {
         )?;
         let identity_response = self.authenticated_request("identity.public-card")?;
         let identity = decode_public_identity(&identity_response)?;
+        let hestia_import =
+            decode_hestia_import_status(&self.authenticated_request("hestia.import.status")?)?;
         let client = self.client.as_ref().ok_or_else(|| {
             DesktopBridgeError::SessionExpired("The Desktop daemon session disappeared.".to_owned())
         })?;
@@ -651,6 +675,7 @@ impl DaemonDesktopBackend {
             daemon: Some(daemon),
             actor: Some(actor),
             identity,
+            hestia_import: Some(hestia_import),
             session: Some(session),
             error: None,
             observed_at_unix_ms: now_unix_ms()?,
@@ -842,6 +867,23 @@ fn decode_public_identity(
         algorithm: subject.algorithm,
         created_at_unix_ms: subject.created_at_unix_ms,
     }))
+}
+
+fn decode_hestia_import_status(
+    response: &LocalResponse,
+) -> Result<HestiaImportStatus, DesktopBridgeError> {
+    let value = require_ok(response)?;
+    let status: HestiaImportStatus = serde_json::from_value(value.clone()).map_err(|_| {
+        DesktopBridgeError::ProtocolMismatch(
+            "The daemon returned an invalid Hestia import status.".to_owned(),
+        )
+    })?;
+    status.validate().map_err(|_| {
+        DesktopBridgeError::ProtocolMismatch(
+            "The daemon returned unsupported Hestia import readiness.".to_owned(),
+        )
+    })?;
+    Ok(status)
 }
 
 fn project_session(
@@ -1121,11 +1163,14 @@ mod tests {
                 algorithm: "p256-sha256-fixed".to_owned(),
                 created_at_unix_ms: 1,
             }),
+            hestia_import: Some(
+                HestiaImportStatus::from_compiled_lock().expect("compiled Hestia import"),
+            ),
             session: Some(DesktopSessionProjection {
                 protocol: DESKTOP_SESSION_PROJECTION_PROTOCOL.to_owned(),
                 opened_at_unix_ms: 1,
                 expires_at_unix_ms: 300_001,
-                remaining_requests: 125,
+                remaining_requests: 124,
             }),
             error: None,
             observed_at_unix_ms: 2,
@@ -1189,6 +1234,7 @@ mod tests {
         assert!(snapshot.daemon.is_none());
         assert!(snapshot.actor.is_none());
         assert!(snapshot.identity.is_none());
+        assert!(snapshot.hestia_import.is_none());
         assert!(snapshot.session.is_none());
         assert!(snapshot.validate().is_ok());
     }
@@ -1208,6 +1254,82 @@ mod tests {
         ] {
             assert!(!encoded.contains(forbidden), "found {forbidden}");
         }
+    }
+
+    #[test]
+    fn connected_projection_requires_exact_hestia_import_readiness() {
+        let snapshot = connected_snapshot(true);
+        let status = snapshot
+            .hestia_import
+            .as_ref()
+            .expect("connected snapshot must include Hestia import status");
+        assert_eq!(status.repository, "greenways-ai/hestia");
+        assert_eq!(status.package, "@greenways/hestia-browser");
+        assert_eq!(status.artifact_count, 12);
+        assert_eq!(status.verification_scope, "compiled-lock");
+        assert_eq!(status.admitted_room_projection_count, 0);
+        assert!(!status.room_projections_admitted);
+
+        let mut missing = connected_snapshot(true);
+        missing.hestia_import = None;
+        assert!(missing.validate().is_err());
+
+        let mut changed = connected_snapshot(true);
+        changed.hestia_import.as_mut().unwrap().protocol = "changed".to_owned();
+        assert!(changed.validate().is_err());
+
+        let mut changed = connected_snapshot(true);
+        changed.hestia_import.as_mut().unwrap().repository = "other/hestia".to_owned();
+        assert!(changed.validate().is_err());
+
+        let mut changed = connected_snapshot(true);
+        changed.hestia_import.as_mut().unwrap().package = "@other/hestia".to_owned();
+        assert!(changed.validate().is_err());
+
+        let mut changed = connected_snapshot(true);
+        changed.hestia_import.as_mut().unwrap().revision = "0".repeat(40);
+        assert!(changed.validate().is_err());
+
+        let mut changed = connected_snapshot(true);
+        changed
+            .hestia_import
+            .as_mut()
+            .unwrap()
+            .room_projections_admitted = true;
+        assert!(changed.validate().is_err());
+    }
+
+    #[test]
+    fn failed_and_inactive_snapshots_reject_hestia_import_metadata() {
+        let import = HestiaImportStatus::from_compiled_lock().expect("compiled Hestia import");
+        let mut disconnected = DesktopConnectionSnapshot::disconnected(1);
+        disconnected.hestia_import = Some(import.clone());
+        assert!(disconnected.validate().is_err());
+
+        let mut failed = DesktopConnectionSnapshot::failed(
+            DesktopBridgeError::DaemonUnavailable("Daemon unavailable.".to_owned()),
+            1,
+        );
+        failed.hestia_import = Some(import);
+        assert!(failed.validate().is_err());
+    }
+
+    #[test]
+    fn decodes_only_the_closed_hestia_import_status() {
+        let status = HestiaImportStatus::from_compiled_lock().expect("compiled Hestia import");
+        let response = LocalResponse::ok(
+            "local/request/hestia001",
+            serde_json::to_value(&status).expect("status should encode"),
+        );
+        assert_eq!(decode_hestia_import_status(&response).unwrap(), status);
+
+        let mut value = serde_json::to_value(&status).expect("status should encode");
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("artifactPaths".to_owned(), serde_json::json!([]));
+        let changed = LocalResponse::ok("local/request/hestia002", value);
+        assert!(decode_hestia_import_status(&changed).is_err());
     }
 
     #[test]
@@ -1249,8 +1371,8 @@ mod tests {
             remaining_requests: 128,
         };
         assert_eq!(
-            project_session(&session, 3).unwrap().remaining_requests,
-            125
+            project_session(&session, 4).unwrap().remaining_requests,
+            124
         );
     }
 

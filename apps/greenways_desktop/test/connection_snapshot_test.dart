@@ -10,7 +10,79 @@ void main() {
     expect(snapshot.state, DesktopConnectionState.connected);
     expect(snapshot.actor?.role, 'desktop');
     expect(snapshot.identity?.handle, 'greenways');
-    expect(snapshot.session?.remainingRequests, 125);
+    expect(snapshot.session?.remainingRequests, 124);
+    expect(snapshot.hestiaImport?.verificationScope, 'compiled-lock');
+    expect(snapshot.hestiaImport?.admittedRoomProjectionCount, 0);
+  });
+
+  test('requires the exact closed Hestia compiled import projection', () {
+    final snapshot = DesktopConnectionSnapshot.fromJson(_connectedJson());
+    final imported = snapshot.hestiaImport!;
+    expect(imported.protocol, hestiaImportStatusProtocol);
+    expect(imported.state, hestiaImportState);
+    expect(imported.repository, hestiaImportRepository);
+    expect(imported.revision, hestiaImportRevision);
+    expect(imported.package, hestiaImportPackage);
+    expect(imported.artifactCount, hestiaImportArtifactCount);
+    expect(imported.roomInvocationProtocol, hestiaRoomInvocationProtocol);
+    expect(
+      imported.authorityDecisionProtocol,
+      hestiaAuthorityDecisionProtocol,
+    );
+    expect(
+      imported.preparedExecutionProtocol,
+      greenwaysPreparedRoomExecutionProtocol,
+    );
+    expect(imported.verificationScope, hestiaImportVerificationScope);
+    expect(imported.roomProjectionsAdmitted, isFalse);
+    expect(imported.admittedRoomProjectionCount, 0);
+  });
+
+  test('rejects missing, changed and expanded Hestia import metadata', () {
+    final missing = _connectedJson()..remove('hestiaImport');
+    expect(
+      () => DesktopConnectionSnapshot.fromJson(missing),
+      throwsFormatException,
+    );
+
+    for (final change in <void Function(Map<String, Object?>)>[
+      (value) => value['protocol'] = 'changed',
+      (value) => value['repository'] = 'other/hestia',
+      (value) => value['package'] = '@other/hestia',
+      (value) => value['revision'] = List.filled(40, '0').join(),
+      (value) => value['artifactCount'] = 13,
+      (value) => value['roomInvocationProtocol'] = 'changed',
+      (value) => value['authorityDecisionProtocol'] = 'changed',
+      (value) => value['preparedExecutionProtocol'] = 'changed',
+      (value) => value['verificationScope'] = 'live-room-state',
+      (value) => value['artifactPaths'] = <Object?>[],
+    ]) {
+      final changed = _connectedJson();
+      change(changed['hestiaImport']! as Map<String, Object?>);
+      expect(
+        () => DesktopConnectionSnapshot.fromJson(changed),
+        throwsFormatException,
+      );
+    }
+  });
+
+  test('rejects admitted room projections in the readiness-only build', () {
+    final mismatched = _connectedJson();
+    (mismatched['hestiaImport']! as Map<String, Object?>)
+      ['roomProjectionsAdmitted'] = true;
+    expect(
+      () => DesktopConnectionSnapshot.fromJson(mismatched),
+      throwsFormatException,
+    );
+
+    final admitted = _connectedJson();
+    final imported = admitted['hestiaImport']! as Map<String, Object?>;
+    imported['roomProjectionsAdmitted'] = true;
+    imported['admittedRoomProjectionCount'] = 1;
+    expect(
+      () => DesktopConnectionSnapshot.fromJson(admitted),
+      throwsFormatException,
+    );
   });
 
   test('maps protocol mismatch to the upgrade UI state', () {
@@ -133,11 +205,17 @@ void main() {
       'local/client/',
       '"id": "identity/',
       'openedAtUnixMs',
+      'browser/src',
+      'artifactPaths',
+      'artifactDigest',
+      'membershipRoot',
     ]) {
       expect(diagnostics, isNot(contains(forbidden)));
     }
     expect(diagnostics, contains('Greenways Desktop'));
     expect(diagnostics, contains('greenways'));
+    expect(diagnostics, contains('@greenways/hestia-browser'));
+    expect(diagnostics, contains('compiled-lock'));
   });
 
   test('rejects changed nested protocols and mismatched error evidence', () {
@@ -196,14 +274,30 @@ Map<String, Object?> _connectedJson() => {
     'algorithm': 'p256-sha256-fixed',
     'createdAtUnixMs': 1,
   },
+  'hestiaImport': _hestiaImportJson(),
   'session': {
     'protocol': desktopSessionProjectionProtocol,
     'openedAtUnixMs': 1,
     'expiresAtUnixMs': 300001,
-    'remainingRequests': 125,
+    'remainingRequests': 124,
   },
   'error': null,
   'observedAtUnixMs': 2,
+};
+
+Map<String, Object?> _hestiaImportJson() => {
+  'protocol': hestiaImportStatusProtocol,
+  'state': hestiaImportState,
+  'repository': hestiaImportRepository,
+  'revision': hestiaImportRevision,
+  'package': hestiaImportPackage,
+  'artifactCount': hestiaImportArtifactCount,
+  'roomInvocationProtocol': hestiaRoomInvocationProtocol,
+  'authorityDecisionProtocol': hestiaAuthorityDecisionProtocol,
+  'preparedExecutionProtocol': greenwaysPreparedRoomExecutionProtocol,
+  'verificationScope': hestiaImportVerificationScope,
+  'roomProjectionsAdmitted': false,
+  'admittedRoomProjectionCount': 0,
 };
 
 Map<String, Object?> _failedJson(String state) => {
@@ -212,6 +306,7 @@ Map<String, Object?> _failedJson(String state) => {
   'daemon': null,
   'actor': null,
   'identity': null,
+  'hestiaImport': null,
   'session': null,
   'error': {'code': state, 'message': 'Bounded failure.'},
   'observedAtUnixMs': 2,
