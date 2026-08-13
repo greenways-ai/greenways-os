@@ -1594,18 +1594,16 @@ mod tests {
                 )
                 .expect("allowed Hestia import status should complete");
             assert_eq!(response.outcome, Outcome::Ok);
-            let status: HestiaImportStatus = serde_json::from_value(
-                response.value.expect("Hestia import status value"),
-            )
-            .expect("Hestia import status should decode");
-            status.validate().expect("Hestia import status should validate");
+            let status: HestiaImportStatus =
+                serde_json::from_value(response.value.expect("Hestia import status value"))
+                    .expect("Hestia import status should decode");
+            status
+                .validate()
+                .expect("Hestia import status should validate");
             assert_eq!(status.protocol, "greenways-hestia-import-status/0-alpha");
             assert_eq!(status.state, "pinned");
             assert_eq!(status.repository, "greenways-ai/hestia");
-            assert_eq!(
-                status.revision,
-                "64707d7a38216d800bcc22b8da215c3e6946e1bb"
-            );
+            assert_eq!(status.revision, "64707d7a38216d800bcc22b8da215c3e6946e1bb");
             assert_eq!(status.package, "@greenways/hestia-browser");
             assert_eq!(status.artifact_count, 12);
             assert_eq!(
@@ -1634,7 +1632,10 @@ mod tests {
                 "credential",
                 "privateKey",
             ] {
-                assert!(!encoded.contains(forbidden), "forbidden projection: {forbidden}");
+                assert!(
+                    !encoded.contains(forbidden),
+                    "forbidden projection: {forbidden}"
+                );
             }
         }
         assert_eq!(daemon.state.receipts.len(), 3);

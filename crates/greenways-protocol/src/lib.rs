@@ -833,9 +833,10 @@ mod tests {
         );
 
         let mut with_arguments = request.clone();
-        with_arguments
-            .arguments
-            .insert("roomId".to_owned(), Value::String("room/example".to_owned()));
+        with_arguments.arguments.insert(
+            "roomId".to_owned(),
+            Value::String("room/example".to_owned()),
+        );
         assert_eq!(
             validate_request(&with_arguments)
                 .expect_err("status read must reject arguments")

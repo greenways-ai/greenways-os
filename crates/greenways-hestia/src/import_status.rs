@@ -19,12 +19,10 @@ pub const HESTIA_IMPORT_ARTIFACT_COUNT: u64 = 12;
 pub const HESTIA_IMPORT_VERIFICATION_SCOPE: &str = "compiled-lock";
 
 const HESTIA_LOCK_PROTOCOL: &str = "greenways-hestia-room-authority-lock/0-alpha";
-const HESTIA_LOCK_SHA256: &str =
-    "d294839838385254184652c94e4c980aa2ace82071590925531a3e2094703c3b";
+const HESTIA_LOCK_SHA256: &str = "d294839838385254184652c94e4c980aa2ace82071590925531a3e2094703c3b";
 const DIGEST_PREFIX: &str = "sha256:";
 const MAX_PATH_BYTES: usize = 320;
-const COMPILED_LOCK: &[u8] =
-    include_bytes!("../../../extension/hestia-room-authority.lock.json");
+const COMPILED_LOCK: &[u8] = include_bytes!("../../../extension/hestia-room-authority.lock.json");
 
 const EXPECTED_ARTIFACTS: [(&str, &str); 12] = [
     ("packageManifest", "browser/package.json"),
@@ -130,9 +128,7 @@ impl HestiaImportStatus {
                 "The Hestia import status does not identify this exact compiled package closure.",
             ));
         }
-        if self.room_projections_admitted
-            != (self.admitted_room_projection_count > 0)
-        {
+        if self.room_projections_admitted != (self.admitted_room_projection_count > 0) {
             return Err(HestiaImportError::new(
                 "invalid-hestia-room-admission-status",
                 "The Hestia room projection admission flag and count disagree.",
@@ -180,10 +176,11 @@ impl HestiaImportLock {
             || EXPECTED_ARTIFACTS
                 .iter()
                 .any(|(name, _)| !self.artifacts.contains_key(*name))
-            || self
-                .artifacts
-                .keys()
-                .any(|name| !EXPECTED_ARTIFACTS.iter().any(|(expected, _)| name == expected))
+            || self.artifacts.keys().any(|name| {
+                !EXPECTED_ARTIFACTS
+                    .iter()
+                    .any(|(expected, _)| name == expected)
+            })
         {
             return Err(HestiaImportError::new(
                 "invalid-hestia-import-artifact-set",
@@ -375,7 +372,10 @@ mod tests {
             "membershipRoot",
             "invitation",
         ] {
-            assert!(!encoded.contains(forbidden), "forbidden projection: {forbidden}");
+            assert!(
+                !encoded.contains(forbidden),
+                "forbidden projection: {forbidden}"
+            );
         }
     }
 
