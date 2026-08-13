@@ -5,7 +5,7 @@ mod resource;
 
 pub use chats::{
     chat_uri, ChatEntity, ChatSource, EntityLink, MessageEntity, MessageRole, TransactionRequest,
-    CHAT_PROTOCOL, CHATS_COLLECTION_URI, CHATS_PROFILE, MAX_MESSAGE_BYTES, MAX_TITLE_BYTES,
+    CHATS_COLLECTION_URI, CHATS_PROFILE, CHAT_PROTOCOL, MAX_MESSAGE_BYTES, MAX_TITLE_BYTES,
     MESSAGE_PROTOCOL,
 };
 pub use context::reject_server_context;
@@ -22,12 +22,9 @@ pub use resource::{
 
 use serde::{Deserialize, Serialize};
 
-pub const GREENWAYS_BASE_REVISION: &str =
-    "92968e489b36b95419a68e3fc996dd09a7bd8837";
-pub const RUNTIME_BASE_REVISION: &str =
-    "e8b811759edbe7c387f914481cb9b3019fa4ce08";
-pub const SEMANTIC_BASE_REVISION: &str =
-    "e5f1389a9122c7ac4fdd625c9c6d6c5b840bef14";
+pub const GREENWAYS_BASE_REVISION: &str = "92968e489b36b95419a68e3fc996dd09a7bd8837";
+pub const RUNTIME_BASE_REVISION: &str = "e8b811759edbe7c387f914481cb9b3019fa4ce08";
+pub const SEMANTIC_BASE_REVISION: &str = "e5f1389a9122c7ac4fdd625c9c6d6c5b840bef14";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
