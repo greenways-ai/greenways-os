@@ -1,0 +1,19 @@
+{
+  "protocol": "greenways-connection-state-vocabulary/0-alpha",
+  "shared": [
+    "connecting",
+    "connected",
+    "daemon-unavailable",
+    "credential-unavailable",
+    "authentication-rejected",
+    "session-expired",
+    "protocol-mismatch",
+    "disconnected"
+  ],
+  "browserOnly": [
+    "native-host-unavailable"
+  ],
+  "desktopOnly": [
+    "desktop-bridge-unavailable"
+  ]
+}

@@ -111,3 +111,36 @@ jobs:
         run: cargo +1.85.1 test --workspace --all-targets
       - name: Lint workspace
         run: cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+
+  desktop:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Validate Desktop bridge
+        run: |
+          cargo +1.85.1 test -p greenways-desktop-bridge --all-targets
+          cargo +1.85.1 clippy -p greenways-desktop-bridge --all-targets -- -D warnings
+      - name: Validate and build Greenways Desktop
+        working-directory: apps/greenways_desktop
+        run: |
+          flutter config --enable-macos-desktop
+          tool/build_macos.sh
+          git diff --check
+          git diff --exit-code -- lib test pubspec.yaml pubspec.lock
+      - name: Archive developer Desktop bundle
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "apps/greenways_desktop/build/macos/Build/Products/Release/Greenways Desktop.app" \
+            "$RUNNER_TEMP/greenways-desktop-macos.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenways-desktop-macos
+          path: ${{ runner.temp }}/greenways-desktop-macos.zip
+          if-no-files-found: error
