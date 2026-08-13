@@ -1,5 +1,10 @@
 # Greenways OS confidence protocol
 
+The cross-system meanings of verification, authentication, approval, grants,
+authorization decisions, admission, resource scope and host ownership are fixed
+by [`authority-model.md`](authority-model.md). Protocol documents must use those
+terms rather than the ambiguous shorthand `auth`.
+
 This Greenways-owned contribution defines portable records for artist-first
 collaboration, AI-mediated services, quality results, and personal Hestia
 chains. Hara hosts and verifies the contribution but does not own its domain
