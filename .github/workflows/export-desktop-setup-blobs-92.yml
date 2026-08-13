@@ -1,0 +1,60 @@
+name: Export Desktop setup recovery blobs
+
+on:
+  push:
+    branches:
+      - agent/setup-inspection-snapshot-92
+    paths:
+      - .github/agent/export-desktop-setup-blobs-92
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export recovered blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          repository = os.environ['REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          out = Path('/tmp/desktop-setup-recovery-blobs')
+          out.mkdir(parents=True, exist_ok=True)
+          for sha in (
+              '23ee609fe514cb1fb7cd3f321ff3eabc225cf1a8',
+              '60991ceb2c5f0ef19cd006044465beb1a1d5e1be',
+          ):
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repository}/git/blobs/{sha}',
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f'Bearer {token}',
+                      'User-Agent': 'greenways-os-desktop-setup-recovery',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  value = json.load(response)
+              data = base64.b64decode(value['content'])
+              (out / sha).write_bytes(data)
+              print(sha, len(data))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-setup-recovery-blobs-92
+          path: /tmp/desktop-setup-recovery-blobs
+          retention-days: 1
+          if-no-files-found: error
