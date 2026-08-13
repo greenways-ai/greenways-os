@@ -25,3 +25,29 @@ jobs:
         run: node extension/scripts/generate-hestia-room-authority-lock.mjs .imports/hestia --check
       - name: Verify pinned Hestia fixture and canonical record conformance
         run: node extension/scripts/verify-hestia-room-authority-import.mjs .imports/hestia
+      - name: Reject canonical-path escape with unchanged artifact bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          escaped="$(mktemp)"
+          cp .imports/hestia/browser/src/room-authority.js "$escaped"
+          rm .imports/hestia/browser/src/room-authority.js
+          ln -s "$escaped" .imports/hestia/browser/src/room-authority.js
+
+          if node extension/scripts/generate-hestia-room-authority-lock.mjs \
+              .imports/hestia --check > /tmp/hestia-lock-escape.log 2>&1; then
+            echo "lock generator accepted an escaped symbolic link" >&2
+            exit 1
+          fi
+          grep -F \
+            'decisionModule must not resolve through a symbolic link or escaped parent' \
+            /tmp/hestia-lock-escape.log
+
+          if node extension/scripts/verify-hestia-room-authority-import.mjs \
+              .imports/hestia > /tmp/hestia-import-escape.log 2>&1; then
+            echo "import verifier accepted an escaped symbolic link" >&2
+            exit 1
+          fi
+          grep -F \
+            'decisionModule must not resolve through a symbolic link or escaped parent' \
+            /tmp/hestia-import-escape.log

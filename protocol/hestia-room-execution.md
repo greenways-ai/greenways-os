@@ -37,7 +37,9 @@ hestia-room-authority-decision/0-alpha
 
 It does not reconstruct the Hestia room policy. The adapter checks only the
 closed envelope, exact decision/invocation correlation and exact roots already
-returned by the pinned Hestia implementation.
+returned by the pinned Hestia implementation. The import lock resolves every
+artifact to its canonical path and rejects symbolic-link or parent-directory
+escape even when escaped bytes retain an expected digest.
 
 An allowed decision must identify the same request, room and operation as the
 invocation and retain the exact:
@@ -49,6 +51,10 @@ room-application-grant root
 ```
 
 A denied decision is rejected and cannot project successful authority roots.
+The cross-repository gate proves independent member, member-node, source,
+application, operation, membership-root, source-mandate-root and room-grant-root
+substitutions all fail closed. Source and grant revocation denials likewise
+project no authority roots or interaction requirement.
 
 ## Local Greenways evidence
 

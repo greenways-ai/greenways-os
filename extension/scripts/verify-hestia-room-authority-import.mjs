@@ -108,6 +108,17 @@ function containedPath(repositoryRoot, relativePath, name) {
   return absolute;
 }
 
+async function canonicalContainedPath(repositoryRoot, relativePath, name) {
+  const lexicalPath = containedPath(repositoryRoot, relativePath, name);
+  const canonicalPath = await realpath(lexicalPath);
+  assert.equal(
+    canonicalPath,
+    lexicalPath,
+    `${name} must not resolve through a symbolic link or escaped parent`
+  );
+  return canonicalPath;
+}
+
 function applicationIdentity() {
   return Object.freeze({
     appId: "greenways.chat",
@@ -150,7 +161,7 @@ if (process.env.GREENWAYS_SKIP_HESTIA_REVISION !== "1") {
 const artifactPaths = {};
 const artifactBytes = {};
 for (const [name, artifact] of Object.entries(lock.artifacts)) {
-  const path = containedPath(repositoryRoot, artifact.path, name);
+  const path = await canonicalContainedPath(repositoryRoot, artifact.path, name);
   const bytes = await readFile(path);
   assert.equal(digest(bytes), artifact.digest, `${name} digest`);
   artifactPaths[name] = path;
@@ -187,6 +198,14 @@ assert.equal(
   resolve(dirname(artifactPaths.importManifest), manifest.conformanceFixture),
   artifactPaths.conformanceFixture,
   "manifest fixture path"
+);
+assert.equal(
+  manifest.canonicalAuthority,
+  "HCV1/HCP1 room records and exact Hestia receipt roots"
+);
+assert.equal(
+  manifest.consumerBoundary,
+  "Greenways OS imports and executes this policy without defining parallel room authority"
 );
 
 const fixture = JSON.parse(artifactBytes.conformanceFixture.toString("utf8"));
@@ -410,16 +429,81 @@ assert.equal(allowed.membershipRoot, membershipRecord.root);
 assert.equal(allowed.sourceMandateRoot, sourceMandateRecord.root);
 assert.equal(allowed.grantRoot, grantRecord.root);
 
-const sourceSubstitution = authority.authorizeRoomInvocation({
-  room: roomProjection,
-  membership: membershipProjection,
-  sourceMandate: sourceMandateProjection,
-  grant: grantProjection,
-  invocation: { ...invocation, sourceId: "source/substituted" },
-  observedAt
-});
-assert.equal(sourceSubstitution.allowed, false);
-assert.equal(sourceSubstitution.reason, "source-mismatch");
+function assertDeniedDecision(decision, expectedReason, name) {
+  assert.equal(decision.allowed, false, `${name} allowed`);
+  assert.equal(decision.reason, expectedReason, `${name} reason`);
+  assert.equal(decision.membershipRoot, null, `${name} membership root`);
+  assert.equal(decision.sourceMandateRoot, null, `${name} source mandate root`);
+  assert.equal(decision.grantRoot, null, `${name} grant root`);
+  assert.equal(decision.requiresUserInteraction, false, `${name} interaction`);
+}
+
+const substitutions = [
+  {
+    name: "member identity substitution",
+    invocation: {
+      ...invocation,
+      memberProfileRoot: `sha256:${"7".repeat(64)}`
+    },
+    reason: "membership-mismatch"
+  },
+  {
+    name: "member node substitution",
+    invocation: { ...invocation, memberNodeId: "node/substituted" },
+    reason: "membership-mismatch"
+  },
+  {
+    name: "source identity substitution",
+    invocation: { ...invocation, sourceId: "source/substituted" },
+    reason: "source-mismatch"
+  },
+  {
+    name: "application identity substitution",
+    invocation: {
+      ...invocation,
+      application: { ...application, version: "0.2.0" }
+    },
+    reason: "source-application-mismatch"
+  },
+  {
+    name: "operation substitution",
+    invocation: { ...invocation, operation: "conversation.create" },
+    reason: "grant-operation-denied"
+  },
+  {
+    name: "membership root substitution",
+    invocation: {
+      ...invocation,
+      membershipRoot: `sha256:${"8".repeat(64)}`
+    },
+    reason: "membership-mismatch"
+  },
+  {
+    name: "source mandate root substitution",
+    invocation: {
+      ...invocation,
+      sourceMandateRoot: `sha256:${"9".repeat(64)}`
+    },
+    reason: "source-mismatch"
+  },
+  {
+    name: "room application grant root substitution",
+    invocation: { ...invocation, grantRoot: `sha256:${"a".repeat(64)}` },
+    reason: "grant-mismatch"
+  }
+];
+
+for (const substitution of substitutions) {
+  const denied = authority.authorizeRoomInvocation({
+    room: roomProjection,
+    membership: membershipProjection,
+    sourceMandate: sourceMandateProjection,
+    grant: grantProjection,
+    invocation: substitution.invocation,
+    observedAt
+  });
+  assertDeniedDecision(denied, substitution.reason, substitution.name);
+}
 
 const sourceRevocationRecord =
   await authorityRecords.createRoomSourceMandateRevocation({
@@ -451,8 +535,7 @@ const sourceRevoked = authority.authorizeRoomInvocation({
   invocation,
   observedAt
 });
-assert.equal(sourceRevoked.allowed, false);
-assert.equal(sourceRevoked.reason, "source-inactive");
+assertDeniedDecision(sourceRevoked, "source-inactive", "source revocation");
 
 const grantRevocationRecord =
   await authorityRecords.createRoomApplicationGrantRevocation({
@@ -486,10 +569,9 @@ const grantRevoked = authority.authorizeRoomInvocation({
   invocation,
   observedAt
 });
-assert.equal(grantRevoked.allowed, false);
-assert.equal(grantRevoked.reason, "grant-inactive");
+assertDeniedDecision(grantRevoked, "grant-inactive", "grant revocation");
 
 console.log(
-  `Verified ${fixture.cases.length} fixture cases and canonical Hestia room `
-    + `records at ${lock.revision}.`
+  `Verified ${fixture.cases.length} fixture cases, ${substitutions.length} exact `
+    + `substitution denials, and canonical Hestia room records at ${lock.revision}.`
 );
