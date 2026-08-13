@@ -1,0 +1,111 @@
+name: Apply Desktop client enrollment
+
+on:
+  push:
+    branches:
+      - agent/desktop-client-enrollment-108-apply
+    paths:
+      - .github/agent/desktop-client-enrollment-108-apply
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/desktop-client-enrollment-108-apply
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Reconstruct the reviewed enrollment patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import hashlib
+          from pathlib import Path
+
+          encoded = b''.join(
+              b''.join(
+                  Path(f'.github/agent/desktop-client-enrollment-108.part-{index:02d}')
+                  .read_bytes()
+                  .split()
+              )
+              for index in range(2)
+          )
+          assert len(encoded) == 11840
+          assert hashlib.sha256(encoded).hexdigest() == '1210f5894b9e5d8108c5212f82b47f1df1fec58241805162faf6f055c638d3eb'
+          archive = base64.b64decode(encoded, validate=True)
+          assert len(archive) == 8879
+          assert hashlib.sha256(archive).hexdigest() == 'ac9131af60e3e8b5c61563b6e6ab097727d7c9ff4bff05a6a575db05aff8f109'
+          patch = gzip.decompress(archive)
+          assert len(patch) == 40331
+          assert hashlib.sha256(patch).hexdigest() == '73e285b503dbe3d12f243714c00b12f7abd475ac166ee0771934d8e4589e7083'
+          Path('/tmp/desktop-client-enrollment-108.patch').write_bytes(patch)
+          PY
+      - name: Apply, format, and validate the source slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/desktop-service-92-clean
+          git switch --detach origin/agent/desktop-service-92-clean
+          git switch -C agent/desktop-client-enrollment-108
+          git apply --check /tmp/desktop-client-enrollment-108.patch
+          git apply /tmp/desktop-client-enrollment-108.patch
+
+          cargo +1.85.1 fmt --all
+          cargo +1.85.1 fmt --all -- --check
+          cargo +1.85.1 test -p greenways-desktop-bridge --all-targets
+          cargo +1.85.1 clippy -p greenways-desktop-bridge --all-targets -- -D warnings
+
+          cd apps/greenways_desktop
+          flutter config --enable-macos-desktop
+          tool/build_macos.sh
+          cd ../..
+
+          git diff --check
+          cat > /tmp/expected-files <<'FILES'
+          apps/greenways_desktop/README.md
+          apps/greenways_desktop/lib/controller/setup_controller.dart
+          apps/greenways_desktop/lib/model/setup_snapshot_validation.dart
+          apps/greenways_desktop/lib/ui/setup_view.dart
+          apps/greenways_desktop/test/desktop_shell_test.dart
+          apps/greenways_desktop/test/setup_controller_test.dart
+          apps/greenways_desktop/test/setup_snapshot_test.dart
+          apps/greenways_desktop/test/support/fakes.dart
+          protocol/desktop-setup.md
+          services/greenways-desktop-bridge/src/setup/host.rs
+          services/greenways-desktop-bridge/src/setup/inspect.rs
+          services/greenways-desktop-bridge/src/setup/mod.rs
+          services/greenways-desktop-bridge/src/setup/service.rs
+          services/greenways-desktop-bridge/src/setup/tests.rs
+          FILES
+          sed -i '' 's/^          //' /tmp/expected-files
+          xargs git add -N -- < /tmp/expected-files
+          git diff --name-only | sort > /tmp/actual-files
+          diff -u /tmp/expected-files /tmp/actual-files
+          test -z "$(git status --porcelain | grep '^??' || true)"
+      - name: Publish the clean implementation branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name greenways-os-ci
+          git config user.email actions@users.noreply.github.com
+          xargs git add -- < /tmp/expected-files
+          git diff --cached --name-only | sort > /tmp/staged-files
+          diff -u /tmp/expected-files /tmp/staged-files
+          git commit -m 'Enroll the initial Desktop local client'
+          git push --force origin HEAD:refs/heads/agent/desktop-client-enrollment-108
+          git rev-parse HEAD
