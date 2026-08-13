@@ -52,6 +52,17 @@ function containedPath(repositoryRoot, relativePath, name) {
   return absolute;
 }
 
+async function canonicalContainedPath(repositoryRoot, relativePath, name) {
+  const lexicalPath = containedPath(repositoryRoot, relativePath, name);
+  const canonicalPath = await realpath(lexicalPath);
+  assert.equal(
+    canonicalPath,
+    lexicalPath,
+    `${name} must not resolve through a symbolic link or escaped parent`
+  );
+  return canonicalPath;
+}
+
 const repositoryRoot = await realpath(resolve(suppliedRepository));
 const revision = execFileSync(
   "git",
@@ -62,7 +73,8 @@ assert.match(revision, REVISION_PATTERN, "Hestia checkout revision");
 
 const artifactEntries = [];
 for (const [name, path] of Object.entries(ARTIFACTS)) {
-  const bytes = await readFile(containedPath(repositoryRoot, path, name));
+  const canonicalPath = await canonicalContainedPath(repositoryRoot, path, name);
+  const bytes = await readFile(canonicalPath);
   artifactEntries.push([name, { path, digest: digest(bytes) }]);
 }
 
