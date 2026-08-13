@@ -154,7 +154,10 @@ pub struct SessionHello {
 impl SessionHello {
     pub fn validate(&self) -> Result<(), ContractError> {
         require_protocol(&self.protocol, SESSION_HELLO_PROTOCOL)?;
-        if !matches!(self.client.as_str(), "desktop" | "server" | "cli" | "browser") {
+        if !matches!(
+            self.client.as_str(),
+            "desktop" | "server" | "cli" | "browser"
+        ) {
             return Err(ContractError::new(
                 "invalid-client",
                 "session client is unsupported",
@@ -207,20 +210,16 @@ impl QueryRequest {
                 require_absent(&self.limit, "limit")?;
                 require_absent(&self.cursor, "cursor")?;
                 require_absent(&self.direction, "direction")?;
-                validate_chat_id(
-                    self.chat_id
-                        .as_deref()
-                        .ok_or_else(|| ContractError::new("missing-field", "chat_id is required"))?,
-                )
+                validate_chat_id(self.chat_id.as_deref().ok_or_else(|| {
+                    ContractError::new("missing-field", "chat_id is required")
+                })?)
             }
             "messages" => {
                 require_page_limit(self.limit)?;
                 require_cursor(&self.cursor)?;
-                validate_chat_id(
-                    self.chat_id
-                        .as_deref()
-                        .ok_or_else(|| ContractError::new("missing-field", "chat_id is required"))?,
-                )?;
+                validate_chat_id(self.chat_id.as_deref().ok_or_else(|| {
+                    ContractError::new("missing-field", "chat_id is required")
+                })?)?;
                 match self.direction.as_deref() {
                     Some("forward") | Some("backward") => Ok(()),
                     _ => Err(ContractError::new(
@@ -340,10 +339,7 @@ pub(crate) fn validate_bounded_text(
     Ok(())
 }
 
-pub(crate) fn require_protocol(
-    actual: &str,
-    expected: &str,
-) -> Result<(), ContractError> {
+pub(crate) fn require_protocol(actual: &str, expected: &str) -> Result<(), ContractError> {
     if actual != expected {
         return Err(ContractError::new(
             "protocol-mismatch",
