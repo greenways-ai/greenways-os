@@ -1,17 +1,13 @@
-use greenways_capabilities::{
-    CapabilityDecision, CheckCapability, CAPABILITY_DECISION_PROTOCOL,
-};
+use greenways_capabilities::{CapabilityDecision, CheckCapability, CAPABILITY_DECISION_PROTOCOL};
 use greenways_identity::{validate_application_descriptor, ApplicationDescriptor};
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt};
 
 pub const HESTIA_ROOM_INVOCATION_PROTOCOL: &str = "hestia-room-invocation/0-alpha";
-pub const HESTIA_ROOM_AUTHORITY_DECISION_PROTOCOL: &str =
-    "hestia-room-authority-decision/0-alpha";
+pub const HESTIA_ROOM_AUTHORITY_DECISION_PROTOCOL: &str = "hestia-room-authority-decision/0-alpha";
 pub const LOCAL_ROOM_AUTHORITY_EVIDENCE_PROTOCOL: &str =
     "greenways-local-room-authority-evidence/0-alpha";
-pub const PREPARED_ROOM_EXECUTION_PROTOCOL: &str =
-    "greenways-prepared-room-execution/0-alpha";
+pub const PREPARED_ROOM_EXECUTION_PROTOCOL: &str = "greenways-prepared-room-execution/0-alpha";
 pub const PREPARED_ROOM_EXECUTION_STATE: &str = "prepared";
 
 const DIGEST_PREFIX: &str = "sha256:";
@@ -50,11 +46,7 @@ impl HestiaApplicationIdentity {
         validate_digest(&self.approval_digest, "Hestia application approval digest")
     }
 
-    fn matches_local(
-        &self,
-        application: &ApplicationDescriptor,
-        check: &CheckCapability,
-    ) -> bool {
+    fn matches_local(&self, application: &ApplicationDescriptor, check: &CheckCapability) -> bool {
         self.app_id == application.app_id
             && self.version == application.version
             && self.publisher_id == application.publisher_id
@@ -262,14 +254,12 @@ impl LocalRoomAuthorityEvidence {
                 "Local application capability decision is not an exact active grant.",
             ));
         }
-        validate_grant_id(
-            self.decision.grant_id.as_deref().ok_or_else(|| {
-                RoomExecutionError::new(
-                    "missing-local-capability-grant",
-                    "Allowed local capability decision has no grant ID.",
-                )
-            })?,
-        )?;
+        validate_grant_id(self.decision.grant_id.as_deref().ok_or_else(|| {
+            RoomExecutionError::new(
+                "missing-local-capability-grant",
+                "Allowed local capability decision has no grant ID.",
+            )
+        })?)?;
         validate_digest(
             self.decision.grant_subject_root.as_deref().ok_or_else(|| {
                 RoomExecutionError::new(
@@ -436,8 +426,7 @@ pub fn prepare_room_execution(
         ));
     }
     if decision.membership_root.as_deref() != Some(invocation.membership_root.as_str())
-        || decision.source_mandate_root.as_deref()
-            != Some(invocation.source_mandate_root.as_str())
+        || decision.source_mandate_root.as_deref() != Some(invocation.source_mandate_root.as_str())
         || decision.grant_root.as_deref() != Some(invocation.grant_root.as_str())
     {
         return Err(RoomExecutionError::new(
@@ -445,12 +434,29 @@ pub fn prepare_room_execution(
             "Hestia decision roots differ from the exact room invocation.",
         ));
     }
-    if !invocation.application.matches_local(&local.application, &local.check) {
+    if !invocation
+        .application
+        .matches_local(&local.application, &local.check)
+    {
         return Err(RoomExecutionError::new(
             "cross-authority-application-mismatch",
             "Hestia and local Greenways authority identify different applications.",
         ));
     }
+
+    let local_capability_grant_id = local.decision.grant_id.clone().ok_or_else(|| {
+        RoomExecutionError::new(
+            "missing-local-capability-grant",
+            "Validated local capability decision has no grant ID.",
+        )
+    })?;
+    let local_capability_grant_root =
+        local.decision.grant_subject_root.clone().ok_or_else(|| {
+            RoomExecutionError::new(
+                "missing-local-capability-grant",
+                "Validated local capability decision has no grant root.",
+            )
+        })?;
 
     let prepared = PreparedRoomExecution {
         protocol: PREPARED_ROOM_EXECUTION_PROTOCOL.to_owned(),
@@ -470,16 +476,8 @@ pub fn prepare_room_execution(
         expires_at: invocation.expires_at.clone(),
         local_application_approval_root: local.check.subject.approval_digest.clone(),
         local_capability: local.check.capability.clone(),
-        local_capability_grant_id: local
-            .decision
-            .grant_id
-            .clone()
-            .expect("validated local capability decision has a grant ID"),
-        local_capability_grant_root: local
-            .decision
-            .grant_subject_root
-            .clone()
-            .expect("validated local capability decision has a grant root"),
+        local_capability_grant_id,
+        local_capability_grant_root,
         hestia_membership_root: invocation.membership_root.clone(),
         hestia_source_mandate_root: invocation.source_mandate_root.clone(),
         hestia_room_application_grant_root: invocation.grant_root.clone(),
@@ -574,9 +572,10 @@ fn validate_canonical_instant(value: &str, name: &str) -> Result<(), RoomExecuti
             .iter()
             .all(|(position, expected)| bytes[*position] == *expected)
         && bytes.iter().enumerate().all(|(position, byte)| {
-            punctuation.iter().any(|(punctuation_position, _)| {
-                *punctuation_position == position
-            }) || byte.is_ascii_digit()
+            punctuation
+                .iter()
+                .any(|(punctuation_position, _)| *punctuation_position == position)
+                || byte.is_ascii_digit()
         });
     if !valid_shape {
         return Err(RoomExecutionError::new(
@@ -594,7 +593,7 @@ const fn is_lower_hex(byte: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use greenways_capabilities::{CAPABILITY_CHECK_PROTOCOL, CAPABILITY_DECISION_PROTOCOL};
+    use greenways_capabilities::CAPABILITY_CHECK_PROTOCOL;
     use greenways_identity::ApplicationApprovalSubject;
     use serde_json::{json, Value};
 
@@ -728,8 +727,8 @@ mod tests {
         local.decision.grant_id = None;
         local.decision.grant_subject_root = None;
         let invocation = invocation();
-        let error = prepare_room_execution(&local, &invocation, &decision(&invocation))
-            .unwrap_err();
+        let error =
+            prepare_room_execution(&local, &invocation, &decision(&invocation)).unwrap_err();
         assert_eq!(error.code(), "local-capability-denied");
     }
 
@@ -754,8 +753,8 @@ mod tests {
         let local = local_evidence();
         let mut invocation = invocation();
         invocation.application.manifest_digest = digest('c');
-        let error = prepare_room_execution(&local, &invocation, &decision(&invocation))
-            .unwrap_err();
+        let error =
+            prepare_room_execution(&local, &invocation, &decision(&invocation)).unwrap_err();
         assert_eq!(error.code(), "cross-authority-application-mismatch");
     }
 
@@ -790,8 +789,7 @@ mod tests {
     fn prepared_execution_contains_no_route_provider_or_secret_projection() {
         let local = local_evidence();
         let invocation = invocation();
-        let prepared = prepare_room_execution(&local, &invocation, &decision(&invocation))
-            .unwrap();
+        let prepared = prepare_room_execution(&local, &invocation, &decision(&invocation)).unwrap();
         let encoded = serde_json::to_string(&prepared).unwrap();
         for forbidden in [
             "credential",
