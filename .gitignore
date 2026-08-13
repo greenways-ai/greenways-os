@@ -7,3 +7,21 @@ target/
 .DS_Store
 .wrangler/
 .wrangler-dist/
+
+# Flutter / Dart generated state
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+build/
+**/macos/Flutter/ephemeral/
+**/.idea/
+**/*.iml
+
+# Greenways Desktop generated Flutter platform shell
+apps/greenways_desktop/.dart_tool/
+apps/greenways_desktop/.idea/
+apps/greenways_desktop/.metadata
+apps/greenways_desktop/build/
+apps/greenways_desktop/macos/

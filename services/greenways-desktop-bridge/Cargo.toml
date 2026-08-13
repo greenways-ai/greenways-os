@@ -1,0 +1,19 @@
+[package]
+name = "greenways-desktop-bridge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+greenways-authority = { path = "../../crates/greenways-authority" }
+greenways-identity = { path = "../../crates/greenways-identity" }
+greenways-local = { path = "../../crates/greenways-local" }
+greenways-provider = { path = "../../crates/greenways-provider" }
+greenways-protocol = { path = "../../crates/greenways-protocol" }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

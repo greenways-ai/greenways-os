@@ -4,6 +4,26 @@
 
 The current developer release remains a programmable browser operating system built around one resident Hara kernel in a Chrome Manifest V3 service worker while that migration is implemented.
 
+## Greenways Desktop development shell
+
+The first Desktop management surface lives under `apps/greenways_desktop`. It
+connects directly to `greenwaysd` through the unsafe-free
+`greenways-desktop-bridge` Rust sidecar and renders the same explicit local
+connection stages as the Chrome Connection Center. Flutter receives only
+redacted daemon, actor, public identity and session-lifetime projections.
+
+```bash
+cargo +1.85.1 test -p greenways-desktop-bridge
+cd apps/greenways_desktop
+flutter pub get
+flutter analyze
+flutter test
+tool/build_macos.sh
+```
+
+See [`protocol/desktop-connection.md`](protocol/desktop-connection.md) for the
+closed request, projection and confidentiality boundary.
+
 The current developer release contains:
 
 - a non-removable root OS with local state, identity, keyring, capability, package, surface, receipt, connector, and work-service boundaries;
