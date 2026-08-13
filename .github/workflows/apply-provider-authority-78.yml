@@ -1,4 +1,4 @@
-name: Apply provider invocation authority
+name: Apply exact provider invocation authority
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Run provider authority enforcement'
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Run exact provider authority enforcement'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,66 +24,51 @@ jobs:
           ref: agent/greenwaysd-provider-invoke-authority-78
           fetch-depth: 0
 
-      - name: Verify exact branch and base
+      - name: Capture current main and verify exact patch bytes
         shell: bash
         run: |
           set -euo pipefail
-          BASE='dd6fb3c29c4a446537027969372150f08f439975'
           HEAD_BEFORE="$(git rev-parse HEAD)"
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$BASE"
-          git merge-base --is-ancestor "$BASE" "$HEAD_BEFORE"
-          while IFS= read -r path; do
-            case "$path" in
-              .github/workflows/snapshot-provider-authority-78.yml | \
-              .github/agent/provider-authority-78-snapshot | \
-              .github/agent/provider-authority-78/* | \
-              .github/agent/provider-authority-78-v2/* | \
-              .github/workflows/apply-provider-authority-78.yml | \
-              .github/agent/provider-authority-78-run)
-                ;;
-              *)
-                printf 'unexpected pre-apply path: %s\n' "$path" >&2
-                exit 1
-                ;;
-            esac
-          done < <(git diff --name-only "$BASE" "$HEAD_BEFORE")
+          BASE="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test -n "$BASE"
+          git fetch --no-tags origin main
+          git cat-file -e "$BASE^{commit}"
+          git merge-base --is-ancestor dd6fb3c29c4a446537027969372150f08f439975 "$BASE"
+
+          test "$(sha256sum .github/agent/provider-authority-78-v4/part-00 | cut -d' ' -f1)" = '37179ae7396e730a65441426acec4b5564b7087a8d357ab2b1334a4e463f198c'
+          test "$(sha256sum .github/agent/provider-authority-78-v4/part-01 | cut -d' ' -f1)" = '96bc8f75c3276d2ffcb88b9e1e4b5a8790733504a0082928e1ad5b5669f0874b'
+          test "$(sha256sum .github/agent/provider-authority-78-v4/part-02 | cut -d' ' -f1)" = 'f3aaa96ab7130aec37acf90b228af9e102e67e6cf6a65870f82312c83d4d2107'
+          test "$(sha256sum .github/agent/provider-authority-78-v4/part-03 | cut -d' ' -f1)" = '826da8f6f698d88566fd341f8ac02616b043d0974188c5c521a23679684538fe'
+          test "$(sha256sum .github/agent/provider-authority-78-v4/part-04 | cut -d' ' -f1)" = '387e027b36d839bfa4a618a989bf31827f82b0ee83f2ba66cd6f061482eb195a'
+          test "$(sha256sum .github/agent/provider-authority-78-v4/part-05 | cut -d' ' -f1)" = 'a8ac7ccf3a1cdc5bd96473f0bfe46ac97ce1e1b6d59b287d530b3b8f7790abbc'
+          test "$(sha256sum .github/agent/provider-authority-78-v4/part-06 | cut -d' ' -f1)" = 'e246a8ae5df96139eb5e3d0c72199251417cbdf729c7e48c13b193042086f490'
+          cat \
+            .github/agent/provider-authority-78-v4/part-00 \
+            .github/agent/provider-authority-78-v4/part-01 \
+            .github/agent/provider-authority-78-v4/part-02 \
+            .github/agent/provider-authority-78-v4/part-03 \
+            .github/agent/provider-authority-78-v4/part-04 \
+            .github/agent/provider-authority-78-v4/part-05 \
+            .github/agent/provider-authority-78-v4/part-06 \
+            > /tmp/provider-authority-78.patch.gz.b64
+          test "$(sha256sum /tmp/provider-authority-78.patch.gz.b64 | cut -d' ' -f1)" = 'b4e88d53303a68c484755d6c04465a8bbfc8299ec3cb189f68e4d9f466ff0dcd'
+          base64 --decode /tmp/provider-authority-78.patch.gz.b64 > /tmp/provider-authority-78.patch.gz
+          test "$(sha256sum /tmp/provider-authority-78.patch.gz | cut -d' ' -f1)" = '0bfed10a0deed0d50b2ddfc66295222027bd284cdbf029139f6eaeed63dc3d90'
+          gzip --decompress --stdout /tmp/provider-authority-78.patch.gz > /tmp/provider-authority-78.patch
+          test "$(sha256sum /tmp/provider-authority-78.patch | cut -d' ' -f1)" = 'c31906a82eb7c3ad653e6cc1f2a7a15af4c2dfba48f8a68c19d90c59452a4646'
+
           printf '%s\n' "$BASE" > /tmp/provider-authority-base
           printf '%s\n' "$HEAD_BEFORE" > /tmp/provider-authority-head-before
 
-      - name: Reassemble and verify exact patch bytes
+      - name: Reset to current main and apply the real source
         shell: bash
         run: |
           set -euo pipefail
-          test "$(sha256sum .github/agent/provider-authority-78-v2/part-00 | cut -d' ' -f1)" = '7d2085fc057f24a1759e36f6a55fca69102ccdfb304fd9971efb5585a17fe185'
-          test "$(sha256sum .github/agent/provider-authority-78-v2/part-01 | cut -d' ' -f1)" = '6117d6426e8f3b0e2663b59eefca6bdef8afa2150c9d42f552a02ed320a415bd'
-          test "$(sha256sum .github/agent/provider-authority-78-v2/part-02 | cut -d' ' -f1)" = 'e13d1ff99a37dab9a0c6fda6d2078d60c7ac88277d4752650d4c6290672bfe43'
-          test "$(sha256sum .github/agent/provider-authority-78-v2/part-03 | cut -d' ' -f1)" = 'cd8ccbbba0cfe2f0437df43d8c7c1f1dc09daf9f1dff3c94c4401ef07df16833'
-          test "$(sha256sum .github/agent/provider-authority-78-v2/part-04 | cut -d' ' -f1)" = '1ae122c4e52d7e3b9d4e5c276aadceed45f37cc5e3ecb4093dc972d610c0c1a4'
-          cat \
-            .github/agent/provider-authority-78-v2/part-00 \
-            .github/agent/provider-authority-78-v2/part-01 \
-            .github/agent/provider-authority-78-v2/part-02 \
-            .github/agent/provider-authority-78-v2/part-03 \
-            .github/agent/provider-authority-78-v2/part-04 \
-            > /tmp/provider-authority-78.patch.gz.b64
-          test "$(sha256sum /tmp/provider-authority-78.patch.gz.b64 | cut -d' ' -f1)" = 'f67d5a6d5c8a37b9aa0f7d8a9e78bda0af01dcc5773c1dccf916a12faf5a7dfe'
-          base64 --decode /tmp/provider-authority-78.patch.gz.b64 > /tmp/provider-authority-78.patch.gz
-          test "$(sha256sum /tmp/provider-authority-78.patch.gz | cut -d' ' -f1)" = '2cf90a4b43dc4f19200d98d4e6dd471f7f4f928275d979fe6cca214c3b6b1ea2'
-          gzip --decompress --stdout /tmp/provider-authority-78.patch.gz > /tmp/provider-authority-78.patch
-          test "$(sha256sum /tmp/provider-authority-78.patch | cut -d' ' -f1)" = 'b4d2c9b81231ef5f300474919d419d60ac554fee5b30b0c654a3c805c1926ec6'
-
-      - name: Apply real source and remove all transport machinery
-        shell: bash
-        run: |
-          set -euo pipefail
+          BASE="$(cat /tmp/provider-authority-base)"
+          git reset --hard "$BASE"
+          git clean -fdx
           git apply --check /tmp/provider-authority-78.patch
           git apply /tmp/provider-authority-78.patch
-          rm -rf .github/agent/provider-authority-78
-          rm -rf .github/agent/provider-authority-78-v2
-          rm -f .github/agent/provider-authority-78-snapshot
-          rm -f .github/agent/provider-authority-78-run
-          rm -f .github/workflows/snapshot-provider-authority-78.yml
-          rm -f .github/workflows/apply-provider-authority-78.yml
 
       - name: Prove the final authority boundary
         shell: bash
@@ -103,15 +88,19 @@ jobs:
           grep -Fq 'completed_provider_receipts_replay_after_later_application_revocation' services/greenwaysd/src/lib.rs
           test ! -e .github/agent/provider-authority-78
           test ! -e .github/agent/provider-authority-78-v2
-          test ! -e .github/agent/provider-authority-78-snapshot
+          test ! -e .github/agent/provider-authority-78-v3
+          test ! -e .github/agent/provider-authority-78-v4
+          test ! -e .github/agent/provider-authority-78-extract
           test ! -e .github/agent/provider-authority-78-run
-          test ! -e .github/workflows/snapshot-provider-authority-78.yml
+          test ! -e .github/agent/provider-authority-78-snapshot
           test ! -e .github/workflows/apply-provider-authority-78.yml
+          test ! -e .github/workflows/extract-provider-authority-78.yml
+          test ! -e .github/workflows/snapshot-provider-authority-78.yml
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
 
-      - name: Format and validate the exact final source
+      - name: Format and validate the exact final Rust source
         shell: bash
         run: |
           set -euo pipefail
@@ -121,7 +110,7 @@ jobs:
           cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
           git diff --check
 
-      - name: Verify final file inventory and write one clean commit
+      - name: Verify final inventory and write one clean commit
         shell: bash
         run: |
           set -euo pipefail
