@@ -81,11 +81,17 @@ If no identity exists, `identity.status` reports `unconfigured` and `identity.pu
 
 ## Signing vocabulary
 
-This release signs exactly one subject protocol:
+The daemon-owned key signs exactly five closed subject protocols:
 
 ```text
 greenways-profile-identity-subject/0-alpha
+greenways-application-approval-subject/0-alpha
+greenways-application-revocation-subject/0-alpha
+greenways-capability-grant-subject/0-alpha
+greenways-capability-revocation-subject/0-alpha
 ```
+
+Each signing method constructs and validates its complete typed body immediately before loading the private key. The public Rust surface does not accept arbitrary bytes, algorithms, key handles, or caller-selected subject protocols.
 
 It does not expose:
 

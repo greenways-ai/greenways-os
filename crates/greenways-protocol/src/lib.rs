@@ -1,4 +1,5 @@
 use getrandom::getrandom;
+use greenways_capabilities::CheckCapability;
 use greenways_provider::ProviderInvocation;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -145,6 +146,24 @@ impl LocalRequest {
             operation: "capabilities.list".to_owned(),
             arguments: Map::new(),
         }
+    }
+
+    pub fn capabilities_check(
+        request_id: impl Into<String>,
+        check: CheckCapability,
+    ) -> Result<Self, ProtocolError> {
+        let arguments = check.into_arguments().map_err(|_| {
+            ProtocolError::new(
+                "invalid-arguments",
+                "Capability check arguments are invalid.",
+            )
+        })?;
+        Ok(Self {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: request_id.into(),
+            operation: "capabilities.check".to_owned(),
+            arguments,
+        })
     }
 }
 
@@ -303,6 +322,7 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
             | "identity.public-card"
             | "capabilities.status"
             | "capabilities.list"
+            | "capabilities.check"
     ) {
         return Err(ProtocolError::new(
             "unsupported-operation",
@@ -324,6 +344,14 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
                 )
             })?;
         }
+        "capabilities.check" => {
+            CheckCapability::from_arguments(&request.arguments).map_err(|_| {
+                ProtocolError::new(
+                    "invalid-arguments",
+                    "Capability check arguments are invalid.",
+                )
+            })?;
+        }
         "client.session.open" => {}
         _ if !request.arguments.is_empty() => {
             return Err(ProtocolError::new(
@@ -334,6 +362,24 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
         _ => {}
     }
     Ok(())
+}
+
+pub fn capability_check_from_request(
+    request: &LocalRequest,
+) -> Result<CheckCapability, ProtocolError> {
+    validate_request(request)?;
+    if request.operation != "capabilities.check" {
+        return Err(ProtocolError::new(
+            "invalid-operation",
+            "Greenways local request is not a capability check.",
+        ));
+    }
+    CheckCapability::from_arguments(&request.arguments).map_err(|_| {
+        ProtocolError::new(
+            "invalid-arguments",
+            "Capability check arguments are invalid.",
+        )
+    })
 }
 
 pub fn decode_response(bytes: &[u8]) -> Result<LocalResponse, ProtocolError> {
@@ -506,6 +552,18 @@ fn valid_token(value: &str, maximum: usize) -> bool {
 mod tests {
     use super::*;
 
+    fn greenways_identity_subject() -> greenways_identity::ApplicationApprovalSubject {
+        greenways_identity::ApplicationApprovalSubject {
+            kind: "app".to_owned(),
+            app_id: "hara-playground".to_owned(),
+            version: "1.2.3".to_owned(),
+            publisher_id: "hara-lang".to_owned(),
+            lock_digest: None,
+            approval_digest:
+                "sha256:0000000000000000000000000000000000000000000000000000000000000000".to_owned(),
+        }
+    }
+
     #[test]
     fn round_trips_a_closed_status_request() {
         let request = LocalRequest::status("local/request/12345678");
@@ -602,6 +660,23 @@ mod tests {
         assert!(validate_request(&list).is_ok());
         assert!(status.arguments.is_empty());
         assert!(list.arguments.is_empty());
+    }
+
+    #[test]
+    fn validates_one_closed_exact_capability_check() {
+        let check = CheckCapability::new(greenways_identity_subject(), "model/generate")
+            .expect("check should build");
+        let request = LocalRequest::capabilities_check("local/request/capcheck001", check.clone())
+            .expect("request should build");
+        assert_eq!(
+            capability_check_from_request(&request).expect("check should decode"),
+            check
+        );
+        let mut changed = request;
+        changed
+            .arguments
+            .insert("extra".to_owned(), Value::Bool(true));
+        assert!(validate_request(&changed).is_err());
     }
 
     #[test]

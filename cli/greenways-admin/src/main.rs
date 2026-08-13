@@ -1,10 +1,15 @@
+use greenways_applications::{
+    ApplicationApprovalAuthority, ApplicationApprovalView, ApplicationAuthorityStatus,
+};
 use greenways_authority::{LocalClient, LocalClientRegistry, LocalClientRole};
 use greenways_capabilities::{
     CapabilityAuthority, CapabilityAuthorityStatus, CapabilityGrantView, IssueCapabilityGrant,
 };
 use greenways_identity::{
-    ApplicationApprovalSubject, ProfileIdentityStatus, ProfileIdentityVault, SignedCapabilityGrant,
-    SignedCapabilityRevocation, SignedProfileIdentity,
+    ApplicationApprovalRequest, ApplicationApprovalSubject, ApplicationDescriptor,
+    ProfileIdentityStatus, ProfileIdentityVault, SignedApplicationApproval,
+    SignedApplicationRevocation, SignedCapabilityGrant, SignedCapabilityRevocation,
+    SignedProfileIdentity,
 };
 use greenways_local::GreenwaysPaths;
 use greenways_vault::{ProviderKind, ProviderProfile, ProviderVault, MAX_PROVIDER_SECRET_BYTES};
@@ -23,6 +28,7 @@ enum Command {
     Provider(ProviderCommand),
     Client(ClientCommand),
     Identity(IdentityCommand),
+    Application(ApplicationCommand),
     Capability(CapabilityCommand),
 }
 
@@ -59,6 +65,24 @@ enum ClientCommand {
 enum IdentityCommand {
     Status,
     Create { handle: String },
+}
+
+#[derive(Debug)]
+enum ApplicationCommand {
+    Status,
+    List,
+    Approve {
+        app_id: String,
+        app_version: String,
+        publisher_id: String,
+        manifest_digest: String,
+        lock_digest: Option<String>,
+        declared_capabilities: Vec<String>,
+    },
+    Revoke {
+        approval_digest: String,
+        reason: String,
+    },
 }
 
 #[derive(Debug)]
@@ -101,6 +125,7 @@ fn run() -> Result<(), String> {
         Command::Provider(command) => run_provider(command, &paths, options.json),
         Command::Client(command) => run_client(command, &paths, options.json),
         Command::Identity(command) => run_identity(command, &paths, options.json),
+        Command::Application(command) => run_application(command, &paths, options.json),
         Command::Capability(command) => run_capability(command, &paths, options.json),
     }
 }
@@ -257,6 +282,203 @@ fn print_identity_card(
     Ok(())
 }
 
+fn run_application(
+    command: ApplicationCommand,
+    paths: &GreenwaysPaths,
+    json: bool,
+) -> Result<(), String> {
+    let authority_path = paths.home.join("state").join("applications.json");
+    match command {
+        ApplicationCommand::Status => {
+            let authority = ApplicationApprovalAuthority::open(authority_path)
+                .map_err(|error| error.to_string())?;
+            let status = authority
+                .status(now_unix_ms()?)
+                .map_err(|error| error.to_string())?;
+            print_application_status(&status, json)
+        }
+        ApplicationCommand::List => {
+            let authority = ApplicationApprovalAuthority::open(authority_path)
+                .map_err(|error| error.to_string())?;
+            let approvals = authority
+                .list(now_unix_ms()?)
+                .map_err(|error| error.to_string())?;
+            print_application_approvals(&approvals, json)
+        }
+        ApplicationCommand::Approve {
+            app_id,
+            app_version,
+            publisher_id,
+            manifest_digest,
+            lock_digest,
+            declared_capabilities,
+        } => {
+            assert_daemon_stopped(&paths.socket_file)?;
+            let identity = ProfileIdentityVault::open_system(
+                paths.home.join("state").join("profile-identity.json"),
+            )
+            .map_err(|error| error.to_string())?;
+            let mut authority = ApplicationApprovalAuthority::open(authority_path)
+                .map_err(|error| error.to_string())?;
+            let approval = authority
+                .approve(
+                    &identity,
+                    ApplicationApprovalRequest {
+                        application: ApplicationDescriptor {
+                            app_id,
+                            version: app_version,
+                            publisher_id,
+                            manifest_digest,
+                            lock_digest,
+                        },
+                        declared_capabilities,
+                        approved_at_unix_ms: now_unix_ms()?,
+                    },
+                )
+                .map_err(|error| error.to_string())?;
+            print_application_approval("Approved", &approval, json)
+        }
+        ApplicationCommand::Revoke {
+            approval_digest,
+            reason,
+        } => {
+            assert_daemon_stopped(&paths.socket_file)?;
+            let identity = ProfileIdentityVault::open_system(
+                paths.home.join("state").join("profile-identity.json"),
+            )
+            .map_err(|error| error.to_string())?;
+            let mut authority = ApplicationApprovalAuthority::open(authority_path)
+                .map_err(|error| error.to_string())?;
+            let revocation = authority
+                .revoke(&identity, &approval_digest, &reason, now_unix_ms()?)
+                .map_err(|error| error.to_string())?;
+            print_application_revocation(&revocation, json)
+        }
+    }
+}
+
+fn print_application_status(status: &ApplicationAuthorityStatus, json: bool) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(status)
+                .map_err(|_| "could not encode application authority status".to_owned())?
+        );
+    } else {
+        println!("Greenways application approval authority");
+        println!("  state:    {}", status.state);
+        println!("  revision: {}", status.revision);
+        println!("  approvals: {}", status.approval_count);
+        println!("  active:    {}", status.active_approval_count);
+        println!("  revoked:   {}", status.revoked_approval_count);
+        println!("  pending:   {}", status.pending_approval_count);
+        println!("  signed records: {}", status.signed_records);
+        println!("  arbitrary signing: {}", status.arbitrary_signing);
+    }
+    Ok(())
+}
+
+fn print_application_approvals(
+    approvals: &[ApplicationApprovalView],
+    json: bool,
+) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(approvals)
+                .map_err(|_| "could not encode application approvals".to_owned())?
+        );
+        return Ok(());
+    }
+    println!("Greenways application approvals");
+    if approvals.is_empty() {
+        println!("  none");
+        return Ok(());
+    }
+    for view in approvals {
+        let state = if view.active {
+            "active"
+        } else if view.revocation.is_some() {
+            "revoked"
+        } else {
+            "pending"
+        };
+        println!(
+            "  {}@{} from {}  ({state})",
+            view.approval.approval.application.app_id,
+            view.approval.approval.application.version,
+            view.approval.approval.application.publisher_id,
+        );
+        println!(
+            "    manifest: {}",
+            view.approval.approval.application.manifest_digest
+        );
+        println!("    root:     {}", view.approval.subject_root);
+        println!(
+            "    capabilities: {}",
+            view.approval.approval.declared_capabilities.join(", ")
+        );
+    }
+    Ok(())
+}
+
+fn print_application_approval(
+    prefix: &str,
+    approval: &SignedApplicationApproval,
+    json: bool,
+) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(approval)
+                .map_err(|_| "could not encode signed application approval".to_owned())?
+        );
+    } else {
+        println!("{prefix} Greenways application.");
+        println!(
+            "  app:        {}@{}",
+            approval.approval.application.app_id, approval.approval.application.version
+        );
+        println!(
+            "  publisher:  {}",
+            approval.approval.application.publisher_id
+        );
+        println!(
+            "  manifest:   {}",
+            approval.approval.application.manifest_digest
+        );
+        println!(
+            "  capabilities: {}",
+            approval.approval.declared_capabilities.join(", ")
+        );
+        println!("  root:       {}", approval.subject_root);
+    }
+    Ok(())
+}
+
+fn print_application_revocation(
+    revocation: &SignedApplicationRevocation,
+    json: bool,
+) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(revocation)
+                .map_err(|_| "could not encode signed application revocation".to_owned())?
+        );
+    } else {
+        println!("Revoked Greenways application approval.");
+        println!("  id:       {}", revocation.revocation.id);
+        println!(
+            "  approval: {}",
+            revocation.revocation.approval_subject_root
+        );
+        println!("  reason:   {}", revocation.revocation.reason);
+        println!("  root:     {}", revocation.subject_root);
+    }
+    Ok(())
+}
+
 fn run_capability(
     command: CapabilityCommand,
     paths: &GreenwaysPaths,
@@ -294,6 +516,28 @@ fn run_capability(
                 paths.home.join("state").join("profile-identity.json"),
             )
             .map_err(|error| error.to_string())?;
+            let subject = ApplicationApprovalSubject {
+                kind: "app".to_owned(),
+                app_id,
+                version: app_version,
+                publisher_id,
+                lock_digest,
+                approval_digest,
+            };
+            let observed_at_unix_ms = now_unix_ms()?;
+            let applications = ApplicationApprovalAuthority::open(
+                paths.home.join("state").join("applications.json"),
+            )
+            .map_err(|error| error.to_string())?;
+            let application = applications
+                .authorize_exact(&subject, &capability, observed_at_unix_ms)
+                .map_err(|error| error.to_string())?;
+            if !application.allowed {
+                return Err(format!(
+                    "application authority denied capability issuance: {}",
+                    application.reason
+                ));
+            }
             let mut authority =
                 CapabilityAuthority::open(authority_path).map_err(|error| error.to_string())?;
             let grant = authority
@@ -301,16 +545,9 @@ fn run_capability(
                     &identity,
                     IssueCapabilityGrant {
                         capability,
-                        subject: ApplicationApprovalSubject {
-                            kind: "app".to_owned(),
-                            app_id,
-                            version: app_version,
-                            publisher_id,
-                            lock_digest,
-                            approval_digest,
-                        },
+                        subject,
                         constraints: BTreeMap::new(),
-                        issued_at_unix_ms: now_unix_ms()?,
+                        issued_at_unix_ms: observed_at_unix_ms,
                         expires_at_unix_ms,
                     },
                 )
@@ -612,6 +849,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         Some("provider") => "provider",
         Some("client") => "client",
         Some("identity") => "identity",
+        Some("application") => "application",
         Some("capability") => "capability",
         Some("-h") | Some("--help") | None => {
             print_help();
@@ -635,10 +873,11 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let mut role = None;
     let mut output = None;
     let mut handle = None;
-    let mut capability = None;
+    let mut capabilities = Vec::new();
     let mut app_id = None;
     let mut app_version = None;
     let mut publisher_id = None;
+    let mut manifest_digest = None;
     let mut approval_digest = None;
     let mut lock_digest = None;
     let mut expires_at_unix_ms = None;
@@ -703,12 +942,11 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                         .ok_or_else(|| "--handle requires a profile handle".to_owned())?,
                 );
             }
-            "--capability" => {
-                capability =
-                    Some(arguments.next().ok_or_else(|| {
-                        "--capability requires an operation capability".to_owned()
-                    })?);
-            }
+            "--capability" => capabilities.push(
+                arguments
+                    .next()
+                    .ok_or_else(|| "--capability requires an operation capability".to_owned())?,
+            ),
             "--app-id" => {
                 app_id = Some(
                     arguments
@@ -728,6 +966,13 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                     arguments
                         .next()
                         .ok_or_else(|| "--publisher requires a publisher id".to_owned())?,
+                );
+            }
+            "--manifest-digest" => {
+                manifest_digest = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--manifest-digest requires sha256 evidence".to_owned())?,
                 );
             }
             "--approval-digest" => {
@@ -778,24 +1023,28 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         }
     }
 
-    if group != "identity" && handle.is_some() {
-        return Err(format!("{group} {action} does not accept --handle"));
-    }
-    let has_capability_fields = capability.is_some()
+    let has_application_fields = !capabilities.is_empty()
         || app_id.is_some()
         || app_version.is_some()
         || publisher_id.is_some()
+        || manifest_digest.is_some()
         || approval_digest.is_some()
         || lock_digest.is_some()
         || expires_at_unix_ms.is_some()
         || grant_id.is_some()
         || reason.is_some();
-    if group != "capability" && has_capability_fields {
-        return Err(format!(
-            "{group} {action} does not accept capability authority fields"
-        ));
-    }
     let required_id = || id.clone().ok_or_else(|| "--id is required".to_owned());
+    macro_rules! reject_common {
+        ($command:expr) => {{
+            require_absent(&id, "--id", $command)?;
+            require_absent(&provider, "--provider", $command)?;
+            require_absent(&label, "--label", $command)?;
+            require_absent(&role, "--role", $command)?;
+            require_absent(&output, "--output", $command)?;
+            require_absent(&handle, "--handle", $command)?;
+        }};
+    }
+
     let command = match (group, action.as_str()) {
         ("provider", "list") => {
             require_absent(&id, "--id", "provider list")?;
@@ -803,42 +1052,51 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&label, "--label", "provider list")?;
             require_absent(&role, "--role", "provider list")?;
             require_absent(&output, "--output", "provider list")?;
+            if handle.is_some() || has_application_fields {
+                return Err("provider list accepts no authority fields".to_owned());
+            }
             Command::Provider(ProviderCommand::List)
         }
         ("provider", "add") => {
             require_absent(&role, "--role", "provider add")?;
             require_absent(&output, "--output", "provider add")?;
+            if handle.is_some() || has_application_fields {
+                return Err("provider add accepts no application authority fields".to_owned());
+            }
             Command::Provider(ProviderCommand::Add {
                 id: required_id()?,
                 provider: provider.ok_or_else(|| "--provider is required".to_owned())?,
                 label: label.ok_or_else(|| "--label is required".to_owned())?,
             })
         }
-        ("provider", "rotate") => {
-            require_absent(&provider, "--provider", "provider rotate")?;
-            require_absent(&label, "--label", "provider rotate")?;
-            require_absent(&role, "--role", "provider rotate")?;
-            require_absent(&output, "--output", "provider rotate")?;
-            Command::Provider(ProviderCommand::Rotate { id: required_id()? })
-        }
-        ("provider", "remove") => {
-            require_absent(&provider, "--provider", "provider remove")?;
-            require_absent(&label, "--label", "provider remove")?;
-            require_absent(&role, "--role", "provider remove")?;
-            require_absent(&output, "--output", "provider remove")?;
-            Command::Provider(ProviderCommand::Remove { id: required_id()? })
+        ("provider", "rotate") | ("provider", "remove") => {
+            require_absent(&provider, "--provider", "provider mutation")?;
+            require_absent(&label, "--label", "provider mutation")?;
+            require_absent(&role, "--role", "provider mutation")?;
+            require_absent(&output, "--output", "provider mutation")?;
+            if handle.is_some() || has_application_fields {
+                return Err("provider mutation accepts no application authority fields".to_owned());
+            }
+            if action == "rotate" {
+                Command::Provider(ProviderCommand::Rotate { id: required_id()? })
+            } else {
+                Command::Provider(ProviderCommand::Remove { id: required_id()? })
+            }
         }
         ("client", "list") => {
-            require_absent(&id, "--id", "client list")?;
-            require_absent(&provider, "--provider", "client list")?;
-            require_absent(&label, "--label", "client list")?;
-            require_absent(&role, "--role", "client list")?;
-            require_absent(&output, "--output", "client list")?;
+            reject_common!("client list");
+            if has_application_fields {
+                return Err("client list accepts no application authority fields".to_owned());
+            }
             Command::Client(ClientCommand::List)
         }
         ("client", "issue") => {
             require_absent(&id, "--id", "client issue")?;
             require_absent(&provider, "--provider", "client issue")?;
+            require_absent(&handle, "--handle", "client issue")?;
+            if has_application_fields {
+                return Err("client issue accepts no application authority fields".to_owned());
+            }
             Command::Client(ClientCommand::Issue {
                 role: role.ok_or_else(|| "--role is required".to_owned())?,
                 label: label.ok_or_else(|| "--label is required".to_owned())?,
@@ -850,15 +1108,17 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&label, "--label", "client revoke")?;
             require_absent(&role, "--role", "client revoke")?;
             require_absent(&output, "--output", "client revoke")?;
+            require_absent(&handle, "--handle", "client revoke")?;
+            if has_application_fields {
+                return Err("client revoke accepts no application authority fields".to_owned());
+            }
             Command::Client(ClientCommand::Revoke { id: required_id()? })
         }
         ("identity", "status") => {
-            require_absent(&id, "--id", "identity status")?;
-            require_absent(&provider, "--provider", "identity status")?;
-            require_absent(&label, "--label", "identity status")?;
-            require_absent(&role, "--role", "identity status")?;
-            require_absent(&output, "--output", "identity status")?;
-            require_absent(&handle, "--handle", "identity status")?;
+            reject_common!("identity status");
+            if has_application_fields {
+                return Err("identity status accepts no application authority fields".to_owned());
+            }
             Command::Identity(IdentityCommand::Status)
         }
         ("identity", "create") => {
@@ -867,42 +1127,90 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&label, "--label", "identity create")?;
             require_absent(&role, "--role", "identity create")?;
             require_absent(&output, "--output", "identity create")?;
+            if has_application_fields {
+                return Err("identity create accepts no application authority fields".to_owned());
+            }
             Command::Identity(IdentityCommand::Create {
                 handle: handle.ok_or_else(|| "--handle is required".to_owned())?,
             })
         }
-        ("capability", "status") => {
-            require_absent(&id, "--id", "capability status")?;
-            require_absent(&provider, "--provider", "capability status")?;
-            require_absent(&label, "--label", "capability status")?;
-            require_absent(&role, "--role", "capability status")?;
-            require_absent(&output, "--output", "capability status")?;
-            if has_capability_fields {
-                return Err("capability status accepts no authority fields".to_owned());
+        ("application", "status") | ("application", "list") => {
+            reject_common!("application read");
+            if has_application_fields {
+                return Err("application reads accept no authority fields".to_owned());
             }
-            Command::Capability(CapabilityCommand::Status)
+            if action == "status" {
+                Command::Application(ApplicationCommand::Status)
+            } else {
+                Command::Application(ApplicationCommand::List)
+            }
         }
-        ("capability", "list") => {
-            require_absent(&id, "--id", "capability list")?;
-            require_absent(&provider, "--provider", "capability list")?;
-            require_absent(&label, "--label", "capability list")?;
-            require_absent(&role, "--role", "capability list")?;
-            require_absent(&output, "--output", "capability list")?;
-            if has_capability_fields {
-                return Err("capability list accepts no authority fields".to_owned());
+        ("application", "approve") => {
+            reject_common!("application approve");
+            require_absent(&approval_digest, "--approval-digest", "application approve")?;
+            require_absent(
+                &expires_at_unix_ms,
+                "--expires-at-unix-ms",
+                "application approve",
+            )?;
+            require_absent(&grant_id, "--grant-id", "application approve")?;
+            require_absent(&reason, "--reason", "application approve")?;
+            if capabilities.is_empty() {
+                return Err("application approve requires at least one --capability".to_owned());
             }
-            Command::Capability(CapabilityCommand::List)
+            Command::Application(ApplicationCommand::Approve {
+                app_id: app_id.ok_or_else(|| "--app-id is required".to_owned())?,
+                app_version: app_version.ok_or_else(|| "--app-version is required".to_owned())?,
+                publisher_id: publisher_id.ok_or_else(|| "--publisher is required".to_owned())?,
+                manifest_digest: manifest_digest
+                    .ok_or_else(|| "--manifest-digest is required".to_owned())?,
+                lock_digest,
+                declared_capabilities: capabilities,
+            })
+        }
+        ("application", "revoke") => {
+            reject_common!("application revoke");
+            if !capabilities.is_empty()
+                || app_id.is_some()
+                || app_version.is_some()
+                || publisher_id.is_some()
+                || manifest_digest.is_some()
+                || lock_digest.is_some()
+                || expires_at_unix_ms.is_some()
+                || grant_id.is_some()
+            {
+                return Err("application revoke accepts only approval digest and reason".to_owned());
+            }
+            Command::Application(ApplicationCommand::Revoke {
+                approval_digest: approval_digest
+                    .ok_or_else(|| "--approval-digest is required".to_owned())?,
+                reason: reason.ok_or_else(|| "--reason is required".to_owned())?,
+            })
+        }
+        ("capability", "status") | ("capability", "list") => {
+            reject_common!("capability read");
+            if has_application_fields {
+                return Err("capability reads accept no authority fields".to_owned());
+            }
+            if action == "status" {
+                Command::Capability(CapabilityCommand::Status)
+            } else {
+                Command::Capability(CapabilityCommand::List)
+            }
         }
         ("capability", "issue") => {
-            require_absent(&id, "--id", "capability issue")?;
-            require_absent(&provider, "--provider", "capability issue")?;
-            require_absent(&label, "--label", "capability issue")?;
-            require_absent(&role, "--role", "capability issue")?;
-            require_absent(&output, "--output", "capability issue")?;
+            reject_common!("capability issue");
+            require_absent(&manifest_digest, "--manifest-digest", "capability issue")?;
             require_absent(&grant_id, "--grant-id", "capability issue")?;
             require_absent(&reason, "--reason", "capability issue")?;
+            if capabilities.len() != 1 {
+                return Err("capability issue requires exactly one --capability".to_owned());
+            }
             Command::Capability(CapabilityCommand::Issue {
-                capability: capability.ok_or_else(|| "--capability is required".to_owned())?,
+                capability: capabilities
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| "--capability is required".to_owned())?,
                 app_id: app_id.ok_or_else(|| "--app-id is required".to_owned())?,
                 app_version: app_version.ok_or_else(|| "--app-version is required".to_owned())?,
                 publisher_id: publisher_id.ok_or_else(|| "--publisher is required".to_owned())?,
@@ -913,22 +1221,18 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             })
         }
         ("capability", "revoke") => {
-            require_absent(&id, "--id", "capability revoke")?;
-            require_absent(&provider, "--provider", "capability revoke")?;
-            require_absent(&label, "--label", "capability revoke")?;
-            require_absent(&role, "--role", "capability revoke")?;
-            require_absent(&output, "--output", "capability revoke")?;
-            require_absent(&capability, "--capability", "capability revoke")?;
-            require_absent(&app_id, "--app-id", "capability revoke")?;
-            require_absent(&app_version, "--app-version", "capability revoke")?;
-            require_absent(&publisher_id, "--publisher", "capability revoke")?;
-            require_absent(&approval_digest, "--approval-digest", "capability revoke")?;
-            require_absent(&lock_digest, "--lock-digest", "capability revoke")?;
-            require_absent(
-                &expires_at_unix_ms,
-                "--expires-at-unix-ms",
-                "capability revoke",
-            )?;
+            reject_common!("capability revoke");
+            if !capabilities.is_empty()
+                || app_id.is_some()
+                || app_version.is_some()
+                || publisher_id.is_some()
+                || manifest_digest.is_some()
+                || approval_digest.is_some()
+                || lock_digest.is_some()
+                || expires_at_unix_ms.is_some()
+            {
+                return Err("capability revoke accepts only grant id and reason".to_owned());
+            }
             Command::Capability(CapabilityCommand::Revoke {
                 grant_id: grant_id.ok_or_else(|| "--grant-id is required".to_owned())?,
                 reason: reason.ok_or_else(|| "--reason is required".to_owned())?,
@@ -964,6 +1268,16 @@ fn print_help() {
          greenways-admin client revoke --id ID [--home PATH] [--json]\n\
          greenways-admin identity status [--home PATH] [--json]\n\
          greenways-admin identity create --handle HANDLE [--home PATH] [--json]\n\
+         greenways-admin application status [--home PATH] [--json]\n\
+         greenways-admin application list [--home PATH] [--json]\n\
+         greenways-admin application approve --app-id ID --app-version VERSION \
+\
+           --publisher PUBLISHER --manifest-digest SHA256 --capability OP [--capability OP ...] \
+\
+           [--lock-digest SHA256] [--home PATH] [--json]\n\
+         greenways-admin application revoke --approval-digest SHA256 --reason TEXT \
+\
+           [--home PATH] [--json]\n\
          greenways-admin capability status [--home PATH] [--json]\n\
          greenways-admin capability list [--home PATH] [--json]\n\
          greenways-admin capability issue --capability OP --app-id ID --app-version VERSION \
@@ -976,7 +1290,7 @@ fn print_help() {
          Provider credentials and profile private keys are placed directly into operating-system\n\
          credential store. Local client credentials are written once to a new private file.\n\
          Neither secret is accepted as a command-line argument or printed. Stop greenwaysd before\n\
-         mutating provider or local-client authority."
+         mutating provider, application, capability, or local-client authority."
     );
 }
 
@@ -1064,6 +1378,57 @@ mod tests {
             "river.studio",
             "--key",
             "secret",
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn parses_closed_application_authority_commands() {
+        let approve = parse(&[
+            "application",
+            "approve",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--manifest-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "--capability",
+            "model/generate",
+            "--capability",
+            "tahto/read",
+        ])
+        .expect("application approval should parse");
+        assert!(matches!(
+            approve.command,
+            Command::Application(ApplicationCommand::Approve { .. })
+        ));
+        let revoke = parse(&[
+            "application",
+            "revoke",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "--reason",
+            "user-revoked",
+        ])
+        .expect("application revocation should parse");
+        assert!(matches!(
+            revoke.command,
+            Command::Application(ApplicationCommand::Revoke { .. })
+        ));
+        assert!(parse(&[
+            "application",
+            "approve",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--manifest-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         ])
         .is_err());
     }

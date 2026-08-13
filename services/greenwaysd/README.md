@@ -3,20 +3,20 @@
 `greenwaysd` is the first daemon-first Greenways service slice tracked by
 [#50](https://github.com/greenways-ai/greenways-os/issues/50).
 
-It runs independently of Flutter, Chrome, and any visible desktop window. The
-first slice owns only:
+It runs independently of Flutter, Chrome, and any visible desktop window. The executable daemon now owns:
 
-- one persistent node identity;
-- a monotonically increasing process generation;
-- a bounded durable request receipt ledger;
-- exact request-ID replay and collision fencing;
-- a private Unix-domain socket; and
-- closed `status` and `paths` reads.
+- persistent node and profile identities;
+- private provider credential custody;
+- enrolled local clients and connection-bound sessions;
+- signed application approval and revocation state;
+- signed capability grant and revocation state;
+- exact combined application/capability decisions;
+- typed provider invocation with durable at-most-once claims; and
+- actor-bound durable request receipts.
 
-It does **not** yet move the Hara kernel, Keyring, capability authority, package
-runtime, sync engine, or application state out of the extension. Those migrations
-must proceed behind explicit compatibility seams; daemon mode must never silently
-fall back to another writable browser authority.
+The Hara application runtime, package lifecycle, sync engine, room membership,
+and Chrome Native Messaging cutover remain later migration boundaries. Daemon
+mode must never silently fall back to another writable browser authority.
 
 ## Run
 
@@ -62,7 +62,8 @@ cargo run -p greenways-cli -- paths
 
 - The socket directory is user-private and the socket is mode `0600` on Unix.
 - Requests and responses are bounded and closed.
-- Only two read operations exist in this slice.
+- The public and authenticated operation sets are closed and role-scoped.
+- Browser Bridge may request one exact capability decision but cannot enumerate authority.
 - Exact request IDs are durable and cannot be reused with changed content.
 - State replacement is atomic and fsynced before a success response is returned.
 - No private key, credential, arbitrary database query, browser effect, or
@@ -111,14 +112,31 @@ cargo run -p greenways-admin -- identity status
 
 The private P-256 key is stored in the operating-system keyring. Daemon metadata contains only a private key handle and the self-signed public identity card. Authenticated Desktop, CLI, browser-bridge, and Developer sessions may read `identity.status` and `identity.public-card`; no local operation exports the private key or signs caller-selected bytes.
 
-The first signing vocabulary contains exactly one subject: `greenways-profile-identity-subject/0-alpha`. Node enrolment, source mandates, application grants, and MCP pairing will be introduced as separate closed typed subjects in later PRs.
+The signing vocabulary contains profile identity, application approval/revocation, and capability grant/revocation subjects only. Node enrolment, source mandates, room membership, and MCP pairing remain separate future typed records.
 
 
-## Capability authority reads
+## Application and capability authority
 
-`greenwaysd` now validates and owns the signed capability authority state at startup. Enrolled Desktop, CLI, and Developer sessions may read `capabilities.status` and `capabilities.list`. The browser-bridge role is deliberately denied authority inventory; a later exact `capabilities.check` seam will answer only whether one reviewed application operation is currently granted.
+`greenwaysd` validates signed application approvals before consulting signed capability grants. Enrolled Desktop, CLI, and Developer sessions may read `capabilities.status` and `capabilities.list`. Browser Bridge is denied inventory but may call `capabilities.check` for one exact approval subject and operation.
 
-These operations are read-only. Grant issuance and revocation remain offline administration in the next slice, and the extension remains the compatibility authority until its exact approvals are migrated with receipts.
+Application approval/revocation and grant issue/revoke remain offline administration. Capability issuance itself requires the exact active application approval to have declared the requested operation.
+
+```sh
+greenways-admin application approve \
+  --app-id hara-playground \
+  --app-version 1.2.3 \
+  --publisher hara-lang \
+  --manifest-digest sha256:… \
+  --capability model/generate
+
+greenways capability-check \
+  --credential ~/.greenways/clients/browser.json \
+  --capability model/generate \
+  --app-id hara-playground \
+  --app-version 1.2.3 \
+  --publisher hara-lang \
+  --approval-digest sha256:…
+```
 
 
 ## Offline capability administration

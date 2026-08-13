@@ -1,6 +1,6 @@
 # Greenways daemon and local-client protocol
 
-Status: executable daemon, authenticated local-client, profile-identity, vault, and typed provider boundary
+Status: executable daemon with authenticated clients, signed application/capability authority, profile identity, vault, and typed provider boundary
 Local request protocol: `greenways-local/0-alpha`
 Local result protocol: `greenways-local-result/0-alpha`
 Daemon state protocol: `greenways-daemon-state/0-alpha`
@@ -17,7 +17,7 @@ Chrome Native Messaging      ┘
 
 Greenways Desktop and Greenways Server package the same daemon binary and storage semantics. Flutter presents state and collects user intent. The Chrome extension retains reviewed browser-specific effects. `greenwaysd` validates, authorises, executes, signs, persists, and synchronises durable Greenways operations.
 
-The current executable boundary establishes daemon recovery, local IPC, enrolled client credentials, connection-bound sessions, actor-bound receipts, provider credential custody, one daemon-owned P-256 profile identity, and typed provider invocation.
+The current executable boundary establishes daemon recovery, local IPC, enrolled client credentials, connection-bound sessions, actor-bound receipts, provider credential custody, one daemon-owned P-256 profile identity, signed application approvals, signed capability grants, one exact combined capability decision, and typed provider invocation.
 
 ## Local endpoint
 
@@ -57,10 +57,13 @@ The current operation policy is:
 | `authority.clients.list` | No | Yes | Yes | No | Yes |
 | `vault.status` | No | Yes | Yes | No | Yes |
 | `provider.invoke` | No | Yes | Yes | No | Yes |
+| `capabilities.status` | No | Yes | Yes | No | Yes |
+| `capabilities.list` | No | Yes | Yes | No | Yes |
+| `capabilities.check` | No | Yes | Yes | Yes | Yes |
 
 Roles come from the daemon-owned local-client registry. Request JSON cannot select or expand them. Local roles authenticate an installation process; they are not Greenway membership, room membership, source mandates, application grants, or provider grants.
 
-Current read operations accept an empty argument object. `provider.invoke` accepts only the closed, bounded provider invocation value and fixed provider adapters. Unknown fields, operations, protocols, malformed request IDs, unauthenticated privileged operations, and role-denied operations fail closed. Request bytes are limited to 64 KiB; responses are limited to 256 KiB.
+Current inventory reads accept an empty argument object. `capabilities.check` accepts one closed `greenways-capability-check/0-alpha` value containing the exact signed application subject and one operation capability. `provider.invoke` accepts only the closed, bounded provider invocation value and fixed provider adapters. Unknown fields, operations, protocols, malformed request IDs, unauthenticated privileged operations, and role-denied operations fail closed. Request bytes are limited to 64 KiB; responses are limited to 256 KiB.
 
 ## Durable request semantics
 
@@ -90,6 +93,22 @@ node/<32 lowercase hexadecimal characters>
 ```
 
 Each successful process start increments `generation`. Node identity survives restart. A copied state directory must not later be interpreted as permission to run two active copies of the same node; enrolment, backup, restore, and identity replacement are tracked separately.
+
+
+## Application and capability authority
+
+`greenwaysd` validates two private immutable record sets at startup:
+
+```text
+state/applications.json   signed approval and revocation evidence
+state/capabilities.json   signed grant and revocation evidence
+```
+
+An exact capability decision evaluates application approval first. Grant lookup occurs only after the approval root, application fields, effective time, revocation state, and signed declared-capability set all pass. The result is bounded and identifies the exact grant root only when grant evaluation was reached.
+
+Browser Bridge may request one exact decision but cannot enumerate either authority. Local process roles remain separate from application and future room/source authority.
+
+Application approvals and capability grants are mutated only through offline administration while the daemon is stopped. Ordinary local IPC has no mutation or arbitrary-signing operation.
 
 ## Profile identity and vault
 

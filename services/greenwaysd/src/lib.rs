@@ -1,16 +1,17 @@
 mod provider;
 
+use greenways_applications::{ApplicationApprovalAuthority, ApplicationApprovalError};
 use greenways_authority::{
     new_local_session, parse_local_client_credential_arguments, valid_client_id, AuthorityError,
     LocalClient, LocalClientRegistry, LocalClientRole, LocalSession,
 };
-use greenways_capabilities::{CapabilityAuthority, CapabilityError};
+use greenways_capabilities::{CapabilityAuthority, CapabilityDecision, CapabilityError};
 use greenways_identity::{IdentityError, ProfileIdentityVault};
 use greenways_local::GreenwaysPaths;
 use greenways_protocol::{
-    canonical_request, decode_request, encode_response_line, new_node_id, request_digest,
-    validate_digest, validate_node_id, validate_response, DaemonPaths, DaemonStatus, LocalRequest,
-    LocalResponse, ProtocolError, MAX_REQUEST_BYTES,
+    canonical_request, capability_check_from_request, decode_request, encode_response_line,
+    new_node_id, request_digest, validate_digest, validate_node_id, validate_response, DaemonPaths,
+    DaemonStatus, LocalRequest, LocalResponse, ProtocolError, MAX_REQUEST_BYTES,
 };
 use greenways_vault::{ProviderVault, VaultError};
 use provider::{
@@ -48,6 +49,7 @@ pub enum DaemonError {
     Io(io::Error),
     Protocol(ProtocolError),
     Authority(AuthorityError),
+    Application(ApplicationApprovalError),
     Capability(CapabilityError),
     Identity(IdentityError),
     Vault(VaultError),
@@ -63,6 +65,12 @@ impl fmt::Display for DaemonError {
             Self::Protocol(error) => write!(formatter, "Greenways daemon protocol failed: {error}"),
             Self::Authority(error) => {
                 write!(formatter, "Greenways daemon authority failed: {error}")
+            }
+            Self::Application(error) => {
+                write!(
+                    formatter,
+                    "Greenways daemon application authority failed: {error}"
+                )
             }
             Self::Capability(error) => {
                 write!(
@@ -100,6 +108,7 @@ impl Error for DaemonError {
             Self::Io(error) => Some(error),
             Self::Protocol(error) => Some(error),
             Self::Authority(error) => Some(error),
+            Self::Application(error) => Some(error),
             Self::Capability(error) => Some(error),
             Self::Identity(error) => Some(error),
             Self::Vault(error) => Some(error),
@@ -123,6 +132,12 @@ impl From<ProtocolError> for DaemonError {
 impl From<AuthorityError> for DaemonError {
     fn from(value: AuthorityError) -> Self {
         Self::Authority(value)
+    }
+}
+
+impl From<ApplicationApprovalError> for DaemonError {
+    fn from(value: ApplicationApprovalError) -> Self {
+        Self::Application(value)
     }
 }
 
@@ -183,6 +198,7 @@ pub struct Daemon {
     paths: GreenwaysPaths,
     state: DaemonState,
     clients: LocalClientRegistry,
+    applications: ApplicationApprovalAuthority,
     capabilities: CapabilityAuthority,
     identity: ProfileIdentityVault,
     vault: ProviderVault,
@@ -197,6 +213,8 @@ impl Daemon {
         ensure_private_dir(&paths.home)?;
         let clients =
             LocalClientRegistry::open(paths.home.join("state").join("local-clients.json"))?;
+        let applications =
+            ApplicationApprovalAuthority::open(paths.home.join("state").join("applications.json"))?;
         let capabilities =
             CapabilityAuthority::open(paths.home.join("state").join("capabilities.json"))?;
         let identity = ProfileIdentityVault::open_system(
@@ -228,6 +246,7 @@ impl Daemon {
             paths,
             state,
             clients,
+            applications,
             capabilities,
             identity,
             vault,
@@ -397,6 +416,26 @@ impl Daemon {
                     "Create a Greenways profile identity before requesting its public card.",
                 ),
             },
+            "capabilities.check" => {
+                let check = capability_check_from_request(&request)?;
+                let application = self.applications.authorize_exact(
+                    &check.subject,
+                    &check.capability,
+                    observed_at_unix_ms,
+                )?;
+                let decision = if application.allowed {
+                    self.capabilities
+                        .check_request(&check, observed_at_unix_ms)?
+                } else {
+                    CapabilityDecision::denied(&check, &application.reason, observed_at_unix_ms)?
+                };
+                LocalResponse::ok(
+                    request.request_id.clone(),
+                    serde_json::to_value(decision).map_err(|_| {
+                        DaemonError::State("capability decision could not be encoded".to_owned())
+                    })?,
+                )
+            }
             "capabilities.status" => LocalResponse::ok(
                 request.request_id.clone(),
                 serde_json::to_value(self.capabilities.status(observed_at_unix_ms)?).map_err(
@@ -804,6 +843,7 @@ fn requires_authenticated_session(operation: &str) -> bool {
             | "identity.public-card"
             | "capabilities.status"
             | "capabilities.list"
+            | "capabilities.check"
             | "vault.status"
     )
 }
@@ -1025,11 +1065,17 @@ impl Drop for SocketGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use greenways_applications::ApplicationApprovalAuthority;
     use greenways_authority::{LocalClientRegistry, LocalClientRole};
+    use greenways_capabilities::{CheckCapability, IssueCapabilityGrant};
+    use greenways_identity::{
+        application_approval_subject, ApplicationApprovalRequest, ApplicationApprovalSubject,
+        ApplicationDescriptor, ProfileIdentityVault, DIGEST_TEST_VALUE,
+    };
     use greenways_local::{AuthenticatedLocalClient, LocalClient as PublicLocalClient};
     use greenways_protocol::{new_request_id, request_digest, Outcome, VaultStatus};
     use greenways_provider::{ModelMessage, ModelMessageRole, ProviderInvocation};
-    use std::{thread, time::Duration};
+    use std::{collections::BTreeMap, thread, time::Duration};
 
     struct TestHome(PathBuf);
 
@@ -1063,6 +1109,53 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
         panic!("Greenways daemon socket did not appear");
+    }
+
+    fn configure_exact_application_authority(home: &TestHome) -> ApplicationApprovalSubject {
+        let paths = home.paths();
+        let mut identity =
+            ProfileIdentityVault::open_test(paths.home.join("state").join("profile-identity.json"))
+                .expect("test identity should open");
+        identity
+            .create("authority", 1_000)
+            .expect("test identity should create");
+        let mut applications =
+            ApplicationApprovalAuthority::open(paths.home.join("state").join("applications.json"))
+                .expect("application authority should open");
+        let approval = applications
+            .approve(
+                &identity,
+                ApplicationApprovalRequest {
+                    application: ApplicationDescriptor {
+                        app_id: "hara-playground".to_owned(),
+                        version: "1.2.3".to_owned(),
+                        publisher_id: "hara-lang".to_owned(),
+                        manifest_digest: DIGEST_TEST_VALUE.to_owned(),
+                        lock_digest: None,
+                    },
+                    declared_capabilities: vec!["model/generate".to_owned()],
+                    approved_at_unix_ms: 2_000,
+                },
+            )
+            .expect("application approval should commit");
+        let subject =
+            application_approval_subject(&approval).expect("application subject should derive");
+        let mut capabilities =
+            CapabilityAuthority::open(paths.home.join("state").join("capabilities.json"))
+                .expect("capability authority should open");
+        capabilities
+            .issue(
+                &identity,
+                IssueCapabilityGrant {
+                    capability: "model/generate".to_owned(),
+                    subject: subject.clone(),
+                    constraints: BTreeMap::new(),
+                    issued_at_unix_ms: 3_000,
+                    expires_at_unix_ms: None,
+                },
+            )
+            .expect("capability grant should commit");
+        subject
     }
 
     #[test]
@@ -1421,6 +1514,86 @@ mod tests {
                 .expect("capability status projection");
         assert_eq!(status.grant_count, 0);
         assert!(!status.arbitrary_signing);
+    }
+
+    #[test]
+    fn exact_capability_check_requires_application_approval_and_signed_grant() {
+        let home = TestHome::new("combined-capability");
+        let subject = configure_exact_application_authority(&home);
+        let mut daemon = Daemon::open_at(home.paths(), 4_000).expect("daemon should open");
+        let actor = RequestActor {
+            client_id: "local/client/00112233445566778899aabbccddeeff".to_owned(),
+            role: LocalClientRole::BrowserBridge,
+        };
+        let request = LocalRequest::capabilities_check(
+            "local/request/capcheck001",
+            CheckCapability::new(subject.clone(), "model/generate").expect("check should build"),
+        )
+        .expect("request should build");
+        let response = daemon
+            .handle_request_as_at(request, Some(actor.clone()), 5_000)
+            .expect("combined check should complete");
+        assert_eq!(response.outcome, Outcome::Ok);
+        let decision: CapabilityDecision =
+            serde_json::from_value(response.value.expect("decision value"))
+                .expect("decision should decode");
+        assert!(decision.allowed);
+        assert_eq!(decision.reason, "granted");
+        assert!(decision.grant_subject_root.is_some());
+
+        let mut changed = subject;
+        changed.version = "1.2.4".to_owned();
+        let response = daemon
+            .handle_request_as_at(
+                LocalRequest::capabilities_check(
+                    "local/request/capcheck002",
+                    CheckCapability::new(changed, "model/generate")
+                        .expect("changed check should build"),
+                )
+                .expect("changed request should build"),
+                Some(actor),
+                6_000,
+            )
+            .expect("changed check should complete");
+        let decision: CapabilityDecision =
+            serde_json::from_value(response.value.expect("denial value"))
+                .expect("denial should decode");
+        assert!(!decision.allowed);
+        assert_eq!(decision.reason, "approval-subject-mismatch");
+        assert!(decision.grant_id.is_none());
+    }
+
+    #[test]
+    fn exact_capability_check_denies_an_unregistered_approval_before_grants() {
+        let home = TestHome::new("missing-approval");
+        let mut daemon = Daemon::open_at(home.paths(), 1_000).expect("daemon should open");
+        let subject = ApplicationApprovalSubject {
+            kind: "app".to_owned(),
+            app_id: "hara-playground".to_owned(),
+            version: "1.2.3".to_owned(),
+            publisher_id: "hara-lang".to_owned(),
+            lock_digest: None,
+            approval_digest: DIGEST_TEST_VALUE.to_owned(),
+        };
+        let response = daemon
+            .handle_request_as_at(
+                LocalRequest::capabilities_check(
+                    "local/request/capcheck003",
+                    CheckCapability::new(subject, "model/generate").expect("check should build"),
+                )
+                .expect("request should build"),
+                Some(RequestActor {
+                    client_id: "local/client/ffeeddccbbaa99887766554433221100".to_owned(),
+                    role: LocalClientRole::Cli,
+                }),
+                2_000,
+            )
+            .expect("missing approval check should complete");
+        let decision: CapabilityDecision =
+            serde_json::from_value(response.value.expect("denial value"))
+                .expect("denial should decode");
+        assert!(!decision.allowed);
+        assert_eq!(decision.reason, "approval-not-found");
     }
 
     #[test]
