@@ -1,6 +1,6 @@
 use getrandom::getrandom;
-use greenways_capabilities::CheckCapability;
-use greenways_provider::ProviderInvocation;
+use greenways_capabilities::{CheckCapability, MODEL_GENERATE_CAPABILITY};
+use greenways_provider::{validate_invocation, ProviderInvocation};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -11,6 +11,8 @@ pub const LOCAL_RESULT_PROTOCOL: &str = "greenways-local-result/0-alpha";
 pub const DAEMON_STATUS_PROTOCOL: &str = "greenways-daemon-status/0-alpha";
 pub const DAEMON_PATHS_PROTOCOL: &str = "greenways-daemon-paths/0-alpha";
 pub const VAULT_STATUS_PROTOCOL: &str = "greenways-vault-status/0-alpha";
+pub const AUTHORIZED_PROVIDER_INVOCATION_PROTOCOL: &str =
+    "greenways-authorised-provider-invocation/0-alpha";
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
 pub const MAX_RESPONSE_BYTES: usize = 256 * 1024;
 
@@ -27,6 +29,106 @@ const MAX_ERROR_MESSAGE: usize = 400;
 pub enum Outcome {
     Ok,
     Error,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AuthorizedProviderInvocation {
+    pub protocol: String,
+    pub check: CheckCapability,
+    pub invocation: ProviderInvocation,
+}
+
+impl AuthorizedProviderInvocation {
+    pub fn new(
+        check: CheckCapability,
+        invocation: ProviderInvocation,
+    ) -> Result<Self, ProtocolError> {
+        let authorized = Self {
+            protocol: AUTHORIZED_PROVIDER_INVOCATION_PROTOCOL.to_owned(),
+            check,
+            invocation,
+        };
+        authorized.validate()?;
+        Ok(authorized)
+    }
+
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        if self.protocol != AUTHORIZED_PROVIDER_INVOCATION_PROTOCOL {
+            return Err(ProtocolError::new(
+                "unsupported-provider-authority-protocol",
+                "Authorized provider invocation protocol is unsupported.",
+            ));
+        }
+        self.check.validate().map_err(|_| {
+            ProtocolError::new(
+                "invalid-provider-authority",
+                "Provider invocation authority is invalid.",
+            )
+        })?;
+        if self.check.capability != MODEL_GENERATE_CAPABILITY {
+            return Err(ProtocolError::new(
+                "invalid-provider-authority",
+                "Provider invocation requires exact model/generate authority.",
+            ));
+        }
+        validate_invocation(&self.invocation).map_err(|_| {
+            ProtocolError::new(
+                "invalid-provider-invocation",
+                "Provider invocation arguments are invalid.",
+            )
+        })
+    }
+
+    pub fn from_arguments(arguments: &Map<String, Value>) -> Result<Self, ProtocolError> {
+        let authorized: Self =
+            serde_json::from_value(Value::Object(arguments.clone())).map_err(|_| {
+                ProtocolError::new(
+                    "invalid-provider-authority",
+                    "Provider invocation arguments must be one closed authorized object.",
+                )
+            })?;
+        authorized.validate()?;
+        Ok(authorized)
+    }
+
+    pub fn into_arguments(self) -> Result<Map<String, Value>, ProtocolError> {
+        self.validate()?;
+        match serde_json::to_value(self).map_err(|_| {
+            ProtocolError::new(
+                "invalid-provider-authority",
+                "Authorized provider invocation could not be encoded.",
+            )
+        })? {
+            Value::Object(arguments) => Ok(arguments),
+            _ => Err(ProtocolError::new(
+                "invalid-provider-authority",
+                "Authorized provider invocation must encode as an object.",
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProviderInvocationRequest {
+    Authorized(Box<AuthorizedProviderInvocation>),
+    Legacy(ProviderInvocation),
+}
+
+impl ProviderInvocationRequest {
+    pub fn from_arguments(arguments: &Map<String, Value>) -> Result<Self, ProtocolError> {
+        if let Ok(authorized) = AuthorizedProviderInvocation::from_arguments(arguments) {
+            return Ok(Self::Authorized(Box::new(authorized)));
+        }
+        ProviderInvocation::from_arguments(arguments)
+            .map(Self::Legacy)
+            .map_err(|_| {
+                ProtocolError::new(
+                    "invalid-provider-invocation",
+                    "Provider invocation arguments are invalid.",
+                )
+            })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -96,7 +198,7 @@ impl LocalRequest {
 
     pub fn provider_invoke(
         request_id: impl Into<String>,
-        invocation: ProviderInvocation,
+        invocation: AuthorizedProviderInvocation,
     ) -> Result<Self, ProtocolError> {
         let arguments = invocation.into_arguments().map_err(|_| {
             ProtocolError::new(
@@ -337,7 +439,7 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
             ));
         }
         "provider.invoke" => {
-            ProviderInvocation::from_arguments(&request.arguments).map_err(|_| {
+            ProviderInvocationRequest::from_arguments(&request.arguments).map_err(|_| {
                 ProtocolError::new(
                     "invalid-arguments",
                     "Provider invocation arguments are invalid.",
@@ -362,6 +464,24 @@ pub fn validate_request(request: &LocalRequest) -> Result<(), ProtocolError> {
         _ => {}
     }
     Ok(())
+}
+
+pub fn provider_invocation_from_request(
+    request: &LocalRequest,
+) -> Result<ProviderInvocationRequest, ProtocolError> {
+    validate_request(request)?;
+    if request.operation != "provider.invoke" {
+        return Err(ProtocolError::new(
+            "invalid-operation",
+            "Greenways local request is not a provider invocation.",
+        ));
+    }
+    ProviderInvocationRequest::from_arguments(&request.arguments).map_err(|_| {
+        ProtocolError::new(
+            "invalid-arguments",
+            "Provider invocation arguments are invalid.",
+        )
+    })
 }
 
 pub fn capability_check_from_request(
@@ -619,7 +739,7 @@ mod tests {
     }
 
     #[test]
-    fn validates_one_closed_provider_invocation() {
+    fn validates_one_closed_authorized_provider_invocation() {
         let invocation = greenways_provider::ProviderInvocation::new(
             "openai.personal",
             "gpt-5",
@@ -631,15 +751,53 @@ mod tests {
             5_000,
         )
         .expect("provider invocation should be valid");
-        let request = LocalRequest::provider_invoke("local/request/provider0001", invocation)
-            .expect("provider request should encode");
+        let check = CheckCapability::new(greenways_identity_subject(), MODEL_GENERATE_CAPABILITY)
+            .expect("provider authority should be valid");
+        let authorized = AuthorizedProviderInvocation::new(check, invocation)
+            .expect("authorized invocation should be valid");
+        let request =
+            LocalRequest::provider_invoke("local/request/provider0001", authorized.clone())
+                .expect("provider request should encode");
         assert!(validate_request(&request).is_ok());
+        assert_eq!(
+            provider_invocation_from_request(&request).expect("provider request should decode"),
+            ProviderInvocationRequest::Authorized(Box::new(authorized))
+        );
         let mut changed = request;
         changed.arguments.insert(
             "endpoint".to_owned(),
             Value::String("https://evil.example".to_owned()),
         );
         assert!(validate_request(&changed).is_err());
+    }
+
+    #[test]
+    fn retains_legacy_provider_request_decoding_for_durable_replay() {
+        let invocation = greenways_provider::ProviderInvocation::new(
+            "openai.personal",
+            "gpt-5",
+            vec![greenways_provider::ModelMessage {
+                role: greenways_provider::ModelMessageRole::User,
+                content: "Hello".to_owned(),
+            }],
+            128,
+            5_000,
+        )
+        .expect("provider invocation should be valid");
+        let request = LocalRequest {
+            protocol: LOCAL_PROTOCOL.to_owned(),
+            request_id: "local/request/providerold1".to_owned(),
+            operation: "provider.invoke".to_owned(),
+            arguments: invocation
+                .clone()
+                .into_arguments()
+                .expect("legacy arguments should encode"),
+        };
+        assert!(validate_request(&request).is_ok());
+        assert_eq!(
+            provider_invocation_from_request(&request).expect("legacy request should decode"),
+            ProviderInvocationRequest::Legacy(invocation)
+        );
     }
 
     #[test]

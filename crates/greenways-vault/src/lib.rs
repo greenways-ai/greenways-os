@@ -17,6 +17,9 @@ use std::{
 };
 use zeroize::Zeroizing;
 
+#[cfg(feature = "test-support")]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 pub const PROVIDER_REGISTRY_PROTOCOL: &str = "greenways-provider-registry/0-alpha";
 pub const PROVIDER_PROFILE_PROTOCOL: &str = "greenways-provider-profile/0-alpha";
 pub const SYSTEM_CREDENTIAL_STORE: &str = "system-keyring";
@@ -24,6 +27,21 @@ const CREDENTIAL_SERVICE: &str = "ai.greenways.provider";
 const MAX_REGISTRY_BYTES: usize = 1024 * 1024;
 const MAX_PROFILES: usize = 64;
 pub const MAX_PROVIDER_SECRET_BYTES: usize = 16 * 1024;
+
+#[cfg(feature = "test-support")]
+#[derive(Debug, Clone, Default)]
+pub struct ProviderInvocationProbe(Arc<AtomicUsize>);
+
+#[cfg(feature = "test-support")]
+impl ProviderInvocationProbe {
+    pub fn attempts(&self) -> usize {
+        self.0.load(Ordering::Acquire)
+    }
+
+    fn record_attempt(&self) {
+        self.0.fetch_add(1, Ordering::AcqRel);
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -210,6 +228,8 @@ pub struct ProviderVault {
     registry: ProviderRegistry,
     credentials: Arc<dyn CredentialStore>,
     transport: Arc<dyn ProviderTransport>,
+    #[cfg(feature = "test-support")]
+    invocation_probe: Option<ProviderInvocationProbe>,
 }
 
 impl fmt::Debug for ProviderVault {
@@ -230,6 +250,16 @@ impl ProviderVault {
             Arc::new(SystemCredentialStore),
             Arc::new(SystemProviderTransport),
         )
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn open_test(
+        metadata_path: impl Into<PathBuf>,
+    ) -> Result<(Self, ProviderInvocationProbe), VaultError> {
+        let probe = ProviderInvocationProbe::default();
+        let mut vault = Self::open_system(metadata_path)?;
+        vault.invocation_probe = Some(probe.clone());
+        Ok((vault, probe))
     }
 
     #[cfg(test)]
@@ -260,6 +290,8 @@ impl ProviderVault {
             registry,
             credentials,
             transport,
+            #[cfg(feature = "test-support")]
+            invocation_probe: None,
         })
     }
 
@@ -289,6 +321,10 @@ impl ProviderVault {
         invocation: &ProviderInvocation,
         completed_at_unix_ms: u64,
     ) -> Result<ProviderResult, VaultError> {
+        #[cfg(feature = "test-support")]
+        if let Some(probe) = &self.invocation_probe {
+            probe.record_attempt();
+        }
         greenways_provider::validate_invocation(invocation)
             .map_err(|error| VaultError::Invalid(error.message().to_owned()))?;
         if completed_at_unix_ms == 0 {

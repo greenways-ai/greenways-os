@@ -263,7 +263,7 @@ pub fn validate_result(result: &ProviderResult) -> Result<(), ProviderProtocolEr
     Ok(())
 }
 
-fn validate_profile_id(value: &str) -> Result<(), ProviderProtocolError> {
+pub fn validate_profile_id(value: &str) -> Result<(), ProviderProtocolError> {
     let bytes = value.as_bytes();
     if value.is_empty()
         || value.len() > 80
@@ -281,7 +281,7 @@ fn validate_profile_id(value: &str) -> Result<(), ProviderProtocolError> {
     Ok(())
 }
 
-fn validate_model_id(value: &str) -> Result<(), ProviderProtocolError> {
+pub fn validate_model_id(value: &str) -> Result<(), ProviderProtocolError> {
     if value.is_empty()
         || value.len() > 160
         || value.contains("://")

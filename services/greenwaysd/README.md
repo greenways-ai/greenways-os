@@ -91,15 +91,15 @@ cargo run -p greenways-admin -- provider list
 
 The ordinary `greenways vault` command reads only the redacted `vault.status` projection. Provider credentials, keyring handles and profile labels are not available through the public local protocol.
 
-The daemon does not expose credential reads, arbitrary signing, provider invocation, or secret-store handles. Typed provider invocation will be added behind authenticated daemon authority rather than returning credentials to local clients.
+The daemon does not expose credential reads, arbitrary signing, secret-store handles, or unscoped provider execution. Provider invocation is available only through exact signed application and typed `model/generate` grant authority; credentials remain daemon-confined.
 
 Local clients are enrolled through a separate daemon-owned registry. Desktop, CLI, browser-bridge, and developer roles are fixed at offline issuance, only a SHA-256 credential digest is stored, and revocation is final. A valid credential now opens a five-minute, 128-request session bound to the same Unix connection. `client.whoami` is available to every role; authority inventory remains denied to the browser bridge. Session credentials never enter durable receipts, while subsequent receipts are bound to the daemon-derived client ID and role.
 
 ## Authenticated provider invocation
 
-The daemon now accepts the closed `provider.invoke` operation from authenticated Desktop, CLI and developer sessions. It resolves credentials only inside the daemon, calls one fixed provider endpoint, and returns a normalized text result. Browser-bridge invocation remains denied until daemon-owned application grants bind the exact app, origin, profile, model and limits.
+The daemon accepts `provider.invoke` from authenticated Desktop, CLI, and explicit Developer sessions only through `greenways-authorised-provider-invocation/0-alpha`. It requires one active exact application approval that declared `model/generate`, followed by one active signed grant whose typed policy permits the exact provider profile, model, output limit, and timeout. Browser-bridge invocation remains denied.
 
-Provider calls use a prepared durable claim before network access. Completed calls are replayable by exact actor and request bytes; uncertain calls are never retried automatically. See `protocol/provider-invoke.md`.
+Authority denial happens before claim persistence, profile-existence lookup, credential access, or network work. Allowed calls use a prepared durable claim carrying request-bound approval/grant evidence. Completed calls are replayable by exact actor and request bytes; uncertain calls are never retried automatically. See `protocol/provider-invoke.md`.
 
 ## Profile identity
 
@@ -149,11 +149,15 @@ greenways-admin capability issue \
   --app-id hara-playground \
   --app-version 1.2.3 \
   --publisher hara-lang \
-  --approval-digest sha256:…
+  --approval-digest sha256:… \
+  --provider-profile openai.personal \
+  --provider-model gpt-5 \
+  --provider-max-output-tokens 2048 \
+  --provider-max-timeout-ms 60000
 
 greenways-admin capability revoke \
   --grant-id grant/… \
   --reason user-revoked
 ```
 
-The administrator reconstructs the exact application approval subject, asks the daemon-owned profile identity to sign one closed grant or revocation subject, and atomically commits the immutable record. It never accepts private keys, arbitrary signing bytes, generic JSON constraints, or provider credentials on the command line. Status and list remain read-only and may run while the daemon is active.
+The administrator reconstructs the exact application approval subject, asks the daemon-owned profile identity to sign one closed grant or revocation subject, and atomically commits the immutable record. `model/generate` accepts only the four explicit non-secret provider-policy flags shown above; generic JSON constraints remain unavailable. The command never accepts private keys, arbitrary signing bytes, or provider credentials. Status and list remain read-only and may run while the daemon is active.

@@ -1,4 +1,0 @@
-issue=78
-expected-patch=sha256:c31906a82eb7c3ad653e6cc1f2a7a15af4c2dfba48f8a68c19d90c59452a4646
-remote-gzip=sha256:f8338a718676e8d21a86efcbbfad978152cb250496810e5c9e168f07fe7c38d6
-state=apply-attempt-6

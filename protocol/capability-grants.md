@@ -178,7 +178,18 @@ Desktop, CLI, and explicit Developer roles may inspect status and inventory. The
 
 ## Offline administration
 
-`greenways-admin capability issue` and `capability revoke` are the first mutation surfaces. Both require the daemon socket to be inactive before opening the identity and capability metadata files. Issuance accepts only the exact capability and application approval fields; before signing, it reopens the signed application registry and requires an active exact approval that declared that capability. Arbitrary constraints are intentionally absent from the first CLI. Revocation accepts only an existing grant ID and bounded reason.
+`greenways-admin capability issue` and `capability revoke` are the first mutation surfaces. Both require the daemon socket to be inactive before opening the identity and capability metadata files. Issuance accepts only the exact capability and application approval fields; before signing, it reopens the signed application registry and requires an active exact approval that declared that capability.
+
+`model/generate` adds one reviewed typed policy vocabulary rather than accepting arbitrary constraint JSON:
+
+```text
+provider.profile-id
+provider.model
+provider.max-output-tokens
+provider.max-timeout-ms
+```
+
+All four fields are required for a new `model/generate` grant. Profile and model are exact; invocation limits must not exceed the signed maxima. Provider-prefixed constraints are rejected on other capabilities, and unknown or incorrectly typed provider fields fail closed. Older empty-policy `model/generate` grants remain verifiable for migration but cannot authorize provider execution. Revocation accepts only an existing grant ID and bounded reason.
 
 The signed grant or revocation is committed before the command reports success. Re-running a revocation returns the existing immutable revocation. No corresponding mutation operation exists on ordinary local IPC.
 

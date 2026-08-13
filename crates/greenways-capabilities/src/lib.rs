@@ -5,6 +5,10 @@ use greenways_identity::{
     CapabilityGrantRequest, CapabilityRevocationRequest, ProfileIdentityVault,
     SignedCapabilityGrant, SignedCapabilityRevocation,
 };
+use greenways_provider::{
+    validate_invocation, validate_model_id, validate_profile_id, ProviderInvocation,
+    MAX_OUTPUT_TOKENS, MAX_TIMEOUT_MS,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{
@@ -23,10 +27,195 @@ pub const CAPABILITY_AUTHORITY_STATUS_PROTOCOL: &str =
     "greenways-capability-authority-status/0-alpha";
 pub const CAPABILITY_DECISION_PROTOCOL: &str = "greenways-capability-decision/0-alpha";
 pub const CAPABILITY_CHECK_PROTOCOL: &str = "greenways-capability-check/0-alpha";
+pub const PROVIDER_GRANT_EVIDENCE_PROTOCOL: &str = "greenways-provider-grant-evidence/0-alpha";
+pub const MODEL_GENERATE_CAPABILITY: &str = "model/generate";
+pub const PROVIDER_PROFILE_ID_CONSTRAINT: &str = "provider.profile-id";
+pub const PROVIDER_MODEL_CONSTRAINT: &str = "provider.model";
+pub const PROVIDER_MAX_OUTPUT_TOKENS_CONSTRAINT: &str = "provider.max-output-tokens";
+pub const PROVIDER_MAX_TIMEOUT_MS_CONSTRAINT: &str = "provider.max-timeout-ms";
 
 const MAX_STATE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_GRANTS: usize = 512;
 const MAX_REVOCATIONS: usize = 512;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelGeneratePolicy {
+    pub profile_id: String,
+    pub model: String,
+    pub max_output_tokens: u32,
+    pub max_timeout_ms: u64,
+}
+
+impl ModelGeneratePolicy {
+    pub fn new(
+        profile_id: impl Into<String>,
+        model: impl Into<String>,
+        max_output_tokens: u32,
+        max_timeout_ms: u64,
+    ) -> Result<Self, CapabilityError> {
+        let policy = Self {
+            profile_id: profile_id.into(),
+            model: model.into(),
+            max_output_tokens,
+            max_timeout_ms,
+        };
+        policy.validate()?;
+        Ok(policy)
+    }
+
+    pub fn from_invocation(invocation: &ProviderInvocation) -> Result<Self, CapabilityError> {
+        validate_invocation(invocation)
+            .map_err(|_| CapabilityError::Invalid("provider invocation is invalid".to_owned()))?;
+        Self::new(
+            invocation.profile_id.clone(),
+            invocation.model.clone(),
+            invocation.max_output_tokens,
+            invocation.timeout_ms,
+        )
+    }
+
+    pub fn constraints(&self) -> BTreeMap<String, CapabilityConstraintValue> {
+        BTreeMap::from([
+            (
+                PROVIDER_PROFILE_ID_CONSTRAINT.to_owned(),
+                CapabilityConstraintValue::Text(self.profile_id.clone()),
+            ),
+            (
+                PROVIDER_MODEL_CONSTRAINT.to_owned(),
+                CapabilityConstraintValue::Text(self.model.clone()),
+            ),
+            (
+                PROVIDER_MAX_OUTPUT_TOKENS_CONSTRAINT.to_owned(),
+                CapabilityConstraintValue::Integer(u64::from(self.max_output_tokens)),
+            ),
+            (
+                PROVIDER_MAX_TIMEOUT_MS_CONSTRAINT.to_owned(),
+                CapabilityConstraintValue::Integer(self.max_timeout_ms),
+            ),
+        ])
+    }
+
+    pub fn from_constraints(
+        constraints: &BTreeMap<String, CapabilityConstraintValue>,
+    ) -> Result<Option<Self>, CapabilityError> {
+        if constraints.is_empty() {
+            return Ok(None);
+        }
+        if constraints.len() != 4
+            || !constraints.contains_key(PROVIDER_PROFILE_ID_CONSTRAINT)
+            || !constraints.contains_key(PROVIDER_MODEL_CONSTRAINT)
+            || !constraints.contains_key(PROVIDER_MAX_OUTPUT_TOKENS_CONSTRAINT)
+            || !constraints.contains_key(PROVIDER_MAX_TIMEOUT_MS_CONSTRAINT)
+        {
+            return Err(CapabilityError::Invalid(
+                "model/generate provider policy must contain exactly four typed constraints"
+                    .to_owned(),
+            ));
+        }
+        let profile_id = constraint_text(constraints, PROVIDER_PROFILE_ID_CONSTRAINT)?;
+        let model = constraint_text(constraints, PROVIDER_MODEL_CONSTRAINT)?;
+        let max_output_tokens =
+            constraint_integer(constraints, PROVIDER_MAX_OUTPUT_TOKENS_CONSTRAINT)?
+                .try_into()
+                .map_err(|_| {
+                    CapabilityError::Invalid(
+                        "model/generate output-token policy exceeds its integer bound".to_owned(),
+                    )
+                })?;
+        let max_timeout_ms = constraint_integer(constraints, PROVIDER_MAX_TIMEOUT_MS_CONSTRAINT)?;
+        Self::new(profile_id, model, max_output_tokens, max_timeout_ms).map(Some)
+    }
+
+    pub fn permits(&self, invocation: &ProviderInvocation) -> Result<bool, CapabilityError> {
+        validate_invocation(invocation)
+            .map_err(|_| CapabilityError::Invalid("provider invocation is invalid".to_owned()))?;
+        self.permits_parameters(
+            &invocation.profile_id,
+            &invocation.model,
+            invocation.max_output_tokens,
+            invocation.timeout_ms,
+        )
+    }
+
+    pub fn permits_parameters(
+        &self,
+        profile_id: &str,
+        model: &str,
+        max_output_tokens: u32,
+        timeout_ms: u64,
+    ) -> Result<bool, CapabilityError> {
+        self.validate()?;
+        validate_profile_id(profile_id).map_err(|_| {
+            CapabilityError::Invalid("provider invocation profile is invalid".to_owned())
+        })?;
+        validate_model_id(model).map_err(|_| {
+            CapabilityError::Invalid("provider invocation model is invalid".to_owned())
+        })?;
+        if !(1..=MAX_OUTPUT_TOKENS).contains(&max_output_tokens)
+            || !(1_000..=MAX_TIMEOUT_MS).contains(&timeout_ms)
+        {
+            return Err(CapabilityError::Invalid(
+                "provider invocation limits are invalid".to_owned(),
+            ));
+        }
+        Ok(profile_id == self.profile_id
+            && model == self.model
+            && max_output_tokens <= self.max_output_tokens
+            && timeout_ms <= self.max_timeout_ms)
+    }
+
+    fn validate(&self) -> Result<(), CapabilityError> {
+        validate_profile_id(&self.profile_id).map_err(|_| {
+            CapabilityError::Invalid("model/generate provider profile policy is invalid".to_owned())
+        })?;
+        validate_model_id(&self.model).map_err(|_| {
+            CapabilityError::Invalid("model/generate provider model policy is invalid".to_owned())
+        })?;
+        if !(1..=MAX_OUTPUT_TOKENS).contains(&self.max_output_tokens) {
+            return Err(CapabilityError::Invalid(
+                "model/generate output-token policy is out of bounds".to_owned(),
+            ));
+        }
+        if !(1_000..=MAX_TIMEOUT_MS).contains(&self.max_timeout_ms) {
+            return Err(CapabilityError::Invalid(
+                "model/generate timeout policy is out of bounds".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProviderGrantEvidence {
+    pub protocol: String,
+    pub approval_digest: String,
+    pub grant_id: String,
+    pub grant_subject_root: String,
+    pub capability: String,
+}
+
+impl ProviderGrantEvidence {
+    pub fn validate(&self) -> Result<(), CapabilityError> {
+        if self.protocol != PROVIDER_GRANT_EVIDENCE_PROTOCOL
+            || !valid_digest(&self.approval_digest)
+            || !valid_grant_id(&self.grant_id)
+            || !valid_digest(&self.grant_subject_root)
+            || self.capability != MODEL_GENERATE_CAPABILITY
+        {
+            return Err(CapabilityError::Invalid(
+                "provider grant evidence is invalid".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProviderInvocationAuthority {
+    Allowed(ProviderGrantEvidence),
+    Denied(String),
+}
 
 #[derive(Debug, Clone, Copy)]
 struct CapabilityDefinition {
@@ -216,7 +405,6 @@ impl CapabilityDecision {
         Ok(decision(
             false,
             reason,
-            None,
             None,
             check.capability.clone(),
             &check.subject,
@@ -546,7 +734,6 @@ impl CapabilityAuthority {
                 false,
                 "capability-not-grantable",
                 None,
-                None,
                 capability,
                 subject,
                 observed_at_unix_ms,
@@ -568,7 +755,6 @@ impl CapabilityAuthority {
                 false,
                 "no-current-grant",
                 None,
-                None,
                 capability,
                 subject,
                 observed_at_unix_ms,
@@ -583,8 +769,7 @@ impl CapabilityAuthority {
             return Ok(decision(
                 false,
                 "grant-revoked",
-                Some(grant.grant.id.clone()),
-                Some(grant.subject_root.clone()),
+                Some(grant),
                 capability,
                 subject,
                 observed_at_unix_ms,
@@ -594,8 +779,7 @@ impl CapabilityAuthority {
             return Ok(decision(
                 false,
                 "grant-expired",
-                Some(grant.grant.id.clone()),
-                Some(grant.subject_root.clone()),
+                Some(grant),
                 capability,
                 subject,
                 observed_at_unix_ms,
@@ -604,20 +788,161 @@ impl CapabilityAuthority {
         Ok(decision(
             true,
             "granted",
-            Some(grant.grant.id.clone()),
-            Some(grant.subject_root.clone()),
+            Some(grant),
             capability,
             subject,
             observed_at_unix_ms,
         ))
+    }
+
+    pub fn authorize_provider_invocation(
+        &self,
+        check: &CheckCapability,
+        invocation: &ProviderInvocation,
+        observed_at_unix_ms: u64,
+    ) -> Result<ProviderInvocationAuthority, CapabilityError> {
+        check.validate()?;
+        validate_invocation(invocation)
+            .map_err(|_| CapabilityError::Invalid("provider invocation is invalid".to_owned()))?;
+        if check.capability != MODEL_GENERATE_CAPABILITY {
+            return Err(CapabilityError::Invalid(
+                "provider invocation requires model/generate authority".to_owned(),
+            ));
+        }
+        let decision = self.check_request(check, observed_at_unix_ms)?;
+        if !decision.allowed {
+            return Ok(ProviderInvocationAuthority::Denied(decision.reason));
+        }
+        let grant_id = decision.grant_id.as_ref().ok_or_else(|| {
+            CapabilityError::Invalid("allowed provider decision has no grant ID".to_owned())
+        })?;
+        let grant = self
+            .state
+            .grants
+            .iter()
+            .find(|grant| {
+                grant.grant.id == *grant_id
+                    && grant.grant.subject == check.subject
+                    && grant.grant.capability == check.capability
+            })
+            .ok_or_else(|| {
+                CapabilityError::Invalid(
+                    "allowed provider decision does not identify a stored grant".to_owned(),
+                )
+            })?;
+        let Some(policy) = ModelGeneratePolicy::from_constraints(&grant.grant.constraints)? else {
+            return Ok(ProviderInvocationAuthority::Denied(
+                "provider-policy-missing".to_owned(),
+            ));
+        };
+        if !policy.permits(invocation)? {
+            return Ok(ProviderInvocationAuthority::Denied(
+                "provider-policy-denied".to_owned(),
+            ));
+        }
+        let evidence = ProviderGrantEvidence {
+            protocol: PROVIDER_GRANT_EVIDENCE_PROTOCOL.to_owned(),
+            approval_digest: check.subject.approval_digest.clone(),
+            grant_id: grant.grant.id.clone(),
+            grant_subject_root: grant.subject_root.clone(),
+            capability: MODEL_GENERATE_CAPABILITY.to_owned(),
+        };
+        evidence.validate()?;
+        Ok(ProviderInvocationAuthority::Allowed(evidence))
+    }
+
+    pub fn matches_provider_grant_evidence(
+        &self,
+        subject: &ApplicationApprovalSubject,
+        evidence: &ProviderGrantEvidence,
+    ) -> Result<bool, CapabilityError> {
+        Ok(self
+            .provider_grant_for_evidence(subject, evidence)?
+            .is_some())
+    }
+
+    pub fn matches_provider_grant_evidence_for_invocation(
+        &self,
+        subject: &ApplicationApprovalSubject,
+        evidence: &ProviderGrantEvidence,
+        invocation: &ProviderInvocation,
+    ) -> Result<bool, CapabilityError> {
+        let requested = ModelGeneratePolicy::from_invocation(invocation)?;
+        self.matches_provider_grant_evidence_for_policy(subject, evidence, &requested)
+    }
+
+    pub fn matches_provider_grant_evidence_for_policy(
+        &self,
+        subject: &ApplicationApprovalSubject,
+        evidence: &ProviderGrantEvidence,
+        requested: &ModelGeneratePolicy,
+    ) -> Result<bool, CapabilityError> {
+        let Some(grant) = self.provider_grant_for_evidence(subject, evidence)? else {
+            return Ok(false);
+        };
+        let Some(policy) = ModelGeneratePolicy::from_constraints(&grant.grant.constraints)? else {
+            return Ok(false);
+        };
+        policy.permits_parameters(
+            &requested.profile_id,
+            &requested.model,
+            requested.max_output_tokens,
+            requested.max_timeout_ms,
+        )
+    }
+
+    pub fn matches_active_provider_grant_evidence_for_policy(
+        &self,
+        subject: &ApplicationApprovalSubject,
+        evidence: &ProviderGrantEvidence,
+        requested: &ModelGeneratePolicy,
+        observed_at_unix_ms: u64,
+    ) -> Result<bool, CapabilityError> {
+        validate_timestamp(observed_at_unix_ms, "provider authority evidence time")?;
+        let Some(grant) = self.provider_grant_for_evidence(subject, evidence)? else {
+            return Ok(false);
+        };
+        if grant.grant.issued_at_unix_ms > observed_at_unix_ms
+            || is_expired(grant, observed_at_unix_ms)
+            || self.state.revocations.iter().any(|revocation| {
+                revocation.revocation.grant_id == grant.grant.id
+                    && revocation.revocation.revoked_at_unix_ms <= observed_at_unix_ms
+            })
+        {
+            return Ok(false);
+        }
+        let Some(policy) = ModelGeneratePolicy::from_constraints(&grant.grant.constraints)? else {
+            return Ok(false);
+        };
+        policy.permits_parameters(
+            &requested.profile_id,
+            &requested.model,
+            requested.max_output_tokens,
+            requested.max_timeout_ms,
+        )
+    }
+
+    fn provider_grant_for_evidence<'a>(
+        &'a self,
+        subject: &ApplicationApprovalSubject,
+        evidence: &ProviderGrantEvidence,
+    ) -> Result<Option<&'a SignedCapabilityGrant>, CapabilityError> {
+        validate_application_approval_subject(subject)?;
+        evidence.validate()?;
+        Ok(self.state.grants.iter().find(|grant| {
+            grant.grant.id == evidence.grant_id
+                && grant.subject_root == evidence.grant_subject_root
+                && grant.grant.subject == *subject
+                && grant.grant.capability == evidence.capability
+                && subject.approval_digest == evidence.approval_digest
+        }))
     }
 }
 
 fn decision(
     allowed: bool,
     reason: &str,
-    grant_id: Option<String>,
-    grant_subject_root: Option<String>,
+    grant: Option<&SignedCapabilityGrant>,
     capability: String,
     subject: &ApplicationApprovalSubject,
     observed_at_unix_ms: u64,
@@ -626,8 +951,8 @@ fn decision(
         protocol: CAPABILITY_DECISION_PROTOCOL.to_owned(),
         allowed,
         reason: reason.to_owned(),
-        grant_id,
-        grant_subject_root,
+        grant_id: grant.map(|grant| grant.grant.id.clone()),
+        grant_subject_root: grant.map(|grant| grant.subject_root.clone()),
         capability,
         approval_digest: subject.approval_digest.clone(),
         observed_at_unix_ms,
@@ -653,8 +978,11 @@ fn validate_issue_request(
             "capability must already be canonical".to_owned(),
         ));
     }
-    definition(&capability)
-        .ok_or_else(|| CapabilityError::Invalid("capability is not operation-grantable".to_owned()))
+    let definition = definition(&capability).ok_or_else(|| {
+        CapabilityError::Invalid("capability is not operation-grantable".to_owned())
+    })?;
+    validate_capability_constraints(&capability, &request.constraints, false)?;
+    Ok(definition)
 }
 
 fn validate_signed_grant_semantics(signed: &SignedCapabilityGrant) -> Result<(), CapabilityError> {
@@ -666,6 +994,7 @@ fn validate_signed_grant_semantics(signed: &SignedCapabilityGrant) -> Result<(),
             "stored capability publisher is not trusted".to_owned(),
         ));
     }
+    validate_capability_constraints(&signed.grant.capability, &signed.grant.constraints, true)?;
     Ok(())
 }
 
@@ -793,6 +1122,68 @@ fn publisher_is_trusted(definition: &CapabilityDefinition, publisher_id: &str) -
         || definition.trusted_publishers.contains(&publisher_id)
 }
 
+fn validate_capability_constraints(
+    capability: &str,
+    constraints: &BTreeMap<String, CapabilityConstraintValue>,
+    allow_legacy_model_policy: bool,
+) -> Result<(), CapabilityError> {
+    if capability == MODEL_GENERATE_CAPABILITY {
+        let policy = ModelGeneratePolicy::from_constraints(constraints)?;
+        if policy.is_none() && !allow_legacy_model_policy {
+            return Err(CapabilityError::Invalid(
+                "model/generate requires one closed provider policy".to_owned(),
+            ));
+        }
+        return Ok(());
+    }
+    if constraints.keys().any(|key| key.starts_with("provider.")) {
+        return Err(CapabilityError::Invalid(
+            "provider policy constraints are valid only for model/generate".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn constraint_text(
+    constraints: &BTreeMap<String, CapabilityConstraintValue>,
+    key: &str,
+) -> Result<String, CapabilityError> {
+    match constraints.get(key) {
+        Some(CapabilityConstraintValue::Text(value)) => Ok(value.clone()),
+        _ => Err(CapabilityError::Invalid(format!(
+            "model/generate constraint {key} must be text"
+        ))),
+    }
+}
+
+fn constraint_integer(
+    constraints: &BTreeMap<String, CapabilityConstraintValue>,
+    key: &str,
+) -> Result<u64, CapabilityError> {
+    match constraints.get(key) {
+        Some(CapabilityConstraintValue::Integer(value)) => Ok(*value),
+        _ => Err(CapabilityError::Invalid(format!(
+            "model/generate constraint {key} must be an integer"
+        ))),
+    }
+}
+
+fn valid_digest(value: &str) -> bool {
+    value
+        .strip_prefix("sha256:")
+        .is_some_and(|suffix| suffix.len() == 64 && suffix.bytes().all(is_lower_hex))
+}
+
+fn valid_grant_id(value: &str) -> bool {
+    value
+        .strip_prefix("grant/")
+        .is_some_and(|suffix| suffix.len() == 32 && suffix.bytes().all(is_lower_hex))
+}
+
+fn is_lower_hex(byte: u8) -> bool {
+    byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
+}
+
 pub fn normalize_capability(value: &str) -> Result<String, CapabilityError> {
     normalize_operation_capability(value).map_err(CapabilityError::from)
 }
@@ -845,6 +1236,7 @@ fn sync_parent(path: &Path) -> Result<(), io::Error> {
 mod tests {
     use super::*;
     use greenways_identity::{ProfileIdentityVault, DIGEST_TEST_VALUE};
+    use greenways_provider::{ModelMessage, ModelMessageRole};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     static NEXT_HOME: AtomicUsize = AtomicUsize::new(1);
@@ -895,6 +1287,12 @@ mod tests {
         }
     }
 
+    fn provider_constraints() -> BTreeMap<String, CapabilityConstraintValue> {
+        ModelGeneratePolicy::new("openai.personal", "gpt-5", 512, 30_000)
+            .expect("provider policy should build")
+            .constraints()
+    }
+
     #[test]
     fn issues_checks_and_revokes_an_exact_signed_grant() {
         let home = TestHome::new("lifecycle");
@@ -908,7 +1306,7 @@ mod tests {
                 IssueCapabilityGrant {
                     capability: "model/generate".to_owned(),
                     subject: approval.clone(),
-                    constraints: BTreeMap::new(),
+                    constraints: provider_constraints(),
                     issued_at_unix_ms: 2_000,
                     expires_at_unix_ms: Some(10_000),
                 },
@@ -978,6 +1376,248 @@ mod tests {
     }
 
     #[test]
+    fn enforces_one_typed_provider_policy_before_invocation() {
+        let home = TestHome::new("provider-policy");
+        let signer = signer(&home);
+        let mut authority = CapabilityAuthority::open(home.capabilities())
+            .expect("capability authority should open");
+        let approval = subject("hara-lang", DIGEST_TEST_VALUE);
+        let policy = ModelGeneratePolicy::new("openai.personal", "gpt-5", 512, 30_000)
+            .expect("provider policy should build");
+        let grant = authority
+            .issue(
+                &signer,
+                IssueCapabilityGrant {
+                    capability: MODEL_GENERATE_CAPABILITY.to_owned(),
+                    subject: approval.clone(),
+                    constraints: policy.constraints(),
+                    issued_at_unix_ms: 2_000,
+                    expires_at_unix_ms: None,
+                },
+            )
+            .expect("provider grant should issue");
+        let check = CheckCapability::new(approval.clone(), MODEL_GENERATE_CAPABILITY)
+            .expect("provider check should build");
+        let invocation = ProviderInvocation::new(
+            "openai.personal",
+            "gpt-5",
+            vec![ModelMessage {
+                role: ModelMessageRole::User,
+                content: "Hello".to_owned(),
+            }],
+            128,
+            5_000,
+        )
+        .expect("provider invocation should build");
+        let allowed = authority
+            .authorize_provider_invocation(&check, &invocation, 3_000)
+            .expect("provider authority should decide");
+        let ProviderInvocationAuthority::Allowed(evidence) = allowed else {
+            panic!("matching provider policy should allow");
+        };
+        assert_eq!(evidence.grant_id, grant.grant.id);
+        assert_eq!(evidence.grant_subject_root, grant.subject_root);
+        assert_eq!(evidence.approval_digest, approval.approval_digest);
+        assert!(evidence.validate().is_ok());
+        assert!(authority
+            .matches_provider_grant_evidence_for_invocation(&approval, &evidence, &invocation,)
+            .expect("stored evidence should match the exact invocation"));
+
+        let changed_profile = ProviderInvocation::new(
+            "openai.other",
+            "gpt-5",
+            invocation.messages.clone(),
+            invocation.max_output_tokens,
+            invocation.timeout_ms,
+        )
+        .expect("changed invocation should remain structurally valid");
+        assert_eq!(
+            authority
+                .authorize_provider_invocation(&check, &changed_profile, 3_000)
+                .expect("changed profile should decide"),
+            ProviderInvocationAuthority::Denied("provider-policy-denied".to_owned())
+        );
+        assert!(!authority
+            .matches_provider_grant_evidence_for_invocation(&approval, &evidence, &changed_profile,)
+            .expect("redirected evidence should fail exact provider policy"));
+
+        let changed_model = ProviderInvocation::new(
+            "openai.personal",
+            "gpt-5.1",
+            invocation.messages.clone(),
+            invocation.max_output_tokens,
+            invocation.timeout_ms,
+        )
+        .expect("changed invocation should remain structurally valid");
+        assert_eq!(
+            authority
+                .authorize_provider_invocation(&check, &changed_model, 3_000)
+                .expect("changed model should decide"),
+            ProviderInvocationAuthority::Denied("provider-policy-denied".to_owned())
+        );
+
+        let changed_limit =
+            ProviderInvocation::new("openai.personal", "gpt-5", invocation.messages, 513, 30_001)
+                .expect("changed invocation should remain structurally valid");
+        assert_eq!(
+            authority
+                .authorize_provider_invocation(&check, &changed_limit, 3_000)
+                .expect("changed limits should decide"),
+            ProviderInvocationAuthority::Denied("provider-policy-denied".to_owned())
+        );
+    }
+
+    #[test]
+    fn historical_provider_evidence_survives_later_revocation_only_at_its_authorization_time() {
+        let home = TestHome::new("provider-policy-history");
+        let signer = signer(&home);
+        let mut authority = CapabilityAuthority::open(home.capabilities())
+            .expect("capability authority should open");
+        let approval = subject("hara-lang", DIGEST_TEST_VALUE);
+        let policy = ModelGeneratePolicy::new("openai.personal", "gpt-5", 512, 30_000)
+            .expect("provider policy should build");
+        let grant = authority
+            .issue(
+                &signer,
+                IssueCapabilityGrant {
+                    capability: MODEL_GENERATE_CAPABILITY.to_owned(),
+                    subject: approval.clone(),
+                    constraints: policy.constraints(),
+                    issued_at_unix_ms: 2_000,
+                    expires_at_unix_ms: None,
+                },
+            )
+            .expect("provider grant should issue");
+        let evidence = ProviderGrantEvidence {
+            protocol: PROVIDER_GRANT_EVIDENCE_PROTOCOL.to_owned(),
+            approval_digest: approval.approval_digest.clone(),
+            grant_id: grant.grant.id.clone(),
+            grant_subject_root: grant.subject_root.clone(),
+            capability: MODEL_GENERATE_CAPABILITY.to_owned(),
+        };
+        authority
+            .revoke(&signer, &grant.grant.id, "user-revoked", 4_000)
+            .expect("provider grant should revoke");
+
+        assert!(
+            authority
+                .matches_active_provider_grant_evidence_for_policy(
+                    &approval, &evidence, &policy, 3_000,
+                )
+                .expect("pre-revocation evidence should remain valid")
+        );
+        assert!(
+            !authority
+                .matches_active_provider_grant_evidence_for_policy(
+                    &approval, &evidence, &policy, 5_000,
+                )
+                .expect("post-revocation evidence should be denied")
+        );
+    }
+
+    #[test]
+    fn legacy_unconstrained_grants_do_not_authorize_provider_use() {
+        let home = TestHome::new("provider-policy-missing");
+        let signer = signer(&home);
+        let approval = subject("hara-lang", DIGEST_TEST_VALUE);
+        let signed = signer
+            .sign_capability_grant(CapabilityGrantRequest {
+                id: new_capability_grant_id().expect("legacy grant ID"),
+                capability: MODEL_GENERATE_CAPABILITY.to_owned(),
+                subject: approval.clone(),
+                constraints: BTreeMap::new(),
+                issued_at_unix_ms: 2_000,
+                expires_at_unix_ms: None,
+            })
+            .expect("legacy grant should sign");
+        let legacy_state = CapabilityAuthorityState {
+            protocol: CAPABILITY_AUTHORITY_STATE_PROTOCOL.to_owned(),
+            revision: 1,
+            grants: vec![signed],
+            revocations: Vec::new(),
+        };
+        persist_state(&home.capabilities(), &legacy_state)
+            .expect("legacy grant state should persist");
+        let authority = CapabilityAuthority::open(home.capabilities())
+            .expect("legacy grant should remain loadable");
+        let check = CheckCapability::new(approval, MODEL_GENERATE_CAPABILITY)
+            .expect("provider check should build");
+        let invocation = ProviderInvocation::new(
+            "openai.personal",
+            "gpt-5",
+            vec![ModelMessage {
+                role: ModelMessageRole::User,
+                content: "Hello".to_owned(),
+            }],
+            128,
+            5_000,
+        )
+        .expect("provider invocation should build");
+        assert_eq!(
+            authority
+                .authorize_provider_invocation(&check, &invocation, 3_000)
+                .expect("legacy grant should decide"),
+            ProviderInvocationAuthority::Denied("provider-policy-missing".to_owned())
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_or_cross_capability_provider_constraints() {
+        let home = TestHome::new("provider-policy-shape");
+        let signer = signer(&home);
+        let mut authority = CapabilityAuthority::open(home.capabilities())
+            .expect("capability authority should open");
+        assert!(authority
+            .issue(
+                &signer,
+                IssueCapabilityGrant {
+                    capability: MODEL_GENERATE_CAPABILITY.to_owned(),
+                    subject: subject("hara-lang", DIGEST_TEST_VALUE),
+                    constraints: BTreeMap::new(),
+                    issued_at_unix_ms: 1_500,
+                    expires_at_unix_ms: None,
+                },
+            )
+            .is_err());
+
+        let mut incomplete = BTreeMap::new();
+        incomplete.insert(
+            PROVIDER_PROFILE_ID_CONSTRAINT.to_owned(),
+            CapabilityConstraintValue::Text("openai.personal".to_owned()),
+        );
+        assert!(authority
+            .issue(
+                &signer,
+                IssueCapabilityGrant {
+                    capability: MODEL_GENERATE_CAPABILITY.to_owned(),
+                    subject: subject("hara-lang", DIGEST_TEST_VALUE),
+                    constraints: incomplete,
+                    issued_at_unix_ms: 2_000,
+                    expires_at_unix_ms: None,
+                },
+            )
+            .is_err());
+
+        let mut cross_capability = BTreeMap::new();
+        cross_capability.insert(
+            PROVIDER_PROFILE_ID_CONSTRAINT.to_owned(),
+            CapabilityConstraintValue::Text("openai.personal".to_owned()),
+        );
+        assert!(authority
+            .issue(
+                &signer,
+                IssueCapabilityGrant {
+                    capability: "tahto/read".to_owned(),
+                    subject: subject("hara-lang", DIGEST_TEST_VALUE),
+                    constraints: cross_capability,
+                    issued_at_unix_ms: 2_000,
+                    expires_at_unix_ms: None,
+                },
+            )
+            .is_err());
+    }
+
+    #[test]
     fn enforces_the_closed_vocabulary_and_trusted_publishers() {
         let home = TestHome::new("policy");
         let signer = signer(&home);
@@ -1031,7 +1671,7 @@ mod tests {
         let request = IssueCapabilityGrant {
             capability: "model/generate".to_owned(),
             subject: approval.clone(),
-            constraints: BTreeMap::new(),
+            constraints: provider_constraints(),
             issued_at_unix_ms: 2_000,
             expires_at_unix_ms: Some(3_000),
         };
@@ -1058,7 +1698,7 @@ mod tests {
                 IssueCapabilityGrant {
                     capability: "model/generate".to_owned(),
                     subject: subject("hara-lang", DIGEST_TEST_VALUE),
-                    constraints: BTreeMap::new(),
+                    constraints: provider_constraints(),
                     issued_at_unix_ms: 2_000,
                     expires_at_unix_ms: None,
                 },
@@ -1092,7 +1732,7 @@ mod tests {
                 IssueCapabilityGrant {
                     capability: "model/generate".to_owned(),
                     subject: subject("hara-lang", DIGEST_TEST_VALUE),
-                    constraints: BTreeMap::new(),
+                    constraints: provider_constraints(),
                     issued_at_unix_ms: 2_000,
                     expires_at_unix_ms: None,
                 },

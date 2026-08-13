@@ -9,7 +9,9 @@ use greenways_local::{
     decode_capability_decision, decode_client, decode_clients, decode_provider_result,
     AuthenticatedLocalClient, GreenwaysPaths, LocalClient,
 };
-use greenways_protocol::{DaemonPaths, DaemonStatus, LocalResponse, Outcome, VaultStatus};
+use greenways_protocol::{
+    AuthorizedProviderInvocation, DaemonPaths, DaemonStatus, LocalResponse, Outcome, VaultStatus,
+};
 use greenways_provider::{
     ModelMessage, ModelMessageRole, ProviderInvocation, ProviderResult, DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_TIMEOUT_MS, MAX_PROVIDER_INPUT_BYTES,
@@ -108,7 +110,29 @@ fn run() -> Result<(), String> {
                     options.timeout_ms,
                 )
                 .map_err(|error| error.to_string())?;
-                client.invoke(invocation)
+                let check = CheckCapability::new(
+                    ApplicationApprovalSubject {
+                        kind: "app".to_owned(),
+                        app_id: options
+                            .app_id
+                            .ok_or_else(|| "--app-id is required for invoke".to_owned())?,
+                        version: options
+                            .app_version
+                            .ok_or_else(|| "--app-version is required for invoke".to_owned())?,
+                        publisher_id: options
+                            .publisher_id
+                            .ok_or_else(|| "--publisher is required for invoke".to_owned())?,
+                        lock_digest: options.lock_digest,
+                        approval_digest: options
+                            .approval_digest
+                            .ok_or_else(|| "--approval-digest is required for invoke".to_owned())?,
+                    },
+                    "model/generate",
+                )
+                .map_err(|error| error.to_string())?;
+                let authorized = AuthorizedProviderInvocation::new(check, invocation)
+                    .map_err(|error| error.to_string())?;
+                client.invoke(authorized)
             }
             Command::IdentityStatus => client.identity_status(),
             Command::IdentityCard => client.identity_public_card(),
@@ -451,7 +475,9 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let mut profile = None;
     let mut model = None;
     let mut max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS;
+    let mut max_output_tokens_supplied = false;
     let mut timeout_ms = DEFAULT_TIMEOUT_MS;
+    let mut timeout_ms_supplied = false;
     let mut capability = None;
     let mut app_id = None;
     let mut app_version = None;
@@ -490,6 +516,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                 );
             }
             "--max-output-tokens" => {
+                max_output_tokens_supplied = true;
                 max_output_tokens = arguments
                     .next()
                     .ok_or_else(|| "--max-output-tokens requires a number".to_owned())?
@@ -497,6 +524,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                     .map_err(|_| "--max-output-tokens must be an integer".to_owned())?;
             }
             "--timeout-ms" => {
+                timeout_ms_supplied = true;
                 timeout_ms = arguments
                     .next()
                     .ok_or_else(|| "--timeout-ms requires a number".to_owned())?
@@ -565,24 +593,31 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                 .to_owned(),
         );
     }
-    let has_provider_fields = profile.is_some()
-        || model.is_some()
-        || max_output_tokens != DEFAULT_MAX_OUTPUT_TOKENS
-        || timeout_ms != DEFAULT_TIMEOUT_MS;
-    let has_capability_fields = capability.is_some()
-        || app_id.is_some()
+    let has_provider_fields =
+        profile.is_some() || model.is_some() || max_output_tokens_supplied || timeout_ms_supplied;
+    let has_application_fields = app_id.is_some()
         || app_version.is_some()
         || publisher_id.is_some()
         || approval_digest.is_some()
         || lock_digest.is_some();
     match command {
         Command::Invoke => {
-            if profile.is_none() || model.is_none() {
-                return Err("invoke requires --profile and --model".to_owned());
-            }
-            if has_capability_fields {
+            if profile.is_none()
+                || model.is_none()
+                || app_id.is_none()
+                || app_version.is_none()
+                || publisher_id.is_none()
+                || approval_digest.is_none()
+            {
                 return Err(
-                    "application authority fields are accepted only by capability-check".to_owned(),
+                    "invoke requires --profile, --model, --app-id, --app-version, --publisher, and --approval-digest"
+                        .to_owned(),
+                );
+            }
+            if capability.is_some() {
+                return Err(
+                    "invoke has a fixed model/generate capability and does not accept --capability"
+                        .to_owned(),
                 );
             }
         }
@@ -605,9 +640,10 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         _ if has_provider_fields => {
             return Err("provider selection and limits are accepted only by invoke".to_owned());
         }
-        _ if has_capability_fields => {
+        _ if capability.is_some() || has_application_fields => {
             return Err(
-                "application authority fields are accepted only by capability-check".to_owned(),
+                "application authority fields are accepted only by invoke and capability-check"
+                    .to_owned(),
             );
         }
         _ => {}
@@ -638,20 +674,27 @@ fn print_help() {
          greenways vault --credential PATH [--home PATH] [--json]\n\
          greenways whoami --credential PATH [--home PATH] [--json]\n\
          greenways clients --credential PATH [--home PATH] [--json]\n\
-greenways invoke --credential PATH --profile ID --model ID \
-  [--max-output-tokens N] [--timeout-ms N] [--home PATH] [--json]
-greenways identity-status --credential PATH [--home PATH] [--json]
-greenways identity-card --credential PATH [--home PATH] [--json]
-greenways capabilities-status --credential PATH [--home PATH] [--json]
-greenways capabilities --credential PATH [--home PATH] [--json]
-greenways capability-check --credential PATH --capability OP --app-id ID \
-  --app-version VERSION --publisher PUBLISHER --approval-digest SHA256 \
-  [--lock-digest SHA256] [--home PATH] [--json]
+         greenways invoke --credential PATH --profile ID --model ID --app-id ID \
+\
+           --app-version VERSION --publisher PUBLISHER --approval-digest SHA256 \
+\
+           [--lock-digest SHA256] [--max-output-tokens N] [--timeout-ms N] \
+\
+           [--home PATH] [--json]\n\
+         greenways identity-status --credential PATH [--home PATH] [--json]\n\
+         greenways identity-card --credential PATH [--home PATH] [--json]\n\
+         greenways capabilities-status --credential PATH [--home PATH] [--json]\n\
+         greenways capabilities --credential PATH [--home PATH] [--json]\n\
+         greenways capability-check --credential PATH --capability OP --app-id ID \
+\
+           --app-version VERSION --publisher PUBLISHER --approval-digest SHA256 \
+\
+           [--lock-digest SHA256] [--home PATH] [--json]\n\
          \n\
          Public reads use one-shot local IPC. Authority reads open a short-lived connection-bound\n\
-         session from a private enrolled-client credential file. invoke reads one user prompt from\n\
-         stdin; credentials and prompt text are never accepted as command-line values. Browser-bridge\n\
-         provider invocation remains disabled until application grants land."
+         session from a private enrolled-client credential file. invoke requires exact application\n\
+         approval evidence and reads one user prompt from stdin; credentials and prompt text are never\n\
+         accepted as command-line values. Browser-bridge provider invocation remains disabled."
     );
 }
 
@@ -724,6 +767,24 @@ mod tests {
             "https://evil.example",
         ])
         .is_err());
+        assert!(parse(&[
+            "capability-check",
+            "--credential",
+            "/tmp/browser.json",
+            "--capability",
+            "model/generate",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "--max-output-tokens",
+            "2048",
+        ])
+        .is_err());
     }
 
     #[test]
@@ -736,6 +797,14 @@ mod tests {
             "openai.personal",
             "--model",
             "gpt-5",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         ])
         .is_ok());
         assert!(parse(&[
@@ -746,6 +815,24 @@ mod tests {
             "openai.personal",
             "--model",
             "gpt-5",
+        ])
+        .is_err());
+        assert!(parse(&[
+            "invoke",
+            "--credential",
+            "/tmp/client.json",
+            "--profile",
+            "openai.personal",
+            "--model",
+            "gpt-5",
+            "--app-id",
+            "hara-playground",
+            "--app-version",
+            "1.2.3",
+            "--publisher",
+            "hara-lang",
+            "--approval-digest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
             "--endpoint",
             "https://evil.example",
         ])
