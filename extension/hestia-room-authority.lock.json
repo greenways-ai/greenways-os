@@ -1,14 +1,56 @@
 {
   "protocol": "greenways-hestia-room-authority-lock/0-alpha",
   "repository": "greenways-ai/hestia",
-  "revision": "3a9e8dd9dee53e7baaa15646192994d780539410",
+  "revision": "64707d7a38216d800bcc22b8da215c3e6946e1bb",
   "package": "@greenways/hestia-browser",
-  "importManifest": "browser/room-authority-import.json",
-  "module": "browser/src/room-authority.js",
-  "fixture": "browser/fixtures/room-authority-conformance.json",
-  "digests": {
-    "importManifest": "sha256:6fb64575d644c8b9c8a5f50327dd4b6777815585ea084c05aec113c966477019",
-    "module": "sha256:721029b5c5c00f1a9541046fea30af8eb0031ae64adc65590f7032af8edac89b",
-    "fixture": "sha256:4f8fcd07be40203f53075e59e49961fba2a0f3e57a50dee7319eabc4feb2003b"
+  "artifacts": {
+    "packageManifest": {
+      "path": "browser/package.json",
+      "digest": "sha256:038d7f22a0191ffee0e3b5b5f6ab099b7636f362b5ee2618d8dfebb232900b27"
+    },
+    "importManifest": {
+      "path": "browser/room-authority-import.json",
+      "digest": "sha256:ceacbe81115ec35e9cbb29697a6c53d43b9f5f995a3de19aa0a53723c6681c9d"
+    },
+    "decisionModule": {
+      "path": "browser/src/room-authority.js",
+      "digest": "sha256:721029b5c5c00f1a9541046fea30af8eb0031ae64adc65590f7032af8edac89b"
+    },
+    "roomProjectionModule": {
+      "path": "browser/src/room-authority-projections.js",
+      "digest": "sha256:160fb689775fe6fa89be9f9e1c20273364c84352cf72fe909c82fdfcf63db15b"
+    },
+    "authorityRecordModule": {
+      "path": "browser/src/room-authority-records.js",
+      "digest": "sha256:25f45f8c35f234d8fd9b0231f5c748cd401fe5de89881c5589a729aed1081707"
+    },
+    "sourceGrantProjectionModule": {
+      "path": "browser/src/room-authority-source-projections.js",
+      "digest": "sha256:f52b0140e50180bbd2aac83f6c1f523d1c08ef794a6022c737ac5f1e40e5044b"
+    },
+    "agentRoomRecordModule": {
+      "path": "browser/src/agent-room-records.js",
+      "digest": "sha256:4f5de783b17021257641da01affbdf18f6ed369d76a02edef52707866a5df226"
+    },
+    "agentProtocolModule": {
+      "path": "browser/src/agent-protocol.js",
+      "digest": "sha256:ed5da69a4a140f23db380f3173e8cea20c3f9722207cefdb331d99020ad38590"
+    },
+    "agentHcv1Module": {
+      "path": "browser/src/agent-hcv1.js",
+      "digest": "sha256:240057dec3f17840ab7f04c6ddcc4b440ab13c822aa22d7374ae12a352c87fd3"
+    },
+    "protocolModule": {
+      "path": "browser/src/protocol.js",
+      "digest": "sha256:94747f986e14406661a2d1336760b4f5754e83bdfef48461b72b5ad63108ad93"
+    },
+    "encodingModule": {
+      "path": "browser/src/encoding.js",
+      "digest": "sha256:270b206aa42ebcd4e7c851811acff9001818efb6028e5d13a5cc7f38bb2de164"
+    },
+    "conformanceFixture": {
+      "path": "browser/fixtures/room-authority-conformance.json",
+      "digest": "sha256:4f8fcd07be40203f53075e59e49961fba2a0f3e57a50dee7319eabc4feb2003b"
+    }
   }
 }
