@@ -1,0 +1,89 @@
+name: Inspect Desktop setup source blobs
+
+on:
+  push:
+    branches:
+      - agent/desktop-setup-daemon-service-92
+    paths:
+      - .github/agent/desktop-setup-blob-inspection-92
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect exact Git blob availability
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY2'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          values = [
+              ('Cargo.lock', 'b493cad1f744fa995f82a18b80b172c13d361b97'),
+              ('apps/greenways_desktop/README.md', 'd5747b82bb66b33f88c388b73c7095cb2713554e'),
+              ('apps/greenways_desktop/lib/controller/setup_controller.dart', '38235d75f7e80680c80698804412ef8fba3a91f0'),
+              ('apps/greenways_desktop/lib/main.dart', 'bc2b38ff295fcb304b546257327b1f1430c03425'),
+              ('apps/greenways_desktop/lib/model/setup_snapshot.dart', '54149ba901d3e61e00d2b0708c803935d89157ea'),
+              ('apps/greenways_desktop/lib/model/setup_snapshot_types.dart', 'b42ae5096952650c7d2c2c060125bfb724af5a0e'),
+              ('apps/greenways_desktop/lib/model/setup_snapshot_validation.dart', 'e22138e54c1e7adfccac71d08e81a4e8d559c2e3'),
+              ('apps/greenways_desktop/lib/services/desktop_bridge.dart', 'e234c7b021d0feb68106caa04b6f57f0ac56c624'),
+              ('apps/greenways_desktop/lib/services/platform_shell.dart', '58e745f68cc1952e4ad2ca514082d518fe608678'),
+              ('apps/greenways_desktop/lib/ui/greenways_app.dart', '6ce7ac8fba8d11752fb9bc086af14d650c147223'),
+              ('apps/greenways_desktop/lib/ui/presentation.dart', '89a90711c043e5f87f8f7ba37791ed3116ad5e10'),
+              ('apps/greenways_desktop/lib/ui/setup_view.dart', '829dcf294882a0b4f9d98aeaadcce36f2c63f75b'),
+              ('apps/greenways_desktop/lib/ui/setup_view_components.dart', 'fb4b6d3ace20b2f4cec0c19519aaaae73fbf3ab0'),
+              ('apps/greenways_desktop/lib/ui/shell.dart', 'a1fe256449493dc8fd456385499d99953d466fb1'),
+              ('apps/greenways_desktop/test/desktop_shell_test.dart', 'efd71d277488d29a2c96f9daa10ae02ce65aa9de'),
+              ('apps/greenways_desktop/test/setup_controller_test.dart', '66487804055b819a57fcdc306785fe0cdda668cc'),
+              ('apps/greenways_desktop/test/setup_snapshot_test.dart', '967b15fa82895941504c10663516e94dfa121dab'),
+              ('apps/greenways_desktop/test/support/fakes.dart', 'a8a15b263636cb67e86753288c8b0544e9bb4e08'),
+              ('apps/greenways_desktop/tool/build_macos.sh', 'bb59fa594fd4341342be5bdcaa635edc3be24284'),
+              ('apps/greenways_desktop/tool/templates/build_desktop_bridge.sh', '7b8d19835086f7fb7145c7ecc8cb63ec9ebbb4a7'),
+              ('protocol/desktop-setup.md', '1f59c2aadc4e449031ff23ba254d4546674cddbe'),
+              ('services/greenways-desktop-bridge/Cargo.toml', '11b2e018da91411e78129a400339402c38d52a97'),
+              ('services/greenways-desktop-bridge/src/main.rs', '3b1485757826446f48e6050e5b3dc32d87d6ccfb'),
+              ('services/greenways-desktop-bridge/src/setup/host.rs', 'e6865ddb8e086b69e91733099b364616fb3f4338'),
+              ('services/greenways-desktop-bridge/src/setup/inspect.rs', '3bbb7d2a4fecb86e54c3f9f93b76bacafe9034e3'),
+              ('services/greenways-desktop-bridge/src/setup/mod.rs', '13f68ad93a5b4bd45e018e87bf4852cf72170c03'),
+              ('services/greenways-desktop-bridge/src/setup/service.rs', '79521049cf5556803f6bad8b5c5e630686bb03da'),
+              ('services/greenways-desktop-bridge/src/setup/tests.rs', '9d507569844d69b9a113100d39495fbf58730dea'),
+          ]
+          results = []
+          for path, sha in values:
+              request = urllib.request.Request(
+                  f"https://api.github.com/repos/{os.environ['REPOSITORY']}/git/blobs/{sha}",
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f"Bearer {os.environ['GH_TOKEN']}",
+                      'User-Agent': 'greenways-os-desktop-setup-inspection',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      value = json.load(response)
+                  results.append({'path': path, 'sha': sha, 'exists': value.get('sha') == sha, 'size': value.get('size')})
+              except urllib.error.HTTPError as error:
+                  if error.code != 404:
+                      raise
+                  results.append({'path': path, 'sha': sha, 'exists': False, 'size': None})
+          target = Path('/tmp/desktop-setup-blob-inspection-92.json')
+          target.write_text(json.dumps(results, indent=2) + '\n')
+          print(target.read_text())
+          PY2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-setup-blob-inspection-92
+          path: /tmp/desktop-setup-blob-inspection-92.json
+          retention-days: 1
+          if-no-files-found: error
