@@ -17,6 +17,8 @@ The Rust companion owns credential loading, the authenticated Unix-socket connec
 
 The companion-process boundary is deliberate. It preserves the workspace-wide `unsafe_code = "forbid"` policy and gives the Desktop connection an independently testable lifetime without placing secrets in Dart heap objects.
 
+The first-run setup surface uses a separate closed, inspection-only bridge protocol. It reports fixed local component state without exposing private paths or changing the installation. See [`../../protocol/desktop-setup.md`](../../protocol/desktop-setup.md).
+
 ## Development
 
 Prepare a Desktop credential while `greenwaysd` is stopped:

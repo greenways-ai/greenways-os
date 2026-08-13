@@ -1,30 +1,149 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:greenways_desktop/controller/connection_controller.dart';
+import 'package:greenways_desktop/controller/setup_controller.dart';
 import 'package:greenways_desktop/model/connection_snapshot.dart';
+import 'package:greenways_desktop/model/setup_snapshot.dart';
 import 'package:greenways_desktop/ui/greenways_app.dart';
 
 import 'support/fakes.dart';
 
 void main() {
-  testWidgets('wide window shows the persistent Desktop rail', (tester) async {
+  testWidgets('wide window starts on the setup inspection surface', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = ConnectionController(
+    final connection = ConnectionController(
       FakeDesktopBridge(),
       autoRefresh: false,
     );
-    await controller.connect();
+    final setup = SetupController(FakeDesktopBridge());
 
-    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('desktop-rail')), findsOneWidget);
     expect(find.byKey(const Key('desktop-navigation-bar')), findsNothing);
+    expect(find.byKey(const Key('setup-view')), findsOneWidget);
+    expect(find.text('Check local components'), findsOneWidget);
+    expect(find.text('Setup'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
+  testWidgets('setup inspection renders the exact fixed component set', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setupBridge = FakeDesktopBridge();
+    final setup = SetupController(setupBridge);
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check local components'));
+    await tester.pumpAndSettle();
+
+    expect(setupBridge.inspections, 1);
+    expect(find.text('Identity setup is optional'), findsWidgets);
+    for (final kind in DesktopSetupComponentKind.values) {
+      expect(
+        find.byKey(Key('setup-component-${kind.wireName}')),
+        findsOneWidget,
+      );
+    }
+    expect(find.text('Greenways home'), findsOneWidget);
+    expect(find.text('Local daemon'), findsOneWidget);
+    expect(find.text('Desktop access'), findsOneWidget);
+    expect(find.text('Public identity'), findsOneWidget);
+    expect(find.text('Browser companion'), findsOneWidget);
+    expect(find.text('Open Overview'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
+  testWidgets('compact setup inspection does not overflow', (tester) async {
+    tester.view.physicalSize = const Size(520, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setup = SetupController(
+      FakeDesktopBridge(
+        setupResult: inspectedSetupSnapshot(
+          homeState: DesktopSetupState.installRequired,
+          daemonState: DesktopSetupState.installRequired,
+          desktopClientState: DesktopSetupState.credentialRequired,
+        ),
+      ),
+    );
+    await setup.inspect();
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('desktop-navigation-bar')), findsOneWidget);
+    expect(find.byKey(const Key('setup-view')), findsOneWidget);
+    expect(find.text('Installation required'), findsWidgets);
+    expect(find.text('Check again'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
+  testWidgets('wide rail opens Overview and Rooms after setup', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setup = SetupController(FakeDesktopBridge());
+    await connection.connect();
+    await setup.inspect();
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Overview'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Generation 4'), findsOneWidget);
-    expect(find.text('Rooms'), findsOneWidget);
 
     await tester.tap(find.text('Rooms'));
     await tester.pumpAndSettle();
@@ -35,26 +154,33 @@ void main() {
     expect(find.text('12 reviewed artifacts'), findsOneWidget);
     expect(find.text('No room projections admitted'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    controller.dispose();
+    connection.dispose();
+    setup.dispose();
   });
 
-  testWidgets('narrow window uses the compact navigation bar', (tester) async {
+  testWidgets('narrow navigation preserves disconnected Rooms semantics', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(520, 760);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = ConnectionController(
+    final connection = ConnectionController(
       FakeDesktopBridge(),
       autoRefresh: false,
     );
+    final setup = SetupController(FakeDesktopBridge());
 
-    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('desktop-navigation-bar')), findsOneWidget);
     expect(find.text('Disconnected'), findsWidgets);
-    expect(find.text('Rooms'), findsOneWidget);
-
     await tester.tap(find.text('Rooms'));
     await tester.pumpAndSettle();
 
@@ -63,19 +189,31 @@ void main() {
     expect(find.textContaining('infers no room'), findsOneWidget);
     expect(find.byKey(const Key('hestia-import-ready')), findsNothing);
     expect(tester.takeException(), isNull);
-    controller.dispose();
+    connection.dispose();
+    setup.dispose();
   });
 
   testWidgets('identity-less daemon connection is visibly degraded', (
     tester,
   ) async {
-    final bridge = FakeDesktopBridge(
+    final connectionBridge = FakeDesktopBridge(
       connectResult: connectedSnapshot(withIdentity: false),
     );
-    final controller = ConnectionController(bridge, autoRefresh: false);
-    await controller.connect();
+    final connection = ConnectionController(
+      connectionBridge,
+      autoRefresh: false,
+    );
+    final setup = SetupController(FakeDesktopBridge());
+    await connection.connect();
 
-    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
     expect(find.text('Not configured'), findsOneWidget);
@@ -83,62 +221,93 @@ void main() {
       find.textContaining('Public profile identity still needs'),
       findsOneWidget,
     );
-    controller.dispose();
+    connection.dispose();
+    setup.dispose();
   });
 
   testWidgets('session expiry presents a direct reconnect action', (
     tester,
   ) async {
-    final bridge = FakeDesktopBridge(
+    final connectionBridge = FakeDesktopBridge(
       connectResult: failedSnapshot(DesktopConnectionState.sessionExpired),
     );
-    final controller = ConnectionController(bridge, autoRefresh: false);
-    await controller.connect();
+    final connection = ConnectionController(
+      connectionBridge,
+      autoRefresh: false,
+    );
+    final setup = SetupController(FakeDesktopBridge());
+    await connection.connect();
 
-    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
     expect(find.text('Session expired'), findsWidgets);
     expect(find.widgetWithText(FilledButton, 'Reconnect'), findsOneWidget);
-    controller.dispose();
+    connection.dispose();
+    setup.dispose();
   });
 
   testWidgets('protocol mismatch never offers compatibility authority', (
     tester,
   ) async {
-    final bridge = FakeDesktopBridge(
+    final connectionBridge = FakeDesktopBridge(
       connectResult: failedSnapshot(
         DesktopConnectionState.protocolUpgradeRequired,
       ),
     );
-    final controller = ConnectionController(bridge, autoRefresh: false);
-    await controller.connect();
+    final connection = ConnectionController(
+      connectionBridge,
+      autoRefresh: false,
+    );
+    final setup = SetupController(FakeDesktopBridge());
+    await connection.connect();
 
-    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Connections'));
     await tester.pumpAndSettle();
 
     expect(find.text('Upgrade required'), findsWidgets);
-    await tester.tap(find.text('Connections').last);
-    await tester.pumpAndSettle();
     expect(
       find.textContaining('No compatibility authority fallback'),
       findsOneWidget,
     );
-    controller.dispose();
+    connection.dispose();
+    setup.dispose();
   });
 
-  testWidgets('Rooms readiness is explicit and non-actionable', (tester) async {
+  testWidgets('Rooms readiness remains explicit and non-actionable', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(900, 760);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = ConnectionController(
+    final connection = ConnectionController(
       FakeDesktopBridge(),
       autoRefresh: false,
     );
-    await controller.connect();
+    final setup = SetupController(FakeDesktopBridge());
+    await connection.connect();
 
-    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rooms'));
     await tester.pumpAndSettle();
@@ -155,7 +324,8 @@ void main() {
       expect(find.text(label), findsNothing);
     }
     expect(tester.takeException(), isNull);
-    controller.dispose();
+    connection.dispose();
+    setup.dispose();
   });
 
   testWidgets('compact connected Rooms readiness does not overflow', (
@@ -165,13 +335,19 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = ConnectionController(
+    final connection = ConnectionController(
       FakeDesktopBridge(),
       autoRefresh: false,
     );
-    await controller.connect();
+    final setup = SetupController(FakeDesktopBridge());
+    await connection.connect();
 
-    await tester.pumpWidget(GreenwaysDesktopApp(controller: controller));
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rooms'));
     await tester.pumpAndSettle();
@@ -181,6 +357,7 @@ void main() {
     expect(find.text('No room projections admitted'), findsOneWidget);
     expect(find.byKey(const Key('rooms-authority-stages')), findsOneWidget);
     expect(tester.takeException(), isNull);
-    controller.dispose();
+    connection.dispose();
+    setup.dispose();
   });
 }

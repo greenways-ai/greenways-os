@@ -3,14 +3,19 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 import '../controller/connection_controller.dart';
+import '../controller/setup_controller.dart';
 
 const _desktopWindowChannelName = 'ai.greenways.desktop/window';
 
 final class DesktopPlatformShell {
-  DesktopPlatformShell(this.controller, {MethodChannel? channel})
-    : _channel = channel ?? const MethodChannel(_desktopWindowChannelName);
+  DesktopPlatformShell(
+    this.controller, {
+    this.setupController,
+    MethodChannel? channel,
+  }) : _channel = channel ?? const MethodChannel(_desktopWindowChannelName);
 
   final ConnectionController controller;
+  final SetupController? setupController;
   final MethodChannel _channel;
   bool _prepared = false;
   bool _quitting = false;
@@ -37,6 +42,7 @@ final class DesktopPlatformShell {
     if (_quitting) return;
     _quitting = true;
     await controller.shutdown();
+    await setupController?.shutdown();
     await _invoke('quit');
   }
 
@@ -78,6 +84,7 @@ final class DesktopPlatformShell {
     if (_quitting) return;
     _quitting = true;
     await controller.shutdown();
+    await setupController?.shutdown();
   }
 
   Future<void> _invoke(String method, [Object? arguments]) async {

@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../controller/connection_controller.dart';
+import '../controller/setup_controller.dart';
 import '../model/connection_snapshot.dart';
 import 'presentation.dart';
+import 'setup_view.dart';
 import 'views.dart';
 
 final class DesktopShell extends StatefulWidget {
-  const DesktopShell({super.key, required this.controller});
+  const DesktopShell({
+    super.key,
+    required this.connectionController,
+    required this.setupController,
+  });
 
-  final ConnectionController controller;
+  final ConnectionController connectionController;
+  final SetupController setupController;
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -20,21 +27,30 @@ final class _DesktopShellState extends State<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: widget.controller,
+      animation: Listenable.merge([
+        widget.connectionController,
+        widget.setupController,
+      ]),
       builder: (context, _) {
-        final snapshot = widget.controller.snapshot;
+        final connection = widget.connectionController.snapshot;
+        final setup = widget.setupController.snapshot;
         return LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 760;
             final body = switch (_destination) {
-              0 => OverviewView(
-                snapshot: snapshot,
-                controller: widget.controller,
+              0 => SetupView(
+                snapshot: setup,
+                controller: widget.setupController,
+                onOpenOverview: () => _select(1),
               ),
-              1 => RoomsView(snapshot: snapshot),
-              2 => ConnectionsView(
-                snapshot: snapshot,
-                controller: widget.controller,
+              1 => OverviewView(
+                snapshot: connection,
+                controller: widget.connectionController,
+              ),
+              2 => RoomsView(snapshot: connection),
+              3 => ConnectionsView(
+                snapshot: connection,
+                controller: widget.connectionController,
               ),
               _ => throw StateError('Unsupported Desktop destination.'),
             };
@@ -45,7 +61,7 @@ final class _DesktopShellState extends State<DesktopShell> {
                         children: [
                           _DesktopRail(
                             destination: _destination,
-                            snapshot: snapshot,
+                            snapshot: connection,
                             onSelected: _select,
                           ),
                           const VerticalDivider(width: 1),
@@ -54,7 +70,7 @@ final class _DesktopShellState extends State<DesktopShell> {
                       )
                     : Column(
                         children: [
-                          _CompactHeader(snapshot: snapshot),
+                          _CompactHeader(snapshot: connection),
                           Expanded(child: body),
                         ],
                       ),
@@ -66,6 +82,11 @@ final class _DesktopShellState extends State<DesktopShell> {
                       selectedIndex: _destination,
                       onDestinationSelected: _select,
                       destinations: const [
+                        NavigationDestination(
+                          icon: Icon(Icons.tune_outlined),
+                          selectedIcon: Icon(Icons.tune),
+                          label: 'Setup',
+                        ),
                         NavigationDestination(
                           icon: Icon(Icons.home_outlined),
                           selectedIcon: Icon(Icons.home),
@@ -142,26 +163,34 @@ final class _DesktopRail extends StatelessWidget {
             const SizedBox(height: 24),
             _RailDestination(
               selected: destination == 0,
-              icon: Icons.home_outlined,
-              selectedIcon: Icons.home,
-              label: 'Overview',
+              icon: Icons.tune_outlined,
+              selectedIcon: Icons.tune,
+              label: 'Setup',
               onTap: () => onSelected(0),
             ),
             const SizedBox(height: 6),
             _RailDestination(
               selected: destination == 1,
-              icon: Icons.meeting_room_outlined,
-              selectedIcon: Icons.meeting_room,
-              label: 'Rooms',
+              icon: Icons.home_outlined,
+              selectedIcon: Icons.home,
+              label: 'Overview',
               onTap: () => onSelected(1),
             ),
             const SizedBox(height: 6),
             _RailDestination(
               selected: destination == 2,
+              icon: Icons.meeting_room_outlined,
+              selectedIcon: Icons.meeting_room,
+              label: 'Rooms',
+              onTap: () => onSelected(2),
+            ),
+            const SizedBox(height: 6),
+            _RailDestination(
+              selected: destination == 3,
               icon: Icons.hub_outlined,
               selectedIcon: Icons.hub,
               label: 'Connections',
-              onTap: () => onSelected(2),
+              onTap: () => onSelected(3),
             ),
             const Spacer(),
             Text(
