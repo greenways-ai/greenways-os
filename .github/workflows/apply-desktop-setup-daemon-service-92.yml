@@ -72,6 +72,12 @@ jobs:
           assert len(patch) == 181360
           assert hashlib.sha256(patch).hexdigest() == '59dc1a5b110adac6a0d827f2605372faf7a2d57bce7aa6e3b156fe1b46b6a6ba'
           Path('/tmp/desktop-setup-daemon-service-92.patch').write_bytes(patch)
+          fix = Path(
+              '.github/agent/desktop-setup-daemon-service-92-fix-01.patch'
+          ).read_bytes()
+          assert len(fix) == 4722
+          assert hashlib.sha256(fix).hexdigest() == '95b66966bfc53349bf55791acddc85e0531fd8c7e480f50f6aed211da27110c5'
+          Path('/tmp/desktop-setup-daemon-service-92-fix-01.patch').write_bytes(fix)
           PY
       - name: Apply, format, and validate the source slice
         shell: bash
@@ -82,6 +88,8 @@ jobs:
           git switch -c agent/desktop-setup-daemon-service-92-impl
           git apply --check /tmp/desktop-setup-daemon-service-92.patch
           git apply /tmp/desktop-setup-daemon-service-92.patch
+          git apply --check /tmp/desktop-setup-daemon-service-92-fix-01.patch
+          git apply /tmp/desktop-setup-daemon-service-92-fix-01.patch
 
           cargo +1.85.1 fmt --all
           cargo +1.85.1 fmt --all -- --check

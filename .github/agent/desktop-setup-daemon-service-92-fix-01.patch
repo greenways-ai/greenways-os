@@ -1,0 +1,95 @@
+diff --git a/services/greenways-desktop-bridge/src/main.rs b/services/greenways-desktop-bridge/src/main.rs
+index 3b14857..8be8ee3 100644
+--- a/services/greenways-desktop-bridge/src/main.rs
++++ b/services/greenways-desktop-bridge/src/main.rs
+@@ -42,7 +42,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
+             }
+         };
+ 
+-        if request_protocol(&line) == Some(DESKTOP_SETUP_PROTOCOL) {
++        if request_protocol(&line).as_deref() == Some(DESKTOP_SETUP_PROTOCOL) {
+             let response = match decode_setup_request(&line) {
+                 Ok(request) => setup_host
+                     .handle(request)
+diff --git a/services/greenways-desktop-bridge/src/setup/host.rs b/services/greenways-desktop-bridge/src/setup/host.rs
+index e6865dd..f154f6b 100644
+--- a/services/greenways-desktop-bridge/src/setup/host.rs
++++ b/services/greenways-desktop-bridge/src/setup/host.rs
+@@ -29,9 +29,14 @@ impl<B: DesktopSetupBackend> DesktopSetupHost<B> {
+                 operation.as_str()
+             ))),
+         };
++        let observed_at_unix_ms = now_unix_ms().map_err(|_| {
++            DesktopSetupError::InspectionFailed(
++                "The Desktop setup clock is unavailable.".to_owned(),
++            )
++        })?;
+         self.snapshot = match result {
+             Ok(snapshot) => snapshot,
+-            Err(error) => DesktopSetupSnapshot::failed(error, now_unix_ms()?),
++            Err(error) => DesktopSetupSnapshot::failed(error, observed_at_unix_ms),
+         };
+         self.snapshot.validate()?;
+         let response = DesktopSetupResponse::new(request.request_id, self.snapshot.clone());
+@@ -63,7 +68,7 @@ pub fn encode_setup_response(
+     Ok(bytes)
+ }
+ 
+-pub fn request_protocol(bytes: &[u8]) -> Option<&str> {
++pub fn request_protocol(bytes: &[u8]) -> Option<String> {
+     let value: Value = serde_json::from_slice(bytes).ok()?;
+-    value.get("protocol")?.as_str()
++    value.get("protocol")?.as_str().map(ToOwned::to_owned)
+ }
+diff --git a/services/greenways-desktop-bridge/src/setup/inspect.rs b/services/greenways-desktop-bridge/src/setup/inspect.rs
+index 3bbb7d2..9cc13ca 100644
+--- a/services/greenways-desktop-bridge/src/setup/inspect.rs
++++ b/services/greenways-desktop-bridge/src/setup/inspect.rs
+@@ -268,7 +268,12 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
+     }
+ 
+     fn inspect_snapshot(&self) -> Result<DesktopSetupSnapshot, DesktopSetupError> {
+-        DesktopSetupSnapshot::inspected(self.inspect_components()?, now_unix_ms()?)
++        let observed_at_unix_ms = now_unix_ms().map_err(|_| {
++            DesktopSetupError::InspectionFailed(
++                "The Desktop setup clock is unavailable.".to_owned(),
++            )
++        })?;
++        DesktopSetupSnapshot::inspected(self.inspect_components()?, observed_at_unix_ms)
+     }
+ }
+ 
+diff --git a/services/greenways-desktop-bridge/src/setup/service.rs b/services/greenways-desktop-bridge/src/setup/service.rs
+index 7952104..8a33e29 100644
+--- a/services/greenways-desktop-bridge/src/setup/service.rs
++++ b/services/greenways-desktop-bridge/src/setup/service.rs
+@@ -54,6 +54,7 @@ impl SetupPaths {
+         })?;
+         let uid = owner_uid(&user_home)?;
+         Ok(Self::from_home_and_package(
++            user_home,
+             resources.join("greenwaysd"),
+             uid,
+         ))
+diff --git a/services/greenways-desktop-bridge/src/setup/tests.rs b/services/greenways-desktop-bridge/src/setup/tests.rs
+index 9d50756..2f097d5 100644
+--- a/services/greenways-desktop-bridge/src/setup/tests.rs
++++ b/services/greenways-desktop-bridge/src/setup/tests.rs
+@@ -138,7 +138,7 @@ fn setup_request_is_closed_and_rejects_unknown_inputs() {
+ fn inspection_exposes_actions_without_paths_or_secrets() {
+     let temp = TempSetup::new("inspection");
+     let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+-    let mut backend = DesktopSetupEngine::new(temp.paths, controller);
++    let mut backend = DesktopSetupEngine::new(temp.paths.clone(), controller);
+     let snapshot = backend.inspect().expect("inspect");
+     assert_eq!(snapshot.state, DesktopSetupState::InstallRequired);
+     assert_eq!(
+@@ -219,7 +219,7 @@ fn permission_repair_is_bounded_to_fixed_owned_files() {
+ fn host_returns_closed_failed_state_for_unavailable_authority() {
+     let temp = TempSetup::new("host");
+     let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+-    let backend = DesktopSetupEngine::new(temp.paths, controller);
++    let backend = DesktopSetupEngine::new(temp.paths.clone(), controller);
+     let mut host = DesktopSetupHost::new(backend, 1);
+     let response = host
+         .handle(request(DesktopSetupOperation::IssueDesktopClient))
