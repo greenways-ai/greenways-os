@@ -35,6 +35,7 @@ jobs:
           git apply /tmp/fix-01.patch
           python3 - <<'PY'
           from pathlib import Path
+
           path = Path('services/greenways-desktop-bridge/src/setup/tests.rs')
           text = path.read_text()
           old_root = 'std::env::temp_dir().join(format!('
@@ -44,12 +45,21 @@ jobs:
           text = text.replace(old_root, 'PathBuf::from(format!(', 1)
           text = text.replace(old_name, '"/tmp/gwds-{label}-{}-{}"', 1)
           path.write_text(text)
+
           path = Path('services/greenways-desktop-bridge/src/setup/mod.rs')
           text = path.read_text()
           old = '    UnsupportedPlatform(String),\n'
           new = '    #[cfg_attr(target_os = "macos", allow(dead_code))]\n    UnsupportedPlatform(String),\n'
           if old not in text:
               raise SystemExit('platform-error source changed')
+          path.write_text(text.replace(old, new, 1))
+
+          path = Path('apps/greenways_desktop/test/desktop_shell_test.dart')
+          text = path.read_text()
+          old = "    expect(find.text('Disconnected'), findsWidgets);\n"
+          new = "    expect(\n      find.bySemanticsLabel('Daemon status: Disconnected'),\n      findsOneWidget,\n    );\n"
+          if old not in text:
+              raise SystemExit('compact status expectation changed')
           path.write_text(text.replace(old, new, 1))
           PY
           cargo +1.85.1 fmt --all
