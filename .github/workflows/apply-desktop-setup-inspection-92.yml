@@ -1,0 +1,54 @@
+name: Apply Desktop Setup Inspection
+
+on:
+  push:
+    branches:
+      - agent/desktop-setup-inspection-92
+    paths:
+      - .github/agent/desktop-setup-inspection-92-apply
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Apply Desktop setup inspection'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/desktop-setup-inspection-92
+          fetch-depth: 0
+      - name: Install pinned toolchains
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - name: Apply, format and validate the reviewed source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/agent/desktop-setup-inspection-92.part-* > /tmp/desktop-setup-inspection-92.patch
+          echo '221fa1e9be078a891e9da0953b359a0cb45c4450ed560ab2ac0cd935974a7435  /tmp/desktop-setup-inspection-92.patch' | sha256sum -c -
+          test "$(git merge-base HEAD origin/main)" = "92968e489b36b95419a68e3fc996dd09a7bd8837"
+          git apply /tmp/desktop-setup-inspection-92.patch
+          cargo +1.85.1 fmt --all
+          cd apps/greenways_desktop
+          flutter pub get
+          dart format lib test
+          flutter analyze
+          flutter test
+          cd ../..
+          cargo +1.85.1 test -p greenways-desktop-bridge --all-targets
+          cargo +1.85.1 clippy -p greenways-desktop-bridge --all-targets -- -D warnings
+          git diff --check
+          rm -f .github/agent/desktop-setup-inspection-92.part-* \
+            .github/agent/desktop-setup-inspection-92-apply \
+            .github/workflows/apply-desktop-setup-inspection-92.yml
+          git config user.name "greenways-os-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Desktop setup inspection"
+          git push origin HEAD:agent/desktop-setup-inspection-92
