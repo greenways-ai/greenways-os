@@ -1,7 +1,7 @@
 {
   "protocol": "greenways-hestia-room-authority-lock/0-alpha",
   "repository": "greenways-ai/hestia",
-  "revision": "d2dacedc4070eeff18a709866a53c6d6853ce268",
+  "revision": "28f38bc8c189ed738bbe8727c22177f8a5f204c4",
   "package": "@greenways/hestia-browser",
   "importManifest": "browser/room-authority-import.json",
   "module": "browser/src/room-authority.js",
