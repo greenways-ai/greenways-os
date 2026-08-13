@@ -1,0 +1,27 @@
+diff --git a/services/greenways-desktop-bridge/src/setup/mod.rs b/services/greenways-desktop-bridge/src/setup/mod.rs
+index 13f68ad..fac1d3c 100644
+--- a/services/greenways-desktop-bridge/src/setup/mod.rs
++++ b/services/greenways-desktop-bridge/src/setup/mod.rs
+@@ -513,6 +513,7 @@ pub enum DesktopSetupError {
+     InspectionFailed(String),
+     InstallationFailed(String),
+     UnsafeInstallation(String),
++    #[cfg_attr(target_os = "macos", allow(dead_code))]
+     UnsupportedPlatform(String),
+ }
+ 
+ diff --git a/services/greenways-desktop-bridge/src/setup/tests.rs b/services/greenways-desktop-bridge/src/setup/tests.rs
+index 2f097d5..ff19817 100644
+--- a/services/greenways-desktop-bridge/src/setup/tests.rs
++++ b/services/greenways-desktop-bridge/src/setup/tests.rs
+@@ -32,8 +32,8 @@ struct TempSetup {
+ 
+ impl TempSetup {
+     fn new(label: &str) -> Self {
+-        let root = std::env::temp_dir().join(format!(
+-            "greenways-desktop-setup-{label}-{}-{}",
++        let root = PathBuf::from(format!(
++            "/tmp/gwds-{label}-{}-{}",
+             process::id(),
+             NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+         ));
