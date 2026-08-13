@@ -34,6 +34,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             extension/package-lock.json
+            services/browser-bridge/package-lock.json
             services/mcp-gateway/package-lock.json
             services/packages/package-lock.json
             services/assets/package-lock.json
@@ -83,6 +84,10 @@ jobs:
       - name: Test DevTools native host
         if: always()
         working-directory: services/devtools-node
+        run: npm ci && npm test
+      - name: Test daemon browser bridge host
+        if: always()
+        working-directory: services/browser-bridge
         run: npm ci && npm test
       - uses: actions/upload-artifact@v4
         if: success()
