@@ -1,0 +1,37 @@
+name: Snapshot Desktop setup source
+
+on:
+  push:
+    branches:
+      - agent/desktop-setup-92-snapshot
+    paths:
+      - .github/agent/desktop-setup-92-snapshot
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message == 'Snapshot Desktop setup source'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/desktop-setup-92-snapshot
+          fetch-depth: 0
+      - name: Package exact source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude=.git \
+            --exclude=.github/workflows/snapshot-desktop-setup-92.yml \
+            --exclude=.github/agent/desktop-setup-92-snapshot \
+            -czf /tmp/greenways-os-desktop-setup-92-source.tar.gz .
+          sha256sum /tmp/greenways-os-desktop-setup-92-source.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenways-os-desktop-setup-92-source
+          path: /tmp/greenways-os-desktop-setup-92-source.tar.gz
+          retention-days: 1
+          if-no-files-found: error
