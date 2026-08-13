@@ -14,8 +14,7 @@ const profileIdentityAlgorithm = 'p256-sha256-fixed';
 const hestiaImportStatusProtocol = 'greenways-hestia-import-status/0-alpha';
 const hestiaImportState = 'pinned';
 const hestiaImportRepository = 'greenways-ai/hestia';
-const hestiaImportRevision =
-    '64707d7a38216d800bcc22b8da215c3e6946e1bb';
+const hestiaImportRevision = '64707d7a38216d800bcc22b8da215c3e6946e1bb';
 const hestiaImportPackage = '@greenways/hestia-browser';
 const hestiaImportArtifactCount = 12;
 const hestiaRoomInvocationProtocol = 'hestia-room-invocation/0-alpha';
@@ -323,11 +322,7 @@ final class DesktopHestiaImportProjection {
       'preparedExecutionProtocol',
       maximum: 120,
     );
-    final verificationScope = _text(
-      json,
-      'verificationScope',
-      maximum: 80,
-    );
+    final verificationScope = _text(json, 'verificationScope', maximum: 80);
     final admitted = _boolean(json, 'roomProjectionsAdmitted');
     final admittedCount = _integer(json, 'admittedRoomProjectionCount');
     if (admitted != (admittedCount > 0)) {
@@ -659,8 +654,7 @@ final class DesktopConnectionSnapshot {
             'preparedExecutionProtocol':
                 hestiaImport!.preparedExecutionProtocol,
             'verificationScope': hestiaImport!.verificationScope,
-            'roomProjectionsAdmitted':
-                hestiaImport!.roomProjectionsAdmitted,
+            'roomProjectionsAdmitted': hestiaImport!.roomProjectionsAdmitted,
             'admittedRoomProjectionCount':
                 hestiaImport!.admittedRoomProjectionCount,
           },

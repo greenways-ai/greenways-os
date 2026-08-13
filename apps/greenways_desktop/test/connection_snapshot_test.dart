@@ -25,10 +25,7 @@ void main() {
     expect(imported.package, hestiaImportPackage);
     expect(imported.artifactCount, hestiaImportArtifactCount);
     expect(imported.roomInvocationProtocol, hestiaRoomInvocationProtocol);
-    expect(
-      imported.authorityDecisionProtocol,
-      hestiaAuthorityDecisionProtocol,
-    );
+    expect(imported.authorityDecisionProtocol, hestiaAuthorityDecisionProtocol);
     expect(
       imported.preparedExecutionProtocol,
       greenwaysPreparedRoomExecutionProtocol,
@@ -68,8 +65,9 @@ void main() {
 
   test('rejects admitted room projections in the readiness-only build', () {
     final mismatched = _connectedJson();
-    (mismatched['hestiaImport']! as Map<String, Object?>)
-      ['roomProjectionsAdmitted'] = true;
+    (mismatched['hestiaImport']!
+            as Map<String, Object?>)['roomProjectionsAdmitted'] =
+        true;
     expect(
       () => DesktopConnectionSnapshot.fromJson(mismatched),
       throwsFormatException,
