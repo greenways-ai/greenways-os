@@ -55,21 +55,21 @@ jobs:
           git apply --index /tmp/issue114.patch
 
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           path = Path('services/greenways-desktop-bridge/src/setup/service.rs')
           source = path.read_text()
-          old = '''        return Ok(Some(IdentityRecoverySelection {
-              package,
-              recovery_key,
-          }));'''
-          new = '''        Ok(Some(IdentityRecoverySelection {
-              package,
-              recovery_key,
-          }))'''
-          if old not in source:
-              raise SystemExit('expected identity recovery selection source not found')
-          path.write_text(source.replace(old, new, 1))
+          source, replacements = re.subn(
+              r'return Ok\(Some\(IdentityRecoverySelection \{(.*?)\}\)\);',
+              r'Ok(Some(IdentityRecoverySelection {\1}))',
+              source,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if replacements != 1:
+              raise SystemExit('expected one identity recovery selection return')
+          path.write_text(source)
           PY
 
           cargo +1.85.1 fmt --all
