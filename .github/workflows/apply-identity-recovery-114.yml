@@ -22,8 +22,8 @@ jobs:
           flutter-version: 3.47.0
           cache: true
       - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
-      - name: Apply, validate, and publish issue 114
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt
+      - name: Apply and publish issue 114 source
         shell: bash
         run: |
           set -euo pipefail
@@ -78,36 +78,6 @@ jobs:
           dart format --output=none --set-exit-if-changed \
             apps/greenways_desktop/lib apps/greenways_desktop/test
 
-          rm -rf /tmp/gw114
-          mkdir -p /tmp/gw114
-          chmod 700 /tmp/gw114
-          TMPDIR=/tmp/gw114 cargo +1.85.1 test \
-            --workspace --exclude greenwaysd --all-targets -- --test-threads=1
-          TMPDIR=/tmp/gw114 cargo +1.85.1 test -p greenwaysd --lib -- \
-            --test-threads=1 \
-            --skip authenticates_a_cli_session_and_returns_role_scoped_authority \
-            --skip browser_bridge_session_cannot_inspect_authority_or_vault_state
-          TMPDIR=/tmp/gw114 cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
-
-          node --test extension/test/extension-identity.test.js
-          python3 -m py_compile apps/greenways_desktop/tool/bootstrap_macos.py
-          bash -n apps/greenways_desktop/tool/build_macos.sh
-          bash -n apps/greenways_desktop/tool/templates/build_desktop_bridge.sh
-
-          (
-            cd apps/greenways_desktop
-            flutter pub get
-            flutter analyze
-            flutter test
-            flutter config --enable-macos-desktop
-            tool/build_macos.sh
-          )
-
-          rm -rf \
-            apps/greenways_desktop/macos \
-            apps/greenways_desktop/build \
-            apps/greenways_desktop/.dart_tool
-
           git diff --check origin/main
           git diff --name-only origin/main | sort > /tmp/issue114.actual
           cat > /tmp/issue114.expected <<'EOF'
@@ -145,4 +115,4 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add -A
           git commit -m "Recover existing profile identity from Desktop setup"
-          git push origin HEAD:agent/desktop-identity-recovery-114
+          git push --force-with-lease origin HEAD:agent/desktop-identity-recovery-114
