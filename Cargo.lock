@@ -320,6 +320,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "greenways-browser-bridge-host"
+version = "0.1.0"
+dependencies = [
+ "greenways-authority",
+ "greenways-local",
+ "greenways-protocol",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "greenways-capabilities"
 version = "0.1.0"
 dependencies = [
@@ -346,6 +357,7 @@ dependencies = [
 name = "greenways-desktop-bridge"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "greenways-authority",
  "greenways-hestia",
  "greenways-identity",

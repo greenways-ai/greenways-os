@@ -191,37 +191,37 @@ final class _SetupDiagnostics extends StatelessWidget {
   }
 }
 
-String _setupStateDescription(
-  DesktopSetupSnapshot snapshot,
-) => switch (snapshot.state) {
-  DesktopSetupState.notInspected => 'Check the fixed Greenways home, daemon, Desktop access, identity, and browser companion boundaries.',
-  DesktopSetupState.inspecting =>
-    'Reading public component state without changing the installation.',
-  DesktopSetupState.ready =>
-    'The required local boundary is ready for Desktop connection.',
-  DesktopSetupState.installRequired =>
-    'One or more required local components are not installed yet.',
-  DesktopSetupState.upgradeRequired =>
-    'A local component does not match this Desktop build.',
-  DesktopSetupState.permissionRepairRequired =>
-    'Private installation permissions need an explicit repair.',
-  DesktopSetupState.credentialRequired =>
-    'A private Desktop-role credential has not been enrolled.',
-  DesktopSetupState.credentialRoleMismatch =>
-    'The fixed Desktop credential exists but carries another role.',
-  DesktopSetupState.identityOptional => 'The daemon and Desktop access are ready; create a public identity now or continue without one.',
-  DesktopSetupState.browserCompanionOptional =>
-    'The core Desktop boundary is ready; browser connection remains optional.',
-  DesktopSetupState.verifying =>
-    'Verifying a real connection-bound local session.',
-  DesktopSetupState.complete => 'All selected local components are verified.',
-  DesktopSetupState.restartRequired =>
-    'The local daemon state exists but the service is not reachable.',
-  DesktopSetupState.manualRecoveryRequired =>
-    'The existing installation does not match the closed setup contract.',
-  DesktopSetupState.failed =>
-    'The bounded setup inspection could not be completed.',
-};
+String _setupStateDescription(DesktopSetupSnapshot snapshot) =>
+    switch (snapshot.state) {
+      DesktopSetupState.notInspected => 'Check the fixed Greenways home, daemon, Desktop access, identity, and browser companion boundaries.',
+      DesktopSetupState.inspecting =>
+        'Reading public component state without changing the installation.',
+      DesktopSetupState.ready =>
+        'The required local boundary is ready for Desktop connection.',
+      DesktopSetupState.installRequired =>
+        'One or more required local components are not installed yet.',
+      DesktopSetupState.upgradeRequired =>
+        'A local component does not match this Desktop build.',
+      DesktopSetupState.permissionRepairRequired =>
+        'Private installation permissions need an explicit repair.',
+      DesktopSetupState.credentialRequired =>
+        'A private Desktop-role credential has not been enrolled.',
+      DesktopSetupState.credentialRoleMismatch =>
+        'The fixed Desktop credential exists but carries another role.',
+      DesktopSetupState.identityOptional => 'The daemon and Desktop access are ready; create a public identity now or continue without one.',
+      DesktopSetupState.browserCompanionOptional => 'The core Desktop boundary is ready; install the exact Chrome companion or continue without it.',
+      DesktopSetupState.verificationRequired => 'Selected components are installed, but final connection and substrate verification has not run.',
+      DesktopSetupState.verifying =>
+        'Verifying a real connection-bound local session.',
+      DesktopSetupState.complete =>
+        'All selected local components are verified.',
+      DesktopSetupState.restartRequired =>
+        'The local daemon state exists but the service is not reachable.',
+      DesktopSetupState.manualRecoveryRequired =>
+        'The existing installation does not match the closed setup contract.',
+      DesktopSetupState.failed =>
+        'The bounded setup inspection could not be completed.',
+    };
 
 final class _SetupPageFrame extends StatelessWidget {
   const _SetupPageFrame({

@@ -1,5 +1,5 @@
 [package]
-name = "greenways-desktop-bridge"
+name = "greenways-browser-bridge-host"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,19 +7,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-base64.workspace = true
 greenways-authority = { path = "../../crates/greenways-authority" }
-greenways-hestia = { path = "../../crates/greenways-hestia" }
-greenways-identity = { path = "../../crates/greenways-identity" }
 greenways-local = { path = "../../crates/greenways-local" }
-greenways-provider = { path = "../../crates/greenways-provider" }
 greenways-protocol = { path = "../../crates/greenways-protocol" }
 serde.workspace = true
 serde_json.workspace = true
-sha2.workspace = true
-
-[dev-dependencies]
-greenways-identity = { path = "../../crates/greenways-identity", features = ["test-support"] }
 
 [lints]
 workspace = true

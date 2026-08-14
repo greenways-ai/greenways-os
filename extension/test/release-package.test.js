@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { packageExtension } from "../scripts/package-extension.mjs";
+import { readExtensionIdentity, verifyManifestIdentity } from "../scripts/extension-identity.mjs";
 
 const execFileAsync = promisify(execFile);
 const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -18,6 +19,7 @@ test("packages a versioned, checksummed extension without development inputs", a
     const { stdout } = await execFileAsync("unzip", ["-Z1", result.archivePath]);
     const entries = stdout.trim().split("\n");
     assert.ok(entries.includes("manifest.json"));
+    assert.ok(entries.includes("extension-identity.json"));
     assert.ok(entries.includes("dist/background.js"));
     assert.ok(entries.includes("dist/playground-bridge.js"));
     assert.ok(entries.includes("dist/chatgpt-provider-bridge.js"));
@@ -28,6 +30,17 @@ test("packages a versioned, checksummed extension without development inputs", a
     const checksum = await readFile(result.checksumPath, "utf8");
     assert.equal(checksum, `${result.sha256}  ${basename(result.archivePath)}\n`);
     const metadata = JSON.parse(await readFile(result.metadataPath, "utf8"));
+    const manifestDirectory = await mkdtemp(join(tmpdir(), "greenways-package-identity-"));
+    try {
+      await execFileAsync("unzip", ["-q", result.archivePath, "manifest.json", "extension-identity.json", "-d", manifestDirectory]);
+      const manifest = JSON.parse(await readFile(join(manifestDirectory, "manifest.json"), "utf8"));
+      const identity = await verifyManifestIdentity(manifestDirectory, manifest);
+      assert.deepEqual(identity, await readExtensionIdentity(extensionRoot));
+      assert.equal(metadata.extensionId, identity.extensionId);
+      assert.equal(metadata.identityProtocol, identity.protocol);
+    } finally {
+      await rm(manifestDirectory, { recursive: true, force: true });
+    }
     assert.equal(metadata.version, "0.4.0");
     assert.equal(metadata.sha256, result.sha256);
     assert.deepEqual(metadata.compatibility, [

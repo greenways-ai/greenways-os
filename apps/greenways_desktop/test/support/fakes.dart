@@ -30,6 +30,9 @@ final class FakeDesktopBridge implements DesktopBridge {
   int desktopClientIssues = 0;
   int identityCreations = 0;
   final List<String?> identityHandles = [];
+  int browserBridgeInstalls = 0;
+  final List<DesktopSetupOperation> setupOperations = [];
+  final List<String?> setupHandles = [];
   int permissionRepairs = 0;
   bool closed = false;
 
@@ -58,6 +61,8 @@ final class FakeDesktopBridge implements DesktopBridge {
     DesktopSetupOperation operation, {
     String? handle,
   }) async {
+    setupOperations.add(operation);
+    setupHandles.add(handle);
     switch (operation) {
       case DesktopSetupOperation.inspect:
         inspections += 1;
@@ -71,6 +76,9 @@ final class FakeDesktopBridge implements DesktopBridge {
       case DesktopSetupOperation.createIdentity:
         identityCreations += 1;
         identityHandles.add(handle);
+        break;
+      case DesktopSetupOperation.installBrowserBridge:
+        browserBridgeInstalls += 1;
         break;
       case DesktopSetupOperation.repairPermissions:
         permissionRepairs += 1;
@@ -190,7 +198,17 @@ DesktopSetupSnapshot inspectedSetupSnapshot({
           ? 'identity/00112233445566778899aabbccddeeff'
           : null,
     ),
-    _setupComponent(DesktopSetupComponentKind.browserCompanion, browserState),
+    _setupComponent(
+      DesktopSetupComponentKind.browserCompanion,
+      browserState,
+      version: browserState == DesktopSetupState.ready ? '0.1.0' : null,
+      digest: browserState == DesktopSetupState.ready
+          ? 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          : null,
+      publicId: browserState == DesktopSetupState.ready
+          ? 'ai.greenways.browser_bridge'
+          : null,
+    ),
   ];
   return DesktopSetupSnapshot(
     protocol: desktopSetupStatusProtocol,
@@ -206,13 +224,14 @@ DesktopSetupComponent _setupComponent(
   DesktopSetupComponentKind kind,
   DesktopSetupState state, {
   String? version,
+  String? digest,
   String? publicId,
 }) => DesktopSetupComponent(
   protocol: desktopSetupComponentProtocol,
   kind: kind,
   state: state,
   version: version,
-  digest: null,
+  digest: digest,
   publicId: publicId,
   errorCode: _setupErrorCode(kind, state),
 );
@@ -245,7 +264,7 @@ DesktopSetupState _deriveSetupState(List<DesktopSetupComponent> components) {
     if (states.contains(state)) return state;
   }
   return states.every((state) => state == DesktopSetupState.ready)
-      ? DesktopSetupState.complete
+      ? DesktopSetupState.verificationRequired
       : DesktopSetupState.ready;
 }
 
@@ -273,6 +292,13 @@ List<DesktopSetupOperation> _setupActions(DesktopSetupState state) {
         DesktopSetupOperation.createIdentity,
         DesktopSetupOperation.inspect,
       ];
+    case DesktopSetupState.browserCompanionOptional:
+      return const [
+        DesktopSetupOperation.installBrowserBridge,
+        DesktopSetupOperation.inspect,
+      ];
+    case DesktopSetupState.verificationRequired:
+      return const [DesktopSetupOperation.inspect];
     default:
       return const [DesktopSetupOperation.inspect];
   }

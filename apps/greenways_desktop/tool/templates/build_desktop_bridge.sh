@@ -10,11 +10,11 @@ if [[ "$CONFIGURATION" != "Debug" ]]; then
 fi
 
 cd "$ROOT"
-cargo build -p greenways-desktop-bridge -p greenwaysd "${CARGO_FLAGS[@]}"
+cargo build -p greenways-desktop-bridge -p greenways-browser-bridge-host -p greenwaysd "${CARGO_FLAGS[@]}"
 
 RESOURCES="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
 mkdir -p "$RESOURCES"
-for BINARY in greenways-desktop-bridge greenwaysd; do
+for BINARY in greenways-desktop-bridge greenways-browser-bridge-host greenwaysd; do
   SOURCE="$ROOT/target/$PROFILE/$BINARY"
   DESTINATION="$RESOURCES/$BINARY"
   install -m 0755 "$SOURCE" "$DESTINATION"

@@ -1,9 +1,10 @@
 use super::{
+    browser::{BROWSER_CLIENT_LABEL, BROWSER_HOST_NAME, CHROME_EXTENSION_ORIGIN},
     decode_setup_request, encode_setup_response,
     inspect::DesktopSetupEngine,
     service::{
-        expected_launch_agent_plist, LaunchAgentController, SetupPaths, DAEMON_SERVICE_LABEL,
-        DESKTOP_CLIENT_LABEL,
+        expected_launch_agent_plist, BrowserInstallStage, LaunchAgentController, SetupPaths,
+        BROWSER_MANIFEST_FILE, DAEMON_SERVICE_LABEL, DESKTOP_CLIENT_LABEL,
     },
     DesktopSetupBackend, DesktopSetupComponentKind, DesktopSetupError, DesktopSetupHost,
     DesktopSetupOperation, DesktopSetupRequest, DesktopSetupState, DESKTOP_SETUP_PROTOCOL,
@@ -30,6 +31,7 @@ use std::os::unix::{
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(1);
 static TEMP_SETUP_SERIAL: Mutex<()> = Mutex::new(());
+static BROWSER_RACE_DESTINATION: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 struct TempSetup {
     _serial: MutexGuard<'static, ()>,
@@ -70,6 +72,30 @@ impl TempSetup {
         #[cfg(unix)]
         fs::set_permissions(&packaged_daemon, fs::Permissions::from_mode(0o755))
             .expect("script mode");
+        let packaged_browser_host = package_dir.join("greenways-browser-bridge-host");
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        options.mode(0o755);
+        let mut file = options
+            .open(&packaged_browser_host)
+            .expect("packaged browser host");
+        writeln!(file, "#!/bin/sh").expect("browser script");
+        writeln!(file, "if [ \"${{1:-}}\" = \"--version\" ]; then").expect("browser script");
+        writeln!(
+            file,
+            "  echo 'greenways-browser-bridge-host {}'",
+            env!("CARGO_PKG_VERSION")
+        )
+        .expect("browser script");
+        writeln!(file, "  exit 0").expect("browser script");
+        writeln!(file, "fi").expect("browser script");
+        writeln!(file, "exit 0").expect("browser script");
+        file.sync_all().expect("browser script sync");
+        drop(file);
+        #[cfg(unix)]
+        fs::set_permissions(&packaged_browser_host, fs::Permissions::from_mode(0o755))
+            .expect("browser script mode");
         #[cfg(unix)]
         let uid = fs::symlink_metadata(&home).expect("home metadata").uid();
         #[cfg(not(unix))]
@@ -193,6 +219,23 @@ fn setup_request_is_closed_and_rejects_unknown_inputs() {
         br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"run-command","handle":null}"#,
     )
     .is_err());
+    let browser = decode_setup_request(
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":null}"#,
+    )
+    .expect("closed browser request");
+    assert_eq!(
+        browser.operation,
+        DesktopSetupOperation::InstallBrowserBridge
+    );
+    for invalid in [
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":"chrome"}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":null,"browser":"chrome"}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":null,"extensionId":"caller-selected"}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":null,"origin":"chrome-extension://caller/"}"#.as_slice(),
+    ] {
+        assert!(decode_setup_request(invalid).is_err());
+    }
+
     let identity = decode_setup_request(
         br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"create-identity","handle":"river.studio"}"#,
     )
@@ -564,4 +607,462 @@ fn host_returns_closed_failed_state_for_unavailable_authority() {
     let text = String::from_utf8(bytes).expect("response text");
     assert!(!text.contains(".greenways"));
     assert!(!text.contains("gwc_"));
+}
+
+fn prepared_browser_backend(
+    temp: &TempSetup,
+) -> (
+    DesktopSetupEngine<FakeLaunchAgentController>,
+    FakeLaunchAgentController,
+) {
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let probe = controller.clone();
+    let mut backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    backend.install_daemon().expect("install daemon");
+    backend
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+    let optional = backend
+        .create_identity("browser.fixture")
+        .expect("create fixture identity");
+    assert_eq!(optional.state, DesktopSetupState::BrowserCompanionOptional);
+    assert_eq!(
+        optional.permitted_actions,
+        vec![
+            DesktopSetupOperation::InstallBrowserBridge,
+            DesktopSetupOperation::Inspect,
+        ]
+    );
+    (backend, probe)
+}
+
+fn fail_after_browser_host(stage: BrowserInstallStage) -> Result<(), DesktopSetupError> {
+    if stage == BrowserInstallStage::HostInstalled {
+        Err(DesktopSetupError::InstallationFailed(
+            "Injected browser host installation failure.".to_owned(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn inject_browser_host_destination(stage: BrowserInstallStage) -> Result<(), DesktopSetupError> {
+    if stage != BrowserInstallStage::Enrolled {
+        return Ok(());
+    }
+    let destination = BROWSER_RACE_DESTINATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone()
+        .expect("browser race destination");
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o755);
+    let mut file = options.open(destination).expect("race browser host");
+    writeln!(file, "#!/bin/sh").expect("race browser host");
+    writeln!(file, "echo 'changed destination'").expect("race browser host");
+    file.sync_all().expect("race browser host");
+    Ok(())
+}
+
+#[test]
+fn browser_companion_installation_is_exact_private_and_create_once() {
+    let temp = TempSetup::new("browser-install");
+    let (mut backend, controller_probe) = prepared_browser_backend(&temp);
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+
+    let installed = backend
+        .install_browser_bridge()
+        .expect("install exact browser companion");
+    assert_eq!(installed.state, DesktopSetupState::VerificationRequired);
+    assert_eq!(
+        installed.permitted_actions,
+        vec![DesktopSetupOperation::Inspect]
+    );
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before + 1);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before + 1);
+
+    let component = installed
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::BrowserCompanion)
+        .expect("browser component");
+    assert_eq!(component.state, DesktopSetupState::Ready);
+    assert_eq!(component.public_id.as_deref(), Some(BROWSER_HOST_NAME));
+    assert_eq!(
+        component.version.as_deref(),
+        Some(env!("CARGO_PKG_VERSION"))
+    );
+    assert!(component
+        .digest
+        .as_deref()
+        .is_some_and(|digest| digest.starts_with("sha256:")));
+
+    let browser_credential =
+        read_credential_file(temp.paths.browser_credential()).expect("browser credential");
+    let desktop_credential =
+        read_credential_file(temp.paths.desktop_credential()).expect("desktop credential");
+    assert_eq!(browser_credential.role, LocalClientRole::BrowserBridge);
+    assert_ne!(browser_credential.client_id, desktop_credential.client_id);
+    let registry =
+        LocalClientRegistry::open(temp.paths.local_client_registry()).expect("client registry");
+    let browser_client = registry
+        .verify_credential(&browser_credential)
+        .expect("verified browser credential");
+    assert_eq!(browser_client.label, BROWSER_CLIENT_LABEL);
+    assert_eq!(
+        registry
+            .clients()
+            .iter()
+            .filter(|client| {
+                client.role == LocalClientRole::BrowserBridge && client.revoked_at_unix_ms.is_none()
+            })
+            .count(),
+        1
+    );
+
+    let manifest_bytes = fs::read(&temp.paths.browser_manifest).expect("browser manifest");
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&manifest_bytes).expect("browser manifest json");
+    assert_eq!(
+        temp.paths
+            .browser_manifest
+            .file_name()
+            .and_then(|name| name.to_str()),
+        Some(BROWSER_MANIFEST_FILE)
+    );
+    assert_eq!(manifest["name"], BROWSER_HOST_NAME);
+    assert_eq!(manifest["type"], "stdio");
+    assert_eq!(
+        manifest["path"],
+        temp.paths
+            .installed_browser_host
+            .to_str()
+            .expect("fixed host path")
+    );
+    assert_eq!(
+        manifest["allowed_origins"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(manifest["allowed_origins"][0], CHROME_EXTENSION_ORIGIN);
+
+    #[cfg(unix)]
+    {
+        assert_eq!(
+            fs::metadata(temp.paths.browser_credential())
+                .expect("credential mode")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        assert_eq!(
+            fs::metadata(&temp.paths.installed_browser_host)
+                .expect("host mode")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        assert_eq!(
+            fs::metadata(&temp.paths.browser_manifest)
+                .expect("manifest mode")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+
+    let serialized = serde_json::to_string(&installed).expect("bounded setup projection");
+    for forbidden in [
+        "/.greenways",
+        "browser-bridge.json",
+        "NativeMessagingHosts",
+        CHROME_EXTENSION_ORIGIN,
+        "gwc_",
+        "sessionId",
+        browser_client.id.as_str(),
+    ] {
+        assert!(!serialized.contains(forbidden), "leaked {forbidden}");
+    }
+    assert!(matches!(
+        backend.install_browser_bridge(),
+        Err(DesktopSetupError::OperationUnavailable(_))
+    ));
+    let registry =
+        LocalClientRegistry::open(temp.paths.local_client_registry()).expect("client registry");
+    assert_eq!(
+        registry
+            .clients()
+            .iter()
+            .filter(|client| {
+                client.role == LocalClientRole::BrowserBridge && client.revoked_at_unix_ms.is_none()
+            })
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn browser_partial_install_rolls_back_and_restores_the_daemon() {
+    let temp = TempSetup::new("browser-rollback");
+    let (mut backend, controller_probe) = prepared_browser_backend(&temp);
+    backend.set_browser_install_hook(fail_after_browser_host);
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+
+    assert!(matches!(
+        backend.install_browser_bridge(),
+        Err(DesktopSetupError::InstallationFailed(_))
+    ));
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before + 1);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before + 1);
+    assert!(temp.paths.socket_file().exists());
+    assert!(!temp.paths.browser_credential().exists());
+    assert!(!temp.paths.installed_browser_host.exists());
+    assert!(!temp.paths.browser_manifest.exists());
+
+    let registry =
+        LocalClientRegistry::open(temp.paths.local_client_registry()).expect("client registry");
+    assert_eq!(
+        registry
+            .clients()
+            .iter()
+            .filter(|client| {
+                client.role == LocalClientRole::BrowserBridge && client.revoked_at_unix_ms.is_none()
+            })
+            .count(),
+        0
+    );
+    let inspected = backend.inspect().expect("inspect after rollback");
+    assert_eq!(inspected.state, DesktopSetupState::BrowserCompanionOptional);
+}
+
+#[test]
+fn browser_install_never_overwrites_a_destination_changed_after_prepare() {
+    let temp = TempSetup::new("browser-race");
+    let (mut backend, controller_probe) = prepared_browser_backend(&temp);
+    *BROWSER_RACE_DESTINATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) =
+        Some(temp.paths.installed_browser_host.clone());
+    backend.set_browser_install_hook(inject_browser_host_destination);
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+
+    let recovery = backend
+        .install_browser_bridge()
+        .expect("bounded browser manual-recovery snapshot");
+    assert_eq!(recovery.state, DesktopSetupState::ManualRecoveryRequired);
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before + 1);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before + 1);
+    assert!(temp.paths.socket_file().exists());
+    assert_eq!(
+        fs::read_to_string(&temp.paths.installed_browser_host)
+            .expect("changed browser destination"),
+        "#!/bin/sh\necho 'changed destination'\n"
+    );
+    let inspected = backend
+        .inspect()
+        .expect("inspect changed browser destination");
+    assert_eq!(inspected.state, DesktopSetupState::ManualRecoveryRequired);
+    assert!(!inspected
+        .permitted_actions
+        .contains(&DesktopSetupOperation::InstallBrowserBridge));
+    *BROWSER_RACE_DESTINATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = None;
+}
+
+#[test]
+fn browser_inspection_fails_closed_for_drift_unsafe_manifest_and_partial_files() {
+    let temp = TempSetup::new("browser-drift");
+    let (mut backend, _) = prepared_browser_backend(&temp);
+    backend
+        .install_browser_bridge()
+        .expect("install exact browser companion");
+
+    let execution_marker = temp.root.join("drifted-browser-host-executed");
+    fs::write(
+        &temp.paths.installed_browser_host,
+        format!(
+            "#!/bin/sh\ntouch '{}'\necho 'changed host'\n",
+            execution_marker.display()
+        ),
+    )
+    .expect("drift installed host");
+    #[cfg(unix)]
+    fs::set_permissions(
+        &temp.paths.installed_browser_host,
+        fs::Permissions::from_mode(0o755),
+    )
+    .expect("drift host mode");
+    let drifted = backend.inspect().expect("inspect host drift");
+    let browser = drifted
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::BrowserCompanion)
+        .expect("browser component");
+    assert_eq!(browser.state, DesktopSetupState::UpgradeRequired);
+    assert!(
+        !execution_marker.exists(),
+        "inspection must not execute a drifted browser host"
+    );
+
+    fs::copy(
+        &temp.paths.packaged_browser_host,
+        &temp.paths.installed_browser_host,
+    )
+    .expect("restore exact host");
+    #[cfg(unix)]
+    fs::set_permissions(
+        &temp.paths.installed_browser_host,
+        fs::Permissions::from_mode(0o755),
+    )
+    .expect("restore host mode");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&temp.paths.browser_manifest).expect("manifest"))
+            .expect("manifest json");
+    manifest["allowed_origins"] = serde_json::json!(["chrome-extension://caller-selected/"]);
+    let mut bytes = serde_json::to_vec_pretty(&manifest).expect("unsafe manifest");
+    bytes.push(b'\n');
+    fs::write(&temp.paths.browser_manifest, bytes).expect("write unsafe manifest");
+    #[cfg(unix)]
+    fs::set_permissions(
+        &temp.paths.browser_manifest,
+        fs::Permissions::from_mode(0o600),
+    )
+    .expect("manifest mode");
+    let unsafe_snapshot = backend.inspect().expect("inspect unsafe manifest");
+    let browser = unsafe_snapshot
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::BrowserCompanion)
+        .expect("browser component");
+    assert_eq!(browser.state, DesktopSetupState::ManualRecoveryRequired);
+    drop(backend);
+    drop(temp);
+
+    let temp = TempSetup::new("browser-partial");
+    let (mut backend, _) = prepared_browser_backend(&temp);
+    fs::create_dir_all(temp.paths.browser_bin_dir()).expect("browser bin");
+    #[cfg(unix)]
+    fs::set_permissions(
+        temp.paths.browser_bin_dir(),
+        fs::Permissions::from_mode(0o700),
+    )
+    .expect("browser bin mode");
+    fs::copy(
+        &temp.paths.packaged_browser_host,
+        &temp.paths.installed_browser_host,
+    )
+    .expect("partial host");
+    #[cfg(unix)]
+    fs::set_permissions(
+        &temp.paths.installed_browser_host,
+        fs::Permissions::from_mode(0o755),
+    )
+    .expect("partial host mode");
+    let partial = backend.inspect().expect("inspect partial browser install");
+    let browser = partial
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::BrowserCompanion)
+        .expect("browser component");
+    assert_eq!(browser.state, DesktopSetupState::ManualRecoveryRequired);
+    drop(backend);
+    drop(temp);
+
+    let temp = TempSetup::new("browser-container-unsafe");
+    let (mut backend, _) = prepared_browser_backend(&temp);
+    let google_path = temp
+        .paths
+        .user_home
+        .join("Library")
+        .join("Application Support")
+        .join("Google");
+    fs::write(&google_path, b"not a directory").expect("unsafe Chrome container");
+    let unsafe_container = backend.inspect().expect("inspect unsafe Chrome container");
+    let browser = unsafe_container
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::BrowserCompanion)
+        .expect("browser component");
+    assert_eq!(browser.state, DesktopSetupState::ManualRecoveryRequired);
+    assert!(!unsafe_container
+        .permitted_actions
+        .contains(&DesktopSetupOperation::InstallBrowserBridge));
+}
+
+#[test]
+fn browser_wrong_modes_are_repairable_and_orphaned_clients_are_not_reissued() {
+    let temp = TempSetup::new("browser-mode");
+    let (mut backend, _) = prepared_browser_backend(&temp);
+    backend
+        .install_browser_bridge()
+        .expect("install exact browser companion");
+    #[cfg(unix)]
+    fs::set_permissions(
+        &temp.paths.installed_browser_host,
+        fs::Permissions::from_mode(0o700),
+    )
+    .expect("break host mode");
+    let broken = backend.inspect().expect("inspect wrong browser mode");
+    assert_eq!(broken.state, DesktopSetupState::PermissionRepairRequired);
+    let repaired = backend
+        .repair_permissions()
+        .expect("repair browser permissions");
+    assert_eq!(repaired.state, DesktopSetupState::VerificationRequired);
+    drop(backend);
+    drop(temp);
+
+    let temp = TempSetup::new("browser-orphan");
+    let (mut backend, _) = prepared_browser_backend(&temp);
+    let orphan = temp.paths.clients_dir.join("orphan-browser.json");
+    let mut registry =
+        LocalClientRegistry::open(temp.paths.local_client_registry()).expect("registry");
+    registry
+        .issue_to_file(
+            LocalClientRole::BrowserBridge,
+            BROWSER_CLIENT_LABEL,
+            &orphan,
+            9,
+        )
+        .expect("orphan browser client");
+    fs::remove_file(orphan).expect("remove orphan credential");
+    let orphaned = backend.inspect().expect("inspect orphan browser client");
+    let browser = orphaned
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::BrowserCompanion)
+        .expect("browser component");
+    assert_eq!(browser.state, DesktopSetupState::ManualRecoveryRequired);
+    assert!(!orphaned
+        .permitted_actions
+        .contains(&DesktopSetupOperation::InstallBrowserBridge));
+}
+
+#[test]
+fn host_routes_the_closed_browser_install_request() {
+    let temp = TempSetup::new("browser-host-route");
+    let (backend, _) = prepared_browser_backend(&temp);
+    let mut host = DesktopSetupHost::new(backend, 1);
+    let response = host
+        .handle(request(DesktopSetupOperation::InstallBrowserBridge))
+        .expect("closed browser install response");
+    assert_eq!(
+        response.snapshot.state,
+        DesktopSetupState::VerificationRequired
+    );
+    let serialized = serde_json::to_string(&response).expect("response json");
+    assert!(!serialized.contains(CHROME_EXTENSION_ORIGIN));
+    assert!(!serialized.contains("browser-bridge.json"));
+    assert!(!serialized.contains("gwc_"));
 }

@@ -105,6 +105,72 @@ void main() {
     controller.dispose();
   });
 
+  test('Chrome companion installation crosses only the closed no-argument operation', () async {
+    final bridge = FakeDesktopBridge(
+      setupResult: inspectedSetupSnapshot(
+        identityState: DesktopSetupState.ready,
+      ),
+    );
+    final controller = SetupController(bridge);
+
+    await controller.inspect();
+    expect(
+      controller.snapshot.state,
+      DesktopSetupState.browserCompanionOptional,
+    );
+    expect(controller.snapshot.permittedActions, const [
+      DesktopSetupOperation.installBrowserBridge,
+      DesktopSetupOperation.inspect,
+    ]);
+
+    bridge.setupResult = inspectedSetupSnapshot(
+      identityState: DesktopSetupState.ready,
+      browserState: DesktopSetupState.ready,
+    );
+    await controller.installBrowserBridge();
+
+    expect(bridge.browserBridgeInstalls, 1);
+    expect(
+      bridge.setupOperations.last,
+      DesktopSetupOperation.installBrowserBridge,
+    );
+    expect(bridge.setupHandles.last, isNull);
+    expect(controller.snapshot.state, DesktopSetupState.verificationRequired);
+    final browser = controller.snapshot.component(
+      DesktopSetupComponentKind.browserCompanion,
+    );
+    expect(browser?.publicId, 'ai.greenways.browser_bridge');
+    expect(browser?.version, '0.1.0');
+    expect(browser?.digest, startsWith('sha256:'));
+    final diagnostics = controller.diagnosticsJson();
+    expect(diagnostics, contains('ai.greenways.browser_bridge'));
+    for (final confidential in [
+      'chrome-extension://',
+      '/.greenways/',
+      'gwc_',
+      'local/session/',
+      'greenways-browser-bridge-host',
+    ]) {
+      expect(diagnostics, isNot(contains(confidential)));
+    }
+    controller.dispose();
+  });
+
+  test(
+    'Chrome companion operation is unavailable outside its exact state',
+    () async {
+      final bridge = FakeDesktopBridge();
+      final controller = SetupController(bridge);
+
+      await controller.inspect();
+      await controller.installBrowserBridge();
+
+      expect(bridge.browserBridgeInstalls, 0);
+      expect(controller.snapshot.state, DesktopSetupState.identityOptional);
+      controller.dispose();
+    },
+  );
+
   test('missing companion becomes a bounded setup failure', () async {
     final bridge = FakeDesktopBridge(
       setupError: const DesktopBridgeUnavailable('Companion unavailable.'),

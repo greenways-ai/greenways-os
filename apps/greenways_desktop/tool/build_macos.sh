@@ -12,5 +12,9 @@ flutter analyze
 flutter test
 flutter build macos --release
 
-test -x "build/macos/Build/Products/Release/Greenways Desktop.app/Contents/Resources/greenways-desktop-bridge"
-test -x "build/macos/Build/Products/Release/Greenways Desktop.app/Contents/Resources/greenwaysd"
+RESOURCES="build/macos/Build/Products/Release/Greenways Desktop.app/Contents/Resources"
+for BINARY in greenways-desktop-bridge greenways-browser-bridge-host greenwaysd; do
+  test -x "$RESOURCES/$BINARY"
+  test -s "$RESOURCES/$BINARY"
+done
+"$RESOURCES/greenways-browser-bridge-host" --version | grep -Fx "greenways-browser-bridge-host 0.1.0"
