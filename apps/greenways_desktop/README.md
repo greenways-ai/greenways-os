@@ -17,11 +17,11 @@ The Rust companion owns credential loading, the authenticated Unix-socket connec
 
 The companion-process boundary is deliberate. It preserves the workspace-wide `unsafe_code = "forbid"` policy and gives the Desktop connection an independently testable lifetime without placing secrets in Dart heap objects.
 
-The first-run setup surface uses a separate closed bridge protocol. It can inspect fixed component state, install or restart only the packaged macOS daemon service, enroll the exact initial `desktop` local client directly to its fixed private file, and repair only fixed private modes without exposing private paths or credential material. See [`../../protocol/desktop-setup.md`](../../protocol/desktop-setup.md).
+The first-run setup surface uses a separate closed bridge protocol. It can inspect fixed component state, install or restart only the packaged macOS daemon service, enroll the exact initial `desktop` local client directly to its fixed private file, create one optional public identity while retaining its private key in the operating-system keyring, and repair only fixed private modes without exposing private paths, credentials, or key material. See [`../../protocol/desktop-setup.md`](../../protocol/desktop-setup.md).
 
 ## Development
 
-The packaged setup surface establishes the initial Desktop credential without a terminal. For focused authority development, the equivalent offline administrator operation remains:
+The packaged setup surface establishes the initial Desktop credential and optional public identity without a terminal. Identity may be deferred without changing durable state. For focused authority development, the equivalent offline client operation remains:
 
 ```bash
 greenways-admin --state-dir ~/.greenways \

@@ -1,3 +1,4 @@
+use greenways_identity::normalize_profile_handle;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, error::Error, fmt};
 
@@ -78,6 +79,7 @@ pub struct DesktopSetupRequest {
     pub protocol: String,
     pub request_id: String,
     pub operation: DesktopSetupOperation,
+    pub handle: Option<String>,
 }
 
 impl DesktopSetupRequest {
@@ -91,6 +93,31 @@ impl DesktopSetupRequest {
             return Err(DesktopSetupError::ProtocolMismatch(
                 "The Desktop setup request ID is invalid.".to_owned(),
             ));
+        }
+        match self.operation {
+            DesktopSetupOperation::CreateIdentity => {
+                let handle = self.handle.as_deref().ok_or_else(|| {
+                    DesktopSetupError::ProtocolMismatch(
+                        "The Desktop identity handle is required.".to_owned(),
+                    )
+                })?;
+                let normalized = normalize_profile_handle(handle).map_err(|_| {
+                    DesktopSetupError::ProtocolMismatch(
+                        "The Desktop identity handle is invalid.".to_owned(),
+                    )
+                })?;
+                if normalized != handle {
+                    return Err(DesktopSetupError::ProtocolMismatch(
+                        "The Desktop identity handle must already be normalized.".to_owned(),
+                    ));
+                }
+            }
+            _ if self.handle.is_some() => {
+                return Err(DesktopSetupError::ProtocolMismatch(
+                    "This Desktop setup operation accepts no identity handle.".to_owned(),
+                ));
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -498,6 +525,10 @@ fn permitted_actions_for_state(state: DesktopSetupState) -> Vec<DesktopSetupOper
             DesktopSetupOperation::IssueDesktopClient,
             DesktopSetupOperation::Inspect,
         ],
+        DesktopSetupState::IdentityOptional => vec![
+            DesktopSetupOperation::CreateIdentity,
+            DesktopSetupOperation::Inspect,
+        ],
         DesktopSetupState::NotInspected | DesktopSetupState::Failed => {
             vec![DesktopSetupOperation::Inspect]
         }
@@ -558,6 +589,7 @@ pub trait DesktopSetupBackend {
     fn inspect(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn install_daemon(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn issue_desktop_client(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
+    fn create_identity(&mut self, handle: &str) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn repair_permissions(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
 }
 

@@ -10,12 +10,16 @@ use super::{
     DESKTOP_SETUP_RESULT_PROTOCOL,
 };
 use greenways_authority::{read_credential_file, LocalClientRegistry, LocalClientRole};
+use greenways_identity::{IdentityError, ProfileIdentityVault};
 use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     process,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex, MutexGuard,
+    },
 };
 
 #[cfg(unix)]
@@ -25,14 +29,19 @@ use std::os::unix::{
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(1);
+static TEMP_SETUP_SERIAL: Mutex<()> = Mutex::new(());
 
 struct TempSetup {
+    _serial: MutexGuard<'static, ()>,
     root: PathBuf,
     paths: SetupPaths,
 }
 
 impl TempSetup {
     fn new(label: &str) -> Self {
+        let serial = TEMP_SETUP_SERIAL
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         let root = PathBuf::from(format!(
             "/tmp/gwds-{label}-{}-{}",
             process::id(),
@@ -57,6 +66,7 @@ impl TempSetup {
         writeln!(file, "fi").expect("script");
         writeln!(file, "exit 0").expect("script");
         file.sync_all().expect("script sync");
+        drop(file);
         #[cfg(unix)]
         fs::set_permissions(&packaged_daemon, fs::Permissions::from_mode(0o755))
             .expect("script mode");
@@ -65,7 +75,11 @@ impl TempSetup {
         #[cfg(not(unix))]
         let uid = 0;
         let paths = SetupPaths::from_home_and_package(home, packaged_daemon, uid);
-        Self { root, paths }
+        Self {
+            _serial: serial,
+            root,
+            paths,
+        }
     }
 }
 
@@ -75,26 +89,34 @@ impl Drop for TempSetup {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FakeLaunchAgentController {
     socket: PathBuf,
-    restart_calls: usize,
-    stop_calls: usize,
+    restart_calls: Arc<AtomicUsize>,
+    stop_calls: Arc<AtomicUsize>,
 }
 
 impl FakeLaunchAgentController {
     fn new(socket: PathBuf) -> Self {
         Self {
             socket,
-            restart_calls: 0,
-            stop_calls: 0,
+            restart_calls: Arc::new(AtomicUsize::new(0)),
+            stop_calls: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    fn restart_calls(&self) -> usize {
+        self.restart_calls.load(Ordering::Relaxed)
+    }
+
+    fn stop_calls(&self) -> usize {
+        self.stop_calls.load(Ordering::Relaxed)
     }
 }
 
 impl LaunchAgentController for FakeLaunchAgentController {
     fn stop(&mut self, label: &str, uid: u32) -> Result<(), DesktopSetupError> {
-        self.stop_calls += 1;
+        self.stop_calls.fetch_add(1, Ordering::Relaxed);
         assert_eq!(label, DAEMON_SERVICE_LABEL);
         assert!(uid > 0 || cfg!(not(unix)));
         if self.socket.exists() {
@@ -109,7 +131,7 @@ impl LaunchAgentController for FakeLaunchAgentController {
         label: &str,
         uid: u32,
     ) -> Result<(), DesktopSetupError> {
-        self.restart_calls += 1;
+        self.restart_calls.fetch_add(1, Ordering::Relaxed);
         assert_eq!(label, DAEMON_SERVICE_LABEL);
         assert_eq!(
             launch_agent.file_name().and_then(|value| value.to_str()),
@@ -133,24 +155,57 @@ fn request(operation: DesktopSetupOperation) -> DesktopSetupRequest {
         protocol: DESKTOP_SETUP_PROTOCOL.to_owned(),
         request_id: "desktop/request/setup0001".to_owned(),
         operation,
+        handle: None,
     }
+}
+
+fn identity_request(handle: &str) -> DesktopSetupRequest {
+    DesktopSetupRequest {
+        handle: Some(handle.to_owned()),
+        ..request(DesktopSetupOperation::CreateIdentity)
+    }
+}
+
+fn open_test_identity_vault(path: PathBuf) -> Result<ProfileIdentityVault, IdentityError> {
+    ProfileIdentityVault::open_test(path)
+}
+
+fn unavailable_identity_vault(_: PathBuf) -> Result<ProfileIdentityVault, IdentityError> {
+    Err(IdentityError::KeyStoreUnavailable)
 }
 
 #[test]
 fn setup_request_is_closed_and_rejects_unknown_inputs() {
     let decoded = decode_setup_request(
-        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"inspect"}"#,
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"inspect","handle":null}"#,
     )
     .expect("closed setup request");
     assert_eq!(decoded.operation, DesktopSetupOperation::Inspect);
     assert!(decode_setup_request(
-        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"inspect","path":"/tmp/daemon"}"#,
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"inspect"}"#,
     )
     .is_err());
     assert!(decode_setup_request(
-        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"run-command"}"#,
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"inspect","handle":null,"path":"/tmp/daemon"}"#,
     )
     .is_err());
+    assert!(decode_setup_request(
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"run-command","handle":null}"#,
+    )
+    .is_err());
+    let identity = decode_setup_request(
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"create-identity","handle":"river.studio"}"#,
+    )
+    .expect("closed identity request");
+    assert_eq!(identity.handle.as_deref(), Some("river.studio"));
+    for invalid in [
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"create-identity","handle":null}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"create-identity","handle":"River.Studio"}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"create-identity","handle":"river/studio"}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"inspect","handle":"river.studio"}"#.as_slice(),
+    ] {
+        assert!(decode_setup_request(invalid).is_err());
+    }
 }
 
 #[test]
@@ -312,6 +367,144 @@ fn missing_credential_for_an_active_desktop_client_requires_manual_recovery() {
 }
 
 #[test]
+fn public_identity_creation_is_fixed_private_verified_and_create_once() {
+    let temp = TempSetup::new("identity");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let controller_probe = controller.clone();
+    let mut backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    backend.install_daemon().expect("install daemon");
+    let enrolled = backend
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+    assert_eq!(enrolled.state, DesktopSetupState::IdentityOptional);
+    assert_eq!(
+        enrolled.permitted_actions,
+        vec![
+            DesktopSetupOperation::CreateIdentity,
+            DesktopSetupOperation::Inspect,
+        ]
+    );
+
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+    let created = backend
+        .create_identity("river.studio")
+        .expect("create public identity");
+    assert_eq!(created.state, DesktopSetupState::BrowserCompanionOptional);
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before + 1);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before + 1);
+    let component = created
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::Identity)
+        .expect("identity component");
+    assert_eq!(component.state, DesktopSetupState::Ready);
+    let identity_id = component.public_id.as_deref().expect("public identity id");
+    assert!(identity_id.starts_with("identity/"));
+
+    let vault =
+        ProfileIdentityVault::open_test(temp.paths.identity_metadata()).expect("identity metadata");
+    let public = vault.public_identity().expect("public identity");
+    assert_eq!(public.subject.id, identity_id);
+    assert_eq!(public.subject.handle, "river.studio");
+    assert!(!vault.status().private_key_projection);
+
+    #[cfg(unix)]
+    assert_eq!(
+        fs::metadata(temp.paths.identity_metadata())
+            .expect("identity metadata mode")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+
+    let serialized = serde_json::to_string(&created).expect("setup snapshot");
+    assert!(!serialized.contains("profile-key-"));
+    assert!(!serialized.contains("privateKey"));
+    assert!(!serialized.contains("subjectRoot"));
+    assert!(!serialized.contains("signature"));
+    assert!(!serialized.contains("profile-identity.json"));
+    assert!(matches!(
+        backend.create_identity("another.identity"),
+        Err(DesktopSetupError::OperationUnavailable(_))
+    ));
+}
+
+#[test]
+fn identity_creation_failure_restores_the_daemon_service() {
+    let temp = TempSetup::new("identity-restore");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let mut preparation = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    preparation.install_daemon().expect("install daemon");
+    preparation
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let controller_probe = controller.clone();
+    let mut backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        unavailable_identity_vault,
+    );
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+    assert!(matches!(
+        backend.create_identity("restore.identity"),
+        Err(DesktopSetupError::InstallationFailed(_))
+    ));
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before + 1);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before + 1);
+    assert!(!temp.paths.identity_metadata().exists());
+}
+
+#[test]
+fn host_routes_only_the_closed_identity_request() {
+    let temp = TempSetup::new("identity-host");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let mut preparation = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    preparation.install_daemon().expect("install daemon");
+    preparation
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+
+    let backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        FakeLaunchAgentController::new(temp.paths.socket_file()),
+        open_test_identity_vault,
+    );
+    let mut host = DesktopSetupHost::new(backend, 1);
+    let response = host
+        .handle(identity_request("host.identity"))
+        .expect("closed identity response");
+    assert_eq!(
+        response.snapshot.state,
+        DesktopSetupState::BrowserCompanionOptional
+    );
+    assert!(response
+        .snapshot
+        .components
+        .iter()
+        .any(
+            |component| component.kind == DesktopSetupComponentKind::Identity
+                && component.state == DesktopSetupState::Ready
+        ));
+}
+
+#[test]
 fn launch_agent_has_only_fixed_non_secret_arguments() {
     let temp = TempSetup::new("plist");
     let bytes = expected_launch_agent_plist(&temp.paths).expect("plist");
@@ -355,7 +548,7 @@ fn host_returns_closed_failed_state_for_unavailable_authority() {
     let backend = DesktopSetupEngine::new(temp.paths.clone(), controller);
     let mut host = DesktopSetupHost::new(backend, 1);
     let response = host
-        .handle(request(DesktopSetupOperation::CreateIdentity))
+        .handle(request(DesktopSetupOperation::InstallBrowserBridge))
         .expect("bounded unavailable response");
     assert_eq!(response.protocol, DESKTOP_SETUP_RESULT_PROTOCOL);
     assert_eq!(response.snapshot.state, DesktopSetupState::Failed);

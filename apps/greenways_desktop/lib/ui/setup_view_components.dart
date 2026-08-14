@@ -209,7 +209,7 @@ String _setupStateDescription(
     'A private Desktop-role credential has not been enrolled.',
   DesktopSetupState.credentialRoleMismatch =>
     'The fixed Desktop credential exists but carries another role.',
-  DesktopSetupState.identityOptional => 'The daemon and Desktop access are ready; public identity may be created later.',
+  DesktopSetupState.identityOptional => 'The daemon and Desktop access are ready; create a public identity now or continue without one.',
   DesktopSetupState.browserCompanionOptional =>
     'The core Desktop boundary is ready; browser connection remains optional.',
   DesktopSetupState.verifying =>

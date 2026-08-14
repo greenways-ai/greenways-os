@@ -13,6 +13,19 @@ const _maximumSafeInteger = 9007199254740991;
 final _requestIdPattern = RegExp(r'^desktop/request/[A-Za-z0-9._:-]{8,160}$');
 final _digestPattern = RegExp(r'^sha256:[0-9a-f]{64}$');
 final _errorCodePattern = RegExp(r'^[a-z0-9-]{1,100}$');
+final _identityHandlePattern = RegExp(
+  r'^[a-z0-9](?:[a-z0-9._-]{0,46}[a-z0-9])?$',
+);
+
+String? normalizeDesktopIdentityHandle(String value) {
+  var normalized = value.trim();
+  while (normalized.startsWith('@')) {
+    normalized = normalized.substring(1);
+  }
+  normalized = normalized.toLowerCase();
+  return _identityHandlePattern.hasMatch(normalized) ? normalized : null;
+}
+
 final _confidentialValuePattern = RegExp(
   r'(^gwc_|local/session/|profile-key-|provider-key-|credential-key-|/\.greenways/)',
   caseSensitive: false,

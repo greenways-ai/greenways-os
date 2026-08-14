@@ -20,10 +20,24 @@ impl<B: DesktopSetupBackend> DesktopSetupHost<B> {
         request: DesktopSetupRequest,
     ) -> Result<DesktopSetupResponse, DesktopSetupError> {
         request.validate()?;
-        let result = match request.operation {
+        let DesktopSetupRequest {
+            request_id,
+            operation,
+            handle,
+            ..
+        } = request;
+        let result = match operation {
             DesktopSetupOperation::Inspect => self.backend.inspect(),
             DesktopSetupOperation::InstallDaemon => self.backend.install_daemon(),
             DesktopSetupOperation::IssueDesktopClient => self.backend.issue_desktop_client(),
+            DesktopSetupOperation::CreateIdentity => {
+                self.backend
+                    .create_identity(handle.as_deref().ok_or_else(|| {
+                        DesktopSetupError::ProtocolMismatch(
+                            "The Desktop identity handle is required.".to_owned(),
+                        )
+                    })?)
+            }
             DesktopSetupOperation::RepairPermissions => self.backend.repair_permissions(),
             operation => Err(DesktopSetupError::OperationUnavailable(format!(
                 "The {} setup operation is not available in this build.",
@@ -40,14 +54,32 @@ impl<B: DesktopSetupBackend> DesktopSetupHost<B> {
             Err(error) => DesktopSetupSnapshot::failed(error, observed_at_unix_ms),
         };
         self.snapshot.validate()?;
-        let response = DesktopSetupResponse::new(request.request_id, self.snapshot.clone());
+        let response = DesktopSetupResponse::new(request_id, self.snapshot.clone());
         response.validate()?;
         Ok(response)
     }
 }
 
 pub fn decode_setup_request(bytes: &[u8]) -> Result<DesktopSetupRequest, DesktopSetupError> {
-    let request: DesktopSetupRequest = serde_json::from_slice(bytes).map_err(|_| {
+    let value: Value = serde_json::from_slice(bytes).map_err(|_| {
+        DesktopSetupError::ProtocolMismatch(
+            "Desktop setup input must be one closed JSON object.".to_owned(),
+        )
+    })?;
+    let object = value.as_object().ok_or_else(|| {
+        DesktopSetupError::ProtocolMismatch(
+            "Desktop setup input must be one closed JSON object.".to_owned(),
+        )
+    })?;
+    const EXPECTED_KEYS: [&str; 4] = ["protocol", "requestId", "operation", "handle"];
+    if object.len() != EXPECTED_KEYS.len()
+        || EXPECTED_KEYS.iter().any(|key| !object.contains_key(*key))
+    {
+        return Err(DesktopSetupError::ProtocolMismatch(
+            "Desktop setup input must contain the exact reviewed fields.".to_owned(),
+        ));
+    }
+    let request: DesktopSetupRequest = serde_json::from_value(value).map_err(|_| {
         DesktopSetupError::ProtocolMismatch(
             "Desktop setup input must be one closed JSON object.".to_owned(),
         )
