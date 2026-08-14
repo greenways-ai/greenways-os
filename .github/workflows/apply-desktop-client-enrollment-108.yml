@@ -92,6 +92,7 @@ jobs:
           services/greenways-desktop-bridge/src/setup/tests.rs
           FILES
           sed -i '' 's/^          //' /tmp/expected-files
+          sort -o /tmp/expected-files /tmp/expected-files
           xargs git add -N -- < /tmp/expected-files
           git diff --name-only | sort > /tmp/actual-files
           diff -u /tmp/expected-files /tmp/actual-files
