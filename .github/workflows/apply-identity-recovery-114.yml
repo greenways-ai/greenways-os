@@ -1,0 +1,111 @@
+name: Apply identity recovery 114
+
+on:
+  push:
+    branches:
+      - agent/apply-identity-recovery-114
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/apply-identity-recovery-114
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Apply, validate, and publish issue 114
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import hashlib
+          from pathlib import Path
+
+          encoded = Path('.github/agent/issue114.part-00').read_bytes()
+          assert hashlib.sha256(encoded).hexdigest() == 'bb36bbe9098cdde46bc05749ee69e13f0160d8d4fecb3903a55b76ac5d1fe3b1'
+          archive = base64.b64decode(encoded, validate=True)
+          assert hashlib.sha256(archive).hexdigest() == 'aaf8ed66f30471ea9fa9b8606c61b0fb2aa63ab2b8990a27254ac995d530b2fa'
+          patch = gzip.decompress(archive)
+          assert hashlib.sha256(patch).hexdigest() == 'bc1f0e4115376d92b2a5cc472de538b350bb5709697e246df90f0bdab88eb3d1'
+          Path('/tmp/issue114.patch').write_bytes(patch)
+          PY
+
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "3f78d12306409f54668f1c7c6e8803b7a8561911"
+          git switch --force-create agent/desktop-identity-recovery-114 origin/main
+          git apply --index /tmp/issue114.patch
+
+          cargo +1.85.1 fmt --all
+          dart format apps/greenways_desktop/lib apps/greenways_desktop/test
+          cargo +1.85.1 fmt --all -- --check
+          dart format --output=none --set-exit-if-changed \
+            apps/greenways_desktop/lib apps/greenways_desktop/test
+
+          cargo +1.85.1 test --workspace --all-targets -- --test-threads=1
+          cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+
+          node --test extension/test/extension-identity.test.js
+          python3 -m py_compile apps/greenways_desktop/tool/bootstrap_macos.py
+          bash -n apps/greenways_desktop/tool/build_macos.sh
+          bash -n apps/greenways_desktop/tool/templates/build_desktop_bridge.sh
+
+          (
+            cd apps/greenways_desktop
+            flutter pub get
+            flutter analyze
+            flutter test
+            flutter config --enable-macos-desktop
+            tool/build_macos.sh
+          )
+
+          git diff --check origin/main
+          git diff --name-only origin/main | sort > /tmp/issue114.actual
+          cat > /tmp/issue114.expected <<'EOF'
+          Cargo.lock
+          apps/greenways_desktop/README.md
+          apps/greenways_desktop/lib/controller/setup_controller.dart
+          apps/greenways_desktop/lib/model/setup_snapshot.dart
+          apps/greenways_desktop/lib/model/setup_snapshot_validation.dart
+          apps/greenways_desktop/lib/ui/setup_view.dart
+          apps/greenways_desktop/lib/ui/setup_view_components.dart
+          apps/greenways_desktop/test/desktop_shell_test.dart
+          apps/greenways_desktop/test/setup_controller_test.dart
+          apps/greenways_desktop/test/setup_snapshot_test.dart
+          apps/greenways_desktop/test/support/fakes.dart
+          cli/greenways-admin/Cargo.toml
+          cli/greenways-admin/src/main.rs
+          crates/greenways-identity/Cargo.toml
+          crates/greenways-identity/src/lib.rs
+          crates/greenways-identity/src/recovery.rs
+          protocol/desktop-setup.md
+          protocol/profile-identity.md
+          services/greenways-desktop-bridge/src/setup/host.rs
+          services/greenways-desktop-bridge/src/setup/inspect.rs
+          services/greenways-desktop-bridge/src/setup/mod.rs
+          services/greenways-desktop-bridge/src/setup/service.rs
+          services/greenways-desktop-bridge/src/setup/tests.rs
+          EOF
+          sed -i '' 's/^          //' /tmp/issue114.expected
+          diff -u /tmp/issue114.expected /tmp/issue114.actual
+          test ! -e .github/agent/issue114.part-00
+          test ! -e .github/workflows/apply-identity-recovery-114.yml
+          test ! -d apps/greenways_desktop/macos
+
+          git config user.name "greenways-os-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Recover existing profile identity from Desktop setup"
+          git push origin HEAD:agent/desktop-identity-recovery-114
