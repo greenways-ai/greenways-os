@@ -5,7 +5,7 @@ on:
     branches:
       - agent/desktop-identity-110-apply
     paths:
-      - .github/agent/fix-desktop-identity-linux-110
+      - .github/agent/fix-desktop-identity-linux-110-trigger
 
 permissions:
   contents: write
@@ -21,28 +21,12 @@ jobs:
           fetch-depth: 0
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
-      - name: Close the temporary executable before identity inspection
+      - name: Close and validate the temporary executable fixture
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('services/greenways-desktop-bridge/src/setup/tests.rs')
-          text = path.read_text()
-          old = '''        file.sync_all().expect("script sync");
-        #[cfg(unix)]
-        fs::set_permissions(&packaged_daemon, fs::Permissions::from_mode(0o755))
-'''
-          new = '''        file.sync_all().expect("script sync");
-        drop(file);
-        #[cfg(unix)]
-        fs::set_permissions(&packaged_daemon, fs::Permissions::from_mode(0o755))
-'''
-          if text.count(old) != 1:
-              raise SystemExit('temporary daemon fixture source changed')
-          path.write_text(text.replace(old, new, 1))
-          PY
+          git show origin/agent/desktop-identity-110-apply:.github/agent/fix-desktop-identity-linux-110.py > /tmp/fix-desktop-identity-linux-110.py
+          python3 /tmp/fix-desktop-identity-linux-110.py
           cargo +1.85.1 fmt --all
           cargo +1.85.1 fmt --all -- --check
           cargo +1.85.1 test --workspace --all-targets
@@ -52,6 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git fetch origin main
           test "$(git rev-list --count origin/main..HEAD)" -eq 1
           test "$(git diff --name-only)" = 'services/greenways-desktop-bridge/src/setup/tests.rs'
           git config user.name greenways-os-ci
@@ -59,5 +44,5 @@ jobs:
           git add services/greenways-desktop-bridge/src/setup/tests.rs
           git commit --amend --no-edit
           test "$(git rev-list --count origin/main..HEAD)" -eq 1
-          git push --force-with-lease origin HEAD:refs/heads/agent/desktop-identity-110
+          git push --force origin HEAD:refs/heads/agent/desktop-identity-110
           git rev-parse HEAD
