@@ -60,8 +60,11 @@ jobs:
           dart format --output=none --set-exit-if-changed \
             apps/greenways_desktop/lib apps/greenways_desktop/test
 
-          cargo +1.85.1 test --workspace --all-targets -- --test-threads=1
-          cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+          rm -rf /tmp/gw114
+          mkdir -p /tmp/gw114
+          chmod 700 /tmp/gw114
+          TMPDIR=/tmp/gw114 cargo +1.85.1 test --workspace --all-targets -- --test-threads=1
+          TMPDIR=/tmp/gw114 cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
 
           node --test extension/test/extension-identity.test.js
           python3 -m py_compile apps/greenways_desktop/tool/bootstrap_macos.py
