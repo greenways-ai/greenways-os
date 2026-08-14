@@ -1,0 +1,37 @@
+name: Snapshot Desktop service source for enrollment
+
+on:
+  push:
+    branches:
+      - agent/desktop-client-enrollment-108-apply
+    paths:
+      - .github/agent/snapshot-desktop-service-92-for-108
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/desktop-service-92-clean
+          fetch-depth: 0
+      - name: Export exact source and Git bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git bundle create /tmp/desktop-service-92-clean.bundle agent/desktop-service-92-clean
+          git archive --format=tar.gz --output=/tmp/desktop-service-92-clean.tar.gz HEAD
+          sha256sum /tmp/desktop-service-92-clean.bundle /tmp/desktop-service-92-clean.tar.gz > /tmp/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-service-92-clean-source
+          path: |
+            /tmp/desktop-service-92-clean.bundle
+            /tmp/desktop-service-92-clean.tar.gz
+            /tmp/SHA256SUMS
+          retention-days: 1
+          if-no-files-found: error
