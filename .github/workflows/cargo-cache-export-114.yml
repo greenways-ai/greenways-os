@@ -17,9 +17,16 @@ jobs:
         run: rustup toolchain install 1.85.1 --profile minimal
       - name: Populate exact Cargo dependency cache
         run: cargo +1.85.1 fetch --locked
-      - name: Archive Cargo registry and git cache
+      - name: Archive available Cargo cache directories
+        shell: bash
         run: |
-          tar -C "$HOME/.cargo" -czf "$RUNNER_TEMP/greenways-cargo-cache-114.tgz" registry git
+          set -euo pipefail
+          cd "$HOME/.cargo"
+          paths=(registry)
+          if [[ -d git ]]; then
+            paths+=(git)
+          fi
+          tar -czf "$RUNNER_TEMP/greenways-cargo-cache-114.tgz" "${paths[@]}"
       - uses: actions/upload-artifact@v4
         with:
           name: greenways-cargo-cache-114
