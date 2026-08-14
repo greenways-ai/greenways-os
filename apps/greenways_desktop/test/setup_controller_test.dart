@@ -49,6 +49,27 @@ void main() {
     },
   );
 
+  test(
+    'Desktop access enrollment follows the closed credential state',
+    () async {
+      final bridge = FakeDesktopBridge(
+        setupResult: inspectedSetupSnapshot(
+          desktopClientState: DesktopSetupState.credentialRequired,
+        ),
+      );
+      final controller = SetupController(bridge);
+
+      await controller.inspect();
+      expect(controller.snapshot.state, DesktopSetupState.credentialRequired);
+      bridge.setupResult = inspectedSetupSnapshot();
+      await controller.issueDesktopClient();
+
+      expect(bridge.desktopClientIssues, 1);
+      expect(controller.snapshot.state, DesktopSetupState.identityOptional);
+      controller.dispose();
+    },
+  );
+
   test('missing companion becomes a bounded setup failure', () async {
     final bridge = FakeDesktopBridge(
       setupError: const DesktopBridgeUnavailable('Companion unavailable.'),

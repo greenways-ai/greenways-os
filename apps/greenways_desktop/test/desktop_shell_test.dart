@@ -121,6 +121,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(setupBridge.daemonInstalls, 1);
     expect(find.text('Desktop access required'), findsWidgets);
+    expect(find.text('Establish Desktop access'), findsOneWidget);
+    setupBridge.setupResult = inspectedSetupSnapshot();
+    await tester.tap(find.text('Establish Desktop access'));
+    await tester.pumpAndSettle();
+    expect(setupBridge.desktopClientIssues, 1);
+    expect(find.text('Identity setup is optional'), findsWidgets);
     expect(tester.takeException(), isNull);
     connection.dispose();
     setup.dispose();

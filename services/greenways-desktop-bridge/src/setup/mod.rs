@@ -494,6 +494,10 @@ fn permitted_actions_for_state(state: DesktopSetupState) -> Vec<DesktopSetupOper
             DesktopSetupOperation::RepairPermissions,
             DesktopSetupOperation::Inspect,
         ],
+        DesktopSetupState::CredentialRequired => vec![
+            DesktopSetupOperation::IssueDesktopClient,
+            DesktopSetupOperation::Inspect,
+        ],
         DesktopSetupState::NotInspected | DesktopSetupState::Failed => {
             vec![DesktopSetupOperation::Inspect]
         }
@@ -553,6 +557,7 @@ impl Error for DesktopSetupError {}
 pub trait DesktopSetupBackend {
     fn inspect(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn install_daemon(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
+    fn issue_desktop_client(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn repair_permissions(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
 }
 

@@ -210,16 +210,20 @@ impl QueryRequest {
                 require_absent(&self.limit, "limit")?;
                 require_absent(&self.cursor, "cursor")?;
                 require_absent(&self.direction, "direction")?;
-                validate_chat_id(self.chat_id.as_deref().ok_or_else(|| {
-                    ContractError::new("missing-field", "chat_id is required")
-                })?)
+                validate_chat_id(
+                    self.chat_id.as_deref().ok_or_else(|| {
+                        ContractError::new("missing-field", "chat_id is required")
+                    })?,
+                )
             }
             "messages" => {
                 require_page_limit(self.limit)?;
                 require_cursor(&self.cursor)?;
-                validate_chat_id(self.chat_id.as_deref().ok_or_else(|| {
-                    ContractError::new("missing-field", "chat_id is required")
-                })?)?;
+                validate_chat_id(
+                    self.chat_id.as_deref().ok_or_else(|| {
+                        ContractError::new("missing-field", "chat_id is required")
+                    })?,
+                )?;
                 match self.direction.as_deref() {
                     Some("forward") | Some("backward") => Ok(()),
                     _ => Err(ContractError::new(

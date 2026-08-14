@@ -7,7 +7,7 @@ use super::{
     DesktopSetupBackend, DesktopSetupComponent, DesktopSetupComponentKind, DesktopSetupError,
     DesktopSetupOperation, DesktopSetupSnapshot, DesktopSetupState,
 };
-use greenways_authority::{read_credential_file, LocalClientRole};
+use greenways_authority::{read_credential_file, LocalClientRegistry, LocalClientRole};
 use greenways_desktop_bridge::now_unix_ms;
 use greenways_identity::ProfileIdentityVault;
 use std::fs;
@@ -192,12 +192,53 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
     fn inspect_desktop_client(&self) -> Result<DesktopSetupComponent, DesktopSetupError> {
         let paths = &self.installer.paths;
         let credential_path = paths.desktop_credential();
-        match inspect_owned_file(&credential_path, paths.uid, 0o600)? {
-            OwnedPathState::Missing => Ok(DesktopSetupComponent::blocked(
+        let registry_path = paths.local_client_registry();
+        let registry_state = inspect_owned_file(&registry_path, paths.uid, 0o600)?;
+        if registry_state == OwnedPathState::WrongMode {
+            return Ok(DesktopSetupComponent::blocked(
                 DesktopSetupComponentKind::DesktopClient,
-                DesktopSetupState::CredentialRequired,
-                "desktop-credential-required",
-            )),
+                DesktopSetupState::PermissionRepairRequired,
+                "desktop-registry-permission-repair-required",
+            ));
+        }
+        if registry_state == OwnedPathState::Unsafe {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::DesktopClient,
+                DesktopSetupState::ManualRecoveryRequired,
+                "desktop-registry-unsafe",
+            ));
+        }
+
+        match inspect_owned_file(&credential_path, paths.uid, 0o600)? {
+            OwnedPathState::Missing => {
+                if registry_state == OwnedPathState::Ready {
+                    let registry = match LocalClientRegistry::open(&registry_path) {
+                        Ok(registry) => registry,
+                        Err(_) => {
+                            return Ok(DesktopSetupComponent::blocked(
+                                DesktopSetupComponentKind::DesktopClient,
+                                DesktopSetupState::ManualRecoveryRequired,
+                                "desktop-registry-invalid",
+                            ));
+                        }
+                    };
+                    if registry.clients().iter().any(|client| {
+                        client.role == LocalClientRole::Desktop
+                            && client.revoked_at_unix_ms.is_none()
+                    }) {
+                        return Ok(DesktopSetupComponent::blocked(
+                            DesktopSetupComponentKind::DesktopClient,
+                            DesktopSetupState::ManualRecoveryRequired,
+                            "desktop-credential-missing-for-active-client",
+                        ));
+                    }
+                }
+                Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::DesktopClient,
+                    DesktopSetupState::CredentialRequired,
+                    "desktop-credential-required",
+                ))
+            }
             OwnedPathState::WrongMode => Ok(DesktopSetupComponent::blocked(
                 DesktopSetupComponentKind::DesktopClient,
                 DesktopSetupState::PermissionRepairRequired,
@@ -208,21 +249,53 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
                 DesktopSetupState::ManualRecoveryRequired,
                 "desktop-credential-unsafe",
             )),
-            OwnedPathState::Ready => match read_credential_file(&credential_path) {
-                Ok(credential) if credential.role == LocalClientRole::Desktop => Ok(
-                    DesktopSetupComponent::ready(DesktopSetupComponentKind::DesktopClient),
-                ),
-                Ok(_) => Ok(DesktopSetupComponent::blocked(
-                    DesktopSetupComponentKind::DesktopClient,
-                    DesktopSetupState::CredentialRoleMismatch,
-                    "desktop-credential-role-mismatch",
-                )),
-                Err(_) => Ok(DesktopSetupComponent::blocked(
-                    DesktopSetupComponentKind::DesktopClient,
-                    DesktopSetupState::ManualRecoveryRequired,
-                    "desktop-credential-invalid",
-                )),
-            },
+            OwnedPathState::Ready => {
+                let credential = match read_credential_file(&credential_path) {
+                    Ok(credential) => credential,
+                    Err(_) => {
+                        return Ok(DesktopSetupComponent::blocked(
+                            DesktopSetupComponentKind::DesktopClient,
+                            DesktopSetupState::ManualRecoveryRequired,
+                            "desktop-credential-invalid",
+                        ));
+                    }
+                };
+                if credential.role != LocalClientRole::Desktop {
+                    return Ok(DesktopSetupComponent::blocked(
+                        DesktopSetupComponentKind::DesktopClient,
+                        DesktopSetupState::CredentialRoleMismatch,
+                        "desktop-credential-role-mismatch",
+                    ));
+                }
+                if registry_state != OwnedPathState::Ready {
+                    return Ok(DesktopSetupComponent::blocked(
+                        DesktopSetupComponentKind::DesktopClient,
+                        DesktopSetupState::ManualRecoveryRequired,
+                        "desktop-registry-required",
+                    ));
+                }
+                let registry = match LocalClientRegistry::open(&registry_path) {
+                    Ok(registry) => registry,
+                    Err(_) => {
+                        return Ok(DesktopSetupComponent::blocked(
+                            DesktopSetupComponentKind::DesktopClient,
+                            DesktopSetupState::ManualRecoveryRequired,
+                            "desktop-registry-invalid",
+                        ));
+                    }
+                };
+                match registry.verify_credential(&credential) {
+                    Ok(client) => Ok(DesktopSetupComponent::ready(
+                        DesktopSetupComponentKind::DesktopClient,
+                    )
+                    .with_public_id(client.id)),
+                    Err(_) => Ok(DesktopSetupComponent::blocked(
+                        DesktopSetupComponentKind::DesktopClient,
+                        DesktopSetupState::ManualRecoveryRequired,
+                        "desktop-credential-rejected",
+                    )),
+                }
+            }
         }
     }
 
@@ -291,6 +364,32 @@ impl<C: LaunchAgentController> DesktopSetupBackend for DesktopSetupEngine<C> {
             ));
         }
         self.installer.install()?;
+        #[cfg(target_os = "macos")]
+        for _ in 0..30 {
+            if self.installer.paths.socket_file().exists() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        self.inspect_snapshot()
+    }
+
+    fn issue_desktop_client(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError> {
+        let before = self.inspect_snapshot()?;
+        if !before
+            .permitted_actions
+            .contains(&DesktopSetupOperation::IssueDesktopClient)
+        {
+            return Err(DesktopSetupError::OperationUnavailable(
+                "Desktop access enrollment is not permitted by the current setup state.".to_owned(),
+            ));
+        }
+        let observed_at_unix_ms = now_unix_ms().map_err(|_| {
+            DesktopSetupError::InstallationFailed(
+                "The Desktop setup clock is unavailable.".to_owned(),
+            )
+        })?;
+        self.installer.issue_desktop_client(observed_at_unix_ms)?;
         #[cfg(target_os = "macos")]
         for _ in 0..30 {
             if self.installer.paths.socket_file().exists() {

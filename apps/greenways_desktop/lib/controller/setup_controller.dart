@@ -21,6 +21,9 @@ final class SetupController extends ChangeNotifier {
 
   Future<void> installDaemon() => perform(DesktopSetupOperation.installDaemon);
 
+  Future<void> issueDesktopClient() =>
+      perform(DesktopSetupOperation.issueDesktopClient);
+
   Future<void> repairPermissions() =>
       perform(DesktopSetupOperation.repairPermissions);
 

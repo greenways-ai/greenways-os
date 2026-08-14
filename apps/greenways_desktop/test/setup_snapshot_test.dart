@@ -57,6 +57,25 @@ void main() {
     ]);
   });
 
+  test('credential-required exposes only fixed Desktop enrollment', () {
+    final json = _setupJson();
+    json['state'] = 'credential-required';
+    final components = json['components']! as List<Object?>;
+    components[2] = _component(
+      'desktop-client',
+      'credential-required',
+      errorCode: 'desktop-credential-required',
+    );
+    json['permittedActions'] = <Object?>['issue-desktop-client', 'inspect'];
+
+    final snapshot = DesktopSetupSnapshot.fromJson(json);
+    expect(snapshot.state, DesktopSetupState.credentialRequired);
+    expect(snapshot.permittedActions, const [
+      DesktopSetupOperation.issueDesktopClient,
+      DesktopSetupOperation.inspect,
+    ]);
+  });
+
   test('diagnostics remain bounded and serializable', () {
     final snapshot = DesktopSetupSnapshot.fromJson(_setupJson());
     final diagnostics = jsonDecode(snapshot.diagnosticsJson());

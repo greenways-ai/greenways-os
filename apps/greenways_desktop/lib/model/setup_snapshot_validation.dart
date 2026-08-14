@@ -14,6 +14,11 @@ List<DesktopSetupOperation> _permittedActionsForState(DesktopSetupState state) {
         DesktopSetupOperation.repairPermissions,
         DesktopSetupOperation.inspect,
       ];
+    case DesktopSetupState.credentialRequired:
+      return const [
+        DesktopSetupOperation.issueDesktopClient,
+        DesktopSetupOperation.inspect,
+      ];
     case DesktopSetupState.inspecting:
     case DesktopSetupState.verifying:
       return const [];

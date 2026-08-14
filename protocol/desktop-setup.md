@@ -1,6 +1,6 @@
 # Greenways Desktop local setup
 
-Status: `0-alpha`, daemon-service slice
+Status: `0-alpha`, initial Desktop-client enrollment slice
 
 Greenways Desktop uses a separate process-isolated setup protocol to inspect and establish the fixed installation-local boundary around `greenwaysd`. Flutter expresses one closed semantic operation and receives bounded component state. It does not receive filesystem paths, credential bytes, daemon session IDs, private keys, recovery material, provider credentials, or generic process authority.
 
@@ -11,13 +11,13 @@ This slice implements:
 ```text
 inspect
 install-daemon
+issue-desktop-client
 repair-permissions
 ```
 
 The remaining protocol names are reserved but unavailable until their own reviewed slices:
 
 ```text
-issue-desktop-client
 create-identity
 install-browser-bridge
 verify
@@ -59,7 +59,7 @@ The request has exactly three fields. It accepts no executable path, Greenways h
       {"kind": "identity", "state": "identity-optional"},
       {"kind": "browser-companion", "state": "browser-companion-optional"}
     ],
-    "permittedActions": ["inspect"],
+    "permittedActions": ["issue-desktop-client", "inspect"],
     "observedAtUnixMs": 1,
     "error": null
   }
@@ -106,6 +106,32 @@ The LaunchAgent contains only the installed daemon path, `--home`, the fixed Gre
 
 Closing Greenways Desktop does not unload the LaunchAgent and does not stop `greenwaysd`.
 
+## Initial Desktop client enrollment
+
+`issue-desktop-client` is available only when the inspected aggregate state is exactly `credential-required`. It accepts no arguments. The Rust setup companion fixes the complete subject and destination:
+
+```text
+label:        Greenways Desktop
+role:         desktop
+registry:     $HOME/.greenways/state/local-clients.json
+credential:   $HOME/.greenways/clients/desktop.json
+```
+
+The operation:
+
+1. rejects an existing fixed credential without overwriting it;
+2. rejects unsafe or incorrectly permissioned registry state;
+3. stops only the fixed `ai.greenways.greenwaysd` service;
+4. opens the daemon-owned local-client registry through `greenways-authority`;
+5. refuses to create another client when an active Desktop record already exists without the fixed credential;
+6. issues one exact `desktop` client directly to the fixed private credential file;
+7. persists only the token digest in the registry;
+8. reads and verifies the credential against the committed registry record;
+9. restarts the fixed daemon service; and
+10. returns a new inspection snapshot containing only the public local-client ID.
+
+The credential token is never returned to Flutter, serialized into the setup response, copied into diagnostics, or passed through a process argument. An existing wrong-role credential remains `credential-role-mismatch`. An orphaned active Desktop registry record becomes `manual-recovery-required` rather than silently creating a second client.
+
 ## Inspection and recovery states
 
 Inspection rejects symbolic links, unexpected file types, wrong ownership, unsafe sockets, malformed credentials, wrong Desktop roles, malformed identity metadata, executable identity drift, and LaunchAgent drift.
@@ -118,6 +144,7 @@ install-required              -> install-daemon | inspect
 upgrade-required              -> install-daemon | inspect
 restart-required              -> install-daemon | inspect
 permission-repair-required    -> repair-permissions | inspect
+credential-required           -> issue-desktop-client | inspect
 all other inspected states    -> inspect
 ```
 
@@ -135,4 +162,4 @@ Rust and Dart both use closed schemas. Dart rejects confidential-looking values 
 
 ## Deliberate limits
 
-This slice does not issue, replace, or revoke a Desktop credential; create or recover identity; install a browser companion; forward page or provider operations; establish Hestia room membership; update arbitrary software; accept custom paths; execute arbitrary local packages; or provide Windows or Linux Desktop service installation.
+This slice does not replace or revoke a Desktop credential; recover from an interrupted replacement; create or recover identity; install a browser companion; forward page or provider operations; establish Hestia room membership; update arbitrary software; accept custom paths; execute arbitrary local packages; or provide Windows or Linux Desktop service installation.

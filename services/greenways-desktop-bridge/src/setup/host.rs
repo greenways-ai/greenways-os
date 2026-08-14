@@ -23,6 +23,7 @@ impl<B: DesktopSetupBackend> DesktopSetupHost<B> {
         let result = match request.operation {
             DesktopSetupOperation::Inspect => self.backend.inspect(),
             DesktopSetupOperation::InstallDaemon => self.backend.install_daemon(),
+            DesktopSetupOperation::IssueDesktopClient => self.backend.issue_desktop_client(),
             DesktopSetupOperation::RepairPermissions => self.backend.repair_permissions(),
             operation => Err(DesktopSetupError::OperationUnavailable(format!(
                 "The {} setup operation is not available in this build.",

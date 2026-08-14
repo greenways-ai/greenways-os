@@ -182,6 +182,11 @@ final class _SetupPrimaryAction extends StatelessWidget {
         Icons.build_outlined,
         controller.repairPermissions,
       ),
+      DesktopSetupOperation.issueDesktopClient => (
+        'Establish Desktop access',
+        Icons.key_outlined,
+        controller.issueDesktopClient,
+      ),
       _ => (
         snapshot.inspected ? 'Check again' : 'Check local components',
         Icons.search,

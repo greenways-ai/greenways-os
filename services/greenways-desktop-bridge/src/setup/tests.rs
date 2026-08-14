@@ -3,11 +3,13 @@ use super::{
     inspect::DesktopSetupEngine,
     service::{
         expected_launch_agent_plist, LaunchAgentController, SetupPaths, DAEMON_SERVICE_LABEL,
+        DESKTOP_CLIENT_LABEL,
     },
     DesktopSetupBackend, DesktopSetupComponentKind, DesktopSetupError, DesktopSetupHost,
     DesktopSetupOperation, DesktopSetupRequest, DesktopSetupState, DESKTOP_SETUP_PROTOCOL,
     DESKTOP_SETUP_RESULT_PROTOCOL,
 };
+use greenways_authority::{read_credential_file, LocalClientRegistry, LocalClientRole};
 use std::{
     fs::{self, OpenOptions},
     io::Write,
@@ -76,23 +78,38 @@ impl Drop for TempSetup {
 #[derive(Debug)]
 struct FakeLaunchAgentController {
     socket: PathBuf,
-    calls: usize,
+    restart_calls: usize,
+    stop_calls: usize,
 }
 
 impl FakeLaunchAgentController {
     fn new(socket: PathBuf) -> Self {
-        Self { socket, calls: 0 }
+        Self {
+            socket,
+            restart_calls: 0,
+            stop_calls: 0,
+        }
     }
 }
 
 impl LaunchAgentController for FakeLaunchAgentController {
+    fn stop(&mut self, label: &str, uid: u32) -> Result<(), DesktopSetupError> {
+        self.stop_calls += 1;
+        assert_eq!(label, DAEMON_SERVICE_LABEL);
+        assert!(uid > 0 || cfg!(not(unix)));
+        if self.socket.exists() {
+            fs::remove_file(&self.socket).expect("remove fake daemon socket");
+        }
+        Ok(())
+    }
+
     fn restart(
         &mut self,
         launch_agent: &Path,
         label: &str,
         uid: u32,
     ) -> Result<(), DesktopSetupError> {
-        self.calls += 1;
+        self.restart_calls += 1;
         assert_eq!(label, DAEMON_SERVICE_LABEL);
         assert_eq!(
             launch_agent.file_name().and_then(|value| value.to_str()),
@@ -187,6 +204,114 @@ fn daemon_installation_is_fixed_atomic_and_idempotent() {
 }
 
 #[test]
+fn desktop_client_enrollment_is_fixed_private_and_verified() {
+    let temp = TempSetup::new("desktop-client");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let mut backend = DesktopSetupEngine::new(temp.paths.clone(), controller);
+    let installed = backend.install_daemon().expect("install daemon");
+    assert_eq!(installed.state, DesktopSetupState::CredentialRequired);
+    assert_eq!(
+        installed.permitted_actions,
+        vec![
+            DesktopSetupOperation::IssueDesktopClient,
+            DesktopSetupOperation::Inspect,
+        ]
+    );
+
+    let enrolled = backend
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+    assert_eq!(enrolled.state, DesktopSetupState::IdentityOptional);
+    let component = enrolled
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::DesktopClient)
+        .expect("Desktop client component");
+    assert_eq!(component.state, DesktopSetupState::Ready);
+    let client_id = component.public_id.as_deref().expect("public client id");
+    assert!(client_id.starts_with("local/client/"));
+
+    let credential =
+        read_credential_file(temp.paths.desktop_credential()).expect("private Desktop credential");
+    assert_eq!(credential.role, LocalClientRole::Desktop);
+    let registry = LocalClientRegistry::open(temp.paths.local_client_registry())
+        .expect("private local-client registry");
+    let verified = registry
+        .verify_credential(&credential)
+        .expect("credential verifies");
+    assert_eq!(verified.id, client_id);
+    assert_eq!(verified.label, DESKTOP_CLIENT_LABEL);
+
+    #[cfg(unix)]
+    {
+        assert_eq!(
+            fs::metadata(temp.paths.desktop_credential())
+                .expect("credential metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        assert_eq!(
+            fs::metadata(temp.paths.local_client_registry())
+                .expect("registry metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+
+    let serialized = serde_json::to_string(&enrolled).expect("setup snapshot");
+    assert!(!serialized.contains("gwc_"));
+    assert!(!serialized.contains("desktop.json"));
+    assert!(!serialized.contains("local-clients.json"));
+    assert!(matches!(
+        backend.issue_desktop_client(),
+        Err(DesktopSetupError::OperationUnavailable(_))
+    ));
+}
+
+#[test]
+fn missing_credential_for_an_active_desktop_client_requires_manual_recovery() {
+    let temp = TempSetup::new("orphan-client");
+    fs::create_dir_all(&temp.paths.state_dir).expect("state directory");
+    fs::create_dir_all(&temp.paths.clients_dir).expect("clients directory");
+    #[cfg(unix)]
+    {
+        fs::set_permissions(&temp.paths.state_dir, fs::Permissions::from_mode(0o700))
+            .expect("state mode");
+        fs::set_permissions(&temp.paths.clients_dir, fs::Permissions::from_mode(0o700))
+            .expect("clients mode");
+    }
+    let orphan_credential = temp.paths.clients_dir.join("orphan.json");
+    let mut registry =
+        LocalClientRegistry::open(temp.paths.local_client_registry()).expect("registry");
+    registry
+        .issue_to_file(
+            LocalClientRole::Desktop,
+            DESKTOP_CLIENT_LABEL,
+            &orphan_credential,
+            1,
+        )
+        .expect("orphan client");
+    fs::remove_file(orphan_credential).expect("remove orphan credential");
+
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let mut backend = DesktopSetupEngine::new(temp.paths.clone(), controller);
+    let snapshot = backend.inspect().expect("inspect orphan client");
+    let component = snapshot
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::DesktopClient)
+        .expect("Desktop client component");
+    assert_eq!(component.state, DesktopSetupState::ManualRecoveryRequired);
+    assert!(!snapshot
+        .permitted_actions
+        .contains(&DesktopSetupOperation::IssueDesktopClient));
+}
+
+#[test]
 fn launch_agent_has_only_fixed_non_secret_arguments() {
     let temp = TempSetup::new("plist");
     let bytes = expected_launch_agent_plist(&temp.paths).expect("plist");
@@ -230,7 +355,7 @@ fn host_returns_closed_failed_state_for_unavailable_authority() {
     let backend = DesktopSetupEngine::new(temp.paths.clone(), controller);
     let mut host = DesktopSetupHost::new(backend, 1);
     let response = host
-        .handle(request(DesktopSetupOperation::IssueDesktopClient))
+        .handle(request(DesktopSetupOperation::CreateIdentity))
         .expect("bounded unavailable response");
     assert_eq!(response.protocol, DESKTOP_SETUP_RESULT_PROTOCOL);
     assert_eq!(response.snapshot.state, DesktopSetupState::Failed);
