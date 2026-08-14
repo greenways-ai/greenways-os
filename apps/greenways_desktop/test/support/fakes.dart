@@ -27,6 +27,7 @@ final class FakeDesktopBridge implements DesktopBridge {
   int disconnects = 0;
   int inspections = 0;
   int daemonInstalls = 0;
+  int desktopClientIssues = 0;
   int permissionRepairs = 0;
   bool closed = false;
 
@@ -60,6 +61,9 @@ final class FakeDesktopBridge implements DesktopBridge {
         break;
       case DesktopSetupOperation.installDaemon:
         daemonInstalls += 1;
+        break;
+      case DesktopSetupOperation.issueDesktopClient:
+        desktopClientIssues += 1;
         break;
       case DesktopSetupOperation.repairPermissions:
         permissionRepairs += 1;
@@ -168,6 +172,9 @@ DesktopSetupSnapshot inspectedSetupSnapshot({
     _setupComponent(
       DesktopSetupComponentKind.desktopClient,
       desktopClientState,
+      publicId: desktopClientState == DesktopSetupState.ready
+          ? 'local/client/00112233445566778899aabbccddeeff'
+          : null,
     ),
     _setupComponent(
       DesktopSetupComponentKind.identity,
@@ -247,6 +254,11 @@ List<DesktopSetupOperation> _setupActions(DesktopSetupState state) {
     case DesktopSetupState.permissionRepairRequired:
       return const [
         DesktopSetupOperation.repairPermissions,
+        DesktopSetupOperation.inspect,
+      ];
+    case DesktopSetupState.credentialRequired:
+      return const [
+        DesktopSetupOperation.issueDesktopClient,
         DesktopSetupOperation.inspect,
       ];
     default:

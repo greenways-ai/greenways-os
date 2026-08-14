@@ -1,4 +1,7 @@
 use super::DesktopSetupError;
+use greenways_authority::{
+    read_credential_file, LocalClient, LocalClientRegistry, LocalClientRole,
+};
 use sha2::{Digest, Sha256};
 use std::{
     env,
@@ -16,6 +19,7 @@ use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt
 use std::process::Output;
 
 pub const DAEMON_SERVICE_LABEL: &str = "ai.greenways.greenwaysd";
+pub const DESKTOP_CLIENT_LABEL: &str = "Greenways Desktop";
 const MAX_DAEMON_BINARY_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_VERSION_OUTPUT_BYTES: usize = 256;
 
@@ -94,6 +98,10 @@ impl SetupPaths {
         self.clients_dir.join("desktop.json")
     }
 
+    pub fn local_client_registry(&self) -> PathBuf {
+        self.state_dir.join("local-clients.json")
+    }
+
     pub fn identity_metadata(&self) -> PathBuf {
         self.state_dir.join("profile-identity.json")
     }
@@ -116,6 +124,8 @@ pub struct BinaryIdentity {
 }
 
 pub trait LaunchAgentController {
+    fn stop(&mut self, label: &str, uid: u32) -> Result<(), DesktopSetupError>;
+
     fn restart(
         &mut self,
         launch_agent: &Path,
@@ -128,6 +138,31 @@ pub trait LaunchAgentController {
 pub struct SystemLaunchAgentController;
 
 impl LaunchAgentController for SystemLaunchAgentController {
+    fn stop(&mut self, label: &str, uid: u32) -> Result<(), DesktopSetupError> {
+        #[cfg(target_os = "macos")]
+        {
+            let service = format!("gui/{uid}/{label}");
+            let output = fixed_command(
+                "/bin/launchctl",
+                [OsStr::new("bootout"), OsStr::new(&service)],
+            )?;
+            if output.status.success() || known_missing_service(&output) {
+                Ok(())
+            } else {
+                Err(DesktopSetupError::InstallationFailed(
+                    "The Greenways daemon service could not be stopped.".to_owned(),
+                ))
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (label, uid);
+            Err(DesktopSetupError::UnsupportedPlatform(
+                "Greenways daemon service control is available on macOS only.".to_owned(),
+            ))
+        }
+    }
+
     fn restart(
         &mut self,
         launch_agent: &Path,
@@ -138,15 +173,7 @@ impl LaunchAgentController for SystemLaunchAgentController {
         {
             let domain = format!("gui/{uid}");
             let service = format!("{domain}/{label}");
-            let bootout = fixed_command(
-                "/bin/launchctl",
-                [OsStr::new("bootout"), OsStr::new(&service)],
-            )?;
-            if !bootout.status.success() && !known_missing_service(&bootout) {
-                return Err(DesktopSetupError::InstallationFailed(
-                    "The existing Greenways daemon service could not be unloaded.".to_owned(),
-                ));
-            }
+            self.stop(label, uid)?;
             require_success(
                 fixed_command(
                     "/bin/launchctl",
@@ -257,7 +284,110 @@ impl<C: LaunchAgentController> DaemonServiceInstaller<C> {
         if self.paths.launch_agent.exists() {
             repair_owned_file(&self.paths.launch_agent, self.paths.uid, 0o600)?;
         }
+        for private_file in [
+            self.paths.local_client_registry(),
+            self.paths.desktop_credential(),
+            self.paths.identity_metadata(),
+        ] {
+            if fs::symlink_metadata(&private_file).is_ok() {
+                repair_owned_file(&private_file, self.paths.uid, 0o600)?;
+            }
+        }
         Ok(())
+    }
+
+    pub fn issue_desktop_client(
+        &mut self,
+        observed_at_unix_ms: u64,
+    ) -> Result<LocalClient, DesktopSetupError> {
+        self.ensure_greenways_directories(true)?;
+        require_missing_fixed_file(
+            &self.paths.desktop_credential(),
+            self.paths.uid,
+            "The fixed Desktop credential already exists.",
+        )?;
+        match inspect_owned_file(&self.paths.local_client_registry(), self.paths.uid, 0o600)? {
+            OwnedPathState::Missing | OwnedPathState::Ready => {}
+            OwnedPathState::WrongMode => {
+                return Err(DesktopSetupError::InstallationFailed(
+                    "The local-client registry permissions require repair.".to_owned(),
+                ));
+            }
+            OwnedPathState::Unsafe => {
+                return Err(DesktopSetupError::UnsafeInstallation(
+                    "The fixed local-client registry is unsafe.".to_owned(),
+                ));
+            }
+        }
+
+        self.controller.stop(DAEMON_SERVICE_LABEL, self.paths.uid)?;
+        let issue_result = self.issue_desktop_client_while_stopped(observed_at_unix_ms);
+        let restart_result = self.controller.restart(
+            &self.paths.launch_agent,
+            DAEMON_SERVICE_LABEL,
+            self.paths.uid,
+        );
+        match (issue_result, restart_result) {
+            (Ok(client), Ok(())) => Ok(client),
+            (Err(error), Ok(())) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+            (Err(_), Err(_)) => Err(DesktopSetupError::InstallationFailed(
+                "Desktop access could not be established and the daemon service could not be restored."
+                    .to_owned(),
+            )),
+        }
+    }
+
+    fn issue_desktop_client_while_stopped(
+        &self,
+        observed_at_unix_ms: u64,
+    ) -> Result<LocalClient, DesktopSetupError> {
+        let registry_path = self.paths.local_client_registry();
+        let mut registry = LocalClientRegistry::open(&registry_path).map_err(|_| {
+            DesktopSetupError::UnsafeInstallation(
+                "The fixed local-client registry could not be opened safely.".to_owned(),
+            )
+        })?;
+        if registry.clients().iter().any(|client| {
+            client.role == LocalClientRole::Desktop && client.revoked_at_unix_ms.is_none()
+        }) {
+            return Err(DesktopSetupError::UnsafeInstallation(
+                "An active Desktop client already exists without this installation's fixed credential."
+                    .to_owned(),
+            ));
+        }
+        let client = registry
+            .issue_to_file(
+                LocalClientRole::Desktop,
+                DESKTOP_CLIENT_LABEL,
+                self.paths.desktop_credential(),
+                observed_at_unix_ms,
+            )
+            .map_err(|_| {
+                DesktopSetupError::InstallationFailed(
+                    "The fixed Desktop client could not be enrolled.".to_owned(),
+                )
+            })?;
+        let credential = read_credential_file(self.paths.desktop_credential()).map_err(|_| {
+            DesktopSetupError::InstallationFailed(
+                "The enrolled Desktop credential could not be verified.".to_owned(),
+            )
+        })?;
+        let verified = registry.verify_credential(&credential).map_err(|_| {
+            DesktopSetupError::InstallationFailed(
+                "The enrolled Desktop credential was rejected by the local registry.".to_owned(),
+            )
+        })?;
+        if verified != client
+            || verified.role != LocalClientRole::Desktop
+            || verified.label != DESKTOP_CLIENT_LABEL
+        {
+            return Err(DesktopSetupError::InstallationFailed(
+                "The enrolled Desktop client identity did not match the fixed setup contract."
+                    .to_owned(),
+            ));
+        }
+        Ok(client)
     }
 
     fn ensure_greenways_directories(&self, create_missing: bool) -> Result<(), DesktopSetupError> {
@@ -265,6 +395,23 @@ impl<C: LaunchAgentController> DaemonServiceInstaller<C> {
             ensure_owned_directory(directory, self.paths.uid, 0o700, create_missing)?;
         }
         Ok(())
+    }
+}
+
+fn require_missing_fixed_file(
+    path: &Path,
+    uid: u32,
+    message: &str,
+) -> Result<(), DesktopSetupError> {
+    match inspect_owned_file(path, uid, 0o600)? {
+        OwnedPathState::Missing => Ok(()),
+        OwnedPathState::Ready => Err(DesktopSetupError::OperationUnavailable(message.to_owned())),
+        OwnedPathState::WrongMode => Err(DesktopSetupError::InstallationFailed(
+            "The fixed Desktop credential permissions require repair.".to_owned(),
+        )),
+        OwnedPathState::Unsafe => Err(DesktopSetupError::UnsafeInstallation(
+            "The fixed Desktop credential path is unsafe.".to_owned(),
+        )),
     }
 }
 
