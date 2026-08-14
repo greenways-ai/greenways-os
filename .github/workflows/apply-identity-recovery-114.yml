@@ -54,6 +54,24 @@ jobs:
           git switch --force-create agent/desktop-identity-recovery-114 origin/main
           git apply --index /tmp/issue114.patch
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('services/greenways-desktop-bridge/src/setup/service.rs')
+          source = path.read_text()
+          old = '''        return Ok(Some(IdentityRecoverySelection {
+              package,
+              recovery_key,
+          }));'''
+          new = '''        Ok(Some(IdentityRecoverySelection {
+              package,
+              recovery_key,
+          }))'''
+          if old not in source:
+              raise SystemExit('expected identity recovery selection source not found')
+          path.write_text(source.replace(old, new, 1))
+          PY
+
           cargo +1.85.1 fmt --all
           dart format apps/greenways_desktop/lib apps/greenways_desktop/test
           cargo +1.85.1 fmt --all -- --check
