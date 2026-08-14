@@ -29,6 +29,7 @@ final class FakeDesktopBridge implements DesktopBridge {
   int daemonInstalls = 0;
   int desktopClientIssues = 0;
   int identityCreations = 0;
+  int identityRecoveries = 0;
   final List<String?> identityHandles = [];
   int browserBridgeInstalls = 0;
   final List<DesktopSetupOperation> setupOperations = [];
@@ -76,6 +77,9 @@ final class FakeDesktopBridge implements DesktopBridge {
       case DesktopSetupOperation.createIdentity:
         identityCreations += 1;
         identityHandles.add(handle);
+        break;
+      case DesktopSetupOperation.recoverIdentity:
+        identityRecoveries += 1;
         break;
       case DesktopSetupOperation.installBrowserBridge:
         browserBridgeInstalls += 1;
@@ -290,6 +294,7 @@ List<DesktopSetupOperation> _setupActions(DesktopSetupState state) {
     case DesktopSetupState.identityOptional:
       return const [
         DesktopSetupOperation.createIdentity,
+        DesktopSetupOperation.recoverIdentity,
         DesktopSetupOperation.inspect,
       ];
     case DesktopSetupState.browserCompanionOptional:

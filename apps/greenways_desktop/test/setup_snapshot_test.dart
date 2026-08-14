@@ -11,6 +11,7 @@ void main() {
     expect(snapshot.mandatoryReady, isTrue);
     expect(snapshot.permittedActions, const [
       DesktopSetupOperation.createIdentity,
+      DesktopSetupOperation.recoverIdentity,
       DesktopSetupOperation.inspect,
     ]);
   });
@@ -78,6 +79,18 @@ void main() {
       DesktopSetupOperation.inspect,
     ]);
   });
+
+  test(
+    'identity optional exposes create, native recovery, and inspection only',
+    () {
+      final snapshot = DesktopSetupSnapshot.fromJson(_setupJson());
+      expect(snapshot.permittedActions, const [
+        DesktopSetupOperation.createIdentity,
+        DesktopSetupOperation.recoverIdentity,
+        DesktopSetupOperation.inspect,
+      ]);
+    },
+  );
 
   test('browser optional exposes only exact installation and inspection', () {
     final json = _setupJson();
@@ -150,7 +163,11 @@ Map<String, Object?> _setupJson() => {
     _component('identity', 'identity-optional'),
     _component('browser-companion', 'browser-companion-optional'),
   ],
-  'permittedActions': <Object?>['create-identity', 'inspect'],
+  'permittedActions': <Object?>[
+    'create-identity',
+    'recover-identity',
+    'inspect',
+  ],
   'observedAtUnixMs': 2,
   'error': null,
 };

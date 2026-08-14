@@ -15,5 +15,8 @@ greenways-local = { path = "../../crates/greenways-local" }
 greenways-vault = { path = "../../crates/greenways-vault" }
 serde_json.workspace = true
 
+[dev-dependencies]
+greenways-identity = { path = "../../crates/greenways-identity", features = ["test-support"] }
+
 [lints]
 workspace = true

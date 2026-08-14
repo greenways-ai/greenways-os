@@ -3,15 +3,16 @@ use super::{
     decode_setup_request, encode_setup_response,
     inspect::DesktopSetupEngine,
     service::{
-        expected_launch_agent_plist, BrowserInstallStage, LaunchAgentController, SetupPaths,
-        BROWSER_MANIFEST_FILE, DAEMON_SERVICE_LABEL, DESKTOP_CLIENT_LABEL,
+        expected_launch_agent_plist, BrowserInstallStage, IdentityRecoverySelection,
+        LaunchAgentController, SetupPaths, BROWSER_MANIFEST_FILE, DAEMON_SERVICE_LABEL,
+        DESKTOP_CLIENT_LABEL,
     },
     DesktopSetupBackend, DesktopSetupComponentKind, DesktopSetupError, DesktopSetupHost,
     DesktopSetupOperation, DesktopSetupRequest, DesktopSetupState, DESKTOP_SETUP_PROTOCOL,
     DESKTOP_SETUP_RESULT_PROTOCOL,
 };
 use greenways_authority::{read_credential_file, LocalClientRegistry, LocalClientRole};
-use greenways_identity::{IdentityError, ProfileIdentityVault};
+use greenways_identity::{IdentityError, ProfileIdentityVault, SignedProfileIdentity};
 use std::{
     fs::{self, OpenOptions},
     io::Write,
@@ -32,6 +33,8 @@ use std::os::unix::{
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(1);
 static TEMP_SETUP_SERIAL: Mutex<()> = Mutex::new(());
 static BROWSER_RACE_DESTINATION: Mutex<Option<PathBuf>> = Mutex::new(None);
+static IDENTITY_RECOVERY_SELECTION: Mutex<Option<IdentityRecoverySelection>> = Mutex::new(None);
+static IDENTITY_RECOVERY_BLOCKED_PARENT: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 struct TempSetup {
     _serial: MutexGuard<'static, ()>,
@@ -200,6 +203,57 @@ fn unavailable_identity_vault(_: PathBuf) -> Result<ProfileIdentityVault, Identi
     Err(IdentityError::KeyStoreUnavailable)
 }
 
+fn selected_identity_recovery() -> Result<Option<IdentityRecoverySelection>, DesktopSetupError> {
+    Ok(IDENTITY_RECOVERY_SELECTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .clone())
+}
+
+fn cancelled_identity_recovery() -> Result<Option<IdentityRecoverySelection>, DesktopSetupError> {
+    Ok(None)
+}
+
+fn identity_recovery_with_blocked_metadata_parent(
+) -> Result<Option<IdentityRecoverySelection>, DesktopSetupError> {
+    if let Some(parent) = IDENTITY_RECOVERY_BLOCKED_PARENT
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .take()
+    {
+        fs::remove_dir_all(&parent).expect("remove identity metadata parent");
+        fs::write(&parent, b"not a directory").expect("block identity metadata parent");
+    }
+    selected_identity_recovery()
+}
+
+fn recovery_files(temp: &TempSetup) -> (IdentityRecoverySelection, SignedProfileIdentity) {
+    let source_metadata = temp.root.join("source-state").join("profile-identity.json");
+    let mut source =
+        ProfileIdentityVault::open_test(source_metadata).expect("source identity vault");
+    let identity = source.create("prior.identity", 1).expect("source identity");
+    let selection = IdentityRecoverySelection {
+        package: temp.root.join("recovery").join("profile.recovery.json"),
+        recovery_key: temp
+            .root
+            .join("recovery-key")
+            .join("profile.recovery-key.json"),
+    };
+    for parent in [
+        selection.package.parent().expect("package parent"),
+        selection.recovery_key.parent().expect("key parent"),
+    ] {
+        fs::create_dir_all(parent).expect("recovery parent");
+        #[cfg(unix)]
+        fs::set_permissions(parent, fs::Permissions::from_mode(0o700))
+            .expect("recovery parent mode");
+    }
+    source
+        .export_recovery_to_files(&selection.package, &selection.recovery_key, 2)
+        .expect("export recovery files");
+    (selection, identity)
+}
+
 #[test]
 fn setup_request_is_closed_and_rejects_unknown_inputs() {
     let decoded = decode_setup_request(
@@ -232,6 +286,19 @@ fn setup_request_is_closed_and_rejects_unknown_inputs() {
         br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":null,"browser":"chrome"}"#.as_slice(),
         br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":null,"extensionId":"caller-selected"}"#.as_slice(),
         br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"install-browser-bridge","handle":null,"origin":"chrome-extension://caller/"}"#.as_slice(),
+    ] {
+        assert!(decode_setup_request(invalid).is_err());
+    }
+
+    let recovery = decode_setup_request(
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"recover-identity","handle":null}"#,
+    )
+    .expect("closed recovery request");
+    assert_eq!(recovery.operation, DesktopSetupOperation::RecoverIdentity);
+    for invalid in [
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"recover-identity","handle":"replacement"}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"recover-identity","handle":null,"path":"/tmp/recovery"}"#.as_slice(),
+        br#"{"protocol":"greenways-desktop-setup/0-alpha","requestId":"desktop/request/setup0001","operation":"recover-identity","handle":null,"recoveryKey":"secret"}"#.as_slice(),
     ] {
         assert!(decode_setup_request(invalid).is_err());
     }
@@ -428,6 +495,7 @@ fn public_identity_creation_is_fixed_private_verified_and_create_once() {
         enrolled.permitted_actions,
         vec![
             DesktopSetupOperation::CreateIdentity,
+            DesktopSetupOperation::RecoverIdentity,
             DesktopSetupOperation::Inspect,
         ]
     );
@@ -476,6 +544,165 @@ fn public_identity_creation_is_fixed_private_verified_and_create_once() {
         backend.create_identity("another.identity"),
         Err(DesktopSetupError::OperationUnavailable(_))
     ));
+}
+
+#[test]
+fn identity_recovery_restores_the_exact_identity_without_projecting_paths() {
+    let temp = TempSetup::new("identity-recovery");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let controller_probe = controller.clone();
+    let mut backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    backend.install_daemon().expect("install daemon");
+    let optional = backend
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+    assert_eq!(optional.state, DesktopSetupState::IdentityOptional);
+    assert_eq!(
+        optional.permitted_actions,
+        vec![
+            DesktopSetupOperation::CreateIdentity,
+            DesktopSetupOperation::RecoverIdentity,
+            DesktopSetupOperation::Inspect,
+        ]
+    );
+
+    let (selection, expected) = recovery_files(&temp);
+    *IDENTITY_RECOVERY_SELECTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(selection.clone());
+    backend.set_identity_recovery_selector(selected_identity_recovery);
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+
+    let recovered = backend.recover_identity().expect("recover exact identity");
+    assert_eq!(recovered.state, DesktopSetupState::BrowserCompanionOptional);
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before + 1);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before + 1);
+    let component = recovered
+        .components
+        .iter()
+        .find(|component| component.kind == DesktopSetupComponentKind::Identity)
+        .expect("identity component");
+    assert_eq!(component.state, DesktopSetupState::Ready);
+    assert_eq!(
+        component.public_id.as_deref(),
+        Some(expected.subject.id.as_str())
+    );
+    let stored: serde_json::Value = serde_json::from_slice(
+        &fs::read(temp.paths.identity_metadata()).expect("recovered metadata"),
+    )
+    .expect("recovered metadata json");
+    assert_eq!(
+        stored["signedIdentity"]["subject"]["id"],
+        expected.subject.id
+    );
+    assert_eq!(
+        stored["signedIdentity"]["subject"]["keyId"],
+        expected.subject.key_id
+    );
+    #[cfg(unix)]
+    assert_eq!(
+        fs::metadata(temp.paths.identity_metadata())
+            .expect("recovered metadata mode")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+
+    let serialized = serde_json::to_string(&recovered).expect("bounded recovery projection");
+    let selected_package = selection.package.to_string_lossy().into_owned();
+    let selected_key = selection.recovery_key.to_string_lossy().into_owned();
+    for forbidden in [
+        selected_package.as_str(),
+        selected_key.as_str(),
+        "recoveryKey",
+        "ciphertext",
+        "profile-key-",
+        "privateKey",
+    ] {
+        assert!(!serialized.contains(forbidden), "leaked {forbidden}");
+    }
+    assert!(matches!(
+        backend.recover_identity(),
+        Err(DesktopSetupError::OperationUnavailable(_))
+    ));
+    *IDENTITY_RECOVERY_SELECTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = None;
+}
+
+#[test]
+fn identity_recovery_cancellation_is_non_mutating() {
+    let temp = TempSetup::new("identity-recovery-cancel");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let controller_probe = controller.clone();
+    let mut backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    backend.install_daemon().expect("install daemon");
+    backend
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+    backend.set_identity_recovery_selector(cancelled_identity_recovery);
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+
+    let snapshot = backend.recover_identity().expect("cancel recovery");
+    assert_eq!(snapshot.state, DesktopSetupState::IdentityOptional);
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before);
+    assert!(!temp.paths.identity_metadata().exists());
+}
+
+#[test]
+fn identity_recovery_commit_failure_rolls_back_and_restores_the_daemon_service() {
+    let temp = TempSetup::new("identity-recovery-restore");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let controller_probe = controller.clone();
+    let mut backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    backend.install_daemon().expect("install daemon");
+    backend
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+    let (selection, _) = recovery_files(&temp);
+    *IDENTITY_RECOVERY_SELECTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(selection);
+    *IDENTITY_RECOVERY_BLOCKED_PARENT
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(
+        temp.paths
+            .identity_metadata()
+            .parent()
+            .expect("state parent")
+            .to_path_buf(),
+    );
+    backend.set_identity_recovery_selector(identity_recovery_with_blocked_metadata_parent);
+    let stop_calls_before = controller_probe.stop_calls();
+    let restart_calls_before = controller_probe.restart_calls();
+
+    assert!(matches!(
+        backend.recover_identity(),
+        Err(DesktopSetupError::InstallationFailed(_))
+    ));
+    assert_eq!(controller_probe.stop_calls(), stop_calls_before + 1);
+    assert_eq!(controller_probe.restart_calls(), restart_calls_before + 1);
+    assert!(temp.paths.socket_file().exists());
+    assert!(!temp.paths.identity_metadata().exists());
+    *IDENTITY_RECOVERY_SELECTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = None;
 }
 
 #[test]
@@ -545,6 +772,47 @@ fn host_routes_only_the_closed_identity_request() {
             |component| component.kind == DesktopSetupComponentKind::Identity
                 && component.state == DesktopSetupState::Ready
         ));
+}
+
+#[test]
+fn host_routes_only_the_closed_identity_recovery_request() {
+    let temp = TempSetup::new("identity-recovery-host");
+    let controller = FakeLaunchAgentController::new(temp.paths.socket_file());
+    let mut preparation = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        controller,
+        open_test_identity_vault,
+    );
+    preparation.install_daemon().expect("install daemon");
+    preparation
+        .issue_desktop_client()
+        .expect("issue fixed Desktop client");
+    let (selection, expected) = recovery_files(&temp);
+    *IDENTITY_RECOVERY_SELECTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(selection);
+
+    let mut backend = DesktopSetupEngine::new_with_identity_vault_opener(
+        temp.paths.clone(),
+        FakeLaunchAgentController::new(temp.paths.socket_file()),
+        open_test_identity_vault,
+    );
+    backend.set_identity_recovery_selector(selected_identity_recovery);
+    let mut host = DesktopSetupHost::new(backend, 1);
+    let response = host
+        .handle(request(DesktopSetupOperation::RecoverIdentity))
+        .expect("closed identity recovery response");
+    assert_eq!(
+        response.snapshot.state,
+        DesktopSetupState::BrowserCompanionOptional
+    );
+    assert!(response.snapshot.components.iter().any(|component| {
+        component.kind == DesktopSetupComponentKind::Identity
+            && component.public_id.as_deref() == Some(expected.subject.id.as_str())
+    }));
+    *IDENTITY_RECOVERY_SELECTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = None;
 }
 
 #[test]

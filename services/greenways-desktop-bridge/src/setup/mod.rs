@@ -54,6 +54,7 @@ pub enum DesktopSetupOperation {
     InstallDaemon,
     IssueDesktopClient,
     CreateIdentity,
+    RecoverIdentity,
     InstallBrowserBridge,
     Verify,
     RepairPermissions,
@@ -66,6 +67,7 @@ impl DesktopSetupOperation {
             Self::InstallDaemon => "install-daemon",
             Self::IssueDesktopClient => "issue-desktop-client",
             Self::CreateIdentity => "create-identity",
+            Self::RecoverIdentity => "recover-identity",
             Self::InstallBrowserBridge => "install-browser-bridge",
             Self::Verify => "verify",
             Self::RepairPermissions => "repair-permissions",
@@ -529,6 +531,7 @@ fn permitted_actions_for_state(state: DesktopSetupState) -> Vec<DesktopSetupOper
         ],
         DesktopSetupState::IdentityOptional => vec![
             DesktopSetupOperation::CreateIdentity,
+            DesktopSetupOperation::RecoverIdentity,
             DesktopSetupOperation::Inspect,
         ],
         DesktopSetupState::BrowserCompanionOptional => vec![
@@ -597,6 +600,7 @@ pub trait DesktopSetupBackend {
     fn install_daemon(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn issue_desktop_client(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn create_identity(&mut self, handle: &str) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
+    fn recover_identity(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn install_browser_bridge(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn repair_permissions(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
 }

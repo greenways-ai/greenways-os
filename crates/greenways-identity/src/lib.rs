@@ -23,6 +23,14 @@ use std::{
 };
 use zeroize::{Zeroize, Zeroizing};
 
+mod recovery;
+
+pub use recovery::{
+    PreparedProfileIdentityRecovery, ProfileIdentityRecoveryReceipt,
+    PROFILE_IDENTITY_RECOVERY_ALGORITHM, PROFILE_IDENTITY_RECOVERY_KEY_PROTOCOL,
+    PROFILE_IDENTITY_RECOVERY_PROTOCOL, PROFILE_IDENTITY_RECOVERY_RECEIPT_PROTOCOL,
+};
+
 #[cfg(feature = "test-support")]
 use std::sync::Mutex;
 
@@ -1420,10 +1428,11 @@ fn persist_state(path: &Path, state: &StoredProfileIdentity) -> Result<(), Ident
         .parent()
         .ok_or_else(|| IdentityError::Invalid("profile identity state has no parent".to_owned()))?;
     ensure_private_dir(parent)?;
-    let temporary = path.with_extension(format!("json.tmp-{}", process::id()));
-    if temporary.exists() {
-        fs::remove_file(&temporary)?;
-    }
+    let temporary = path.with_extension(format!(
+        "json.tmp-{}-{}",
+        process::id(),
+        random_identifier("")?
+    ));
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -1435,13 +1444,37 @@ fn persist_state(path: &Path, state: &StoredProfileIdentity) -> Result<(), Ident
     if let Err(error) = (|| -> Result<(), io::Error> {
         file.write_all(&bytes)?;
         file.sync_all()?;
+        drop(file);
         set_private_file(&temporary)?;
-        fs::rename(&temporary, path)?;
+        Ok(())
+    })() {
+        let _ = fs::remove_file(&temporary);
+        return Err(IdentityError::Io(error));
+    }
+
+    match fs::hard_link(&temporary, path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            let _ = fs::remove_file(&temporary);
+            return Err(IdentityError::Conflict(
+                "a Greenways profile identity already exists".to_owned(),
+            ));
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            return Err(IdentityError::Io(error));
+        }
+    }
+    let _ = fs::remove_file(&temporary);
+    if let Err(error) = (|| -> Result<(), io::Error> {
         set_private_file(path)?;
         sync_parent(parent)?;
         Ok(())
     })() {
-        let _ = fs::remove_file(&temporary);
+        if fs::read(path).ok().as_deref() == Some(bytes.as_slice()) {
+            let _ = fs::remove_file(path);
+            let _ = sync_parent(parent);
+        }
         return Err(IdentityError::Io(error));
     }
     Ok(())

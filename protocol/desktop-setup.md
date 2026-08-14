@@ -1,6 +1,6 @@
 # Greenways Desktop local setup
 
-Status: `0-alpha`, exact Chrome browser-companion installation slice
+Status: `0-alpha`, exact profile-identity recovery and Chrome companion slices
 
 Greenways Desktop uses a separate process-isolated setup protocol to inspect and establish the fixed installation-local boundary around `greenwaysd`. Flutter expresses one closed semantic operation and receives bounded component state. It does not receive filesystem paths, credential bytes, daemon session IDs, private keys, recovery material, provider credentials, or generic process authority.
 
@@ -13,6 +13,7 @@ inspect
 install-daemon
 issue-desktop-client
 create-identity
+recover-identity
 install-browser-bridge
 repair-permissions
 ```
@@ -36,7 +37,7 @@ An unavailable operation returns `setup-operation-unavailable`; it is not reinte
 }
 ```
 
-The request has exactly four fields. `handle` is non-null only for `create-identity`; all other operations require `handle: null`. It accepts no executable path, Greenways home, socket path, credential path, role, daemon method, LaunchAgent label, browser host name, extension origin, key-store service, identity ID, algorithm, timestamp, recovery value, or arbitrary argument.
+The request has exactly four fields. `handle` is non-null only for `create-identity`; all other operations, including `recover-identity`, require `handle: null`. It accepts no executable path, Greenways home, socket path, credential path, selected recovery path, package bytes, recovery key, role, daemon method, LaunchAgent label, browser host name, extension origin, key-store service, identity ID, algorithm, timestamp, recovery value, or arbitrary argument.
 
 The public identity handle must already be normalized: 1–48 lowercase ASCII letters, numbers, dots, dashes, or underscores, beginning and ending with an alphanumeric character.
 
@@ -158,6 +159,29 @@ The handle is public input, but the setup response does not echo it. Private key
 
 Identity is optional for installation-local Desktop operation. **Continue without identity** changes only the current Desktop destination; it does not persist a waiver, synthesize an identity, or grant Hestia authority.
 
+## Prior profile identity recovery
+
+`recover-identity` is available only when the inspected aggregate state is exactly `identity-optional`. It accepts no arguments and requires `handle: null`.
+
+On packaged macOS Desktop, Rust invokes two fixed native file-selection prompts: first the encrypted `greenways-profile-identity-recovery/0-alpha` package, then its separately stored `greenways-profile-identity-recovery-key/0-alpha` envelope. Flutter neither supplies nor receives a path. Cancellation of either prompt returns the unchanged `identity-optional` snapshot before daemon or key-store mutation.
+
+Before stopping the daemon, the companion:
+
+1. requires both selected objects to be private regular files owned by the current user, with no symbolic link and exact mode `0600`;
+2. requires distinct files and closed, bounded protocol objects;
+3. binds the key envelope to the exact SHA-256 digest of the selected package bytes;
+4. accepts only the reviewed AES-256-GCM algorithm and nonce/key lengths;
+5. authenticates the package header and exact signed public identity as AEAD associated data;
+6. decrypts only a bounded PKCS#8 P-256 private key;
+7. verifies the signed public card and exact private/public key equality; and
+8. requires the fixed profile metadata destination to remain absent and safe.
+
+Only after complete preparation does recovery stop `ai.greenways.greenwaysd`, import the private key through `greenways-identity::ProfileIdentityVault` under a fresh opaque operating-system keyring handle, persist the exact prior signed public identity at the fixed metadata path with atomic create-new semantics, verify the imported key/card binding, and restart the daemon. A metadata failure removes the newly inserted key. Every post-stop failure attempts daemon restoration. Existing metadata is never overwritten, rotated, or revoked.
+
+The setup result contains only the recovered public identity ID and the ordinary bounded identity component state. It contains no package/key path, file bytes, recovery key, ciphertext, private key, key handle, signature, subject root, daemon command, or arbitrary native error. **Continue without identity** remains independent and non-durable.
+
+The same import core is available offline to headless administrators through `greenways-admin identity recovery-export` and `greenways-admin identity recover`; both require a stopped daemon and take only package-file and key-file paths, never literal recovery-key material.
+
 ## Exact Chrome browser companion
 
 `install-browser-bridge` is available only when the inspected aggregate state is exactly `browser-companion-optional`. It accepts no arguments and continues to require `handle: null`. Rust fixes every authority-bearing value:
@@ -210,7 +234,7 @@ After all five components are ready, the aggregate state is `verification-requir
 
 ## Inspection and recovery states
 
-Inspection rejects symbolic links, unexpected file types, wrong ownership, unsafe sockets, malformed credentials, wrong Desktop or browser roles, duplicate/orphaned active browser clients, malformed identity metadata, executable identity drift, LaunchAgent drift, unsafe Native Messaging manifests, extension identity drift, and mixed partial browser installations.
+Inspection rejects symbolic links, unexpected file types, wrong ownership, unsafe sockets, malformed credentials, wrong Desktop or browser roles, duplicate/orphaned active browser clients, malformed identity metadata, executable identity drift, LaunchAgent drift, unsafe Native Messaging manifests, extension identity drift, and mixed partial browser installations. Recovery additionally validates selected files inside the one operation and does not persist their locations.
 
 The current actionable transitions are:
 
@@ -221,7 +245,7 @@ upgrade-required              -> install-daemon | inspect
 restart-required              -> install-daemon | inspect
 permission-repair-required    -> repair-permissions | inspect
 credential-required           -> issue-desktop-client | inspect
-identity-optional             -> create-identity | inspect
+identity-optional             -> create-identity | recover-identity | inspect
 browser-companion-optional    -> install-browser-bridge | inspect
 verification-required         -> inspect
 all other inspected states    -> inspect
@@ -243,4 +267,4 @@ Rust and Dart both use closed schemas. Dart rejects confidential-looking values 
 
 ## Deliberate limits
 
-This slice does not replace or revoke a Desktop credential; recover from an interrupted Desktop-credential replacement; import, recover, replace, rotate, or export an identity; expose recovery material; perform final local/substrate verification; select another browser; accept another extension identity, host, path, role, label, origin, command, or runtime; forward browser pages; invoke providers; add Chats; establish Hestia room membership; update arbitrary software; execute arbitrary local packages; or provide Windows or Linux Desktop service installation.
+This slice does not replace or revoke a Desktop credential; recover from an interrupted Desktop-credential replacement; replace, rotate, or revoke an identity; expose plaintext recovery material; move recovery material through Flutter or browser storage; perform final local/substrate verification; select another browser; accept another extension identity, host, path, role, label, origin, command, or runtime; forward browser pages; invoke providers; add Chats; establish Hestia room membership or recovery; update arbitrary software; execute arbitrary local packages; or provide Windows or Linux Desktop recovery/service installation.

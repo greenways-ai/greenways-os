@@ -8,9 +8,9 @@ use greenways_capabilities::{
 };
 use greenways_identity::{
     ApplicationApprovalRequest, ApplicationApprovalSubject, ApplicationDescriptor,
-    ProfileIdentityStatus, ProfileIdentityVault, SignedApplicationApproval,
-    SignedApplicationRevocation, SignedCapabilityGrant, SignedCapabilityRevocation,
-    SignedProfileIdentity,
+    ProfileIdentityRecoveryReceipt, ProfileIdentityStatus, ProfileIdentityVault,
+    SignedApplicationApproval, SignedApplicationRevocation, SignedCapabilityGrant,
+    SignedCapabilityRevocation, SignedProfileIdentity,
 };
 use greenways_local::GreenwaysPaths;
 use greenways_vault::{ProviderKind, ProviderProfile, ProviderVault, MAX_PROVIDER_SECRET_BYTES};
@@ -64,7 +64,17 @@ enum ClientCommand {
 #[derive(Debug)]
 enum IdentityCommand {
     Status,
-    Create { handle: String },
+    Create {
+        handle: String,
+    },
+    RecoveryExport {
+        package: PathBuf,
+        recovery_key: PathBuf,
+    },
+    Recover {
+        package: PathBuf,
+        recovery_key: PathBuf,
+    },
 }
 
 #[derive(Debug)]
@@ -212,6 +222,29 @@ fn run_client(command: ClientCommand, paths: &GreenwaysPaths, json: bool) -> Res
     }
 }
 
+fn export_identity_recovery(
+    vault: &ProfileIdentityVault,
+    package: impl AsRef<Path>,
+    recovery_key: impl AsRef<Path>,
+    observed_at_unix_ms: u64,
+) -> Result<ProfileIdentityRecoveryReceipt, String> {
+    vault
+        .export_recovery_to_files(package, recovery_key, observed_at_unix_ms)
+        .map_err(|error| error.to_string())
+}
+
+fn recover_identity_from_files(
+    vault: &mut ProfileIdentityVault,
+    package: impl AsRef<Path>,
+    recovery_key: impl AsRef<Path>,
+) -> Result<SignedProfileIdentity, String> {
+    let prepared = ProfileIdentityVault::prepare_recovery_from_files(package, recovery_key)
+        .map_err(|error| error.to_string())?;
+    vault
+        .recover_prepared(prepared)
+        .map_err(|error| error.to_string())
+}
+
 fn run_identity(
     command: IdentityCommand,
     paths: &GreenwaysPaths,
@@ -232,6 +265,27 @@ fn run_identity(
                 .create(&handle, now_unix_ms()?)
                 .map_err(|error| error.to_string())?;
             print_identity_card("Created", &card, json)
+        }
+        IdentityCommand::RecoveryExport {
+            package,
+            recovery_key,
+        } => {
+            assert_daemon_stopped(&paths.socket_file)?;
+            let identity = ProfileIdentityVault::open_system(metadata_path)
+                .map_err(|error| error.to_string())?;
+            let receipt =
+                export_identity_recovery(&identity, package, recovery_key, now_unix_ms()?)?;
+            print_identity_recovery_receipt(&receipt, json)
+        }
+        IdentityCommand::Recover {
+            package,
+            recovery_key,
+        } => {
+            assert_daemon_stopped(&paths.socket_file)?;
+            let mut identity = ProfileIdentityVault::open_system(metadata_path)
+                .map_err(|error| error.to_string())?;
+            let card = recover_identity_from_files(&mut identity, package, recovery_key)?;
+            print_identity_card("Recovered", &card, json)
         }
     }
 }
@@ -279,6 +333,26 @@ fn print_identity_card(
         println!("  key:     {}", card.subject.key_id);
         println!("  root:    {}", card.subject_root);
         println!("  custody: system-keyring");
+    }
+    Ok(())
+}
+
+fn print_identity_recovery_receipt(
+    receipt: &ProfileIdentityRecoveryReceipt,
+    json: bool,
+) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(receipt)
+                .map_err(|_| "could not encode profile identity recovery receipt".to_owned())?
+        );
+    } else {
+        println!("Exported Greenways profile identity recovery material.");
+        println!("  identity: {}", receipt.identity_id);
+        println!("  key:      {}", receipt.key_id);
+        println!("  package:  {}", receipt.package_digest);
+        println!("  custody:  separate-private-files");
     }
     Ok(())
 }
@@ -877,6 +951,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
     let mut role = None;
     let mut output = None;
     let mut handle = None;
+    let mut package = None;
+    let mut recovery_key = None;
     let mut capabilities = Vec::new();
     let mut app_id = None;
     let mut app_version = None;
@@ -949,6 +1025,19 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
                         .next()
                         .ok_or_else(|| "--handle requires a profile handle".to_owned())?,
                 );
+            }
+            "--package" => {
+                package = Some(PathBuf::from(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--package requires a path".to_owned())?,
+                ));
+            }
+            "--recovery-key" => {
+                recovery_key =
+                    Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                        "--recovery-key requires a path".to_owned()
+                    })?));
             }
             "--capability" => capabilities.push(
                 arguments
@@ -1071,6 +1160,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         }
     }
 
+    let has_recovery_fields = package.is_some() || recovery_key.is_some();
     let has_provider_policy_fields = provider_profile_id.is_some()
         || provider_model.is_some()
         || provider_max_output_tokens.is_some()
@@ -1095,6 +1185,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&role, "--role", $command)?;
             require_absent(&output, "--output", $command)?;
             require_absent(&handle, "--handle", $command)?;
+            require_absent(&package, "--package", $command)?;
+            require_absent(&recovery_key, "--recovery-key", $command)?;
         }};
     }
 
@@ -1105,7 +1197,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&label, "--label", "provider list")?;
             require_absent(&role, "--role", "provider list")?;
             require_absent(&output, "--output", "provider list")?;
-            if handle.is_some() || has_application_fields {
+            if handle.is_some() || has_recovery_fields || has_application_fields {
                 return Err("provider list accepts no authority fields".to_owned());
             }
             Command::Provider(ProviderCommand::List)
@@ -1113,7 +1205,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
         ("provider", "add") => {
             require_absent(&role, "--role", "provider add")?;
             require_absent(&output, "--output", "provider add")?;
-            if handle.is_some() || has_application_fields {
+            if handle.is_some() || has_recovery_fields || has_application_fields {
                 return Err("provider add accepts no application authority fields".to_owned());
             }
             Command::Provider(ProviderCommand::Add {
@@ -1127,7 +1219,7 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&label, "--label", "provider mutation")?;
             require_absent(&role, "--role", "provider mutation")?;
             require_absent(&output, "--output", "provider mutation")?;
-            if handle.is_some() || has_application_fields {
+            if handle.is_some() || has_recovery_fields || has_application_fields {
                 return Err("provider mutation accepts no application authority fields".to_owned());
             }
             if action == "rotate" {
@@ -1147,6 +1239,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&id, "--id", "client issue")?;
             require_absent(&provider, "--provider", "client issue")?;
             require_absent(&handle, "--handle", "client issue")?;
+            require_absent(&package, "--package", "client issue")?;
+            require_absent(&recovery_key, "--recovery-key", "client issue")?;
             if has_application_fields {
                 return Err("client issue accepts no application authority fields".to_owned());
             }
@@ -1162,6 +1256,8 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&role, "--role", "client revoke")?;
             require_absent(&output, "--output", "client revoke")?;
             require_absent(&handle, "--handle", "client revoke")?;
+            require_absent(&package, "--package", "client revoke")?;
+            require_absent(&recovery_key, "--recovery-key", "client revoke")?;
             if has_application_fields {
                 return Err("client revoke accepts no application authority fields".to_owned());
             }
@@ -1180,12 +1276,42 @@ fn parse_options(arguments: impl Iterator<Item = String>) -> Result<Options, Str
             require_absent(&label, "--label", "identity create")?;
             require_absent(&role, "--role", "identity create")?;
             require_absent(&output, "--output", "identity create")?;
+            require_absent(&package, "--package", "identity create")?;
+            require_absent(&recovery_key, "--recovery-key", "identity create")?;
             if has_application_fields {
                 return Err("identity create accepts no application authority fields".to_owned());
             }
             Command::Identity(IdentityCommand::Create {
                 handle: handle.ok_or_else(|| "--handle is required".to_owned())?,
             })
+        }
+        ("identity", "recovery-export") | ("identity", "recover") => {
+            require_absent(&id, "--id", "identity recovery")?;
+            require_absent(&provider, "--provider", "identity recovery")?;
+            require_absent(&label, "--label", "identity recovery")?;
+            require_absent(&role, "--role", "identity recovery")?;
+            require_absent(&output, "--output", "identity recovery")?;
+            require_absent(&handle, "--handle", "identity recovery")?;
+            if has_application_fields {
+                return Err("identity recovery accepts no application authority fields".to_owned());
+            }
+            let package = package.ok_or_else(|| "--package is required".to_owned())?;
+            let recovery_key =
+                recovery_key.ok_or_else(|| "--recovery-key is required".to_owned())?;
+            if package == recovery_key {
+                return Err("identity recovery package and key paths must be distinct".to_owned());
+            }
+            if action == "recovery-export" {
+                Command::Identity(IdentityCommand::RecoveryExport {
+                    package,
+                    recovery_key,
+                })
+            } else {
+                Command::Identity(IdentityCommand::Recover {
+                    package,
+                    recovery_key,
+                })
+            }
         }
         ("application", "status") | ("application", "list") => {
             reject_common!("application read");
@@ -1355,6 +1481,8 @@ fn print_help() {
          greenways-admin client revoke --id ID [--home PATH] [--json]\n\
          greenways-admin identity status [--home PATH] [--json]\n\
          greenways-admin identity create --handle HANDLE [--home PATH] [--json]\n\
+         greenways-admin identity recovery-export --package PATH --recovery-key PATH [--home PATH] [--json]\n\
+         greenways-admin identity recover --package PATH --recovery-key PATH [--home PATH] [--json]\n\
          greenways-admin application status [--home PATH] [--json]\n\
          greenways-admin application list [--home PATH] [--json]\n\
          greenways-admin application approve --app-id ID --app-version VERSION \
@@ -1376,9 +1504,10 @@ fn print_help() {
             --provider-max-timeout-ms N] [--expires-at-unix-ms INTEGER] [--home PATH] [--json]\n\
          greenways-admin capability revoke --grant-id ID --reason TEXT [--home PATH] [--json]\n\
          \n\
-         Provider credentials and profile private keys are placed directly into operating-system\n\
-         credential store. Local client credentials are written once to a new private file.\n\
-         Neither secret is accepted as a command-line argument or printed. A model/generate grant\n\
+         Provider credentials and active profile private keys are placed directly into the operating-system\n\
+         credential store. Identity recovery exports only a reviewed encrypted package and a distinct\n\
+         private key envelope to explicit paths; neither secret is accepted inline or printed. Local\n\
+         client credentials are written once to a new private file. A model/generate grant\n\
          requires the four explicit provider-policy fields. Stop greenwaysd before mutating provider,\n\
          application, capability, or local-client authority."
     );
@@ -1387,6 +1516,50 @@ fn print_help() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        fs, process,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    static NEXT_RECOVERY_HOME: AtomicUsize = AtomicUsize::new(1);
+
+    struct RecoveryHome(PathBuf);
+
+    impl RecoveryHome {
+        fn new(label: &str) -> Self {
+            let sequence = NEXT_RECOVERY_HOME.fetch_add(1, Ordering::Relaxed);
+            let path = env::temp_dir().join(format!(
+                "greenways-admin-identity-recovery-{label}-{}-{sequence}",
+                process::id()
+            ));
+            fs::create_dir_all(&path).expect("recovery test home");
+            #[cfg(unix)]
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
+                .expect("recovery test home mode");
+            Self(path)
+        }
+
+        fn metadata(&self) -> PathBuf {
+            self.0.join("profile-identity.json")
+        }
+
+        fn package(&self) -> PathBuf {
+            self.0.join("profile.recovery.json")
+        }
+
+        fn recovery_key(&self) -> PathBuf {
+            self.0.join("profile.recovery-key.json")
+        }
+    }
+
+    impl Drop for RecoveryHome {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
 
     fn parse(values: &[&str]) -> Result<Options, String> {
         parse_options(values.iter().map(|value| (*value).to_owned()))
@@ -1470,6 +1643,100 @@ mod tests {
             "secret",
         ])
         .is_err());
+        let export = parse(&[
+            "identity",
+            "recovery-export",
+            "--package",
+            "/tmp/profile.recovery.json",
+            "--recovery-key",
+            "/tmp/profile.recovery-key.json",
+        ])
+        .expect("identity recovery export should parse");
+        assert!(matches!(
+            export.command,
+            Command::Identity(IdentityCommand::RecoveryExport { .. })
+        ));
+        let recover = parse(&[
+            "identity",
+            "recover",
+            "--package",
+            "/tmp/profile.recovery.json",
+            "--recovery-key",
+            "/tmp/profile.recovery-key.json",
+        ])
+        .expect("identity recovery should parse");
+        assert!(matches!(
+            recover.command,
+            Command::Identity(IdentityCommand::Recover { .. })
+        ));
+        assert!(parse(&[
+            "identity",
+            "recover",
+            "--package",
+            "/tmp/same",
+            "--recovery-key",
+            "/tmp/same",
+        ])
+        .is_err());
+        assert!(parse(&[
+            "identity",
+            "recover",
+            "--package",
+            "/tmp/profile.recovery.json",
+            "--recovery-key",
+            "/tmp/profile.recovery-key.json",
+            "--handle",
+            "replacement",
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn admin_recovery_helpers_round_trip_exact_identity_with_private_create_new_files() {
+        let source = RecoveryHome::new("source");
+        let mut source_vault =
+            ProfileIdentityVault::open_test(source.metadata()).expect("source vault");
+        let original = source_vault
+            .create("river.studio", 1_000)
+            .expect("source identity");
+        let receipt = export_identity_recovery(
+            &source_vault,
+            source.package(),
+            source.recovery_key(),
+            2_000,
+        )
+        .expect("recovery export");
+        assert_eq!(receipt.identity_id, original.subject.id);
+        assert!(receipt.package_digest.starts_with("sha256:"));
+        #[cfg(unix)]
+        for path in [source.package(), source.recovery_key()] {
+            assert_eq!(
+                fs::metadata(path)
+                    .expect("recovery file")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        assert!(export_identity_recovery(
+            &source_vault,
+            source.package(),
+            source.recovery_key(),
+            2_001,
+        )
+        .is_err());
+
+        let target = RecoveryHome::new("target");
+        let mut target_vault =
+            ProfileIdentityVault::open_test(target.metadata()).expect("target vault");
+        let recovered =
+            recover_identity_from_files(&mut target_vault, source.package(), source.recovery_key())
+                .expect("identity recovery");
+        assert_eq!(recovered, original);
+        target_vault
+            .verify_private_key_binding()
+            .expect("recovered key binding");
     }
 
     #[test]

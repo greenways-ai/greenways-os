@@ -17,11 +17,11 @@ The Rust companion owns credential loading, the authenticated Unix-socket connec
 
 The companion-process boundary is deliberate. It preserves the workspace-wide `unsafe_code = "forbid"` policy and gives the Desktop connection an independently testable lifetime without placing secrets in Dart heap objects.
 
-The first-run setup surface uses a separate closed bridge protocol. It can inspect fixed component state, install or restart only the packaged macOS daemon service, enroll the exact initial `desktop` local client directly to its fixed private file, create one optional public identity while retaining its private key in the operating-system keyring, install the exact optional Chrome stable companion with a distinct `browser-bridge` credential, and repair only fixed private modes without exposing private paths, credentials, origins, or key material. See [`../../protocol/desktop-setup.md`](../../protocol/desktop-setup.md).
+The first-run setup surface uses a separate closed bridge protocol. It can inspect fixed component state, install or restart only the packaged macOS daemon service, enroll the exact initial `desktop` local client directly to its fixed private file, create one optional public identity, recover the exact prior identity through Rust-owned native selection of a separately stored encrypted package and key envelope, install the exact optional Chrome stable companion with a distinct `browser-bridge` credential, and repair only fixed private modes without exposing private paths, credentials, recovery bytes, origins, or key material. See [`../../protocol/desktop-setup.md`](../../protocol/desktop-setup.md).
 
 ## Development
 
-The packaged setup surface establishes the initial Desktop credential, optional public identity, and optional exact Chrome companion without a terminal. Identity and browser installation may each be deferred independently without changing durable state. Browser setup accepts no selectors and does not imply that the reserved final connection/substrate verification has run. For focused authority development, the equivalent offline client operation remains:
+The packaged setup surface establishes the initial Desktop credential, optional new or recovered public identity, and optional exact Chrome companion without a terminal. Identity creation, identity recovery, and browser installation may each be deferred without changing durable state. Recovery selection and decrypted bytes stay in the Rust companion and never enter Dart. Browser setup accepts no selectors and does not imply that the reserved final connection/substrate verification has run. For focused authority development, the equivalent offline client operation remains:
 
 ```bash
 greenways-admin --state-dir ~/.greenways \

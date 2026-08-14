@@ -25,7 +25,7 @@ use std::{
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 
 #[cfg(target_os = "macos")]
-use std::process::Output;
+use std::{os::unix::ffi::OsStringExt, process::Output};
 
 pub const DAEMON_SERVICE_LABEL: &str = "ai.greenways.greenwaysd";
 pub const DESKTOP_CLIENT_LABEL: &str = "Greenways Desktop";
@@ -37,8 +37,47 @@ const MAX_VERSION_OUTPUT_BYTES: usize = 256;
 
 pub(crate) type IdentityVaultOpener = fn(PathBuf) -> Result<ProfileIdentityVault, IdentityError>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IdentityRecoverySelection {
+    pub package: PathBuf,
+    pub recovery_key: PathBuf,
+}
+
+pub(crate) type IdentityRecoverySelector =
+    fn() -> Result<Option<IdentityRecoverySelection>, DesktopSetupError>;
+
 fn open_system_identity_vault(path: PathBuf) -> Result<ProfileIdentityVault, IdentityError> {
     ProfileIdentityVault::open_system(path)
+}
+
+fn select_system_identity_recovery() -> Result<Option<IdentityRecoverySelection>, DesktopSetupError>
+{
+    #[cfg(target_os = "macos")]
+    {
+        let package = match choose_identity_recovery_file(
+            "Choose the Greenways identity recovery package",
+        )? {
+            Some(path) => path,
+            None => return Ok(None),
+        };
+        let recovery_key = match choose_identity_recovery_file(
+            "Choose the separate Greenways identity recovery key",
+        )? {
+            Some(path) => path,
+            None => return Ok(None),
+        };
+        Ok(Some(IdentityRecoverySelection {
+            package,
+            recovery_key,
+        }))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err(DesktopSetupError::UnsupportedPlatform(
+            "Native identity recovery selection is implemented only for packaged macOS Desktop."
+                .to_owned(),
+        ))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -273,6 +312,7 @@ pub struct DaemonServiceInstaller<C> {
     pub paths: SetupPaths,
     controller: C,
     identity_vault_opener: IdentityVaultOpener,
+    identity_recovery_selector: IdentityRecoverySelector,
     browser_install_hook: BrowserInstallHook,
 }
 
@@ -290,6 +330,7 @@ impl<C: LaunchAgentController> DaemonServiceInstaller<C> {
             paths,
             controller,
             identity_vault_opener,
+            identity_recovery_selector: select_system_identity_recovery,
             browser_install_hook: continue_browser_install,
         }
     }
@@ -297,6 +338,11 @@ impl<C: LaunchAgentController> DaemonServiceInstaller<C> {
     #[cfg(test)]
     pub(crate) fn set_browser_install_hook(&mut self, hook: BrowserInstallHook) {
         self.browser_install_hook = hook;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_identity_recovery_selector(&mut self, selector: IdentityRecoverySelector) {
+        self.identity_recovery_selector = selector;
     }
 
     pub(crate) fn open_identity_vault(
@@ -865,11 +911,155 @@ impl<C: LaunchAgentController> DaemonServiceInstaller<C> {
         Ok(identity)
     }
 
+    pub fn recover_identity(&mut self) -> Result<Option<SignedProfileIdentity>, DesktopSetupError> {
+        self.ensure_greenways_directories(true)?;
+        match inspect_owned_file(&self.paths.identity_metadata(), self.paths.uid, 0o600)? {
+            OwnedPathState::Missing => {}
+            OwnedPathState::Ready => {
+                return Err(DesktopSetupError::OperationUnavailable(
+                    "A public Greenways identity already exists.".to_owned(),
+                ));
+            }
+            OwnedPathState::WrongMode => {
+                return Err(DesktopSetupError::InstallationFailed(
+                    "The public identity metadata permissions require repair.".to_owned(),
+                ));
+            }
+            OwnedPathState::Unsafe => {
+                return Err(DesktopSetupError::UnsafeInstallation(
+                    "The fixed public identity metadata path is unsafe.".to_owned(),
+                ));
+            }
+        }
+
+        let Some(selection) = (self.identity_recovery_selector)()? else {
+            return Ok(None);
+        };
+        for path in [&selection.package, &selection.recovery_key] {
+            match inspect_owned_file(path, self.paths.uid, 0o600)? {
+                OwnedPathState::Ready => {}
+                OwnedPathState::Missing => {
+                    return Err(DesktopSetupError::InstallationFailed(
+                        "A selected identity recovery file is no longer available.".to_owned(),
+                    ));
+                }
+                OwnedPathState::WrongMode => {
+                    return Err(DesktopSetupError::InstallationFailed(
+                        "A selected identity recovery file is not private.".to_owned(),
+                    ));
+                }
+                OwnedPathState::Unsafe => {
+                    return Err(DesktopSetupError::UnsafeInstallation(
+                        "A selected identity recovery file has unsafe ownership or type."
+                            .to_owned(),
+                    ));
+                }
+            }
+        }
+        let prepared = ProfileIdentityVault::prepare_recovery_from_files(
+            &selection.package,
+            &selection.recovery_key,
+        )
+        .map_err(map_identity_recovery_preparation_error)?;
+        let expected_identity = prepared.public_identity().clone();
+        let mut vault = self
+            .open_identity_vault(self.paths.identity_metadata())
+            .map_err(map_identity_recovery_open_error)?;
+
+        self.controller.stop(DAEMON_SERVICE_LABEL, self.paths.uid)?;
+        let recover_result = vault
+            .recover_prepared(prepared)
+            .map_err(map_identity_recovery_commit_error)
+            .and_then(|identity| {
+                if identity != expected_identity {
+                    return Err(DesktopSetupError::InstallationFailed(
+                        "The recovered public identity did not match the verified package."
+                            .to_owned(),
+                    ));
+                }
+                vault.verify_private_key_binding().map_err(|_| {
+                    DesktopSetupError::InstallationFailed(
+                        "The recovered public identity key could not be verified.".to_owned(),
+                    )
+                })?;
+                Ok(identity)
+            });
+        let restart_result = self.controller.restart(
+            &self.paths.launch_agent,
+            DAEMON_SERVICE_LABEL,
+            self.paths.uid,
+        );
+        match (recover_result, restart_result) {
+            (Ok(identity), Ok(())) => Ok(Some(identity)),
+            (Err(error), Ok(())) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+            (Err(_), Err(_)) => Err(DesktopSetupError::InstallationFailed(
+                "The identity could not be recovered and the daemon service could not be restored."
+                    .to_owned(),
+            )),
+        }
+    }
+
     fn ensure_greenways_directories(&self, create_missing: bool) -> Result<(), DesktopSetupError> {
         for directory in self.paths.greenways_directories() {
             ensure_owned_directory(directory, self.paths.uid, 0o700, create_missing)?;
         }
         Ok(())
+    }
+}
+
+fn map_identity_recovery_preparation_error(error: IdentityError) -> DesktopSetupError {
+    match error {
+        IdentityError::KeyStoreUnavailable => DesktopSetupError::InstallationFailed(
+            "The operating-system identity key store is unavailable.".to_owned(),
+        ),
+        IdentityError::Invalid(_)
+        | IdentityError::Encoding(_)
+        | IdentityError::CryptographyUnavailable => DesktopSetupError::InstallationFailed(
+            "The selected identity recovery material could not be verified.".to_owned(),
+        ),
+        IdentityError::Conflict(_) => DesktopSetupError::UnsafeInstallation(
+            "The selected identity recovery files conflict with the fixed recovery operation."
+                .to_owned(),
+        ),
+        IdentityError::Io(_) => DesktopSetupError::InstallationFailed(
+            "The selected identity recovery files could not be read.".to_owned(),
+        ),
+    }
+}
+
+fn map_identity_recovery_open_error(error: IdentityError) -> DesktopSetupError {
+    match error {
+        IdentityError::Conflict(_) => DesktopSetupError::OperationUnavailable(
+            "A public Greenways identity already exists.".to_owned(),
+        ),
+        IdentityError::KeyStoreUnavailable => DesktopSetupError::InstallationFailed(
+            "The operating-system identity key store is unavailable.".to_owned(),
+        ),
+        _ => DesktopSetupError::InstallationFailed(
+            "The fixed public identity vault could not be opened.".to_owned(),
+        ),
+    }
+}
+
+fn map_identity_recovery_commit_error(error: IdentityError) -> DesktopSetupError {
+    match error {
+        IdentityError::Conflict(_) => DesktopSetupError::OperationUnavailable(
+            "A public Greenways identity appeared before recovery could commit.".to_owned(),
+        ),
+        IdentityError::KeyStoreUnavailable => DesktopSetupError::InstallationFailed(
+            "The operating-system identity key store is unavailable.".to_owned(),
+        ),
+        IdentityError::Invalid(_) | IdentityError::Encoding(_) => {
+            DesktopSetupError::InstallationFailed(
+                "The verified identity recovery material could not be committed.".to_owned(),
+            )
+        }
+        IdentityError::CryptographyUnavailable | IdentityError::Io(_) => {
+            DesktopSetupError::InstallationFailed(
+                "The public Greenways identity could not be recovered.".to_owned(),
+            )
+        }
     }
 }
 
@@ -1713,6 +1903,36 @@ fn xml_escape(value: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
+}
+
+#[cfg(target_os = "macos")]
+fn choose_identity_recovery_file(prompt: &str) -> Result<Option<PathBuf>, DesktopSetupError> {
+    const CANCELLED: &[u8] = b"__GREENWAYS_IDENTITY_RECOVERY_CANCELLED__";
+    const MAX_SELECTED_PATH_BYTES: usize = 16 * 1024;
+    let escaped_prompt = prompt.replace('\\', "\\\\").replace('"', "\\\"");
+    let script = format!(
+        "try\nreturn POSIX path of (choose file with prompt \"{escaped_prompt}\")\non error number -128\nreturn \"{}\"\nend try",
+        String::from_utf8_lossy(CANCELLED)
+    );
+    let output = fixed_command("/usr/bin/osascript", ["-e", script.as_str()])?;
+    if !output.status.success() || output.stdout.len() > MAX_SELECTED_PATH_BYTES {
+        return Err(DesktopSetupError::InstallationFailed(
+            "The native identity recovery file selector failed.".to_owned(),
+        ));
+    }
+    let mut bytes = output.stdout;
+    while matches!(bytes.last(), Some(b'\n' | b'\r')) {
+        bytes.pop();
+    }
+    if bytes.as_slice() == CANCELLED {
+        return Ok(None);
+    }
+    if bytes.is_empty() || bytes.contains(&0) {
+        return Err(DesktopSetupError::UnsafeInstallation(
+            "The native identity recovery selector returned an invalid path.".to_owned(),
+        ));
+    }
+    Ok(Some(PathBuf::from(std::ffi::OsString::from_vec(bytes))))
 }
 
 #[cfg(target_os = "macos")]

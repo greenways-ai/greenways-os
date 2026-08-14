@@ -38,6 +38,7 @@ impl<B: DesktopSetupBackend> DesktopSetupHost<B> {
                         )
                     })?)
             }
+            DesktopSetupOperation::RecoverIdentity => self.backend.recover_identity(),
             DesktopSetupOperation::InstallBrowserBridge => self.backend.install_browser_bridge(),
             DesktopSetupOperation::RepairPermissions => self.backend.repair_permissions(),
             operation => Err(DesktopSetupError::OperationUnavailable(format!(

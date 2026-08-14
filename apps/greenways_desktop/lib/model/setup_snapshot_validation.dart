@@ -22,6 +22,7 @@ List<DesktopSetupOperation> _permittedActionsForState(DesktopSetupState state) {
     case DesktopSetupState.identityOptional:
       return const [
         DesktopSetupOperation.createIdentity,
+        DesktopSetupOperation.recoverIdentity,
         DesktopSetupOperation.inspect,
       ];
     case DesktopSetupState.browserCompanionOptional:
