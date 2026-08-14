@@ -1,0 +1,38 @@
+name: Snapshot Desktop identity base
+
+on:
+  push:
+    branches:
+      - agent/snapshot-desktop-identity-base
+    paths:
+      - .github/workflows/snapshot-desktop-identity-base.yml
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export exact main source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git archive --format=tar origin/main | gzip -n > /tmp/greenways-os-main.tar.gz
+          git bundle create /tmp/greenways-os-main.bundle origin/main
+          cd /tmp
+          sha256sum greenways-os-main.tar.gz greenways-os-main.bundle > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenways-os-main-identity-base
+          path: |
+            /tmp/greenways-os-main.tar.gz
+            /tmp/greenways-os-main.bundle
+            /tmp/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
