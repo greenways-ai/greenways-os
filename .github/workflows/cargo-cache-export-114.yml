@@ -1,0 +1,28 @@
+name: Cargo cache export 114
+
+on:
+  push:
+    branches:
+      - agent/source-export-114
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal
+      - name: Populate exact Cargo dependency cache
+        run: cargo +1.85.1 fetch --locked
+      - name: Archive Cargo registry and git cache
+        run: |
+          tar -C "$HOME/.cargo" -czf "$RUNNER_TEMP/greenways-cargo-cache-114.tgz" registry git
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenways-cargo-cache-114
+          path: ${{ runner.temp }}/greenways-cargo-cache-114.tgz
+          if-no-files-found: error
+          retention-days: 1
