@@ -16,11 +16,12 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { verifyManifestIdentity } from "./extension-identity.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptDirectory = fileURLToPath(new URL(".", import.meta.url));
 const defaultExtensionRoot = resolve(scriptDirectory, "..");
-const packageRoots = ["manifest.json", "dist", "src"];
+const packageRoots = ["manifest.json", "extension-identity.json", "dist", "src"];
 
 async function listFiles(root, localPath = "") {
   const entries = await readdir(join(root, localPath), { withFileTypes: true });
@@ -47,6 +48,7 @@ export async function packageExtension({
 } = {}) {
   const manifest = JSON.parse(await readFile(join(extensionRoot, "manifest.json"), "utf8"));
   const packageJson = JSON.parse(await readFile(join(extensionRoot, "package.json"), "utf8"));
+  const extensionIdentity = await verifyManifestIdentity(extensionRoot, manifest);
   if (manifest.version !== packageJson.version) {
     throw new Error(`Manifest ${manifest.version} does not match package ${packageJson.version}`);
   }
@@ -93,6 +95,8 @@ export async function packageExtension({
         "greenways-chatgpt-provider/0-alpha",
         "greenways-mcp-access/0-alpha",
       ],
+      extensionId: extensionIdentity.extensionId,
+      identityProtocol: extensionIdentity.protocol,
       manifestVersion: manifest.manifest_version,
       sha256,
       sourceCommit: commit,

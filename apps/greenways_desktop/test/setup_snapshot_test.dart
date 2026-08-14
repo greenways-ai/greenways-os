@@ -79,6 +79,45 @@ void main() {
     ]);
   });
 
+  test('browser optional exposes only exact installation and inspection', () {
+    final json = _setupJson();
+    json['state'] = 'browser-companion-optional';
+    final components = json['components']! as List<Object?>;
+    components[3] = _component('identity', 'ready');
+    json['permittedActions'] = <Object?>['install-browser-bridge', 'inspect'];
+
+    final snapshot = DesktopSetupSnapshot.fromJson(json);
+    expect(snapshot.state, DesktopSetupState.browserCompanionOptional);
+    expect(snapshot.permittedActions, const [
+      DesktopSetupOperation.installBrowserBridge,
+      DesktopSetupOperation.inspect,
+    ]);
+  });
+
+  test('all installed components require later connection verification', () {
+    final json = _setupJson();
+    json['state'] = 'verification-required';
+    final components = json['components']! as List<Object?>;
+    components[3] = _component('identity', 'ready');
+    components[4] = _component(
+      'browser-companion',
+      'ready',
+      version: '0.1.0',
+      digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      publicId: 'ai.greenways.browser_bridge',
+    );
+    json['permittedActions'] = <Object?>['inspect'];
+
+    final snapshot = DesktopSetupSnapshot.fromJson(json);
+    expect(snapshot.state, DesktopSetupState.verificationRequired);
+    expect(snapshot.permittedActions, const [DesktopSetupOperation.inspect]);
+    expect(snapshot.mandatoryReady, isTrue);
+    expect(
+      snapshot.component(DesktopSetupComponentKind.browserCompanion)?.publicId,
+      'ai.greenways.browser_bridge',
+    );
+  });
+
   test('normalizes only bounded public identity handles', () {
     expect(normalizeDesktopIdentityHandle('@River.Studio'), 'river.studio');
     expect(normalizeDesktopIdentityHandle(' a_b-c.9 '), 'a_b-c.9');
@@ -120,6 +159,7 @@ Map<String, Object?> _component(
   String kind,
   String state, {
   String? version,
+  String? digest,
   String? publicId,
   String? errorCode,
 }) => {
@@ -127,7 +167,7 @@ Map<String, Object?> _component(
   'kind': kind,
   'state': state,
   'version': version,
-  'digest': null,
+  'digest': digest,
   'publicId': publicId,
   'errorCode': errorCode,
 };

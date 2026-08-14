@@ -24,6 +24,13 @@ List<DesktopSetupOperation> _permittedActionsForState(DesktopSetupState state) {
         DesktopSetupOperation.createIdentity,
         DesktopSetupOperation.inspect,
       ];
+    case DesktopSetupState.browserCompanionOptional:
+      return const [
+        DesktopSetupOperation.installBrowserBridge,
+        DesktopSetupOperation.inspect,
+      ];
+    case DesktopSetupState.verificationRequired:
+      return const [DesktopSetupOperation.inspect];
     case DesktopSetupState.inspecting:
     case DesktopSetupState.verifying:
       return const [];
@@ -62,7 +69,7 @@ DesktopSetupState _deriveSetupState(List<DesktopSetupComponent> components) {
     return DesktopSetupState.browserCompanionOptional;
   }
   if (states.every((state) => state == DesktopSetupState.ready)) {
-    return DesktopSetupState.complete;
+    return DesktopSetupState.verificationRequired;
   }
   return DesktopSetupState.ready;
 }

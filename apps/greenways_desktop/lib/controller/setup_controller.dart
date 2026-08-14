@@ -30,6 +30,9 @@ final class SetupController extends ChangeNotifier {
     return perform(DesktopSetupOperation.createIdentity, handle: normalized);
   }
 
+  Future<void> installBrowserBridge() =>
+      perform(DesktopSetupOperation.installBrowserBridge);
+
   Future<void> repairPermissions() =>
       perform(DesktopSetupOperation.repairPermissions);
 

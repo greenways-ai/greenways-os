@@ -207,6 +207,157 @@ void main() {
     setup.dispose();
   });
 
+  testWidgets('Chrome companion installation is exact and remains unverified', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setupBridge = FakeDesktopBridge(
+      setupResult: inspectedSetupSnapshot(
+        identityState: DesktopSetupState.ready,
+      ),
+    );
+    final setup = SetupController(setupBridge);
+    await setup.inspect();
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('browser-companion-setup-card')),
+      findsOneWidget,
+    );
+    expect(find.text('Install Chrome companion'), findsOneWidget);
+    expect(find.text('Continue without browser'), findsOneWidget);
+    expect(find.textContaining('Chrome stable companion'), findsOneWidget);
+
+    setupBridge.setupResult = inspectedSetupSnapshot(
+      identityState: DesktopSetupState.ready,
+      browserState: DesktopSetupState.ready,
+    );
+    await tester.ensureVisible(find.byKey(const Key('browser-install-action')));
+    await tester.tap(find.byKey(const Key('browser-install-action')));
+    await tester.pumpAndSettle();
+
+    expect(setupBridge.browserBridgeInstalls, 1);
+    expect(setupBridge.setupHandles.last, isNull);
+    expect(setup.snapshot.state, DesktopSetupState.verificationRequired);
+    expect(find.byKey(const Key('browser-companion-setup-card')), findsNothing);
+    expect(
+      find.text('Connection verification is still required'),
+      findsWidgets,
+    );
+    expect(find.text('0.1.0 · ai.greenways.browser_bridge'), findsOneWidget);
+    for (final confidential in [
+      'chrome-extension://',
+      '/.greenways/',
+      'greenways-browser-bridge-host',
+    ]) {
+      expect(find.textContaining(confidential), findsNothing);
+    }
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
+  testWidgets('Chrome companion may be deferred without changing setup state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setupBridge = FakeDesktopBridge(
+      setupResult: inspectedSetupSnapshot(
+        identityState: DesktopSetupState.ready,
+      ),
+    );
+    final setup = SetupController(setupBridge);
+    await setup.inspect();
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const Key('browser-continue-action')),
+    );
+    await tester.tap(find.byKey(const Key('browser-continue-action')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Connection health for this Greenways installation.'),
+      findsOneWidget,
+    );
+    expect(setup.snapshot.state, DesktopSetupState.browserCompanionOptional);
+    expect(setupBridge.browserBridgeInstalls, 0);
+    expect(setupBridge.setupOperations, const [DesktopSetupOperation.inspect]);
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
+  testWidgets('compact Chrome companion card does not overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(520, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setup = SetupController(
+      FakeDesktopBridge(
+        setupResult: inspectedSetupSnapshot(
+          identityState: DesktopSetupState.ready,
+        ),
+      ),
+    );
+    await setup.inspect();
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('desktop-navigation-bar')), findsOneWidget);
+    expect(
+      find.byKey(const Key('browser-companion-setup-card')),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.byKey(const Key('browser-install-action')));
+    await tester.pumpAndSettle();
+    expect(find.text('Install Chrome companion'), findsOneWidget);
+    expect(find.text('Continue without browser'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
   testWidgets('wide rail opens Overview and Rooms after setup', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;

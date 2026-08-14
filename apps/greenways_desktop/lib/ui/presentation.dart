@@ -43,6 +43,8 @@ extension DesktopSetupStatePresentation on DesktopSetupState {
     DesktopSetupState.identityOptional => 'Identity setup is optional',
     DesktopSetupState.browserCompanionOptional =>
       'Browser connection is optional',
+    DesktopSetupState.verificationRequired =>
+      'Connection verification is still required',
     DesktopSetupState.verifying => 'Verifying installation',
     DesktopSetupState.complete => 'Installation verified',
     DesktopSetupState.restartRequired => 'Daemon restart required',
@@ -61,6 +63,7 @@ extension DesktopSetupStatePresentation on DesktopSetupState {
     DesktopSetupState.credentialRoleMismatch => Icons.gpp_bad_outlined,
     DesktopSetupState.identityOptional => Icons.person_add_alt_outlined,
     DesktopSetupState.browserCompanionOptional => Icons.public_outlined,
+    DesktopSetupState.verificationRequired => Icons.fact_check_outlined,
     DesktopSetupState.verifying => Icons.verified_outlined,
     DesktopSetupState.complete => Icons.verified,
     DesktopSetupState.restartRequired => Icons.restart_alt,

@@ -46,6 +46,17 @@ final class SetupView extends StatelessWidget {
               onContinue: onOpenOverview,
             ),
           ],
+          if (snapshot.state == DesktopSetupState.browserCompanionOptional &&
+              snapshot
+                      .component(DesktopSetupComponentKind.browserCompanion)
+                      ?.state ==
+                  DesktopSetupState.browserCompanionOptional) ...[
+            const SizedBox(height: 18),
+            _BrowserCompanionSetupCard(
+              controller: controller,
+              onContinue: onOpenOverview,
+            ),
+          ],
           const SizedBox(height: 18),
           _SetupDiagnostics(snapshot: snapshot, controller: controller),
         ],
@@ -194,6 +205,11 @@ final class _SetupPrimaryAction extends StatelessWidget {
         'Establish Desktop access',
         Icons.key_outlined,
         controller.issueDesktopClient,
+      ),
+      DesktopSetupOperation.installBrowserBridge => (
+        'Install Chrome companion',
+        Icons.extension_outlined,
+        controller.installBrowserBridge,
       ),
       _ => (
         snapshot.inspected ? 'Check again' : 'Check local components',
@@ -344,6 +360,83 @@ final class _IdentitySetupCardState extends State<_IdentitySetupCard> {
   }
 }
 
+final class _BrowserCompanionSetupCard extends StatelessWidget {
+  const _BrowserCompanionSetupCard({
+    required this.controller,
+    required this.onContinue,
+  });
+
+  final SetupController controller;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final information = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Connect Chrome to this installation',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 7),
+        Text(
+          'Install the reviewed Chrome stable companion for this macOS user. Desktop uses one fixed extension identity, one self-contained native host, and a separate browser-bridge credential. This remains optional and adds no page forwarding or provider authority.',
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      alignment: WrapAlignment.end,
+      children: [
+        OutlinedButton(
+          key: const Key('browser-continue-action'),
+          onPressed: controller.busy ? null : onContinue,
+          child: const Text('Continue without browser'),
+        ),
+        FilledButton.icon(
+          key: const Key('browser-install-action'),
+          onPressed: controller.busy ? null : controller.installBrowserBridge,
+          icon: controller.busy
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.extension_outlined),
+          label: const Text('Install Chrome companion'),
+        ),
+      ],
+    );
+    return Card(
+      key: const Key('browser-companion-setup-card'),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 700) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [information, const SizedBox(height: 18), actions],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: information),
+                const SizedBox(width: 22),
+                actions,
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 final class _SetupInspectionBoundary extends StatelessWidget {
   const _SetupInspectionBoundary({required this.snapshot});
 
@@ -371,7 +464,7 @@ final class _SetupInspectionBoundary extends StatelessWidget {
                   ),
                   const SizedBox(height: 7),
                   const Text(
-                    'This build may install or restart only the packaged greenwaysd service, enroll the fixed Desktop client, create one optional public identity, or repair fixed private modes. Browser installation and recovery remain unavailable.',
+                    'This build may install or restart only the packaged greenwaysd service, enroll the fixed Desktop client, create one optional public identity, install the exact optional Chrome companion, or repair fixed private modes. Identity recovery and final connection verification remain unavailable.',
                   ),
                 ],
               ),

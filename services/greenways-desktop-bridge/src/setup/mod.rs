@@ -136,6 +136,7 @@ pub enum DesktopSetupState {
     CredentialRoleMismatch,
     IdentityOptional,
     BrowserCompanionOptional,
+    VerificationRequired,
     Verifying,
     Complete,
     RestartRequired,
@@ -267,6 +268,7 @@ impl DesktopSetupComponent {
             self.state,
             DesktopSetupState::NotInspected
                 | DesktopSetupState::Inspecting
+                | DesktopSetupState::VerificationRequired
                 | DesktopSetupState::Verifying
                 | DesktopSetupState::Complete
                 | DesktopSetupState::Failed
@@ -502,7 +504,7 @@ fn derive_setup_state(
         .iter()
         .all(|state| *state == DesktopSetupState::Ready)
     {
-        DesktopSetupState::Complete
+        DesktopSetupState::VerificationRequired
     } else {
         DesktopSetupState::Ready
     };
@@ -529,6 +531,11 @@ fn permitted_actions_for_state(state: DesktopSetupState) -> Vec<DesktopSetupOper
             DesktopSetupOperation::CreateIdentity,
             DesktopSetupOperation::Inspect,
         ],
+        DesktopSetupState::BrowserCompanionOptional => vec![
+            DesktopSetupOperation::InstallBrowserBridge,
+            DesktopSetupOperation::Inspect,
+        ],
+        DesktopSetupState::VerificationRequired => vec![DesktopSetupOperation::Inspect],
         DesktopSetupState::NotInspected | DesktopSetupState::Failed => {
             vec![DesktopSetupOperation::Inspect]
         }
@@ -590,9 +597,11 @@ pub trait DesktopSetupBackend {
     fn install_daemon(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn issue_desktop_client(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn create_identity(&mut self, handle: &str) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
+    fn install_browser_bridge(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
     fn repair_permissions(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError>;
 }
 
+mod browser;
 mod host;
 mod inspect;
 mod service;

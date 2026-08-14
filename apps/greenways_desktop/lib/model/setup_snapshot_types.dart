@@ -31,6 +31,7 @@ final class DesktopSetupComponent {
     final transientState = {
       DesktopSetupState.notInspected,
       DesktopSetupState.inspecting,
+      DesktopSetupState.verificationRequired,
       DesktopSetupState.verifying,
       DesktopSetupState.complete,
       DesktopSetupState.failed,

@@ -1,6 +1,11 @@
 use super::{
+    browser::{
+        expected_native_messaging_manifest, verify_embedded_extension_identity,
+        BROWSER_CLIENT_LABEL, BROWSER_HOST_NAME,
+    },
     service::{
-        binary_identity, expected_launch_agent_plist, inspect_owned_directory, inspect_owned_file,
+        binary_identity, browser_host_digest, browser_host_identity, expected_launch_agent_plist,
+        inspect_container_directory_chain, inspect_owned_directory, inspect_owned_file,
         socket_is_safe, DaemonServiceInstaller, LaunchAgentController, OwnedPathState, SetupPaths,
         SystemLaunchAgentController, DAEMON_SERVICE_LABEL,
     },
@@ -9,10 +14,10 @@ use super::{
 };
 use greenways_authority::{read_credential_file, LocalClientRegistry, LocalClientRole};
 use greenways_desktop_bridge::now_unix_ms;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 #[cfg(test)]
-use super::service::IdentityVaultOpener;
+use super::service::{BrowserInstallHook, IdentityVaultOpener};
 
 #[cfg(target_os = "macos")]
 use std::{thread, time::Duration};
@@ -54,16 +59,18 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_browser_install_hook(&mut self, hook: BrowserInstallHook) {
+        self.installer.set_browser_install_hook(hook);
+    }
+
     fn inspect_components(&self) -> Result<Vec<DesktopSetupComponent>, DesktopSetupError> {
         Ok(vec![
             self.inspect_home()?,
             self.inspect_daemon()?,
             self.inspect_desktop_client()?,
             self.inspect_identity()?,
-            DesktopSetupComponent::optional(
-                DesktopSetupComponentKind::BrowserCompanion,
-                DesktopSetupState::BrowserCompanionOptional,
-            ),
+            self.inspect_browser_companion()?,
         ])
     }
 
@@ -358,6 +365,286 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
         }
     }
 
+    fn inspect_browser_companion(&self) -> Result<DesktopSetupComponent, DesktopSetupError> {
+        let paths = &self.installer.paths;
+        if verify_embedded_extension_identity().is_err() {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-package-identity-invalid",
+            ));
+        }
+        let packaged = match browser_host_identity(&paths.packaged_browser_host, None) {
+            Ok(identity) => identity,
+            Err(_) => {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::ManualRecoveryRequired,
+                    "browser-package-invalid",
+                ));
+            }
+        };
+
+        let chrome_container_state = inspect_container_directory_chain(
+            &paths.user_home,
+            &paths.chrome_native_messaging_dir,
+            paths.uid,
+        )?;
+        if chrome_container_state == OwnedPathState::Unsafe {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-installation-unsafe",
+            ));
+        }
+        let registry_state = inspect_owned_file(&paths.local_client_registry(), paths.uid, 0o600)?;
+        let bin_state = inspect_owned_directory(paths.browser_bin_dir(), paths.uid, 0o700)?;
+        let credential_state = inspect_owned_file(&paths.browser_credential(), paths.uid, 0o600)?;
+        let host_state = inspect_owned_file(&paths.installed_browser_host, paths.uid, 0o755)?;
+        let manifest_state = inspect_owned_file(&paths.browser_manifest, paths.uid, 0o600)?;
+        let required_states = [credential_state, host_state, manifest_state];
+
+        if required_states.contains(&OwnedPathState::Unsafe)
+            || registry_state == OwnedPathState::Unsafe
+            || bin_state == OwnedPathState::Unsafe
+        {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-installation-unsafe",
+            ));
+        }
+
+        let all_missing = required_states
+            .iter()
+            .all(|state| *state == OwnedPathState::Missing);
+        if all_missing {
+            if registry_state == OwnedPathState::WrongMode || bin_state == OwnedPathState::WrongMode
+            {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::PermissionRepairRequired,
+                    "browser-permission-repair-required",
+                ));
+            }
+            if registry_state == OwnedPathState::Ready {
+                let registry = match LocalClientRegistry::open(paths.local_client_registry()) {
+                    Ok(registry) => registry,
+                    Err(_) => {
+                        return Ok(DesktopSetupComponent::blocked(
+                            DesktopSetupComponentKind::BrowserCompanion,
+                            DesktopSetupState::ManualRecoveryRequired,
+                            "browser-registry-invalid",
+                        ));
+                    }
+                };
+                if registry.clients().iter().any(|client| {
+                    client.role == LocalClientRole::BrowserBridge
+                        && client.revoked_at_unix_ms.is_none()
+                }) {
+                    return Ok(DesktopSetupComponent::blocked(
+                        DesktopSetupComponentKind::BrowserCompanion,
+                        DesktopSetupState::ManualRecoveryRequired,
+                        "browser-credential-missing-for-active-client",
+                    ));
+                }
+            }
+            return Ok(DesktopSetupComponent::optional(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::BrowserCompanionOptional,
+            ));
+        }
+
+        if required_states
+            .iter()
+            .any(|state| *state == OwnedPathState::Missing)
+            || registry_state == OwnedPathState::Missing
+            || bin_state == OwnedPathState::Missing
+            || chrome_container_state == OwnedPathState::Missing
+        {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-partial-installation",
+            ));
+        }
+        if required_states.contains(&OwnedPathState::WrongMode)
+            || registry_state == OwnedPathState::WrongMode
+            || bin_state == OwnedPathState::WrongMode
+        {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::PermissionRepairRequired,
+                "browser-permission-repair-required",
+            ));
+        }
+
+        let registry = match LocalClientRegistry::open(paths.local_client_registry()) {
+            Ok(registry) => registry,
+            Err(_) => {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::ManualRecoveryRequired,
+                    "browser-registry-invalid",
+                ));
+            }
+        };
+        let credential = match read_credential_file(paths.browser_credential()) {
+            Ok(credential) => credential,
+            Err(_) => {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::ManualRecoveryRequired,
+                    "browser-credential-invalid",
+                ));
+            }
+        };
+        if credential.role != LocalClientRole::BrowserBridge {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-credential-role-mismatch",
+            ));
+        }
+        let client = match registry.verify_credential(&credential) {
+            Ok(client) => client,
+            Err(_) => {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::ManualRecoveryRequired,
+                    "browser-credential-rejected",
+                ));
+            }
+        };
+        let active_browser_clients = registry
+            .clients()
+            .into_iter()
+            .filter(|candidate| {
+                candidate.role == LocalClientRole::BrowserBridge
+                    && candidate.revoked_at_unix_ms.is_none()
+            })
+            .collect::<Vec<_>>();
+        if client.role != LocalClientRole::BrowserBridge
+            || client.label != BROWSER_CLIENT_LABEL
+            || active_browser_clients.len() != 1
+            || active_browser_clients[0].id != client.id
+        {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-client-contract-mismatch",
+            ));
+        }
+
+        let installed_digest =
+            match browser_host_digest(&paths.installed_browser_host, Some(paths.uid)) {
+                Ok(digest) => digest,
+                Err(_) => {
+                    return Ok(DesktopSetupComponent::blocked(
+                        DesktopSetupComponentKind::BrowserCompanion,
+                        DesktopSetupState::UpgradeRequired,
+                        "browser-host-mismatch",
+                    ));
+                }
+            };
+        if installed_digest != packaged.digest {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::UpgradeRequired,
+                "browser-host-mismatch",
+            ));
+        }
+        let installed = match browser_host_identity(&paths.installed_browser_host, Some(paths.uid))
+        {
+            Ok(identity) => identity,
+            Err(_) => {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::UpgradeRequired,
+                    "browser-host-mismatch",
+                ));
+            }
+        };
+        if installed != packaged {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::UpgradeRequired,
+                "browser-host-mismatch",
+            ));
+        }
+
+        let expected_manifest = expected_native_messaging_manifest(&paths.installed_browser_host)?;
+        let actual_manifest = match fs::read(&paths.browser_manifest) {
+            Ok(bytes) if bytes.len() <= 64 * 1024 => bytes,
+            _ => {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::ManualRecoveryRequired,
+                    "browser-manifest-invalid",
+                ));
+            }
+        };
+        let expected_value: serde_json::Value = serde_json::from_slice(&expected_manifest)
+            .map_err(|_| {
+                DesktopSetupError::InspectionFailed(
+                    "The reviewed Chrome Native Messaging manifest is invalid.".to_owned(),
+                )
+            })?;
+        let actual_value: serde_json::Value = match serde_json::from_slice(&actual_manifest) {
+            Ok(value) => value,
+            Err(_) => {
+                return Ok(DesktopSetupComponent::blocked(
+                    DesktopSetupComponentKind::BrowserCompanion,
+                    DesktopSetupState::ManualRecoveryRequired,
+                    "browser-manifest-invalid",
+                ));
+            }
+        };
+        let expected_object = expected_value.as_object().ok_or_else(|| {
+            DesktopSetupError::InspectionFailed(
+                "The reviewed Chrome Native Messaging manifest is invalid.".to_owned(),
+            )
+        })?;
+        let Some(actual_object) = actual_value.as_object() else {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-manifest-invalid",
+            ));
+        };
+        let expected_keys = expected_object.keys().collect::<HashSet<_>>();
+        let actual_keys = actual_object.keys().collect::<HashSet<_>>();
+        let authority_fields = ["name", "path", "type", "allowed_origins"];
+        if expected_keys != actual_keys
+            || authority_fields
+                .iter()
+                .any(|field| actual_object.get(*field) != expected_object.get(*field))
+            || !actual_object
+                .get("description")
+                .is_some_and(serde_json::Value::is_string)
+        {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::ManualRecoveryRequired,
+                "browser-manifest-unsafe",
+            ));
+        }
+        if actual_value != expected_value || actual_manifest != expected_manifest {
+            return Ok(DesktopSetupComponent::blocked(
+                DesktopSetupComponentKind::BrowserCompanion,
+                DesktopSetupState::UpgradeRequired,
+                "browser-manifest-drift",
+            ));
+        }
+
+        Ok(
+            DesktopSetupComponent::ready(DesktopSetupComponentKind::BrowserCompanion)
+                .with_version(installed.version)
+                .with_digest(installed.digest)
+                .with_public_id(BROWSER_HOST_NAME),
+        )
+    }
+
     fn inspect_snapshot(&self) -> Result<DesktopSetupSnapshot, DesktopSetupError> {
         let observed_at_unix_ms = now_unix_ms().map_err(|_| {
             DesktopSetupError::InspectionFailed(
@@ -437,6 +724,40 @@ impl<C: LaunchAgentController> DesktopSetupBackend for DesktopSetupEngine<C> {
         })?;
         self.installer
             .create_identity(handle, observed_at_unix_ms)?;
+        #[cfg(target_os = "macos")]
+        for _ in 0..30 {
+            if self.installer.paths.socket_file().exists() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        self.inspect_snapshot()
+    }
+
+    fn install_browser_bridge(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError> {
+        let before = self.inspect_snapshot()?;
+        if !before
+            .permitted_actions
+            .contains(&DesktopSetupOperation::InstallBrowserBridge)
+        {
+            return Err(DesktopSetupError::OperationUnavailable(
+                "Chrome companion installation is not permitted by the current setup state."
+                    .to_owned(),
+            ));
+        }
+        let observed_at_unix_ms = now_unix_ms().map_err(|_| {
+            DesktopSetupError::InstallationFailed(
+                "The Desktop setup clock is unavailable.".to_owned(),
+            )
+        })?;
+        if let Err(error) = self.installer.install_browser_bridge(observed_at_unix_ms) {
+            if let Ok(recovery) = self.inspect_snapshot() {
+                if recovery.state == DesktopSetupState::ManualRecoveryRequired {
+                    return Ok(recovery);
+                }
+            }
+            return Err(error);
+        }
         #[cfg(target_os = "macos")]
         for _ in 0..30 {
             if self.installer.paths.socket_file().exists() {
