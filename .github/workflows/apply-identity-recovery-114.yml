@@ -1,4 +1,4 @@
-name: Apply identity recovery 114
+name: Fix identity recovery layout
 
 on:
   push:
@@ -9,110 +9,51 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  fix:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/apply-identity-recovery-114
+          ref: agent/desktop-identity-recovery-114
           fetch-depth: 0
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: 3.47.0
           cache: true
-      - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt
-      - name: Apply and publish issue 114 source
+      - name: Fix, test, and publish responsive identity recovery card
         shell: bash
         run: |
           set -euo pipefail
 
           python3 - <<'PY'
-          import base64
-          import gzip
-          import hashlib
           from pathlib import Path
 
-          encoded = b''.join(
-              b''.join(
-                  Path(f'.github/agent/issue114.part-{index:02d}')
-                  .read_bytes()
-                  .split()
-              )
-              for index in range(4)
-          )
-          archive = base64.b64decode(encoded, validate=True)
-          assert hashlib.sha256(archive).hexdigest() == 'aaf8ed66f30471ea9fa9b8606c61b0fb2aa63ab2b8990a27254ac995d530b2fa'
-          patch = gzip.decompress(archive)
-          assert hashlib.sha256(patch).hexdigest() == 'bc1f0e4115376d92b2a5cc472de538b350bb5709697e246df90f0bdab88eb3d1'
-          Path('/tmp/issue114.patch').write_bytes(patch)
-          PY
-
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "3f78d12306409f54668f1c7c6e8803b7a8561911"
-          git switch --force-create agent/desktop-identity-recovery-114 origin/main
-          git apply --index /tmp/issue114.patch
-
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-
-          path = Path('services/greenways-desktop-bridge/src/setup/service.rs')
+          path = Path('apps/greenways_desktop/lib/ui/setup_view.dart')
           source = path.read_text()
-          source, replacements = re.subn(
-              r'return Ok\(Some\(IdentityRecoverySelection \{(.*?)\}\)\);',
-              r'Ok(Some(IdentityRecoverySelection {\1}))',
-              source,
-              count=1,
-              flags=re.DOTALL,
-          )
-          if replacements != 1:
-              raise SystemExit('expected one identity recovery selection return')
-          path.write_text(source)
+          anchor = """    return Card(
+      key: const Key('identity-setup-card'),"""
+          start = source.index(anchor)
+          before = source[:start]
+          card = source[start:]
+          old = 'if (constraints.maxWidth < 700) {'
+          if card.count(old) < 1:
+              raise SystemExit('identity setup breakpoint not found')
+          card = card.replace(old, 'if (constraints.maxWidth < 960) {', 1)
+          path.write_text(before + card)
           PY
 
-          cargo +1.85.1 fmt --all
-          dart format apps/greenways_desktop/lib apps/greenways_desktop/test
-          cargo +1.85.1 fmt --all -- --check
-          dart format --output=none --set-exit-if-changed \
-            apps/greenways_desktop/lib apps/greenways_desktop/test
-
-          git diff --check origin/main
-          git diff --name-only origin/main | LC_ALL=C sort > /tmp/issue114.actual
-          cat > /tmp/issue114.expected <<'EOF'
-          Cargo.lock
-          apps/greenways_desktop/README.md
-          apps/greenways_desktop/lib/controller/setup_controller.dart
-          apps/greenways_desktop/lib/model/setup_snapshot.dart
-          apps/greenways_desktop/lib/model/setup_snapshot_validation.dart
-          apps/greenways_desktop/lib/ui/setup_view.dart
-          apps/greenways_desktop/lib/ui/setup_view_components.dart
-          apps/greenways_desktop/test/desktop_shell_test.dart
-          apps/greenways_desktop/test/setup_controller_test.dart
-          apps/greenways_desktop/test/setup_snapshot_test.dart
-          apps/greenways_desktop/test/support/fakes.dart
-          cli/greenways-admin/Cargo.toml
-          cli/greenways-admin/src/main.rs
-          crates/greenways-identity/Cargo.toml
-          crates/greenways-identity/src/lib.rs
-          crates/greenways-identity/src/recovery.rs
-          protocol/desktop-setup.md
-          protocol/profile-identity.md
-          services/greenways-desktop-bridge/src/setup/host.rs
-          services/greenways-desktop-bridge/src/setup/inspect.rs
-          services/greenways-desktop-bridge/src/setup/mod.rs
-          services/greenways-desktop-bridge/src/setup/service.rs
-          services/greenways-desktop-bridge/src/setup/tests.rs
-          EOF
-          sed -i '' 's/^          //' /tmp/issue114.expected
-          diff -u /tmp/issue114.expected /tmp/issue114.actual
-          test ! -e .github/agent/issue114.part-00
-          test ! -e .github/workflows/apply-identity-recovery-114.yml
-          test ! -d apps/greenways_desktop/macos
+          dart format apps/greenways_desktop/lib/ui/setup_view.dart
+          (
+            cd apps/greenways_desktop
+            flutter pub get
+            flutter analyze
+            flutter test test/desktop_shell_test.dart
+          )
+          git diff --check
 
           git config user.name "greenways-os-ci"
           git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "Recover existing profile identity from Desktop setup"
-          git push --force-with-lease origin HEAD:agent/desktop-identity-recovery-114
+          git add apps/greenways_desktop/lib/ui/setup_view.dart
+          git commit -m "Keep identity recovery actions responsive"
+          git push origin HEAD:agent/desktop-identity-recovery-114
