@@ -79,7 +79,7 @@ jobs:
             apps/greenways_desktop/lib apps/greenways_desktop/test
 
           git diff --check origin/main
-          git diff --name-only origin/main | sort > /tmp/issue114.actual
+          git diff --name-only origin/main | LC_ALL=C sort > /tmp/issue114.actual
           cat > /tmp/issue114.expected <<'EOF'
           Cargo.lock
           apps/greenways_desktop/README.md
