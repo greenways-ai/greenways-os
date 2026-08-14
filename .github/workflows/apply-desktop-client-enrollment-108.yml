@@ -37,8 +37,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin agent/desktop-service-92-clean
-          git switch --detach origin/agent/desktop-service-92-clean
+          git fetch origin main
+          git switch --detach origin/main
           git switch -C agent/desktop-client-enrollment-108
 
           set +e
@@ -82,6 +82,8 @@ jobs:
           apps/greenways_desktop/test/setup_controller_test.dart
           apps/greenways_desktop/test/setup_snapshot_test.dart
           apps/greenways_desktop/test/support/fakes.dart
+          crates/greenways-workspace-contracts/src/resource.rs
+          crates/greenways-workspace-contracts/tests/limits.rs
           protocol/desktop-setup.md
           services/greenways-desktop-bridge/src/setup/host.rs
           services/greenways-desktop-bridge/src/setup/inspect.rs
