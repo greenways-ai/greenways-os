@@ -352,7 +352,7 @@ final class _IdentitySetupCardState extends State<_IdentitySetupCard> {
         padding: const EdgeInsets.all(22),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            if (constraints.maxWidth < 700) {
+            if (constraints.maxWidth < 960) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [information, const SizedBox(height: 18), actions],
