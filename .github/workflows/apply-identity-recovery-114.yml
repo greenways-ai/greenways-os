@@ -31,8 +31,7 @@ jobs:
 
           path = Path('apps/greenways_desktop/lib/ui/setup_view.dart')
           source = path.read_text()
-          anchor = """    return Card(
-      key: const Key('identity-setup-card'),"""
+          anchor = "key: const Key('identity-setup-card'),"
           start = source.index(anchor)
           before = source[:start]
           card = source[start:]
