@@ -93,6 +93,37 @@ void main() {
     },
   );
 
+  test(
+    'identity recovery crosses only the closed no-argument operation',
+    () async {
+      final bridge = FakeDesktopBridge();
+      final controller = SetupController(bridge);
+
+      await controller.inspect();
+      expect(controller.snapshot.permittedActions, const [
+        DesktopSetupOperation.createIdentity,
+        DesktopSetupOperation.recoverIdentity,
+        DesktopSetupOperation.inspect,
+      ]);
+      bridge.setupResult = inspectedSetupSnapshot(
+        identityState: DesktopSetupState.ready,
+      );
+      await controller.recoverIdentity();
+
+      expect(bridge.identityRecoveries, 1);
+      expect(
+        bridge.setupOperations.last,
+        DesktopSetupOperation.recoverIdentity,
+      );
+      expect(bridge.setupHandles.last, isNull);
+      expect(
+        controller.snapshot.state,
+        DesktopSetupState.browserCompanionOptional,
+      );
+      controller.dispose();
+    },
+  );
+
   test('invalid identity handles never cross the bridge', () async {
     final bridge = FakeDesktopBridge();
     final controller = SetupController(bridge);

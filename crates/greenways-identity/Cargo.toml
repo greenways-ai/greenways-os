@@ -10,6 +10,7 @@ repository.workspace = true
 test-support = []
 
 [dependencies]
+ring = "0.17.14"
 base64ct = { version = "1.8.0", features = ["alloc"] }
 getrandom.workspace = true
 keyring = { version = "=3.6.3", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }

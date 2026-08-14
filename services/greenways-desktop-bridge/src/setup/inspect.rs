@@ -17,7 +17,7 @@ use greenways_desktop_bridge::now_unix_ms;
 use std::{collections::HashSet, fs};
 
 #[cfg(test)]
-use super::service::{BrowserInstallHook, IdentityVaultOpener};
+use super::service::{BrowserInstallHook, IdentityRecoverySelector, IdentityVaultOpener};
 
 #[cfg(target_os = "macos")]
 use std::{thread, time::Duration};
@@ -62,6 +62,11 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
     #[cfg(test)]
     pub(crate) fn set_browser_install_hook(&mut self, hook: BrowserInstallHook) {
         self.installer.set_browser_install_hook(hook);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_identity_recovery_selector(&mut self, selector: IdentityRecoverySelector) {
+        self.installer.set_identity_recovery_selector(selector);
     }
 
     fn inspect_components(&self) -> Result<Vec<DesktopSetupComponent>, DesktopSetupError> {
@@ -724,6 +729,29 @@ impl<C: LaunchAgentController> DesktopSetupBackend for DesktopSetupEngine<C> {
         })?;
         self.installer
             .create_identity(handle, observed_at_unix_ms)?;
+        #[cfg(target_os = "macos")]
+        for _ in 0..30 {
+            if self.installer.paths.socket_file().exists() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        self.inspect_snapshot()
+    }
+
+    fn recover_identity(&mut self) -> Result<DesktopSetupSnapshot, DesktopSetupError> {
+        let before = self.inspect_snapshot()?;
+        if !before
+            .permitted_actions
+            .contains(&DesktopSetupOperation::RecoverIdentity)
+        {
+            return Err(DesktopSetupError::OperationUnavailable(
+                "Public identity recovery is not permitted by the current setup state.".to_owned(),
+            ));
+        }
+        let Some(_) = self.installer.recover_identity()? else {
+            return Ok(before);
+        };
         #[cfg(target_os = "macos")]
         for _ in 0..30 {
             if self.installer.paths.socket_file().exists() {

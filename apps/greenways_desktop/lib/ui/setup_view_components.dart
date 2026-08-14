@@ -208,7 +208,7 @@ String _setupStateDescription(DesktopSetupSnapshot snapshot) =>
         'A private Desktop-role credential has not been enrolled.',
       DesktopSetupState.credentialRoleMismatch =>
         'The fixed Desktop credential exists but carries another role.',
-      DesktopSetupState.identityOptional => 'The daemon and Desktop access are ready; create a public identity now or continue without one.',
+      DesktopSetupState.identityOptional => 'The daemon and Desktop access are ready; create a new identity, recover the existing one, or continue without identity.',
       DesktopSetupState.browserCompanionOptional => 'The core Desktop boundary is ready; install the exact Chrome companion or continue without it.',
       DesktopSetupState.verificationRequired => 'Selected components are installed, but final connection and substrate verification has not run.',
       DesktopSetupState.verifying =>

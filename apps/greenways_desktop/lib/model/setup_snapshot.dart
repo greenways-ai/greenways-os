@@ -36,6 +36,7 @@ enum DesktopSetupOperation {
   installDaemon,
   issueDesktopClient,
   createIdentity,
+  recoverIdentity,
   installBrowserBridge,
   verify,
   repairPermissions;
@@ -45,6 +46,7 @@ enum DesktopSetupOperation {
     'install-daemon' => installDaemon,
     'issue-desktop-client' => issueDesktopClient,
     'create-identity' => createIdentity,
+    'recover-identity' => recoverIdentity,
     'install-browser-bridge' => installBrowserBridge,
     'verify' => verify,
     'repair-permissions' => repairPermissions,
@@ -56,6 +58,7 @@ enum DesktopSetupOperation {
     installDaemon => 'install-daemon',
     issueDesktopClient => 'issue-desktop-client',
     createIdentity => 'create-identity',
+    recoverIdentity => 'recover-identity',
     installBrowserBridge => 'install-browser-bridge',
     verify => 'verify',
     repairPermissions => 'repair-permissions',

@@ -206,6 +206,11 @@ final class _SetupPrimaryAction extends StatelessWidget {
         Icons.key_outlined,
         controller.issueDesktopClient,
       ),
+      DesktopSetupOperation.recoverIdentity => (
+        'Recover existing identity',
+        Icons.restore_outlined,
+        controller.recoverIdentity,
+      ),
       DesktopSetupOperation.installBrowserBridge => (
         'Install Chrome companion',
         Icons.extension_outlined,
@@ -279,12 +284,12 @@ final class _IdentitySetupCardState extends State<_IdentitySetupCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Create a public Greenways identity',
+          'Set up a public Greenways identity',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 7),
         Text(
-          'Choose a public handle. The private signing key stays in the operating-system keyring, and identity setup may be deferred.',
+          'Create a new identity with a public handle, or recover the exact existing identity from its encrypted package and separate recovery-key file. Native file selection and decrypted key material stay outside Flutter, and identity setup may be deferred.',
           style: Theme.of(context).textTheme.bodyMedium
               ?.copyWith(color: scheme.onSurfaceVariant),
         ),
@@ -320,6 +325,14 @@ final class _IdentitySetupCardState extends State<_IdentitySetupCard> {
           onPressed: widget.controller.busy ? null : widget.onContinue,
           child: const Text('Continue without identity'),
         ),
+        OutlinedButton.icon(
+          key: const Key('identity-recover-action'),
+          onPressed: widget.controller.busy
+              ? null
+              : widget.controller.recoverIdentity,
+          icon: const Icon(Icons.restore_outlined),
+          label: const Text('Recover existing identity'),
+        ),
         FilledButton.icon(
           key: const Key('identity-create-action'),
           onPressed: widget.controller.busy ? null : _createIdentity,
@@ -329,7 +342,7 @@ final class _IdentitySetupCardState extends State<_IdentitySetupCard> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.person_add_alt_outlined),
-          label: const Text('Create public identity'),
+          label: const Text('Create new identity'),
         ),
       ],
     );
@@ -339,7 +352,7 @@ final class _IdentitySetupCardState extends State<_IdentitySetupCard> {
         padding: const EdgeInsets.all(22),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            if (constraints.maxWidth < 700) {
+            if (constraints.maxWidth < 960) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [information, const SizedBox(height: 18), actions],
@@ -464,7 +477,7 @@ final class _SetupInspectionBoundary extends StatelessWidget {
                   ),
                   const SizedBox(height: 7),
                   const Text(
-                    'This build may install or restart only the packaged greenwaysd service, enroll the fixed Desktop client, create one optional public identity, install the exact optional Chrome companion, or repair fixed private modes. Identity recovery and final connection verification remain unavailable.',
+                    'This build may install or restart only the packaged greenwaysd service, enroll the fixed Desktop client, create or recover one optional public identity, install the exact optional Chrome companion, or repair fixed private modes. Recovery uses native file selection and never sends paths or decrypted key material to Dart. Final connection verification remains unavailable.',
                   ),
                 ],
               ),

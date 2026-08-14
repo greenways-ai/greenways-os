@@ -80,8 +80,9 @@ void main() {
     expect(find.text('Open Overview'), findsOneWidget);
     expect(find.byKey(const Key('identity-setup-card')), findsOneWidget);
     expect(find.byKey(const Key('identity-handle-field')), findsOneWidget);
-    expect(find.text('Create public identity'), findsOneWidget);
+    expect(find.text('Create new identity'), findsOneWidget);
     expect(find.text('Continue without identity'), findsOneWidget);
+    expect(find.text('Recover existing identity'), findsOneWidget);
     expect(tester.takeException(), isNull);
     connection.dispose();
     setup.dispose();
@@ -140,11 +141,57 @@ void main() {
       find.byKey(const Key('identity-handle-field')),
       '@River.Studio',
     );
-    await tester.ensureVisible(find.text('Create public identity'));
-    await tester.tap(find.text('Create public identity'));
+    await tester.ensureVisible(find.text('Create new identity'));
+    await tester.tap(find.text('Create new identity'));
     await tester.pumpAndSettle();
     expect(setupBridge.identityCreations, 1);
     expect(setupBridge.identityHandles, const ['river.studio']);
+    expect(find.byKey(const Key('identity-setup-card')), findsNothing);
+    expect(find.text('Browser connection is optional'), findsWidgets);
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
+  testWidgets('identity recovery uses the closed native-selection operation', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setupBridge = FakeDesktopBridge();
+    final setup = SetupController(setupBridge);
+    await setup.inspect();
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Native file selection'), findsOneWidget);
+    setupBridge.setupResult = inspectedSetupSnapshot(
+      identityState: DesktopSetupState.ready,
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('identity-recover-action')),
+    );
+    await tester.tap(find.byKey(const Key('identity-recover-action')));
+    await tester.pumpAndSettle();
+
+    expect(setupBridge.identityRecoveries, 1);
+    expect(
+      setupBridge.setupOperations.last,
+      DesktopSetupOperation.recoverIdentity,
+    );
+    expect(setupBridge.setupHandles.last, isNull);
     expect(find.byKey(const Key('identity-setup-card')), findsNothing);
     expect(find.text('Browser connection is optional'), findsWidgets);
     expect(tester.takeException(), isNull);
