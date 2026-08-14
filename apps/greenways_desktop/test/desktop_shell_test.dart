@@ -78,6 +78,10 @@ void main() {
     expect(find.text('Public identity'), findsOneWidget);
     expect(find.text('Browser companion'), findsOneWidget);
     expect(find.text('Open Overview'), findsOneWidget);
+    expect(find.byKey(const Key('identity-setup-card')), findsOneWidget);
+    expect(find.byKey(const Key('identity-handle-field')), findsOneWidget);
+    expect(find.text('Create public identity'), findsOneWidget);
+    expect(find.text('Continue without identity'), findsOneWidget);
     expect(tester.takeException(), isNull);
     connection.dispose();
     setup.dispose();
@@ -127,6 +131,77 @@ void main() {
     await tester.pumpAndSettle();
     expect(setupBridge.desktopClientIssues, 1);
     expect(find.text('Identity setup is optional'), findsWidgets);
+    expect(find.byKey(const Key('identity-setup-card')), findsOneWidget);
+    setupBridge.setupResult = inspectedSetupSnapshot(
+      identityState: DesktopSetupState.ready,
+    );
+    await tester.ensureVisible(find.byKey(const Key('identity-handle-field')));
+    await tester.enterText(
+      find.byKey(const Key('identity-handle-field')),
+      '@River.Studio',
+    );
+    await tester.ensureVisible(find.text('Create public identity'));
+    await tester.tap(find.text('Create public identity'));
+    await tester.pumpAndSettle();
+    expect(setupBridge.identityCreations, 1);
+    expect(setupBridge.identityHandles, const ['river.studio']);
+    expect(find.byKey(const Key('identity-setup-card')), findsNothing);
+    expect(find.text('Browser connection is optional'), findsWidgets);
+    expect(tester.takeException(), isNull);
+    connection.dispose();
+    setup.dispose();
+  });
+
+  testWidgets('identity creation validates locally and may be deferred', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final connection = ConnectionController(
+      FakeDesktopBridge(),
+      autoRefresh: false,
+    );
+    final setupBridge = FakeDesktopBridge();
+    final setup = SetupController(setupBridge);
+    await setup.inspect();
+
+    await tester.pumpWidget(
+      GreenwaysDesktopApp(
+        connectionController: connection,
+        setupController: setup,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('identity-handle-field')));
+    await tester.enterText(
+      find.byKey(const Key('identity-handle-field')),
+      'river/studio',
+    );
+    await tester.ensureVisible(find.byKey(const Key('identity-create-action')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('identity-create-action')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Use 1–48 letters, numbers, dots, dashes, or underscores.'),
+      findsOneWidget,
+    );
+    expect(setupBridge.identityCreations, 0);
+
+    await tester.ensureVisible(
+      find.byKey(const Key('identity-continue-action')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('identity-continue-action')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Connection health for this Greenways installation.'),
+      findsOneWidget,
+    );
+    expect(setup.snapshot.state, DesktopSetupState.identityOptional);
+    expect(setupBridge.identityCreations, 0);
     expect(tester.takeException(), isNull);
     connection.dispose();
     setup.dispose();

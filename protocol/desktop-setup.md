@@ -1,6 +1,6 @@
 # Greenways Desktop local setup
 
-Status: `0-alpha`, initial Desktop-client enrollment slice
+Status: `0-alpha`, initial public-identity creation slice
 
 Greenways Desktop uses a separate process-isolated setup protocol to inspect and establish the fixed installation-local boundary around `greenwaysd`. Flutter expresses one closed semantic operation and receives bounded component state. It does not receive filesystem paths, credential bytes, daemon session IDs, private keys, recovery material, provider credentials, or generic process authority.
 
@@ -12,13 +12,13 @@ This slice implements:
 inspect
 install-daemon
 issue-desktop-client
+create-identity
 repair-permissions
 ```
 
 The remaining protocol names are reserved but unavailable until their own reviewed slices:
 
 ```text
-create-identity
 install-browser-bridge
 verify
 ```
@@ -31,11 +31,14 @@ An unavailable operation returns `setup-operation-unavailable`; it is not reinte
 {
   "protocol": "greenways-desktop-setup/0-alpha",
   "requestId": "desktop/request/…",
-  "operation": "install-daemon"
+  "operation": "install-daemon",
+  "handle": null
 }
 ```
 
-The request has exactly three fields. It accepts no executable path, Greenways home, socket path, credential path, role, daemon method, LaunchAgent label, browser host name, extension origin, or arbitrary argument.
+The request has exactly four fields. `handle` is non-null only for `create-identity`; all other operations require `handle: null`. It accepts no executable path, Greenways home, socket path, credential path, role, daemon method, LaunchAgent label, browser host name, extension origin, key-store service, identity ID, algorithm, timestamp, recovery value, or arbitrary argument.
+
+The public identity handle must already be normalized: 1–48 lowercase ASCII letters, numbers, dots, dashes, or underscores, beginning and ending with an alphanumeric character.
 
 ## Result
 
@@ -84,6 +87,7 @@ Greenways home:       $HOME/.greenways
 state:                $HOME/.greenways/state
 run/socket:           $HOME/.greenways/run/greenwaysd.sock
 Desktop credential:  $HOME/.greenways/clients/desktop.json
+identity metadata:   $HOME/.greenways/state/profile-identity.json
 logs:                 $HOME/.greenways/log
 installed daemon:     $HOME/Library/Application Support/Greenways/bin/greenwaysd
 LaunchAgent:          $HOME/Library/LaunchAgents/ai.greenways.greenwaysd.plist
@@ -132,6 +136,27 @@ The operation:
 
 The credential token is never returned to Flutter, serialized into the setup response, copied into diagnostics, or passed through a process argument. An existing wrong-role credential remains `credential-role-mismatch`. An orphaned active Desktop registry record becomes `manual-recovery-required` rather than silently creating a second client.
 
+## Initial public identity
+
+`create-identity` is available only when the inspected aggregate state is exactly `identity-optional`. The request supplies one normalized public handle and no private or authority-bearing material. The Rust setup companion fixes the metadata destination, signing algorithm, key-store service, identity identifier generation, and timestamp source.
+
+The operation:
+
+1. validates the normalized public handle before changing process state;
+2. rejects an existing, unsafe, or incorrectly permissioned fixed identity metadata path;
+3. stops only the fixed `ai.greenways.greenwaysd` service;
+4. opens `greenways-identity::ProfileIdentityVault` at the fixed metadata path;
+5. creates one self-signed P-256 public identity;
+6. stores the private signing key only in the operating-system keyring;
+7. atomically persists only the signed public identity metadata with private mode;
+8. verifies the private key against the signed public card;
+9. restarts the fixed daemon service; and
+10. returns a new inspection snapshot containing only the public identity ID.
+
+The handle is public input, but the setup response does not echo it. Private key bytes, key-store handles, signatures, subject roots, metadata paths, recovery material, and arbitrary identity records never enter Flutter or copyable diagnostics. If creation fails after service stop, the companion attempts to restore the daemon before returning a bounded failure.
+
+Identity is optional for installation-local Desktop operation. **Continue without identity** changes only the current Desktop destination; it does not persist a waiver, synthesize an identity, or grant Hestia authority.
+
 ## Inspection and recovery states
 
 Inspection rejects symbolic links, unexpected file types, wrong ownership, unsafe sockets, malformed credentials, wrong Desktop roles, malformed identity metadata, executable identity drift, and LaunchAgent drift.
@@ -145,6 +170,7 @@ upgrade-required              -> install-daemon | inspect
 restart-required              -> install-daemon | inspect
 permission-repair-required    -> repair-permissions | inspect
 credential-required           -> issue-desktop-client | inspect
+identity-optional             -> create-identity | inspect
 all other inspected states    -> inspect
 ```
 
@@ -157,9 +183,10 @@ Rust and Dart both use closed schemas. Dart rejects confidential-looking values 
 - setup protocol and aggregate state;
 - component kind and bounded state;
 - public daemon version, digest, or service label when ready;
+- public local-client or identity ID when ready;
 - permitted semantic actions;
 - timestamp and redacted error code.
 
 ## Deliberate limits
 
-This slice does not replace or revoke a Desktop credential; recover from an interrupted replacement; create or recover identity; install a browser companion; forward page or provider operations; establish Hestia room membership; update arbitrary software; accept custom paths; execute arbitrary local packages; or provide Windows or Linux Desktop service installation.
+This slice does not replace or revoke a Desktop credential; recover from an interrupted replacement; import, recover, replace, rotate, or export an identity; expose recovery material; install a browser companion; perform final local/substrate verification; forward page or provider operations; establish Hestia room membership; update arbitrary software; accept custom paths; execute arbitrary local packages; or provide Windows or Linux Desktop service installation.

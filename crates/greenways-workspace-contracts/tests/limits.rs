@@ -6,7 +6,9 @@ fn limits_are_bounded() {
         .validate()
         .expect("default limits");
 
-    let mut limits = ResourceLimits::default();
-    limits.max_page = 101;
+    let limits = ResourceLimits {
+        max_page: 101,
+        ..ResourceLimits::default()
+    };
     assert_eq!(limits.validate().expect_err("limit").code, "invalid-limit");
 }

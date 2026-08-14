@@ -9,8 +9,10 @@ use super::{
 };
 use greenways_authority::{read_credential_file, LocalClientRegistry, LocalClientRole};
 use greenways_desktop_bridge::now_unix_ms;
-use greenways_identity::ProfileIdentityVault;
 use std::fs;
+
+#[cfg(test)]
+use super::service::IdentityVaultOpener;
 
 #[cfg(target_os = "macos")]
 use std::{thread, time::Duration};
@@ -34,6 +36,21 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
     pub fn new(paths: SetupPaths, controller: C) -> Self {
         Self {
             installer: DaemonServiceInstaller::new(paths, controller),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_with_identity_vault_opener(
+        paths: SetupPaths,
+        controller: C,
+        identity_vault_opener: IdentityVaultOpener,
+    ) -> Self {
+        Self {
+            installer: DaemonServiceInstaller::new_with_identity_vault_opener(
+                paths,
+                controller,
+                identity_vault_opener,
+            ),
         }
     }
 
@@ -318,11 +335,14 @@ impl<C: LaunchAgentController> DesktopSetupEngine<C> {
                 "identity-metadata-unsafe",
             )),
             OwnedPathState::Ready => {
-                let identity = ProfileIdentityVault::open_system(metadata_path).map_err(|_| {
-                    DesktopSetupError::InspectionFailed(
-                        "The local public identity metadata is invalid.".to_owned(),
-                    )
-                })?;
+                let identity = self
+                    .installer
+                    .open_identity_vault(metadata_path)
+                    .map_err(|_| {
+                        DesktopSetupError::InspectionFailed(
+                            "The local public identity metadata is invalid.".to_owned(),
+                        )
+                    })?;
                 let status = identity.status();
                 match status.identity_id {
                     Some(identity_id) => Ok(DesktopSetupComponent::ready(
@@ -390,6 +410,33 @@ impl<C: LaunchAgentController> DesktopSetupBackend for DesktopSetupEngine<C> {
             )
         })?;
         self.installer.issue_desktop_client(observed_at_unix_ms)?;
+        #[cfg(target_os = "macos")]
+        for _ in 0..30 {
+            if self.installer.paths.socket_file().exists() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        self.inspect_snapshot()
+    }
+
+    fn create_identity(&mut self, handle: &str) -> Result<DesktopSetupSnapshot, DesktopSetupError> {
+        let before = self.inspect_snapshot()?;
+        if !before
+            .permitted_actions
+            .contains(&DesktopSetupOperation::CreateIdentity)
+        {
+            return Err(DesktopSetupError::OperationUnavailable(
+                "Public identity creation is not permitted by the current setup state.".to_owned(),
+            ));
+        }
+        let observed_at_unix_ms = now_unix_ms().map_err(|_| {
+            DesktopSetupError::InstallationFailed(
+                "The Desktop setup clock is unavailable.".to_owned(),
+            )
+        })?;
+        self.installer
+            .create_identity(handle, observed_at_unix_ms)?;
         #[cfg(target_os = "macos")]
         for _ in 0..30 {
             if self.installer.paths.socket_file().exists() {

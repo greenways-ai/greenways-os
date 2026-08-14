@@ -19,6 +19,11 @@ List<DesktopSetupOperation> _permittedActionsForState(DesktopSetupState state) {
         DesktopSetupOperation.issueDesktopClient,
         DesktopSetupOperation.inspect,
       ];
+    case DesktopSetupState.identityOptional:
+      return const [
+        DesktopSetupOperation.createIdentity,
+        DesktopSetupOperation.inspect,
+      ];
     case DesktopSetupState.inspecting:
     case DesktopSetupState.verifying:
       return const [];

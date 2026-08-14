@@ -9,7 +9,10 @@ void main() {
     expect(snapshot.state, DesktopSetupState.identityOptional);
     expect(snapshot.components.length, 5);
     expect(snapshot.mandatoryReady, isTrue);
-    expect(snapshot.permittedActions, const [DesktopSetupOperation.inspect]);
+    expect(snapshot.permittedActions, const [
+      DesktopSetupOperation.createIdentity,
+      DesktopSetupOperation.inspect,
+    ]);
   });
 
   test('requires exact setup keys and fixed component order', () {
@@ -76,6 +79,15 @@ void main() {
     ]);
   });
 
+  test('normalizes only bounded public identity handles', () {
+    expect(normalizeDesktopIdentityHandle('@River.Studio'), 'river.studio');
+    expect(normalizeDesktopIdentityHandle(' a_b-c.9 '), 'a_b-c.9');
+    expect(normalizeDesktopIdentityHandle('river/studio'), isNull);
+    expect(normalizeDesktopIdentityHandle('-river'), isNull);
+    expect(normalizeDesktopIdentityHandle('river-'), isNull);
+    expect(normalizeDesktopIdentityHandle(List.filled(49, 'x').join()), isNull);
+  });
+
   test('diagnostics remain bounded and serializable', () {
     final snapshot = DesktopSetupSnapshot.fromJson(_setupJson());
     final diagnostics = jsonDecode(snapshot.diagnosticsJson());
@@ -99,7 +111,7 @@ Map<String, Object?> _setupJson() => {
     _component('identity', 'identity-optional'),
     _component('browser-companion', 'browser-companion-optional'),
   ],
-  'permittedActions': <Object?>['inspect'],
+  'permittedActions': <Object?>['create-identity', 'inspect'],
   'observedAtUnixMs': 2,
   'error': null,
 };

@@ -70,6 +70,41 @@ void main() {
     },
   );
 
+  test(
+    'public identity creation normalizes and forwards only the handle',
+    () async {
+      final bridge = FakeDesktopBridge();
+      final controller = SetupController(bridge);
+
+      await controller.inspect();
+      expect(controller.snapshot.state, DesktopSetupState.identityOptional);
+      bridge.setupResult = inspectedSetupSnapshot(
+        identityState: DesktopSetupState.ready,
+      );
+      await controller.createIdentity('@River.Studio');
+
+      expect(bridge.identityCreations, 1);
+      expect(bridge.identityHandles, const ['river.studio']);
+      expect(
+        controller.snapshot.state,
+        DesktopSetupState.browserCompanionOptional,
+      );
+      controller.dispose();
+    },
+  );
+
+  test('invalid identity handles never cross the bridge', () async {
+    final bridge = FakeDesktopBridge();
+    final controller = SetupController(bridge);
+
+    await controller.inspect();
+    await controller.createIdentity('river/studio');
+
+    expect(bridge.identityCreations, 0);
+    expect(controller.snapshot.state, DesktopSetupState.identityOptional);
+    controller.dispose();
+  });
+
   test('missing companion becomes a bounded setup failure', () async {
     final bridge = FakeDesktopBridge(
       setupError: const DesktopBridgeUnavailable('Companion unavailable.'),

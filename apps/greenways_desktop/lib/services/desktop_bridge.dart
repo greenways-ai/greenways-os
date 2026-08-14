@@ -11,7 +11,10 @@ abstract interface class DesktopBridge {
   Future<DesktopConnectionSnapshot> connect();
   Future<DesktopConnectionSnapshot> refresh();
   Future<DesktopConnectionSnapshot> disconnect();
-  Future<DesktopSetupSnapshot> performSetup(DesktopSetupOperation operation);
+  Future<DesktopSetupSnapshot> performSetup(
+    DesktopSetupOperation operation, {
+    String? handle,
+  });
   Future<void> close();
 }
 
@@ -50,8 +53,10 @@ final class ProcessDesktopBridge implements DesktopBridge {
       _sendConnection('disconnect');
 
   @override
-  Future<DesktopSetupSnapshot> performSetup(DesktopSetupOperation operation) =>
-      _sendSetup(operation.wireName);
+  Future<DesktopSetupSnapshot> performSetup(
+    DesktopSetupOperation operation, {
+    String? handle,
+  }) => _sendSetup(operation.wireName, handle: handle);
 
   Future<DesktopConnectionSnapshot> _sendConnection(String command) async {
     await _ensureProcess();
@@ -74,7 +79,10 @@ final class ProcessDesktopBridge implements DesktopBridge {
     );
   }
 
-  Future<DesktopSetupSnapshot> _sendSetup(String operation) async {
+  Future<DesktopSetupSnapshot> _sendSetup(
+    String operation, {
+    required String? handle,
+  }) async {
     await _ensureProcess();
     final process = _requireProcess();
     final requestId = _nextRequestId();
@@ -86,6 +94,7 @@ final class ProcessDesktopBridge implements DesktopBridge {
         'protocol': desktopSetupProtocol,
         'requestId': requestId,
         'operation': operation,
+        'handle': handle,
       }),
       onFailure: () => _pendingSetup.remove(requestId),
     );

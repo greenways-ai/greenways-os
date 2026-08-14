@@ -2,6 +2,9 @@ use super::DesktopSetupError;
 use greenways_authority::{
     read_credential_file, LocalClient, LocalClientRegistry, LocalClientRole,
 };
+use greenways_identity::{
+    normalize_profile_handle, IdentityError, ProfileIdentityVault, SignedProfileIdentity,
+};
 use sha2::{Digest, Sha256};
 use std::{
     env,
@@ -22,6 +25,12 @@ pub const DAEMON_SERVICE_LABEL: &str = "ai.greenways.greenwaysd";
 pub const DESKTOP_CLIENT_LABEL: &str = "Greenways Desktop";
 const MAX_DAEMON_BINARY_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_VERSION_OUTPUT_BYTES: usize = 256;
+
+pub(crate) type IdentityVaultOpener = fn(PathBuf) -> Result<ProfileIdentityVault, IdentityError>;
+
+fn open_system_identity_vault(path: PathBuf) -> Result<ProfileIdentityVault, IdentityError> {
+    ProfileIdentityVault::open_system(path)
+}
 
 #[derive(Debug, Clone)]
 pub struct SetupPaths {
@@ -211,11 +220,31 @@ impl LaunchAgentController for SystemLaunchAgentController {
 pub struct DaemonServiceInstaller<C> {
     pub paths: SetupPaths,
     controller: C,
+    identity_vault_opener: IdentityVaultOpener,
 }
 
 impl<C: LaunchAgentController> DaemonServiceInstaller<C> {
     pub fn new(paths: SetupPaths, controller: C) -> Self {
-        Self { paths, controller }
+        Self::new_with_identity_vault_opener(paths, controller, open_system_identity_vault)
+    }
+
+    pub(crate) fn new_with_identity_vault_opener(
+        paths: SetupPaths,
+        controller: C,
+        identity_vault_opener: IdentityVaultOpener,
+    ) -> Self {
+        Self {
+            paths,
+            controller,
+            identity_vault_opener,
+        }
+    }
+
+    pub(crate) fn open_identity_vault(
+        &self,
+        metadata_path: PathBuf,
+    ) -> Result<ProfileIdentityVault, IdentityError> {
+        (self.identity_vault_opener)(metadata_path)
     }
 
     pub fn install(&mut self) -> Result<(), DesktopSetupError> {
@@ -388,6 +417,103 @@ impl<C: LaunchAgentController> DaemonServiceInstaller<C> {
             ));
         }
         Ok(client)
+    }
+
+    pub fn create_identity(
+        &mut self,
+        handle: &str,
+        observed_at_unix_ms: u64,
+    ) -> Result<SignedProfileIdentity, DesktopSetupError> {
+        let normalized = normalize_profile_handle(handle).map_err(|_| {
+            DesktopSetupError::ProtocolMismatch(
+                "The Desktop identity handle is invalid.".to_owned(),
+            )
+        })?;
+        if normalized != handle {
+            return Err(DesktopSetupError::ProtocolMismatch(
+                "The Desktop identity handle must already be normalized.".to_owned(),
+            ));
+        }
+        self.ensure_greenways_directories(true)?;
+        match inspect_owned_file(&self.paths.identity_metadata(), self.paths.uid, 0o600)? {
+            OwnedPathState::Missing => {}
+            OwnedPathState::Ready => {
+                return Err(DesktopSetupError::OperationUnavailable(
+                    "A public Greenways identity already exists.".to_owned(),
+                ));
+            }
+            OwnedPathState::WrongMode => {
+                return Err(DesktopSetupError::InstallationFailed(
+                    "The public identity metadata permissions require repair.".to_owned(),
+                ));
+            }
+            OwnedPathState::Unsafe => {
+                return Err(DesktopSetupError::UnsafeInstallation(
+                    "The fixed public identity metadata path is unsafe.".to_owned(),
+                ));
+            }
+        }
+
+        self.controller.stop(DAEMON_SERVICE_LABEL, self.paths.uid)?;
+        let create_result = self.create_identity_while_stopped(handle, observed_at_unix_ms);
+        let restart_result = self.controller.restart(
+            &self.paths.launch_agent,
+            DAEMON_SERVICE_LABEL,
+            self.paths.uid,
+        );
+        match (create_result, restart_result) {
+            (Ok(identity), Ok(())) => Ok(identity),
+            (Err(error), Ok(())) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+            (Err(_), Err(_)) => Err(DesktopSetupError::InstallationFailed(
+                "The public identity could not be created and the daemon service could not be restored."
+                    .to_owned(),
+            )),
+        }
+    }
+
+    fn create_identity_while_stopped(
+        &self,
+        handle: &str,
+        observed_at_unix_ms: u64,
+    ) -> Result<SignedProfileIdentity, DesktopSetupError> {
+        let mut vault = self
+            .open_identity_vault(self.paths.identity_metadata())
+            .map_err(|error| match error {
+                IdentityError::Conflict(_) => DesktopSetupError::OperationUnavailable(
+                    "A public Greenways identity already exists.".to_owned(),
+                ),
+                _ => DesktopSetupError::InstallationFailed(
+                    "The fixed public identity vault could not be opened.".to_owned(),
+                ),
+            })?;
+        let identity = vault
+            .create(handle, observed_at_unix_ms)
+            .map_err(|error| match error {
+                IdentityError::Conflict(_) => DesktopSetupError::OperationUnavailable(
+                    "A public Greenways identity already exists.".to_owned(),
+                ),
+                IdentityError::Invalid(_) => DesktopSetupError::ProtocolMismatch(
+                    "The Desktop identity handle is invalid.".to_owned(),
+                ),
+                IdentityError::KeyStoreUnavailable => DesktopSetupError::InstallationFailed(
+                    "The operating-system identity key store is unavailable.".to_owned(),
+                ),
+                _ => DesktopSetupError::InstallationFailed(
+                    "The public Greenways identity could not be created.".to_owned(),
+                ),
+            })?;
+        if identity.subject.handle != handle {
+            return Err(DesktopSetupError::InstallationFailed(
+                "The public identity handle did not match the reviewed setup request.".to_owned(),
+            ));
+        }
+        vault.verify_private_key_binding().map_err(|_| {
+            DesktopSetupError::InstallationFailed(
+                "The public identity key could not be verified.".to_owned(),
+            )
+        })?;
+        Ok(identity)
     }
 
     fn ensure_greenways_directories(&self, create_missing: bool) -> Result<(), DesktopSetupError> {

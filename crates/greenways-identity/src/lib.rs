@@ -64,7 +64,7 @@ const APPLICATION_REVOCATION_PREFIX: &str = "application-revocation/";
 const KEY_HANDLE_PREFIX: &str = "profile-key-";
 const DIGEST_PREFIX: &str = "sha256:";
 const MAX_STATE_BYTES: usize = 512 * 1024;
-const MAX_HANDLE_BYTES: usize = 48;
+pub const MAX_PROFILE_HANDLE_BYTES: usize = 48;
 const MAX_CONSTRAINTS: usize = 32;
 const MAX_CONSTRAINT_TEXT_BYTES: usize = 240;
 const MAX_DECLARED_CAPABILITIES: usize = 64;
@@ -534,7 +534,7 @@ impl ProfileIdentityVault {
                 "a Greenways profile identity already exists".to_owned(),
             ));
         }
-        let handle = normalize_handle(handle)?;
+        let handle = normalize_profile_handle(handle)?;
         validate_timestamp(observed_at_unix_ms)?;
 
         let mut scalar = [0_u8; 32];
@@ -603,8 +603,7 @@ impl ProfileIdentityVault {
         Ok(signing_key)
     }
 
-    #[allow(dead_code)]
-    fn verify_private_key_binding(&self) -> Result<(), IdentityError> {
+    pub fn verify_private_key_binding(&self) -> Result<(), IdentityError> {
         self.load_signing_key().map(|_| ())
     }
 
@@ -1251,7 +1250,7 @@ fn validate_state(state: &StoredProfileIdentity) -> Result<(), IdentityError> {
 fn validate_card(card: &ProfileIdentityCard) -> Result<(), IdentityError> {
     if card.protocol != PROFILE_IDENTITY_PROTOCOL
         || !validate_identity_id(&card.id)
-        || normalize_handle(&card.handle)? != card.handle
+        || normalize_profile_handle(&card.handle)? != card.handle
         || card.algorithm != PROFILE_IDENTITY_ALGORITHM
         || card.created_at_unix_ms == 0
     {
@@ -1334,10 +1333,10 @@ fn random_identifier(prefix: &str) -> Result<String, IdentityError> {
     Ok(output)
 }
 
-fn normalize_handle(value: &str) -> Result<String, IdentityError> {
+pub fn normalize_profile_handle(value: &str) -> Result<String, IdentityError> {
     let value = value.trim().trim_start_matches('@').to_ascii_lowercase();
     let valid = !value.is_empty()
-        && value.len() <= MAX_HANDLE_BYTES
+        && value.len() <= MAX_PROFILE_HANDLE_BYTES
         && value.bytes().all(|byte| {
             byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
         })
@@ -1642,6 +1641,22 @@ mod tests {
         let mut changed_key = signed;
         changed_key.subject.public_key.x = Base64UrlUnpadded::encode_string(&[0_u8; 32]);
         assert!(verify_signed_profile_identity(&changed_key).is_err());
+    }
+
+    #[test]
+    fn normalizes_the_public_profile_handle_contract() {
+        assert_eq!(
+            normalize_profile_handle(" @River.Studio ").expect("normalized handle"),
+            "river.studio"
+        );
+        assert_eq!(
+            normalize_profile_handle("a_b-c.9").expect("normalized handle"),
+            "a_b-c.9"
+        );
+        for invalid in ["", "-river", "river-", "river/studio", "river studio"] {
+            assert!(normalize_profile_handle(invalid).is_err());
+        }
+        assert!(normalize_profile_handle(&"x".repeat(MAX_PROFILE_HANDLE_BYTES + 1)).is_err());
     }
 
     #[test]

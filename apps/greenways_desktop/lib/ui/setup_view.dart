@@ -38,6 +38,14 @@ final class SetupView extends StatelessWidget {
             _SetupInspectionBoundary(snapshot: snapshot)
           else
             _SetupComponentList(snapshot: snapshot),
+          if (snapshot.component(DesktopSetupComponentKind.identity)?.state ==
+              DesktopSetupState.identityOptional) ...[
+            const SizedBox(height: 18),
+            _IdentitySetupCard(
+              controller: controller,
+              onContinue: onOpenOverview,
+            ),
+          ],
           const SizedBox(height: 18),
           _SetupDiagnostics(snapshot: snapshot, controller: controller),
         ],
@@ -207,6 +215,135 @@ final class _SetupPrimaryAction extends StatelessWidget {
   }
 }
 
+final class _IdentitySetupCard extends StatefulWidget {
+  const _IdentitySetupCard({
+    required this.controller,
+    required this.onContinue,
+  });
+
+  final SetupController controller;
+  final VoidCallback onContinue;
+
+  @override
+  State<_IdentitySetupCard> createState() => _IdentitySetupCardState();
+}
+
+final class _IdentitySetupCardState extends State<_IdentitySetupCard> {
+  final TextEditingController _handle = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _handle.dispose();
+    super.dispose();
+  }
+
+  void _createIdentity() {
+    final normalized = normalizeDesktopIdentityHandle(_handle.text);
+    if (normalized == null) {
+      setState(() {
+        _error = 'Use 1–48 letters, numbers, dots, dashes, or underscores.';
+      });
+      return;
+    }
+    setState(() {
+      _error = null;
+      _handle.value = TextEditingValue(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+    });
+    widget.controller.createIdentity(normalized);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final information = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Create a public Greenways identity',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 7),
+        Text(
+          'Choose a public handle. The private signing key stays in the operating-system keyring, and identity setup may be deferred.',
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          key: const Key('identity-handle-field'),
+          controller: _handle,
+          enabled: !widget.controller.busy,
+          inputFormatters: [LengthLimitingTextInputFormatter(50)],
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.none,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _createIdentity(),
+          decoration: InputDecoration(
+            labelText: 'Public handle',
+            hintText: 'river.studio',
+            helperText:
+                'Lowercase letters, numbers, dots, dashes, and underscores.',
+            errorText: _error,
+            prefixText: '@',
+          ),
+        ),
+      ],
+    );
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      alignment: WrapAlignment.end,
+      children: [
+        OutlinedButton(
+          key: const Key('identity-continue-action'),
+          onPressed: widget.controller.busy ? null : widget.onContinue,
+          child: const Text('Continue without identity'),
+        ),
+        FilledButton.icon(
+          key: const Key('identity-create-action'),
+          onPressed: widget.controller.busy ? null : _createIdentity,
+          icon: widget.controller.busy
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.person_add_alt_outlined),
+          label: const Text('Create public identity'),
+        ),
+      ],
+    );
+    return Card(
+      key: const Key('identity-setup-card'),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 700) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [information, const SizedBox(height: 18), actions],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(child: information),
+                const SizedBox(width: 22),
+                actions,
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 final class _SetupInspectionBoundary extends StatelessWidget {
   const _SetupInspectionBoundary({required this.snapshot});
 
@@ -234,7 +371,7 @@ final class _SetupInspectionBoundary extends StatelessWidget {
                   ),
                   const SizedBox(height: 7),
                   const Text(
-                    'This slice may install or restart only the packaged greenwaysd binary and its exact LaunchAgent, or repair fixed private modes. Credential enrollment, identity creation, and browser installation remain unavailable.',
+                    'This build may install or restart only the packaged greenwaysd service, enroll the fixed Desktop client, create one optional public identity, or repair fixed private modes. Browser installation and recovery remain unavailable.',
                   ),
                 ],
               ),

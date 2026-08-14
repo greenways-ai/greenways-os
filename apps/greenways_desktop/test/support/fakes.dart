@@ -28,6 +28,8 @@ final class FakeDesktopBridge implements DesktopBridge {
   int inspections = 0;
   int daemonInstalls = 0;
   int desktopClientIssues = 0;
+  int identityCreations = 0;
+  final List<String?> identityHandles = [];
   int permissionRepairs = 0;
   bool closed = false;
 
@@ -53,8 +55,9 @@ final class FakeDesktopBridge implements DesktopBridge {
 
   @override
   Future<DesktopSetupSnapshot> performSetup(
-    DesktopSetupOperation operation,
-  ) async {
+    DesktopSetupOperation operation, {
+    String? handle,
+  }) async {
     switch (operation) {
       case DesktopSetupOperation.inspect:
         inspections += 1;
@@ -64,6 +67,10 @@ final class FakeDesktopBridge implements DesktopBridge {
         break;
       case DesktopSetupOperation.issueDesktopClient:
         desktopClientIssues += 1;
+        break;
+      case DesktopSetupOperation.createIdentity:
+        identityCreations += 1;
+        identityHandles.add(handle);
         break;
       case DesktopSetupOperation.repairPermissions:
         permissionRepairs += 1;
@@ -259,6 +266,11 @@ List<DesktopSetupOperation> _setupActions(DesktopSetupState state) {
     case DesktopSetupState.credentialRequired:
       return const [
         DesktopSetupOperation.issueDesktopClient,
+        DesktopSetupOperation.inspect,
+      ];
+    case DesktopSetupState.identityOptional:
+      return const [
+        DesktopSetupOperation.createIdentity,
         DesktopSetupOperation.inspect,
       ];
     default:

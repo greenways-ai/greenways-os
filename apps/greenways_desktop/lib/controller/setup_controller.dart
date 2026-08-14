@@ -24,17 +24,33 @@ final class SetupController extends ChangeNotifier {
   Future<void> issueDesktopClient() =>
       perform(DesktopSetupOperation.issueDesktopClient);
 
+  Future<void> createIdentity(String handle) {
+    final normalized = normalizeDesktopIdentityHandle(handle);
+    if (normalized == null) return Future.value();
+    return perform(DesktopSetupOperation.createIdentity, handle: normalized);
+  }
+
   Future<void> repairPermissions() =>
       perform(DesktopSetupOperation.repairPermissions);
 
-  Future<void> perform(DesktopSetupOperation operation) async {
+  Future<void> perform(
+    DesktopSetupOperation operation, {
+    String? handle,
+  }) async {
     if (_busy || _disposed) return;
+    if (operation == DesktopSetupOperation.createIdentity) {
+      if (handle == null || normalizeDesktopIdentityHandle(handle) != handle) {
+        return;
+      }
+    } else if (handle != null) {
+      return;
+    }
     if (!_snapshot.permittedActions.contains(operation)) return;
     _busy = true;
     _snapshot = DesktopSetupSnapshot.inspecting();
     _notify();
     try {
-      _snapshot = await _bridge.performSetup(operation);
+      _snapshot = await _bridge.performSetup(operation, handle: handle);
     } on DesktopBridgeUnavailable catch (error) {
       _snapshot = DesktopSetupSnapshot.failed(error.message);
     } on Object {
