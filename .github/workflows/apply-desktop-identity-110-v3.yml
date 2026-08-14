@@ -1,0 +1,31 @@
+name: Apply Desktop identity creation v3
+
+on:
+  push:
+    branches:
+      - agent/desktop-identity-110-apply
+    paths:
+      - .github/agent/desktop-identity-110-apply-v3
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/desktop-identity-110-apply
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Build and publish reviewed source
+        shell: bash
+        run: bash .github/agent/run-identity110-v3.sh
