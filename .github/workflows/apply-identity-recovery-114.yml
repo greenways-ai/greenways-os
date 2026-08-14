@@ -71,6 +71,11 @@ jobs:
             tool/build_macos.sh
           )
 
+          rm -rf \
+            apps/greenways_desktop/macos \
+            apps/greenways_desktop/build \
+            apps/greenways_desktop/.dart_tool
+
           git diff --check origin/main
           git diff --name-only origin/main | sort > /tmp/issue114.actual
           cat > /tmp/issue114.expected <<'EOF'
