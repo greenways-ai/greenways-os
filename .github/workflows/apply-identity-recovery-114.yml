@@ -34,8 +34,7 @@ jobs:
           import hashlib
           from pathlib import Path
 
-          encoded = Path('.github/agent/issue114.part-00').read_bytes().strip()
-          assert hashlib.sha256(encoded).hexdigest() == 'bb36bbe9098cdde46bc05749ee69e13f0160d8d4fecb3903a55b76ac5d1fe3b1'
+          encoded = b''.join(Path('.github/agent/issue114.part-00').read_bytes().split())
           archive = base64.b64decode(encoded, validate=True)
           assert hashlib.sha256(archive).hexdigest() == 'aaf8ed66f30471ea9fa9b8606c61b0fb2aa63ab2b8990a27254ac995d530b2fa'
           patch = gzip.decompress(archive)
