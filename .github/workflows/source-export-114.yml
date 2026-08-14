@@ -1,0 +1,28 @@
+name: Source export 114
+
+on:
+  push:
+    branches:
+      - agent/source-export-114
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive exact source
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=target \
+            --exclude='apps/greenways_desktop/build' \
+            -czf "$RUNNER_TEMP/greenways-os-source-114.tgz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenways-os-source-114
+          path: ${{ runner.temp }}/greenways-os-source-114.tgz
+          if-no-files-found: error
+          retention-days: 1
