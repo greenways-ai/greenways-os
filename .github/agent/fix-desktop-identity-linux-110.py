@@ -80,3 +80,19 @@ text = replace_once(
     "temporary fixture serial retention",
 )
 path.write_text(text)
+
+path = Path("crates/greenways-workspace-contracts/tests/limits.rs")
+text = path.read_text()
+text = replace_once(
+    text,
+    """    let mut limits = ResourceLimits::default();
+    limits.max_page = 101;
+""",
+    """    let limits = ResourceLimits {
+        max_page: 101,
+        ..ResourceLimits::default()
+    };
+""",
+    "workspace limit construction",
+)
+path.write_text(text)
