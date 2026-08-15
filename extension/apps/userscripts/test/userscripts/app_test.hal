@@ -1,7 +1,6 @@
 (ns userscripts.app-test
-  (:require [std.foundation :refer :all]
-            [std.lib.test :as test]
-            [userscripts.app :as app]))
+  (:config {})
+  (:require [userscripts.app :as app]))
 
 (def saved
   (app/main
@@ -26,14 +25,13 @@
    {:event/type :userscript/execute-approved
     :event/proposal-id "enable-1"}))
 
-(test/print-results
- [(test/check
+[(test-check
    "drafts are inert Tahto semantic values"
    [(get-in saved [:call :service])
     (get-in saved [:call :operation])]
    ["tahto.semantic" "transact"])
 
-  (test/check
+  (test-check
    "enabling binds the exact script root through Hestia"
    [(get-in proposed [:call :service])
     (get-in proposed [:call :operation])
@@ -41,14 +39,14 @@
     (get-in proposed [:call :arguments 0 :intent/capabilities])]
    ["hestia.control" "propose" "sha256:script" [:userscripts/manage]])
 
-  (test/check
+  (test-check
    "execution cannot call the browser connector directly"
    [(get-in executed [:call :service])
     (get-in executed [:call :operation])]
    ["hestia.control" "execute"])
 
-  (test/check
+  (test-check
    "the HAL app returns a bounded declarative view"
    [(get-in (app/view (get saved :state)) [:view/type])
     (count (get-in (app/view (get saved :state)) [:view/items]))]
-   [:column 1])])
+   [:column 1])]

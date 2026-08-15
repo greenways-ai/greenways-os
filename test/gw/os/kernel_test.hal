@@ -1,23 +1,21 @@
 (ns gw.os.kernel-test
-  (:require [gw.os.kernel :as kernel]
-            [std.lib.test :as test]))
+  (:require [gw.os.kernel :as kernel]))
 
-(test/print-results
- [(test/check "catalog search is case-insensitive across repository metadata"
+[(test-check "catalog search is case-insensitive across repository metadata"
               (vec (map (fn [entry] (get entry "name"))
                         (kernel/catalog-search
                          [{"name" "apartment"}
                           {"name" "splat-garden" "topics" ["gaussian-splat"]}]
                          "GARDEN")))
               ["splat-garden"])
-  (test/check "Substrate exposes the portable application actions"
+  (test-check "Substrate exposes the portable application actions"
               (get (kernel/dispatch "world/open"
                                     ["https://github.com/greenways-worlds/apartment" "" "dev"])
                    "effects")
               [{"effect" "github"
                 "method" "resolve-world"
                 "args" ["https://github.com/greenways-worlds/apartment" "" "dev"]}])
-  (test/check "application launch effects contain only the installed app id"
+  (test-check "application launch effects contain only the installed app id"
               (get (kernel/apps-open
                     (get (kernel/apps-install
                           (kernel/initial-state)
@@ -33,7 +31,7 @@
               [{"effect" "browser"
                 "method" "open-app"
                 "args" ["historia"]}])
-  (test/check "removing an installable app persists the remaining manifests"
+  (test-check "removing an installable app persists the remaining manifests"
               (get (kernel/apps-remove
                     (get (kernel/apps-restore
                           (kernel/initial-state)
@@ -57,7 +55,7 @@
                            "capabilities" ["identity/local" "storage/local"]
                            "launch" {"handler" "extension-page"
                                      "path" "src/studio.html#home"}}]]}])
-  (test/check "active packaged apps own surface state and close when removed"
+  (test-check "active packaged apps own surface state and close when removed"
               (let [manifest {"id" "hestia-connector"
                               "category" "installable"
                               "publisher" {"id" "greenways-ai"}
@@ -74,7 +72,7 @@
                  (get (get (get removed "state") "apps") "active")
                  (get (get (get removed "state") "surface") "active")])
               ["hestia-connector" "close-surface" nil nil])
-  (test/check "context restore rejects an orphan packaged surface"
+  (test-check "context restore rejects an orphan packaged surface"
               (let [restored
                     (kernel/app-restore
                      {"protocol" "greenways-kernel-context/0-alpha"
@@ -86,18 +84,18 @@
                 [(get (get restored "apps") "active")
                  (get (get restored "surface") "active")])
               [nil nil])
-  (test/check "reserved system ids are recognized independently of manifest data"
+  (test-check "reserved system ids are recognized independently of manifest data"
               [(kernel/system-app-id? "greenways-home")
                (kernel/system-app-id? "greenways-worlds")
                (kernel/system-app-id? "historia")]
               [true true false])
-  (test/check "system capability bindings require the exact packaged set"
+  (test-check "system capability bindings require the exact packaged set"
               [(kernel/exact-values? ["identity/local" "storage/local"]
                                      ["storage/local" "identity/local"])
                (kernel/exact-values? ["identity/local" "storage/local"]
                                      ["identity/local" "storage/local" "tabs/open"])]
               [true false])
-  (test/check "generic workflows enforce transitions and roles"
+  (test-check "generic workflows enforce transitions and roles"
               (get (kernel/workflow-transition
                     {"transitions" [{"id" "submit" "from" "draft" "to" "review"
                                       "roles" ["owner"]}]}
@@ -105,9 +103,9 @@
                     "submit" "owner" "2026-08-03T00:00:00Z")
                    "state")
               "review")
-  (test/check "personal chain inclusion advances deterministically"
+  (test-check "personal chain inclusion advances deterministically"
               (get (kernel/chain-include
                     "identity/1" {"sequence" 4 "eventHash" "sha256:prev"}
                     {"root" "sha256:action"} "2026-08-03T00:00:00Z" "sha256:event")
                    "sequence")
-              5)])
+              5)]

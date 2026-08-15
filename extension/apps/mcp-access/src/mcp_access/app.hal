@@ -1,5 +1,5 @@
 (ns mcp-access.app
-  (:require [std.foundation :refer :all]))
+  (:config {}))
 
 (defn initial-state
   []

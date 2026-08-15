@@ -1,9 +1,7 @@
 (ns gw.os.services-test
-  (:require [gw.os.services :as services]
-            [std.lib.test :as test]))
+  (:require [gw.os.services :as services]))
 
-(test/print-results
- [(test/check
+[(test-check
    "Tahto connector authority is split into connect, read and write grants"
    (vec
     (map
@@ -17,7 +15,7 @@
     ["connectors" "medium" true]
     ["connectors" "critical" true]])
 
-  (test/check
+  (test-check
    "Hestia control authority is split across proposal, approval and execution"
    (vec
     (map
@@ -31,7 +29,7 @@
     ["work" "critical" true]
     ["work" "critical" true]])
 
-  (test/check
+  (test-check
    "foreground model provision remains a reviewed surface capability"
    (let [definition (services/capability-definition "model/provide")]
      [(get definition "service")
@@ -40,11 +38,11 @@
       (get definition "trustedPublishers")])
    ["surfaces" "critical" true ["greenways-ai"]])
 
-  (test/check
+  (test-check
    "MCP pairing remains a trusted Keyring capability"
    (let [definition (services/capability-definition "mcp/pair")]
      [(get definition "service")
       (get definition "risk")
       (get definition "grantable")
       (get definition "trustedPublishers")])
-   ["keyring" "critical" true ["greenways-ai"]])])
+   ["keyring" "critical" true ["greenways-ai"]])]

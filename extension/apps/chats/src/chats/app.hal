@@ -1,5 +1,5 @@
 (ns chats.app
-  (:require [std.foundation :refer :all]))
+  (:config {}))
 
 (defn app-call
   [service operation arguments]

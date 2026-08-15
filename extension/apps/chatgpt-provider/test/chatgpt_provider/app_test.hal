@@ -1,9 +1,7 @@
 (ns chatgpt-provider.app-test
-  (:require [chatgpt-provider.app :as app]
-            [std.lib.test :as test]))
+  (:require [chatgpt-provider.app :as app]))
 
-(test/print-results
- [(test/check
+[(test-check
    "the ChatGPT provider begins as a disabled foreground provider"
    (app/initial-state)
    {:provider/id "webapp.chatgpt"
@@ -11,7 +9,7 @@
     :provider/enabled false
     :provider/sessions {}})
 
-  (test/check
+  (test-check
    "provider sessions remain explicit application state"
    (get
     (get
@@ -23,4 +21,4 @@
     :provider/sessions)
    {"model/session/example"
     {:session/id "model/session/example"
-     :session/state :ready}})])
+     :session/state :ready}})]

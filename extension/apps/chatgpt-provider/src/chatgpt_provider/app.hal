@@ -1,5 +1,5 @@
 (ns chatgpt-provider.app
-  (:require [std.foundation :refer :all]))
+  (:config {}))
 
 (defn initial-state
   []
