@@ -11,11 +11,13 @@ final class DesktopPlatformShell {
   DesktopPlatformShell(
     this.controller, {
     this.setupController,
+    this.beforeQuit,
     MethodChannel? channel,
   }) : _channel = channel ?? const MethodChannel(_desktopWindowChannelName);
 
   final ConnectionController controller;
   final SetupController? setupController;
+  final Future<void> Function()? beforeQuit;
   final MethodChannel _channel;
   bool _prepared = false;
   bool _quitting = false;
@@ -41,6 +43,7 @@ final class DesktopPlatformShell {
   Future<void> quit() async {
     if (_quitting) return;
     _quitting = true;
+    await beforeQuit?.call();
     await controller.shutdown();
     await setupController?.shutdown();
     await _invoke('quit');
@@ -83,6 +86,7 @@ final class DesktopPlatformShell {
   Future<void> _shutdownForNativeQuit() async {
     if (_quitting) return;
     _quitting = true;
+    await beforeQuit?.call();
     await controller.shutdown();
     await setupController?.shutdown();
   }

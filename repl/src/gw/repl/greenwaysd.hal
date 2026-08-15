@@ -1,0 +1,88 @@
+(ns gw.repl.greenwaysd
+  (:require [gw.repl.client :as client]))
+
+(defn status
+  ([] (status {}))
+  ([configured]
+   (client/execute-daemon configured "status" "status" false [])))
+
+(defn paths
+  ([] (paths {}))
+  ([configured]
+   (client/execute-daemon configured "paths" "paths" false [])))
+
+(defn whoami
+  ([] (whoami {}))
+  ([configured]
+   (client/execute-daemon configured "whoami" "whoami" true [])))
+
+(defn vault-status
+  ([] (vault-status {}))
+  ([configured]
+   (client/execute-daemon configured "vault-status" "vault" true [])))
+
+(defn clients
+  ([] (clients {}))
+  ([configured]
+   (client/execute-daemon configured "clients" "clients" true [])))
+
+(defn identity-status
+  ([] (identity-status {}))
+  ([configured]
+   (client/execute-daemon configured
+                          "identity-status" "identity-status" true [])))
+
+(defn identity-card
+  ([] (identity-card {}))
+  ([configured]
+   (client/execute-daemon configured
+                          "identity-card" "identity-card" true [])))
+
+(defn capabilities-status
+  ([] (capabilities-status {}))
+  ([configured]
+   (client/execute-daemon configured
+                          "capabilities-status" "capabilities-status" true [])))
+
+(defn capabilities
+  ([] (capabilities {}))
+  ([configured]
+   (client/execute-daemon configured
+                          "capabilities" "capabilities" true [])))
+
+(defn capability-check
+  ([options] (capability-check {} options))
+  ([configured options]
+   (let [arguments (vec
+                    (concat ["--capability"
+                             (client/required-option options
+                                                     :capability
+                                                     ":capability")]
+                            (client/application-arguments options)))]
+     (client/execute-daemon configured
+                            "capability-check" "capability-check" true
+                            arguments))))
+
+(defn invoke
+  ([options] (invoke {} options))
+  ([configured options]
+   (let [arguments (vec
+                    (concat ["--profile"
+                             (client/required-option options
+                                                     :profile
+                                                     ":profile")
+                             "--model"
+                             (client/required-option options
+                                                     :model
+                                                     ":model")]
+                            (client/application-arguments options)
+                            (if (:max-output-tokens options)
+                              ["--max-output-tokens"
+                               (str (:max-output-tokens options))]
+                              [])
+                            (if (:timeout-ms options)
+                              ["--timeout-ms" (str (:timeout-ms options))]
+                              [])))
+         prompt (client/required-option options :prompt ":prompt")]
+     (client/execute-daemon configured "invoke" "invoke" true arguments
+                            {:stdin prompt}))))

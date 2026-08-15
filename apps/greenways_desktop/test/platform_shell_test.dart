@@ -41,23 +41,58 @@ void main() {
   });
 
   test(
-    'native quit closes the companion without a re-entrant quit call',
+    'native quit closes control transport before companion shutdown',
     () async {
       final channel = RecordingMethodChannel();
       final bridge = FakeDesktopBridge();
       final controller = ConnectionController(bridge, autoRefresh: false);
-      final shell = DesktopPlatformShell(controller, channel: channel);
+      var transportClosed = false;
+      final shell = DesktopPlatformShell(
+        controller,
+        channel: channel,
+        beforeQuit: () async {
+          expect(bridge.closed, isFalse);
+          transportClosed = true;
+        },
+      );
       await shell.prepare();
       channel.outbound.clear();
 
       await channel.sendFromNative('quit');
 
+      expect(transportClosed, isTrue);
       expect(bridge.closed, isTrue);
       expect(channel.outbound.where((call) => call.method == 'quit'), isEmpty);
       shell.dispose();
       controller.dispose();
     },
   );
+
+  test('explicit quit closes transport before native application exit', () async {
+    final channel = RecordingMethodChannel();
+    final bridge = FakeDesktopBridge();
+    final controller = ConnectionController(bridge, autoRefresh: false);
+    final order = <String>[];
+    final shell = DesktopPlatformShell(
+      controller,
+      channel: channel,
+      beforeQuit: () async => order.add('control'),
+    );
+    await shell.prepare();
+    channel.outbound.clear();
+
+    await shell.quit();
+
+    order.addAll(
+      channel.outbound
+          .where((call) => call.method == 'quit')
+          .map((_) => 'native'),
+    );
+    expect(order, ['control', 'native']);
+    expect(bridge.closed, isTrue);
+    shell.dispose();
+    controller.dispose();
+  });
 
   test('unknown native window commands fail closed', () async {
     final channel = RecordingMethodChannel();

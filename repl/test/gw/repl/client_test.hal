@@ -1,0 +1,150 @@
+(ns gw.repl.client-test
+  (:require [gw.repl.client :as client]
+            [gw.repl.desktop :as desktop]
+            [gw.repl.greenwaysd :as greenwaysd]
+            [std.lib.test :as test]))
+
+(def +environment+
+  {"HOME" "/Users/example"
+   "GREENWAYS_HOME" "/tmp/greenways"
+   "GREENWAYS_CLI" "/Applications/Greenways Desktop.app/Contents/Resources/greenways"
+   "GREENWAYS_DEVELOPER_CREDENTIAL" "/tmp/greenways/clients/developer.json"})
+
+(defn daemon-envelope [outcome value error]
+  (Json/write
+   {"protocol" "greenways-local-result/0-alpha"
+    "requestId" "local/request/test-client"
+    "outcome" outcome
+    "value" value
+    "error" error}))
+
+(defn success-runner [argv options]
+  {:command argv
+   :stdout (daemon-envelope "ok" {"role" "developer"} nil)
+   :stderr ""
+   :exit 0})
+
+(defn desktop-runner [argv options]
+  {:command argv
+   :stdout (Json/write
+            {"protocol" "greenways-desktop-connection-status/0-alpha"
+             "state" "disconnected"
+             "daemon" nil
+             "actor" nil
+             "identity" nil
+             "hestiaImport" nil
+             "session" nil
+             "error" nil
+             "observedAtUnixMs" 1})
+   :stderr ""
+   :exit 0})
+
+(def INVOCATION (atom nil))
+
+(defn invocation-runner [argv options]
+  (reset! INVOCATION {:argv argv :options options})
+  (success-runner argv options))
+
+(defn failure-runner [argv options]
+  {:command argv
+   :stdout (daemon-envelope
+            "error" nil
+            {"code" "capability-denied"
+             "message" "Provider invocation requires approval."})
+   :stderr "private diagnostic that must not escape"
+   :exit 1})
+
+(defn secret-runner [argv options]
+  {:command argv
+   :stdout (daemon-envelope "ok" {"credential" "gwc_private"} nil)
+   :stderr ""
+   :exit 0})
+
+(def +configured+
+  {:env +environment+ :runner success-runner})
+
+(def +application+
+  {:capability "model/generate"
+   :app-id "hara-playground"
+   :app-version "1.0.0"
+   :publisher "hara-lang"
+   :approval-digest
+   "sha256:0000000000000000000000000000000000000000000000000000000000000000"})
+
+(test/print-results
+ [(test/check "environment defaults construct the dedicated developer client"
+              (select-keys (client/client +configured+)
+                           [:home :cli :credential])
+              {:home "/tmp/greenways"
+               :cli "/Applications/Greenways Desktop.app/Contents/Resources/greenways"
+               :credential "/tmp/greenways/clients/developer.json"})
+
+  (test/check "daemon argv uses the supported CLI without shell interpolation"
+              (client/daemon-argv +configured+ "whoami" true [])
+              ["/Applications/Greenways Desktop.app/Contents/Resources/greenways"
+               "whoami"
+               "--credential" "/tmp/greenways/clients/developer.json"
+               "--home" "/tmp/greenways" "--json"])
+
+  (test/check "successful daemon envelopes are unwrapped"
+              (greenwaysd/whoami +configured+)
+              {"role" "developer"})
+
+  (test/check "capability checks use the exact application approval fields"
+              (greenwaysd/capability-check +configured+ +application+)
+              {"role" "developer"})
+
+  (test/check "provider invocation sends prompt text only through stdin"
+              (let [configured (assoc +configured+ :runner invocation-runner)
+                    options (assoc +application+
+                                   :profile "openai/default"
+                                   :model "gpt-5"
+                                   :prompt "Generate a Greenways program.")]
+                (greenwaysd/invoke configured options)
+                {:argv-contains-prompt
+                 (some (fn [value]
+                         (= value "Generate a Greenways program."))
+                       (:argv @INVOCATION))
+                 :stdin (get (:options @INVOCATION) :stdin)})
+              {:argv-contains-prompt nil
+               :stdin "Generate a Greenways program."})
+
+  (test/check "daemon failures throw bounded structured data without stderr"
+              (let [configured (assoc +configured+ :runner failure-runner)]
+                (try
+                  (greenwaysd/whoami configured)
+                  nil
+                  (catch Throwable error
+                    (ex-data error))))
+              {:greenways/op "whoami"
+               :greenways/code "capability-denied"
+               :greenways/exit 1})
+
+  (test/check "secret-shaped daemon values are rejected before unwrapping"
+              (let [configured (assoc +configured+ :runner secret-runner)]
+                (try
+                  (greenwaysd/whoami configured)
+                  nil
+                  (catch Throwable error
+                    (:greenways/code (ex-data error)))))
+              "confidential-response")
+
+  (test/check "explicit redaction evidence remains public"
+              (client/scan-public! {"credentialStore" "system-keyring"
+                                    "secretProjection" false
+                                    "privateKeyProjection" false})
+              {"credentialStore" "system-keyring"
+               "secretProjection" false
+               "privateKeyProjection" false})
+
+  (test/check "Desktop commands return one validated public snapshot"
+              (desktop/status {:env +environment+ :runner desktop-runner})
+              {"protocol" "greenways-desktop-connection-status/0-alpha"
+               "state" "disconnected"
+               "daemon" nil
+               "actor" nil
+               "identity" nil
+               "hestiaImport" nil
+               "session" nil
+               "error" nil
+               "observedAtUnixMs" 1})])
