@@ -1,0 +1,264 @@
+(ns gw.repl.client
+  (:require [tool.sh :as sh]))
+
+(def +daemon-result-protocol+ "greenways-local-result/0-alpha")
+(def +desktop-snapshot-protocol+
+  "greenways-desktop-connection-status/0-alpha")
+(def +maximum-json-bytes+ (* 256 1024))
+(def +forbidden-key-fragments+
+  ["token" "credential" "secret" "password" "cookie" "authorization"
+   "privatekey" "keyhandle" "providerhandle" "sessionid"])
+(def +forbidden-value-fragments+
+  ["local/session/" "profile-key-" "provider-key-" "credential-key-"])
+(def +redacted-public-keys+
+  ["credentialstore" "secretprojection" "privatekeyprojection"])
+
+(defn env-value [options name]
+  (let [environment (:env options)]
+    (if (and environment (contains? environment name))
+      (get environment name)
+      (os/getenv name))))
+
+(defn nonblank [value]
+  (if (and (string? value) (not (str/blank? value))) value nil))
+
+(defn trim-end-slash [value]
+  (if (and (> (str/length value) 1) (str/ends-with? value "/"))
+    (trim-end-slash (str/slice value 0 (dec (str/length value))))
+    value))
+
+(defn join-path [left right]
+  (str (trim-end-slash left) "/" right))
+
+(defn run-process [argv options]
+  (let [process (sh/spawn argv options)
+        input (:stdin options)]
+    (if input
+      (deref (Process/write process (str/encode-utf8 input)))
+      nil)
+    (deref (Process/close-input process))
+    (let [values (deref
+                  (promise/all [(Process/stdout process)
+                                (Process/stderr process)
+                                (Process/wait process)]))]
+      {:command argv
+       :stdout (str/decode-utf8 (nth values 0))
+       :stderr (str/decode-utf8 (nth values 1))
+       :exit (nth values 2)})))
+
+(defn client
+  ([] (client {}))
+  ([options]
+   (let [home (or (nonblank (:home options))
+                  (nonblank (env-value options "GREENWAYS_HOME"))
+                  (let [user-home (nonblank (env-value options "HOME"))]
+                    (if user-home
+                      (join-path user-home ".greenways")
+                      (throw
+                       (ex-info
+                        "HOME is unavailable; set GREENWAYS_HOME or :home"
+                        {:greenways/code "home-unavailable"})))))
+         cli (or (nonblank (:cli options))
+                 (nonblank (env-value options "GREENWAYS_CLI"))
+                 "greenways")
+         credential (or (nonblank (:credential options))
+                        (nonblank
+                         (env-value options
+                                    "GREENWAYS_DEVELOPER_CREDENTIAL"))
+                        (join-path home "clients/developer.json"))]
+     (assoc options
+            :home (trim-end-slash home)
+            :cli cli
+            :credential credential
+            :runner (or (:runner options) run-process)))))
+
+(defn daemon-argv [configured command credential? additional]
+  (let [configured (client configured)]
+    (vec
+     (concat [(:cli configured) command]
+             (if credential?
+               ["--credential" (:credential configured)]
+               [])
+             (or additional [])
+             ["--home" (:home configured) "--json"]))))
+
+(defn desktop-argv [configured command]
+  (let [configured (client configured)]
+    [(:cli configured) "desktop" command "--json"
+     "--home" (:home configured)]))
+
+(defn normalize-key [value]
+  (str/lower-case
+   (str/replace (str value) #"[^A-Za-z0-9]" "")))
+
+(defn confidential-key? [value]
+  (let [normalized (normalize-key value)]
+    (and (not (some (fn [allowed] (= normalized allowed))
+                    +redacted-public-keys+))
+         (some (fn [fragment] (str/includes? normalized fragment))
+               +forbidden-key-fragments+))))
+
+(defn confidential-text? [value]
+  (let [lowered (str/lower-case value)]
+    (or (str/starts-with? lowered "gwc_")
+        (some (fn [fragment] (str/includes? lowered fragment))
+              +forbidden-value-fragments+))))
+
+(defn scan-public! [value]
+  (cond
+    (map? value)
+    (doseq [[key entry] value]
+      (if (confidential-key? key)
+        (throw
+         (ex-info
+          "Greenways response attempted to expose confidential authority"
+          {:greenways/code "confidential-response"}))
+        (scan-public! entry)))
+
+    (sequential? value)
+    (doseq [entry value] (scan-public! entry))
+
+    (and (string? value) (confidential-text? value))
+    (throw
+     (ex-info
+      "Greenways response attempted to expose confidential authority"
+      {:greenways/code "confidential-response"}))
+
+    :else nil)
+  value)
+
+(defn exact-keys? [value expected]
+  (and (map? value)
+       (= (set (keys value)) (set expected))))
+
+(defn bounded-text? [value maximum]
+  (and (string? value)
+       (not (str/blank? value))
+       (<= (str/length value) maximum)))
+
+(defn parse-json [operation result]
+  (let [output (:stdout result)]
+    (if (or (not (string? output))
+            (> (count (str/encode-utf8 output)) +maximum-json-bytes+))
+      (throw
+       (ex-info "Greenways CLI returned invalid bounded JSON"
+                {:greenways/op operation
+                 :greenways/code "invalid-json-response"
+                 :greenways/exit (:exit result)}))
+      (try
+        (Json/read output)
+        (catch Throwable error
+          (throw
+           (ex-info "Greenways CLI returned invalid JSON"
+                    {:greenways/op operation
+                     :greenways/code "invalid-json-response"
+                     :greenways/exit (:exit result)})))))))
+
+(defn public-failure [operation code message exit]
+  (throw
+   (ex-info (if (bounded-text? message 400)
+              message
+              "Greenways operation failed")
+            {:greenways/op operation
+             :greenways/code (if (bounded-text? code 80)
+                               code
+                               "greenways-failed")
+             :greenways/exit exit})))
+
+(defn unwrap-daemon [operation result]
+  (let [envelope (scan-public! (parse-json operation result))]
+    (if (not (exact-keys? envelope
+                          ["protocol" "requestId" "outcome" "value" "error"]))
+      (public-failure operation "invalid-daemon-envelope"
+                      "Greenways daemon returned an invalid envelope"
+                      (:exit result))
+      nil)
+    (if (not= +daemon-result-protocol+ (get envelope "protocol"))
+      (public-failure operation "unsupported-daemon-protocol"
+                      "Greenways daemon result protocol is unsupported"
+                      (:exit result))
+      nil)
+    (cond
+      (= "ok" (get envelope "outcome"))
+      (if (and (= 0 (:exit result))
+               (nil? (get envelope "error")))
+        (get envelope "value")
+        (public-failure operation "invalid-daemon-success"
+                        "Greenways daemon returned an invalid success envelope"
+                        (:exit result)))
+
+      (= "error" (get envelope "outcome"))
+      (let [error (get envelope "error")]
+        (if (exact-keys? error ["code" "message"])
+          (public-failure operation
+                          (get error "code")
+                          (get error "message")
+                          (:exit result))
+          (public-failure operation "invalid-daemon-error"
+                          "Greenways daemon returned an invalid error envelope"
+                          (:exit result))))
+
+      :else
+      (public-failure operation "invalid-daemon-outcome"
+                      "Greenways daemon returned an invalid outcome"
+                      (:exit result)))))
+
+(defn execute-daemon
+  ([configured operation command credential? additional]
+   (execute-daemon configured operation command credential? additional {}))
+  ([configured operation command credential? additional options]
+   (let [configured (client configured)
+         argv (daemon-argv configured command credential? additional)
+         result ((:runner configured) argv options)]
+     (unwrap-daemon operation result))))
+
+(def +snapshot-keys+
+  ["protocol" "state" "daemon" "actor" "identity" "hestiaImport"
+   "session" "error" "observedAtUnixMs"])
+(def +snapshot-states+
+  ["connecting" "connected" "daemon-unavailable" "credential-unavailable"
+   "authentication-rejected" "session-expired" "protocol-mismatch"
+   "desktop-bridge-unavailable" "disconnected"])
+
+(defn validate-snapshot [snapshot]
+  (scan-public! snapshot)
+  (if (and (exact-keys? snapshot +snapshot-keys+)
+           (= +desktop-snapshot-protocol+ (get snapshot "protocol"))
+           (some (fn [state] (= state (get snapshot "state")))
+                 +snapshot-states+)
+           (number? (get snapshot "observedAtUnixMs")))
+    snapshot
+    (public-failure "desktop" "invalid-desktop-snapshot"
+                    "Greenways Desktop returned an invalid snapshot" 0)))
+
+(defn execute-desktop [configured command]
+  (let [configured (client configured)
+        argv (desktop-argv configured command)
+        result ((:runner configured) argv {})]
+    (if (= 0 (:exit result))
+      (validate-snapshot (parse-json (str "desktop/" command) result))
+      (public-failure (str "desktop/" command)
+                      "desktop-command-failed"
+                      "Greenways Desktop command failed"
+                      (:exit result)))))
+
+(defn required-option [options key label]
+  (let [value (get options key)]
+    (if (nonblank value)
+      value
+      (throw
+       (ex-info (str label " is required")
+                {:greenways/code "invalid-arguments"
+                 :greenways/field key})))))
+
+(defn application-arguments [options]
+  (let [base ["--app-id" (required-option options :app-id ":app-id")
+              "--app-version" (required-option options :app-version
+                                               ":app-version")
+              "--publisher" (required-option options :publisher ":publisher")
+              "--approval-digest" (required-option options
+                                                    :approval-digest
+                                                    ":approval-digest")]]
+    (if-let [lock-digest (nonblank (:lock-digest options))]
+      (vec (concat base ["--lock-digest" lock-digest]))
+      base)))

@@ -1,0 +1,113 @@
+#!/bin/bash
+set -euo pipefail
+
+REPL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT="$REPL_ROOT/project.edn"
+RESP=0
+
+usage() {
+  cat <<'USAGE'
+Usage: repl/bin/greenways-repl [--resp]
+
+Starts the isolated native Hara Greenways control REPL. The launcher is offline
+by default. --resp keeps Hara's local RESP listener enabled for editor attachment.
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --resp) RESP=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "greenways-repl: unsupported argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "greenways-repl: the Desktop control launcher currently supports macOS only" >&2
+  exit 2
+fi
+for command in jq launchctl open stat; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "greenways-repl: $command is required" >&2
+    exit 2
+  fi
+done
+
+HARA_BIN="${HARA_BIN:-$(command -v hara || true)}"
+if [[ -z "$HARA_BIN" || ! -x "$HARA_BIN" ]]; then
+  echo "greenways-repl: hara is not installed or HARA_BIN is not executable" >&2
+  exit 2
+fi
+
+GREENWAYS_HOME="${GREENWAYS_HOME:-$HOME/.greenways}"
+export GREENWAYS_HOME
+GREENWAYS_DEVELOPER_CREDENTIAL="${GREENWAYS_DEVELOPER_CREDENTIAL:-$GREENWAYS_HOME/clients/developer.json}"
+export GREENWAYS_DEVELOPER_CREDENTIAL
+
+if [[ -n "${GREENWAYS_CLI:-}" ]]; then
+  :
+elif [[ -x "/Applications/Greenways Desktop.app/Contents/Resources/greenways" ]]; then
+  GREENWAYS_CLI="/Applications/Greenways Desktop.app/Contents/Resources/greenways"
+else
+  GREENWAYS_CLI="$(command -v greenways || true)"
+fi
+export GREENWAYS_CLI
+
+if [[ -z "$GREENWAYS_CLI" || ! -x "$GREENWAYS_CLI" ]]; then
+  echo "greenways-repl: the installed Greenways CLI is unavailable" >&2
+  exit 2
+fi
+if [[ -L "$GREENWAYS_DEVELOPER_CREDENTIAL" || ! -f "$GREENWAYS_DEVELOPER_CREDENTIAL" ]]; then
+  echo "greenways-repl: the dedicated developer credential is missing or unsafe" >&2
+  exit 2
+fi
+if [[ "$(stat -f '%u:%Lp' "$GREENWAYS_DEVELOPER_CREDENTIAL")" != "$(id -u):600" ]]; then
+  echo "greenways-repl: the developer credential must be owned by this user with mode 0600" >&2
+  exit 2
+fi
+
+if ! "$GREENWAYS_CLI" status --home "$GREENWAYS_HOME" --json >/dev/null; then
+  SERVICE="gui/$(id -u)/ai.greenways.greenwaysd"
+  launchctl kickstart "$SERVICE" >/dev/null 2>&1 || true
+fi
+"$GREENWAYS_CLI" status --home "$GREENWAYS_HOME" --json >/dev/null
+
+WHOAMI="$($GREENWAYS_CLI whoami \
+  --credential "$GREENWAYS_DEVELOPER_CREDENTIAL" \
+  --home "$GREENWAYS_HOME" --json)"
+if ! jq -e '.outcome == "ok" and .value.role == "developer"' <<<"$WHOAMI" >/dev/null; then
+  echo "greenways-repl: the configured credential is not an active developer client" >&2
+  exit 2
+fi
+
+if ! "$GREENWAYS_CLI" desktop status --home "$GREENWAYS_HOME" --json >/dev/null 2>&1; then
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    open -a "Greenways Desktop"
+    for _ in {1..40}; do
+      if "$GREENWAYS_CLI" desktop status --home "$GREENWAYS_HOME" --json >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.25
+    done
+  fi
+fi
+"$GREENWAYS_CLI" desktop status --home "$GREENWAYS_HOME" --json >/dev/null
+
+cat <<'EXAMPLES'
+Greenways control namespaces:
+  (require '[gw.repl.greenwaysd :as greenwaysd])
+  (require '[gw.repl.desktop :as desktop])
+
+Try:
+  (greenwaysd/status)
+  (greenwaysd/whoami)
+  (desktop/status)
+  (desktop/show-window)
+EXAMPLES
+
+ARGS=(--project "$PROJECT" --allow-process --no-splash repl)
+if ((RESP == 0)); then
+  ARGS=(--project "$PROJECT" --allow-process --offline --no-splash repl)
+fi
+exec "$HARA_BIN" "${ARGS[@]}"

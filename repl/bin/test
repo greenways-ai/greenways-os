@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+
+REPL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HARA_BIN="${HARA_BIN:-$(command -v hara || true)}"
+if [[ -z "$HARA_BIN" || ! -x "$HARA_BIN" ]]; then
+  echo "greenways-repl-test: hara is not installed" >&2
+  exit 2
+fi
+
+# Every file is evaluated in a fresh offline process with explicit process
+# permission, matching the native Hara evaluate-test-write-run-test workflow.
+for TEST_FILE in "$REPL_ROOT"/test/gw/repl/*_test.hal; do
+  "$HARA_BIN" --project "$REPL_ROOT/project.edn" --allow-process --offline \
+    run "$TEST_FILE"
+done

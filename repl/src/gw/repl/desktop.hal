@@ -1,0 +1,26 @@
+(ns gw.repl.desktop
+  (:require [gw.repl.client :as client]))
+
+(defn status
+  ([] (status {}))
+  ([configured] (client/execute-desktop configured "status")))
+
+(defn connect
+  ([] (connect {}))
+  ([configured] (client/execute-desktop configured "connect")))
+
+(defn refresh
+  ([] (refresh {}))
+  ([configured] (client/execute-desktop configured "refresh")))
+
+(defn disconnect
+  ([] (disconnect {}))
+  ([configured] (client/execute-desktop configured "disconnect")))
+
+(defn show-window
+  ([] (show-window {}))
+  ([configured] (client/execute-desktop configured "show-window")))
+
+(defn quit
+  ([] (quit {}))
+  ([configured] (client/execute-desktop configured "quit")))
