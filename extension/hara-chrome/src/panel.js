@@ -11,6 +11,7 @@ import { createPageTargetClient, flattenPageTargets } from "./page-target.js";
 import { connectResp, createBrowserRespHandler } from "./resp-client.js";
 
 const params = new URLSearchParams(location.search);
+const readiness = { kernel: false, resp: "offline", error: null };
 const tabId = params.has("tabId")
   ? Number(params.get("tabId"))
   : globalThis.chrome?.devtools?.inspectedWindow?.tabId;
@@ -211,6 +212,7 @@ const respHandler = createBrowserRespHandler({
 });
 
 function setRespState(state, label = state) {
+  readiness.resp = state;
   respStatus.dataset.state = state;
   respStatus.textContent = label;
   respButton.textContent = state === "connected" || state === "connecting" ? "disconnect RESP" : "connect RESP";
@@ -289,6 +291,7 @@ window.hara = {
   refreshTargets,
   targets: () => [...targetRecords],
   connectResp: connectBridge,
+  ready: readiness,
 };
 
 if (params.has("resp")) {
@@ -314,6 +317,13 @@ document.getElementById("run-file-button").addEventListener("click", async () =>
   }
 });
 
-setHome(await restoreHome());
-await refreshTargets();
-setInterval(refreshTargets, 2000);
+try {
+  await setHome(await restoreHome());
+  await refreshTargets();
+  await broker.require(studio.state.kernel);
+  readiness.kernel = true;
+  setInterval(refreshTargets, 2000);
+} catch (error) {
+  readiness.error = String(error?.message ?? error);
+  throw error;
+}

@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bash ../../../technology/hara/packaging/scripts/build-hara-wasm-raw && node scripts/sync-runtime.mjs",
-    "sync": "node scripts/sync-runtime.mjs",
+    "build": "make build",
+    "sync": "make sync",
+    "dev": "make dev",
     "test": "node --test test/*.test.js",
-    "test:browser": "xvfb-run -a npx playwright test"
+    "test:sync": "make test-sync",
+    "test:browser": "make test-browser"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1"
