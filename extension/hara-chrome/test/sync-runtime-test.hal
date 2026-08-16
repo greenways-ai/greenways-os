@@ -1,0 +1,26 @@
+(ns hara-chrome.sync-runtime-test
+  (:require [lang.core.eval :as evaluation]
+            [std.fs :as fs]))
+
+(def expected-assets
+  ["/application/greenways-os/extension/hara-chrome/vendor/hta.js"
+   "/application/greenways-os/extension/hara-chrome/vendor/hta-worker.js"
+   "/application/greenways-os/extension/hara-chrome/vendor/packages/hta/index.js"
+   "/application/greenways-os/extension/hara-chrome/vendor/host/broker.js"
+   "/application/greenways-os/extension/hara-chrome/vendor/studio/broker.js"
+   "/application/greenways-os/extension/hara-chrome/vendor/studio/hal/boot.hal"
+   "/application/greenways-os/extension/hara-chrome/vendor/hara.wasm"
+   "/application/greenways-os/extension/hara-chrome/vendor/ui/tokens.css"])
+
+(def missing-assets
+  (vec
+   (filter
+    (fn [path]
+      (not (evaluation/await (fs/exists? path) 10000)))
+    expected-assets)))
+
+(if (empty? missing-assets)
+  (println (str "hara-chrome sync validation passed: " (count expected-assets) " assets"))
+  (throw
+   (ex-info "hara-chrome sync validation failed"
+            {:missing missing-assets})))

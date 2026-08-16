@@ -1,0 +1,51 @@
+(ns hara-chrome.sync-runtime
+  (:require [lang.core.eval :as evaluation]
+            [std.fs :as fs]))
+
+(def ^:private extension-root
+  "/application/greenways-os/extension/hara-chrome")
+
+(def ^:private runtime-assets
+  [{:source "/technology/hara/core/rust/web/hta.js"
+    :target (str extension-root "/vendor/hta.js")}
+   {:source "/technology/hara/core/rust/web/hta-worker.js"
+    :target (str extension-root "/vendor/hta-worker.js")}
+   {:source "/technology/hara/core/rust/web/packages"
+    :target (str extension-root "/vendor/packages")}
+   {:source "/technology/hara/core/rust/web/host"
+    :target (str extension-root "/vendor/host")}
+   {:source "/technology/hara/core/rust/web/studio"
+    :target (str extension-root "/vendor/studio")}
+   {:source "/technology/hara/core/rust/raw/target/wasm32-unknown-unknown/browser-release/hara-wasm-vm.wasm"
+    :target (str extension-root "/vendor/hara.wasm")}
+   {:source (str extension-root "/ui/hara-ui/tokens.css")
+    :target (str extension-root "/vendor/ui/tokens.css")}
+   {:source (str extension-root "/ui/hara-ui/components.css")
+    :target (str extension-root "/vendor/ui/components.css")}
+   {:source (str extension-root "/ui/hara-ui/studio.css")
+    :target (str extension-root "/vendor/ui/studio.css")}
+   {:source (str extension-root "/ui/hara-ui/studio-shell.js")
+    :target (str extension-root "/vendor/ui/studio-shell.js")}])
+
+(defn- wait!
+  [pending]
+  (evaluation/await pending 120000))
+
+(defn- sync-asset!
+  [{:keys [source target]}]
+  (if (wait! (fs/exists? source))
+    (do
+      (wait! (fs/copy source target {:replace? true :parents? true}))
+      (println (str "synced " target))
+      target)
+    (throw
+     (ex-info "Required hara-chrome runtime asset is missing"
+              {:source source
+               :target target}))))
+
+(defn- sync-runtime!
+  []
+  (vec (map sync-asset! runtime-assets)))
+
+(let [synced-assets (sync-runtime!)]
+  (println (str "hara-chrome runtime assets synced: " (count synced-assets))))
