@@ -1,20 +1,25 @@
-# Triggered after the workflow exists on the branch.
 name: Materialize hara toolbar control
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/hara-chrome-toolbar-control-133
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
 
 jobs:
   materialize:
+    if: github.head_ref == 'agent/hara-chrome-toolbar-control-133'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: true
 
