@@ -5,7 +5,7 @@
   "description": "Hara runtime in DevTools with full Chrome API automation",
   "devtools_page": "src/devtools.html",
   "background": { "service_worker": "src/background.js", "type": "module" },
-  "permissions": ["debugger", "tabs", "storage"],
+  "permissions": ["debugger", "downloads", "tabs", "storage"],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }

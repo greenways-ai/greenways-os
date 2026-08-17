@@ -1,6 +1,6 @@
 {:schema "greenways.tripo-webapp-capabilities/0-alpha"
  :product :tripo-studio-web
- :verified-at "2026-08-17"
+ :verified-at "2026-08-18"
  :scope :panel-bound-tab-with-user-controlled-authentication
  :sources
  [{:id :tripo/studio
@@ -9,8 +9,16 @@
    :url "https://www.tripo3d.ai/blog/tripo-turns-1-team-plan"}
   {:id :tripo/studio-tutorial
    :url "https://www.tripo3d.ai/blog/tripo-studio-tutorial-english"}
+  {:id :tripo/smart-mesh-export
+   :url "https://www.tripo3d.ai/blog/smart-mesh-tutorial"}
+  {:id :tripo/export-formats
+   :url "https://www.tripo3d.ai/tutorials/tripo-ai-export-formats"}
+  {:id :tripo/pricing
+   :url "https://www.tripo3d.ai/pricing"}
   {:id :tripo/openapi-introduction
-   :url "https://docs.tripo3d.ai/get-started/introduction.html"}]
+   :url "https://docs.tripo3d.ai/get-started/introduction.html"}
+  {:id :chrome/downloads
+   :url "https://developer.chrome.com/docs/extensions/reference/api/downloads"}]
  :entities
  {:authentication
   {:identity [:tab-id]
@@ -22,6 +30,13 @@
   :asset
   {:identity [:id :href]
    :snapshot [:title :href :status :visibility :workspace-id :active? :element]}
+  :export-option
+  {:identity [:asset-id :format]
+   :snapshot [:label :available? :selected? :note :element]}
+  :download-receipt
+  {:identity [:id]
+   :snapshot [:asset-id :workspace-id :format :state :relative-path :path
+              :mime :bytes :danger :exists? :started-at :ended-at :source]}
   :generation-draft
   {:identity [:workspace-id :mode]
    :snapshot [:prompt :input :model :topology :generate-in-parts?]}
@@ -38,6 +53,10 @@
   {:id :open-assets :entity :asset :phase 1 :effect :navigation :confirmation :none}
   {:id :assets :entity :asset :phase 1 :effect :read :confirmation :none}
   {:id :open-asset :entity :asset :phase 1 :effect :navigation :confirmation :none}
+  {:id :export-options :entity :export-option :phase 5 :effect :reversible-ui
+   :confirmation :none}
+  {:id :download-asset :entity :download-receipt :phase 5 :effect :download
+   :confirmation [:asset-id :asset-href :format :relative-directory :confirm-download?]}
   {:id :draft-text-to-3d :entity :generation-draft :phase 2 :effect :local-ui :confirmation :explicit-prompt}
   {:id :draft-image-to-3d :entity :generation-draft :phase 2 :effect :local-file-selection :confirmation :explicit-source}
   {:id :generate :entity :generation-task :phase 3 :effect :credit-spending-write
@@ -47,8 +66,6 @@
   {:id :texture :entity :asset :phase 4 :effect :credit-or-compute-write :confirmation :explicit-command}
   {:id :rig :entity :asset :phase 4 :effect :credit-or-compute-write :confirmation :explicit-command}
   {:id :stylize :entity :asset :phase 4 :effect :credit-or-compute-write :confirmation :explicit-command}
-  {:id :export :entity :asset :phase 5 :effect :download
-   :confirmation [:asset-id :format :destination]}
   {:id :team-members :entity :workspace :phase :deferred :effect :access-control-write :confirmation :separate-authority}
   {:id :buy-credits :entity :workspace :phase :deferred :effect :financial :confirmation :separate-authority}
   {:id :delete-asset :entity :asset :phase :deferred :effect :destructive
@@ -71,16 +88,28 @@
   :returned-url [:origin :pathname]
   :forbidden [:password :email-value :one-time-code :mfa-response :passkey-response
               :cookie :access-token :oauth-state :authorization-code]}
+ :download-policy
+ {:authority :visible-tripo-ui
+  :initiation :page-click
+  :url-replay :forbidden
+  :concurrency :one-explicit-capture
+  :destination-root :browser-downloads
+  :relative-path-only true
+  :conflict-action :uniquify
+  :dangerous-download-acceptance :forbidden
+  :returned-source-url [:origin :pathname]
+  :bytes-cross-hara? false
+  :registration :reviewed-greenways-downloads-importer}
  :network-policy
  {:private-endpoints :unsupported
   :request-mutation :unsupported
   :capture-bodies? false
-  :redact [:authorization :cookie :account :workspace :api-key]}
+  :redact [:authorization :cookie :account :workspace :api-key :download-signature]}
  :phases
  [{:id 0 :name :user-controlled-authentication}
   {:id 1 :name :workspace-and-assets}
   {:id 2 :name :generation-drafts}
   {:id 3 :name :generation-and-task-tracking}
   {:id 4 :name :refinement}
-  {:id 5 :name :export}
+  {:id 5 :name :explicit-export-and-download}
   {:id :deferred :name :team-financial-and-destructive-authority}]}

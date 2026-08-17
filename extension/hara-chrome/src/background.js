@@ -1,12 +1,18 @@
 import { CHATGPT_LOGIN_METHODS, createChatgptLoginService } from "./chatgpt-login-service.js";
 import { createChatgptService } from "./chatgpt-service.js";
 import { createDebuggerCoordinator, createDomService } from "./dom-service.js";
+import { createDomExistenceProbe } from "./dom-existence-probe.js";
+import { createDownloadBroker } from "./download-broker.js";
+import { TRIPO_DOWNLOAD_METHODS, createTripoDownloadService } from "./tripo-download-service.js";
 import { TRIPO_LOGIN_METHODS, createTripoLoginService } from "./tripo-login-service.js";
 import { createTripoService } from "./tripo-service.js";
-import { createDomExistenceProbe } from "./dom-existence-probe.js";
 
 const debuggerEvents = new Map();
 const debuggerCoordinator = createDebuggerCoordinator(chrome);
+const downloadBroker = createDownloadBroker({
+  downloadsApi: chrome.downloads,
+  coordinator: debuggerCoordinator,
+});
 let nextPort = 1;
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -37,6 +43,12 @@ chrome.runtime.onConnect.addListener((port) => {
     domService: loginDomService,
     tripoService,
   });
+  const tripoDownloadService = createTripoDownloadService({
+    domService,
+    tripoService,
+    downloadBroker,
+    owner: portOwner,
+  });
 
   port.onMessage.addListener(async ({ id, service, method, args, target }) => {
     try {
@@ -47,6 +59,7 @@ chrome.runtime.onConnect.addListener((port) => {
         chatgptLoginService,
         tripoService,
         tripoLoginService,
+        tripoDownloadService,
       });
       port.postMessage({ id, ok: true, value: sanitize(value) });
     } catch (error) {
@@ -65,6 +78,9 @@ chrome.runtime.onConnect.addListener((port) => {
       entry.waiters = [];
     }
     void Promise.allSettled([
+      tripoDownloadService.close(),
+      tripoLoginService.close(),
+      tripoService.close(),
       chatgptLoginService.close(),
       chatgptService.close(),
       domExistenceProbe.close(),
@@ -96,6 +112,15 @@ async function dispatch(service, method, args, target, context) {
     const owner = CHATGPT_LOGIN_METHODS.has(method)
       ? context.chatgptLoginService
       : context.chatgptService;
+    return owner.dispatch(method, args, target);
+  }
+  if (service === "hara.tripo") {
+    if (TRIPO_DOWNLOAD_METHODS.has(method)) {
+      return context.tripoDownloadService.dispatch(method, args, target);
+    }
+    const owner = TRIPO_LOGIN_METHODS.has(method)
+      ? context.tripoLoginService
+      : context.tripoService;
     return owner.dispatch(method, args, target);
   }
   if (service === "chrome.debugger") {

@@ -1,4 +1,4 @@
-;; Panel-bound Tripo Studio inventory and browser-controlled login for hara-chrome.
+;; Panel-bound Tripo Studio inventory, login, and explicit asset downloads for hara-chrome.
 (ns browser.site.tripo)
 
 (defn- call
@@ -63,3 +63,15 @@
   "Re-resolves an asset by logical identity and opens its current visible link."
   [asset]
   (call "open-asset" asset))
+
+(defn export-options
+  "Opens the visible export surface for an open asset and lists available formats."
+  [asset]
+  (with-kind :export-option (call "export-options" asset)))
+
+(defn download-asset
+  "Downloads an open asset through visible export UI; requires :confirm-download? true."
+  [asset options]
+  (assoc
+   (call "download-asset" (assoc options :asset asset))
+   :kind :asset-download))
