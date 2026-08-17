@@ -72,25 +72,6 @@ jobs:
               '        tripoLoginService,\n',
           )
           replace(
-              "extension/hara-chrome/src/background.js",
-              '      chatgptLoginService.close(),\n',
-              '      tripoLoginService.close(),\n'
-              '      tripoService.close(),\n'
-              '      chatgptLoginService.close(),\n',
-          )
-          replace(
-              "extension/hara-chrome/src/background.js",
-              '  if (service === "chrome.debugger") {\n',
-              '  if (service === "hara.tripo") {\n'
-              '    const owner = TRIPO_LOGIN_METHODS.has(method)\n'
-              '      ? context.tripoLoginService\n'
-              '      : context.tripoService;\n'
-              '    return owner.dispatch(method, args, target);\n'
-              '  }\n'
-              '  if (service === "chrome.debugger") {\n',
-          )
-
-          replace(
               "extension/hara-chrome/Makefile",
               'CHATGPT_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/chatgpt-profile\n',
               'CHATGPT_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/chatgpt-profile\n'
@@ -152,7 +133,6 @@ jobs:
           rm .github/workflows/agent-tripo-materialize.yml
 
           node --check extension/hara-chrome/src/background.js
-          node --check extension/hara-chrome/src/panel.js
           node --check extension/hara-chrome/src/tripo-profile.js
           node --check extension/hara-chrome/src/tripo-service.js
           node --check extension/hara-chrome/src/tripo-login-service.js
