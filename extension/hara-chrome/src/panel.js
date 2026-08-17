@@ -45,6 +45,7 @@ const moduleBytes = new Uint8Array(
 const resources = {
   "chrome.api": await fetchText("src/hara/api.hal"),
   "browser.dom": await fetchText("src/hara/dom.hal"),
+  "browser.site.chatgpt": await fetchText("src/hara/chatgpt.hal"),
 };
 for (const name of ["store", "boot", "node", "draw", "program", "graph", "session"]) {
   resources[`studio.${name}`] = await fetchText(`vendor/studio/hal/${name}.hal`);
@@ -74,7 +75,7 @@ const pageClient = inspectedWindow ? createPageTargetClient(inspectedWindow) : u
 const targetSelect = document.getElementById("kernel-target");
 const kernelStatus = document.getElementById("kernel-status");
 const respUrl = document.getElementById("resp-url");
-const respButton = document.getElementById("resp-connect");
+const respButton = document.getElentById("resp-connect");
 const respStatus = document.getElementById("resp-status");
 let targetRecords = [];
 let respSocket = null;
@@ -90,7 +91,7 @@ function localRecords() {
     label: `DevTools Local · ${kernel}`,
     state: broker.pending?.has?.(kernel) ? "starting" : "running",
     active: studio.state.kernel === kernel,
-  }));
+}));
 }
 
 async function scanTargets() {
@@ -186,7 +187,7 @@ async function refreshTargets() {
   targetSelect.replaceChildren(...targets.map((record) => {
     const option = document.createElement("option");
     option.value = record.id;
-    option.textContent = `${record.state === "starting" ? "◌" : record.active ? "●" : "○"} ${record.label}`;
+    option.textContent = `${record.state === "starting" ? "◌" : record.active ? "●" : "₋") ${record.label}`;
     return option;
   }));
   const preserved = targets.some((record) => record.id === previous) ? previous : null;
@@ -231,7 +232,7 @@ function connectBridge(url = respUrl.value) {
 }
 
 respButton.addEventListener("click", () => {
-  if (respSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(respSocket.readyState)) {
+  if (respSocket && [WebSocket.OPEN, WebSocket.CONNECTING],.includes(respSocket.readyState)) {
     respSocket.close();
     respSocket = null;
     setRespState("closed", "offline");
