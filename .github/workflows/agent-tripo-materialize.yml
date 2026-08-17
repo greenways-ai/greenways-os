@@ -1,0 +1,178 @@
+name: Materialize Tripo Studio REPL adapter
+
+on:
+  push:
+    branches: [agent/tripo-studio-repl-129]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Patch shared hara-chrome integration and publish clean branch
+        env:
+          BRANCH: agent/tripo-studio-repl-129
+        run: |
+          set -euo pipefail
+          old_head="$(git rev-parse HEAD)"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"missing patch context in {path}: {old!r}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace(
+              "extension/hara-chrome/src/panel.js",
+              '  "browser.site.chatgpt": await fetchText("src/hara/chatgpt.hal"),\n',
+              '  "browser.site.chatgpt": await fetchText("src/hara/chatgpt.hal"),\n'
+              '  "browser.site.tripo": await fetchText("src/hara/tripo.hal"),\n',
+          )
+
+          replace(
+              "extension/hara-chrome/src/background.js",
+              'import { createDebuggerCoordinator, createDomService } from "./dom-service.js";\n',
+              'import { createDebuggerCoordinator, createDomService } from "./dom-service.js";\n'
+              'import { TRIPO_LOGIN_METHODS, createTripoLoginService } from "./tripo-login-service.js";\n'
+              'import { createTripoService } from "./tripo-service.js";\n',
+          )
+          replace(
+              "extension/hara-chrome/src/background.js",
+              '  const chatgptLoginService = createChatgptLoginService({\n'
+              '    domService: loginDomService,\n'
+              '    chatgptService,\n'
+              '  });\n',
+              '  const chatgptLoginService = createChatgptLoginService({\n'
+              '    domService: loginDomService,\n'
+              '    chatgptService,\n'
+              '  });\n'
+              '  const tripoService = createTripoService({ domService });\n'
+              '  const tripoLoginService = createTripoLoginService({\n'
+              '    domService: loginDomService,\n'
+              '    tripoService,\n'
+              '  });\n',
+          )
+          replace(
+              "extension/hara-chrome/src/background.js",
+              '        chatgptLoginService,\n',
+              '        chatgptLoginService,\n'
+              '        tripoService,\n'
+              '        tripoLoginService,\n',
+          )
+          replace(
+              "extension/hara-chrome/src/background.js",
+              '      chatgptLoginService.close(),\n',
+              '      tripoLoginService.close(),\n'
+              '      tripoService.close(),\n'
+              '      chatgptLoginService.close(),\n',
+          )
+          replace(
+              "extension/hara-chrome/src/background.js",
+              '  if (service === "chrome.debugger") {\n',
+              '  if (service === "hara.tripo") {\n'
+              '    const owner = TRIPO_LOGIN_METHODS.has(method)\n'
+              '      ? context.tripoLoginService\n'
+              '      : context.tripoService;\n'
+              '    return owner.dispatch(method, args, target);\n'
+              '  }\n'
+              '  if (service === "chrome.debugger") {\n',
+          )
+
+          replace(
+              "extension/hara-chrome/Makefile",
+              'CHATGPT_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/chatgpt-profile\n',
+              'CHATGPT_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/chatgpt-profile\n'
+              'TRIPO_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/tripo-profile\n',
+          )
+          replace(
+              "extension/hara-chrome/Makefile",
+              '.PHONY: help check-workspace dependencies browser build sync dev chatgpt-login test test-fast test-sync test-browser\n',
+              '.PHONY: help check-workspace dependencies browser build sync dev chatgpt-login tripo-login test test-fast test-sync test-browser\n',
+          )
+          replace(
+              "extension/hara-chrome/Makefile",
+              "\t  'make chatgpt-login  run headed Chromium with a persistent ChatGPT profile' \\\n",
+              "\t  'make chatgpt-login  run headed Chromium with a persistent ChatGPT profile' \\\n"
+              "\t  'make tripo-login    run headed Chromium with a persistent Tripo Studio profile' \\\n",
+          )
+          replace(
+              "extension/hara-chrome/Makefile",
+              "\t  '           CHATGPT_PROFILE_DIR=$$HOME/.greenways/hara-chrome/chatgpt-profile HARA_WORKSPACE_ROOT='\n",
+              "\t  '           CHATGPT_PROFILE_DIR=$$HOME/.greenways/hara-chrome/chatgpt-profile' \\\n"
+              "\t  '           TRIPO_PROFILE_DIR=$$HOME/.greenways/hara-chrome/tripo-profile HARA_WORKSPACE_ROOT='\n",
+          )
+          replace(
+              "extension/hara-chrome/Makefile",
+              'chatgpt-login:\n'
+              '\t@test -n "$(CHATGPT_PROFILE_DIR)" || { echo \'CHATGPT_PROFILE_DIR must not be empty\' >&2; exit 2; }\n'
+              '\t@mkdir -p "$(CHATGPT_PROFILE_DIR)"\n'
+              '\t@chmod 700 "$(CHATGPT_PROFILE_DIR)"\n'
+              '\t$(MAKE) dev HEADLESS=false PROFILE_DIR="$(CHATGPT_PROFILE_DIR)" URL=https://chatgpt.com\n',
+              'chatgpt-login:\n'
+              '\t@test -n "$(CHATGPT_PROFILE_DIR)" || { echo \'CHATGPT_PROFILE_DIR must not be empty\' >&2; exit 2; }\n'
+              '\t@mkdir -p "$(CHATGPT_PROFILE_DIR)"\n'
+              '\t@chmod 700 "$(CHATGPT_PROFILE_DIR)"\n'
+              '\t$(MAKE) dev HEADLESS=false PROFILE_DIR="$(CHATGPT_PROFILE_DIR)" URL=https://chatgpt.com\n\n'
+              'tripo-login:\n'
+              '\t@test -n "$(TRIPO_PROFILE_DIR)" || { echo \'TRIPO_PROFILE_DIR must not be empty\' >&2; exit 2; }\n'
+              '\t@mkdir -p "$(TRIPO_PROFILE_DIR)"\n'
+              '\t@chmod 700 "$(TRIPO_PROFILE_DIR)"\n'
+              '\t$(MAKE) dev HEADLESS=false PROFILE_DIR="$(TRIPO_PROFILE_DIR)" URL=https://studio.tripo3d.ai\n',
+          )
+          replace(
+              "extension/hara-chrome/Makefile",
+              '\t  test/runtime-login.test.js\n',
+              '\t  test/runtime-login.test.js \\\n'
+              '\t  test/tripo-configuration.test.js \\\n'
+              '\t  test/tripo-login.test.js \\\n'
+              '\t  test/tripo-service.test.js\n',
+          )
+
+          replace(
+              "extension/hara-chrome/mkdocs.yml",
+              '  - ChatGPT login: chatgpt-login.md\n',
+              '  - ChatGPT login: chatgpt-login.md\n'
+              '  - Tripo Studio REPL: tripo-webapp-repl.md\n'
+              '  - Tripo Studio login: tripo-login.md\n',
+          )
+          PY
+
+          rm .github/workflows/agent-tripo-materialize.yml
+
+          node --check extension/hara-chrome/src/background.js
+          node --check extension/hara-chrome/src/panel.js
+          node --check extension/hara-chrome/src/tripo-profile.js
+          node --check extension/hara-chrome/src/tripo-service.js
+          node --check extension/hara-chrome/src/tripo-login-service.js
+          node --check extension/hara-chrome/test/tripo.spec.js
+
+          cd extension/hara-chrome
+          npm ci
+          node --test \
+            test/tripo-configuration.test.js \
+            test/tripo-login.test.js \
+            test/tripo-service.test.js
+          make -n help >/dev/null
+          cd ../..
+
+          git diff --check
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Wire Tripo Studio REPL adapter"
+          git push \
+            --force-with-lease="refs/heads/$BRANCH:$old_head" \
+            origin "HEAD:refs/heads/$BRANCH"
