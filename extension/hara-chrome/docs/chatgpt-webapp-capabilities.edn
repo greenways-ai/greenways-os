@@ -1,0 +1,161 @@
+{:schema "greenways.chatgpt-webapp-capabilities/0-alpha"
+ :product :chatgpt-web
+ :verified-at "2026-08-17"
+ :scope :user-authenticated-panel-bound-tab
+ :sources
+ [{:id :openai/projects
+   :url "https://help.openai.com/en/articles/10169521-projects-in-chatgpt"}
+  {:id :openai/pinned
+   :url "https://help.openai.com/en/articles/6825453-chatgpt-release-notes"}
+  {:id :openai/search
+   :url "https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt"}
+  {:id :openai/archive-delete
+   :url "https://help.openai.com/en/articles/8809935-how-to-delete-and-archive-chats-in-chatgpt"}]
+ :entities
+ {:chat
+  {:identity [:id :href]
+   :snapshot [:title :href :pinned? :project-id :active? :element]}
+  :project
+  {:identity [:id :href]
+   :snapshot [:title :href :active? :element]}
+  :search-result
+  {:identity [:chat-id]
+   :snapshot [:title :snippet :element]}}
+ :operations
+ [{:id :status
+   :entity :page
+   :phase 1
+   :effect :read
+   :confirmation :none}
+  {:id :chats
+   :entity :chat
+   :phase 1
+   :effect :read
+   :confirmation :none}
+  {:id :pinned
+   :entity :chat
+   :phase 1
+   :effect :read
+   :confirmation :none}
+  {:id :projects
+   :entity :project
+   :phase 1
+   :effect :read
+   :confirmation :none}
+  {:id :open-chat
+   :entity :chat
+   :phase 1
+   :effect :navigation
+   :confirmation :none}
+  {:id :open-project
+   :entity :project
+   :phase 1
+   :effect :navigation
+   :confirmation :none}
+  {:id :search-chats
+   :entity :chat
+   :phase 1
+   :effect :reversible-ui
+   :confirmation :none}
+  {:id :project-chats
+   :entity :chat
+   :phase 1
+   :effect :read
+   :confirmation :none}
+  {:id :new-chat
+   :entity :chat
+   :phase 2
+   :effect :write
+   :confirmation :explicit-command}
+  {:id :fill-composer
+   :entity :composer
+   :phase 2
+   :effect :local-ui
+   :confirmation :explicit-text}
+  {:id :send
+   :entity :message
+   :phase 2
+   :effect :externally-visible-write
+   :confirmation :explicit-command}
+  {:id :pin
+   :entity :chat
+   :phase 3
+   :effect :reversible-write
+   :confirmation :boolean}
+  {:id :unpin
+   :entity :chat
+   :phase 3
+   :effect :reversible-write
+   :confirmation :boolean}
+  {:id :move-to-project
+   :entity :chat
+   :phase 3
+   :effect :reversible-write
+   :confirmation :boolean}
+  {:id :archive
+   :entity :chat
+   :phase 3
+   :effect :reversible-write
+   :confirmation :boolean}
+  {:id :rename-chat
+   :entity :chat
+   :phase 3
+   :effect :reversible-write
+   :confirmation [:expected-old-title :new-title]}
+  {:id :rename-project
+   :entity :project
+   :phase 3
+   :effect :reversible-write
+   :confirmation [:expected-old-title :new-title]}
+  {:id :create-project
+   :entity :project
+   :phase 4
+   :effect :write
+   :confirmation :explicit-command}
+  {:id :project-instructions
+   :entity :project
+   :phase 4
+   :effect :write
+   :confirmation :project-id}
+  {:id :project-source
+   :entity :project
+   :phase 4
+   :effect :data-upload
+   :confirmation :explicit-source}
+  {:id :share-project
+   :entity :project
+   :phase :deferred
+   :effect :access-control-write
+   :confirmation :separate-authority}
+  {:id :delete-chat
+   :entity :chat
+   :phase :deferred
+   :effect :destructive
+   :confirmation [:matching-title :matching-id]}
+  {:id :delete-project
+   :entity :project
+   :phase :deferred
+   :effect :destructive
+   :confirmation [:matching-title :matching-id]}]
+ :selector-policy
+ {:order [:aria-role-and-name
+          :native-element-and-stable-href
+          :visible-text-in-known-region
+          :stable-data-testid]
+  :forbidden [:hashed-css-class
+              :menu-position-only
+              :private-api-as-authority]
+  :ambiguity :fail-closed
+  :unsupported-error :chatgpt/ui-unsupported}
+ :network-policy
+ {:private-endpoints :unsupported
+  :request-mutation :unsupported
+  :diagnostic-observation :explicit-opt-in
+  :redact [:authorization :cookie :account :workspace]
+  :capture-bodies? false}
+ :phases
+ [{:id 1 :name :inventory}
+  {:id 2 :name :composer}
+  {:id 3 :name :reversible-organization}
+  {:id 4 :name :project-management}
+  {:id :deferred :name :sharing-and-destructive-actions}]}
