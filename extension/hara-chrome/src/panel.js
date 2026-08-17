@@ -36,13 +36,16 @@ const graphHost = new GraphHost({
 const hostCalls = mergeHostCalls(createHostServices({
   graphHost,
   graphHostOptions: { sessionRouter },
-}), createHostCalls(port));
+}), createHostCalls(port, { tabId }));
 
 const moduleBytes = new Uint8Array(
   await (await fetch(asset("vendor/hara.wasm"))).arrayBuffer(),
 );
 
-const resources = { "chrome.api": await fetchText("src/hara/api.hal") };
+const resources = {
+  "chrome.api": await fetchText("src/hara/api.hal"),
+  "browser.dom": await fetchText("src/hara/dom.hal"),
+};
 for (const name of ["store", "boot", "node", "draw", "program", "graph", "session"]) {
   resources[`studio.${name}`] = await fetchText(`vendor/studio/hal/${name}.hal`);
 }

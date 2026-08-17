@@ -16,6 +16,7 @@ export async function startDevelopmentRuntime({
   respPort = numericPort(process.env.RESP_PORT, 7355),
   wsPort = numericPort(process.env.WS_PORT, 7356),
   profileDir = process.env.PROFILE_DIR || null,
+  url = process.env.URL || "about:blank",
   token = randomBytes(32).toString("base64url"),
   log = (line) => console.log(line),
   startBridgeImpl = startBridge,
@@ -40,11 +41,26 @@ export async function startDevelopmentRuntime({
     bridge = await startBridgeImpl({ respPort, wsPort, token });
     const respAddress = `127.0.0.1:${bridge.respPort}`;
     const wsUrl = `ws://127.0.0.1:${bridge.wsPort}/?token=${encodeURIComponent(token)}`;
-    browser = await launchExtensionImpl({ profileDir });
-    const panel = await browser.openPanel({ tabId: 0, respUrl: wsUrl });
-    const readiness = await verifyRespImpl({ host: "127.0.0.1", port: bridge.respPort });
+    browser = await launchExtensionImpl({ profileDir, url });
+    if (!Number.isInteger(browser.tabId) || browser.tabId <= 0) {
+      throw new Error(`headless target did not resolve an exact Chrome tab ID: ${browser.tabId}`);
+    }
+    const panel = await browser.openPanel({ tabId: browser.tabId, respUrl: wsUrl });
+    const readiness = await verifyRespImpl({
+      host: "127.0.0.1",
+      port: bridge.respPort,
+      tabId: browser.tabId,
+    });
+    log(`HARA TARGET ${browser.targetUrl} TAB ${browser.tabId}`);
     log(`HARA RESP ${respAddress}`);
-    return { bridge, browser, panel, readiness, close };
+    return {
+      bridge,
+      browser,
+      panel,
+      readiness,
+      target: { tabId: browser.tabId, url: browser.targetUrl },
+      close,
+    };
   } catch (error) {
     try { await close(); } catch (shutdownError) {
       throw new AggregateError([error, shutdownError], "hara-chrome startup and cleanup failed");
