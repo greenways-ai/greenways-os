@@ -22,8 +22,10 @@ export async function launchExtensionRuntime({
   root = extensionPath,
   profileDir = null,
   url = "about:blank",
+  headless = true,
   timeout = 60000,
 } = {}) {
+  if (typeof headless !== "boolean") throw new TypeError("headless must be boolean");
   const preservedProfile = Boolean(profileDir);
   const userDataDir = profileDir
     ? path.resolve(profileDir)
@@ -41,7 +43,7 @@ export async function launchExtensionRuntime({
   try {
     context = await chromium.launchPersistentContext(userDataDir, {
       channel: "chromium",
-      headless: true,
+      headless,
       args: [
         `--disable-extensions-except=${root}`,
         `--load-extension=${root}`,
@@ -106,6 +108,7 @@ export async function launchExtensionRuntime({
       extensionId,
       profileDir: userDataDir,
       preservedProfile,
+      headless,
       targetPage: target.page,
       targetId: binding.targetId,
       targetUrl: binding.url,

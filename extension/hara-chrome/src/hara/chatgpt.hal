@@ -1,4 +1,4 @@
-;; Read-only, panel-bound ChatGPT web inventory for the hara-chrome REPL.
+;; Panel-bound ChatGPT web inventory and browser-controlled login for hara-chrome.
 (ns browser.site.chatgpt)
 
 (defn- call
@@ -19,6 +19,30 @@
   "Returns the verified panel-bound ChatGPT target and selector-profile state."
   []
   (call "status"))
+
+(defn login-status
+  "Returns :signed-in, :signed-out, or the current browser-controlled auth state."
+  []
+  (call "login-status"))
+
+(defn login-start
+  "Activates the visible login control. Credentials remain in the browser."
+  []
+  (call "login-start"))
+
+(defn login-wait
+  "Waits for the browser login to return to an authenticated ChatGPT inventory."
+  ([]
+   (call "login-wait"))
+  ([timeout-ms]
+   (call "login-wait" timeout-ms)))
+
+(defn login
+  "Starts the visible login flow and waits for user-controlled completion."
+  ([]
+   (call "login"))
+  ([timeout-ms]
+   (call "login" timeout-ms)))
 
 (defn chats
   "Lists the visible ChatGPT chat inventory as bounded logical snapshots."
