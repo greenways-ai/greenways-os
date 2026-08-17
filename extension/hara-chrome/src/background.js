@@ -1,3 +1,4 @@
+import { createChatgptService } from "./chatgpt-service.js";
 import { createDebuggerCoordinator, createDomService } from "./dom-service.js";
 
 const debuggerEvents = new Map();
@@ -13,12 +14,14 @@ chrome.runtime.onConnect.addListener((port) => {
     coordinator: debuggerCoordinator,
     owner: portOwner,
   });
+  const chatgptService = createChatgptService({ domService });
 
   port.onMessage.addListener(async ({ id, service, method, args, target }) => {
     try {
       const value = await dispatch(service, method, args ?? [], target, {
         chromeDebuggerOwner,
         domService,
+        chatgptService,
       });
       port.postMessage({ id, ok: true, value: sanitize(value) });
     } catch (error) {
@@ -37,6 +40,7 @@ chrome.runtime.onConnect.addListener((port) => {
       entry.waiters = [];
     }
     void Promise.allSettled([
+      chatgptService.close(),
       domService.close(),
       debuggerCoordinator.releaseOwner(chromeDebuggerOwner),
     ]);
@@ -61,6 +65,9 @@ chrome.debugger.onDetach.addListener((source) => {
 async function dispatch(service, method, args, target, context) {
   if (service === "hara" && method === "echo") return args[0] ?? null;
   if (service === "hara.dom") return context.domService.dispatch(method, args, target);
+  if (service === "hara.chatgpt") {
+    return context.chatgptService.dispatch(method, args, target);
+  }
   if (service === "chrome.debugger") {
     return debuggerCall(method, args, context.chromeDebuggerOwner);
   }

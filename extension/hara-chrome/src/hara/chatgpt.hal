@@ -1,0 +1,46 @@
+;; Read-only, panel-bound ChatGPT web inventory for the hara-chrome REPL.
+(ns browser.site.chatgpt)
+
+(defn- call
+  ([method]
+   (deref (host/call "hara.chatgpt" method)))
+  ([method a]
+   (deref (host/call "hara.chatgpt" method a))))
+
+(defn- with-kind
+  [kind values]
+  (vec
+   (map
+    (fn [value]
+      (assoc value :kind kind))
+    values)))
+
+(defn status
+  "Returns the verified panel-bound ChatGPT target and selector-profile state."
+  []
+  (call "status"))
+
+(defn chats
+  "Lists the visible ChatGPT chat inventory as bounded logical snapshots."
+  []
+  (with-kind :chat (call "chats")))
+
+(defn pinned
+  "Lists visible chats currently classified as pinned."
+  []
+  (with-kind :chat (call "pinned")))
+
+(defn projects
+  "Lists the visible ChatGPT project inventory as bounded logical snapshots."
+  []
+  (with-kind :project (call "projects")))
+
+(defn open-chat
+  "Re-resolves chat by logical identity and opens its current visible link."
+  [chat]
+  (call "open-chat" chat))
+
+(defn open-project
+  "Re-resolves project by logical identity and opens its current visible link."
+  [project]
+  (call "open-project" project))
