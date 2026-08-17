@@ -40,6 +40,7 @@ test("download implementation monitors page-initiated downloads without replayin
   assert.match(broker, /onDeterminingFilename/);
   assert.match(broker, /conflictAction:\s*"uniquify"/);
   assert.doesNotMatch(broker, /downloadsApi\.download\s*\(/);
+  assert.doesNotMatch(broker, /"accepted"/);
   assert.doesNotMatch(service, /Runtime\.evaluate|Fetch\.|Network\.|document\.cookie|authorization/i);
   assert.match(service, /download-confirmation-required/);
 });
