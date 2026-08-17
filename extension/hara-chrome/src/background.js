@@ -1,6 +1,8 @@
 import { CHATGPT_LOGIN_METHODS, createChatgptLoginService } from "./chatgpt-login-service.js";
 import { createChatgptService } from "./chatgpt-service.js";
 import { createDebuggerCoordinator, createDomService } from "./dom-service.js";
+import { TRIPO_LOGIN_METHODS, createTripoLoginService } from "./tripo-login-service.js";
+import { createTripoService } from "./tripo-service.js";
 import { createDomExistenceProbe } from "./dom-existence-probe.js";
 
 const debuggerEvents = new Map();
@@ -30,6 +32,11 @@ chrome.runtime.onConnect.addListener((port) => {
     domService: loginDomService,
     chatgptService,
   });
+  const tripoService = createTripoService({ domService });
+  const tripoLoginService = createTripoLoginService({
+    domService: loginDomService,
+    tripoService,
+  });
 
   port.onMessage.addListener(async ({ id, service, method, args, target }) => {
     try {
@@ -38,6 +45,8 @@ chrome.runtime.onConnect.addListener((port) => {
         domService,
         chatgptService,
         chatgptLoginService,
+        tripoService,
+        tripoLoginService,
       });
       port.postMessage({ id, ok: true, value: sanitize(value) });
     } catch (error) {

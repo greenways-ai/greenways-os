@@ -4,3 +4,5 @@ nav:
   - Browser control examples: browser-control-examples.md
   - ChatGPT REPL map: chatgpt-webapp-repl.md
   - ChatGPT login: chatgpt-login.md
+  - Tripo Studio REPL: tripo-webapp-repl.md
+  - Tripo Studio login: tripo-login.md
