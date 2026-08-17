@@ -7,6 +7,7 @@ PROFILE_DIR ?=
 URL ?= about:blank
 HEADLESS ?= true
 CHATGPT_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/chatgpt-profile
+TRIPO_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/tripo-profile
 PLAYWRIGHT_INSTALL_FLAGS ?= --with-deps --no-shell
 
 EXTENSION_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -29,20 +30,22 @@ SYNC_FILE = $(EXTENSION_DIR)/scripts/sync-runtime.hal
 SYNC_TEST = $(EXTENSION_DIR)/test/sync-runtime-test.hal
 
 .NOTPARALLEL:
-.PHONY: help check-workspace dependencies browser build sync dev chatgpt-login test test-fast test-sync test-browser
+.PHONY: help check-workspace dependencies browser build sync dev chatgpt-login tripo-login test test-fast test-sync test-browser
 
 help:
 	@printf '%s\n' \
 	  'make build          build Hara WASM and stage extension assets' \
 	  'make dev            install dependencies, build, and run Chromium' \
 	  'make chatgpt-login  run headed Chromium with a persistent ChatGPT profile' \
+	  'make tripo-login    run headed Chromium with a persistent Tripo Studio profile' \
 	  'make test           clean-capable Node suite; builds and stages vendor assets first' \
 	  'make test-fast      focused Node tests that do not import staged runtime assets' \
 	  'make test-sync      validate native asset sync in fresh Hara processes' \
 	  'make test-browser   build and run the full Playwright extension suite' \
 	  '' \
 	  'Variables: RESP_PORT=7355 WS_PORT=7356 PROFILE_DIR= URL=about:blank HEADLESS=true' \
-	  '           CHATGPT_PROFILE_DIR=$$HOME/.greenways/hara-chrome/chatgpt-profile HARA_WORKSPACE_ROOT='
+	  '           CHATGPT_PROFILE_DIR=$$HOME/.greenways/hara-chrome/chatgpt-profile' \
+	  '           TRIPO_PROFILE_DIR=$$HOME/.greenways/hara-chrome/tripo-profile HARA_WORKSPACE_ROOT='
 
 check-workspace:
 	@if [ -z "$(HARA_WORKSPACE_ROOT)" ]; then \
@@ -86,6 +89,12 @@ chatgpt-login:
 	@chmod 700 "$(CHATGPT_PROFILE_DIR)"
 	$(MAKE) dev HEADLESS=false PROFILE_DIR="$(CHATGPT_PROFILE_DIR)" URL=https://chatgpt.com
 
+tripo-login:
+	@test -n "$(TRIPO_PROFILE_DIR)" || { echo 'TRIPO_PROFILE_DIR must not be empty' >&2; exit 2; }
+	@mkdir -p "$(TRIPO_PROFILE_DIR)"
+	@chmod 700 "$(TRIPO_PROFILE_DIR)"
+	$(MAKE) dev HEADLESS=false PROFILE_DIR="$(TRIPO_PROFILE_DIR)" URL=https://studio.tripo3d.ai
+
 test:
 	$(MAKE) dependencies
 	$(MAKE) build
@@ -108,7 +117,10 @@ test-fast: dependencies
 	  test/resp-bridge.test.js \
 	  test/resp-client.test.js \
 	  test/resp-protocol.test.js \
-	  test/runtime-login.test.js
+	  test/runtime-login.test.js \
+	  test/tripo-configuration.test.js \
+	  test/tripo-login.test.js \
+	  test/tripo-service.test.js
 
 test-sync: check-workspace
 	"$(HARA_BUILD)" vm

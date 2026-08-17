@@ -46,6 +46,7 @@ const resources = {
   "chrome.api": await fetchText("src/hara/api.hal"),
   "browser.dom": await fetchText("src/hara/dom.hal"),
   "browser.site.chatgpt": await fetchText("src/hara/chatgpt.hal"),
+  "browser.site.tripo": await fetchText("src/hara/tripo.hal"),
 };
 for (const name of ["store", "boot", "node", "draw", "program", "graph", "session"]) {
   resources[`studio.${name}`] = await fetchText(`vendor/studio/hal/${name}.hal`);
