@@ -4,7 +4,6 @@ export const DOWNLOAD_MAX_TIMEOUT_MS = 1800000;
 
 const SAFE_DANGER_STATES = new Set([
   "safe",
-  "accepted",
   "allowlistedByPolicy",
   "deepScannedSafe",
 ]);
