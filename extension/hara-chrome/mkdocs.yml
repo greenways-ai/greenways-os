@@ -3,3 +3,4 @@ nav:
   - Overview: index.md
   - Browser control examples: browser-control-examples.md
   - ChatGPT REPL map: chatgpt-webapp-repl.md
+  - ChatGPT login: chatgpt-login.md

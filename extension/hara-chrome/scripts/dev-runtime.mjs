@@ -12,11 +12,31 @@ function numericPort(value, fallback) {
   return port;
 }
 
+export function booleanSetting(value, fallback = true) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  switch (String(value).trim().toLowerCase()) {
+    case "1":
+    case "true":
+    case "yes":
+    case "on":
+      return true;
+    case "0":
+    case "false":
+    case "no":
+    case "off":
+      return false;
+    default:
+      throw new Error(`invalid boolean setting: ${value}`);
+  }
+}
+
 export async function startDevelopmentRuntime({
   respPort = numericPort(process.env.RESP_PORT, 7355),
   wsPort = numericPort(process.env.WS_PORT, 7356),
   profileDir = process.env.PROFILE_DIR || null,
   url = process.env.URL || "about:blank",
+  headless = booleanSetting(process.env.HEADLESS, true),
   token = randomBytes(32).toString("base64url"),
   log = (line) => console.log(line),
   startBridgeImpl = startBridge,
@@ -41,9 +61,9 @@ export async function startDevelopmentRuntime({
     bridge = await startBridgeImpl({ respPort, wsPort, token });
     const respAddress = `127.0.0.1:${bridge.respPort}`;
     const wsUrl = `ws://127.0.0.1:${bridge.wsPort}/?token=${encodeURIComponent(token)}`;
-    browser = await launchExtensionImpl({ profileDir, url });
+    browser = await launchExtensionImpl({ profileDir, url, headless });
     if (!Number.isInteger(browser.tabId) || browser.tabId <= 0) {
-      throw new Error(`headless target did not resolve an exact Chrome tab ID: ${browser.tabId}`);
+      throw new Error(`browser target did not resolve an exact Chrome tab ID: ${browser.tabId}`);
     }
     const panel = await browser.openPanel({ tabId: browser.tabId, respUrl: wsUrl });
     const readiness = await verifyRespImpl({

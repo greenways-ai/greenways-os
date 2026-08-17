@@ -1,7 +1,7 @@
 {:schema "greenways.chatgpt-webapp-capabilities/0-alpha"
  :product :chatgpt-web
  :verified-at "2026-08-17"
- :scope :user-authenticated-panel-bound-tab
+ :scope :panel-bound-tab-with-user-controlled-authentication
  :sources
  [{:id :openai/projects
    :url "https://help.openai.com/en/articles/10169521-projects-in-chatgpt"}
@@ -10,9 +10,19 @@
   {:id :openai/search
    :url "https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt"}
   {:id :openai/archive-delete
-   :url "https://help.openai.com/en/articles/8809935-how-to-delete-and-archive-chats-in-chatgpt"}]
+   :url "https://help.openai.com/en/articles/8809935-how-to-delete-and-archive-chats-in-chatgpt"}
+  {:id :openai/authentication-method
+   :url "https://help.openai.com/en/articles/4936824"}
+  {:id :openai/mfa
+   :url "https://help.openai.com/en/articles/7967234"}
+  {:id :openai/login-verification
+   :url "https://help.openai.com/en/articles/9889414"}]
  :entities
- {:chat
+ {:authentication
+  {:identity [:tab-id]
+   :snapshot [:state :signed-in? :origin :url :action
+              :user-action-required? :credential-handling]}
+  :chat
   {:identity [:id :href]
    :snapshot [:title :href :pinned? :project-id :active? :element]}
   :project
@@ -22,7 +32,27 @@
   {:identity [:chat-id]
    :snapshot [:title :snippet :element]}}
  :operations
- [{:id :status
+ [{:id :login-status
+   :entity :authentication
+   :phase 0
+   :effect :read
+   :confirmation :none}
+  {:id :login-start
+   :entity :authentication
+   :phase 0
+   :effect :navigation
+   :confirmation :visible-user-action}
+  {:id :login-wait
+   :entity :authentication
+   :phase 0
+   :effect :observe
+   :confirmation :browser-completion}
+  {:id :login
+   :entity :authentication
+   :phase 0
+   :effect :navigation-and-observe
+   :confirmation :browser-completion}
+  {:id :status
    :entity :page
    :phase 1
    :effect :read
@@ -147,6 +177,19 @@
               :private-api-as-authority]
   :ambiguity :fail-closed
   :unsupported-error :chatgpt/ui-unsupported}
+ :authentication-policy
+ {:credential-handling :browser-only
+  :profile-storage :owner-only
+  :provider-pages :do-not-inspect
+  :credential-value-snapshots :forbidden
+  :returned-url [:origin :pathname]
+  :forbidden [:password
+              :one-time-code
+              :mfa-response
+              :cookie
+              :access-token
+              :oauth-state
+              :authorization-code]}
  :network-policy
  {:private-endpoints :unsupported
   :request-mutation :unsupported
@@ -154,7 +197,8 @@
   :redact [:authorization :cookie :account :workspace]
   :capture-bodies? false}
  :phases
- [{:id 1 :name :inventory}
+ [{:id 0 :name :user-controlled-authentication}
+  {:id 1 :name :inventory}
   {:id 2 :name :composer}
   {:id 3 :name :reversible-organization}
   {:id 4 :name :project-management}

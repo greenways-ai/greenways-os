@@ -5,6 +5,8 @@ RESP_PORT ?= 7355
 WS_PORT ?= 7356
 PROFILE_DIR ?=
 URL ?= about:blank
+HEADLESS ?= true
+CHATGPT_PROFILE_DIR ?= $(HOME)/.greenways/hara-chrome/chatgpt-profile
 PLAYWRIGHT_INSTALL_FLAGS ?= --with-deps --no-shell
 
 EXTENSION_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -27,18 +29,20 @@ SYNC_FILE = $(EXTENSION_DIR)/scripts/sync-runtime.hal
 SYNC_TEST = $(EXTENSION_DIR)/test/sync-runtime-test.hal
 
 .NOTPARALLEL:
-.PHONY: help check-workspace dependencies browser build sync dev test test-fast test-sync test-browser
+.PHONY: help check-workspace dependencies browser build sync dev chatgpt-login test test-fast test-sync test-browser
 
 help:
 	@printf '%s\n' \
-	  'make build        build Hara WASM and stage extension assets' \
-	  'make dev          install dependencies, build, and run headless Chromium' \
-	  'make test         clean-capable Node suite; builds and stages vendor assets first' \
-	  'make test-fast    focused Node tests that do not import staged runtime assets' \
-	  'make test-sync    validate native asset sync in fresh Hara processes' \
-	  'make test-browser build and run the full Playwright extension suite' \
+	  'make build          build Hara WASM and stage extension assets' \
+	  'make dev            install dependencies, build, and run Chromium' \
+	  'make chatgpt-login  run headed Chromium with a persistent ChatGPT profile' \
+	  'make test           clean-capable Node suite; builds and stages vendor assets first' \
+	  'make test-fast      focused Node tests that do not import staged runtime assets' \
+	  'make test-sync      validate native asset sync in fresh Hara processes' \
+	  'make test-browser   build and run the full Playwright extension suite' \
 	  '' \
-	  'Variables: RESP_PORT=7355 WS_PORT=7356 PROFILE_DIR= URL=about:blank HARA_WORKSPACE_ROOT='
+	  'Variables: RESP_PORT=7355 WS_PORT=7356 PROFILE_DIR= URL=about:blank HEADLESS=true' \
+	  '           CHATGPT_PROFILE_DIR=$$HOME/.greenways/hara-chrome/chatgpt-profile HARA_WORKSPACE_ROOT='
 
 check-workspace:
 	@if [ -z "$(HARA_WORKSPACE_ROOT)" ]; then \
@@ -74,7 +78,13 @@ dev:
 	$(MAKE) dependencies
 	$(MAKE) browser
 	$(MAKE) build
-	RESP_PORT="$(RESP_PORT)" WS_PORT="$(WS_PORT)" PROFILE_DIR="$(PROFILE_DIR)" URL="$(URL)" node scripts/dev-runtime.mjs
+	RESP_PORT="$(RESP_PORT)" WS_PORT="$(WS_PORT)" PROFILE_DIR="$(PROFILE_DIR)" URL="$(URL)" HEADLESS="$(HEADLESS)" node scripts/dev-runtime.mjs
+
+chatgpt-login:
+	@test -n "$(CHATGPT_PROFILE_DIR)" || { echo 'CHATGPT_PROFILE_DIR must not be empty' >&2; exit 2; }
+	@mkdir -p "$(CHATGPT_PROFILE_DIR)"
+	@chmod 700 "$(CHATGPT_PROFILE_DIR)"
+	$(MAKE) dev HEADLESS=false PROFILE_DIR="$(CHATGPT_PROFILE_DIR)" URL=https://chatgpt.com
 
 test:
 	$(MAKE) dependencies
@@ -85,16 +95,20 @@ test-fast: dependencies
 	node --test \
 	  test/browser-target.test.js \
 	  test/chatgpt-configuration.test.js \
+	  test/chatgpt-login-configuration.test.js \
+	  test/chatgpt-login.test.js \
 	  test/chatgpt-phase1-configuration.test.js \
 	  test/chatgpt-search-project.test.js \
 	  test/chatgpt-service.test.js \
 	  test/configuration.test.js \
 	  test/dev-runtime.test.js \
+	  test/dom-existence-probe.test.js \
 	  test/dom-service.test.js \
 	  test/profile-cleanup.test.js \
 	  test/resp-bridge.test.js \
 	  test/resp-client.test.js \
-	  test/resp-protocol.test.js
+	  test/resp-protocol.test.js \
+	  test/runtime-login.test.js
 
 test-sync: check-workspace
 	"$(HARA_BUILD)" vm

@@ -1,5 +1,7 @@
+import { CHATGPT_LOGIN_METHODS, createChatgptLoginService } from "./chatgpt-login-service.js";
 import { createChatgptService } from "./chatgpt-service.js";
 import { createDebuggerCoordinator, createDomService } from "./dom-service.js";
+import { createDomExistenceProbe } from "./dom-existence-probe.js";
 
 const debuggerEvents = new Map();
 const debuggerCoordinator = createDebuggerCoordinator(chrome);
@@ -15,6 +17,19 @@ chrome.runtime.onConnect.addListener((port) => {
     owner: portOwner,
   });
   const chatgptService = createChatgptService({ domService });
+  const domExistenceProbe = createDomExistenceProbe({
+    coordinator: debuggerCoordinator,
+    owner: portOwner,
+  });
+  const loginDomService = {
+    dispatch: (method, args, target) => method === "query-exists"
+      ? domExistenceProbe.dispatch(method, args, target)
+      : domService.dispatch(method, args, target),
+  };
+  const chatgptLoginService = createChatgptLoginService({
+    domService: loginDomService,
+    chatgptService,
+  });
 
   port.onMessage.addListener(async ({ id, service, method, args, target }) => {
     try {
@@ -22,6 +37,7 @@ chrome.runtime.onConnect.addListener((port) => {
         chromeDebuggerOwner,
         domService,
         chatgptService,
+        chatgptLoginService,
       });
       port.postMessage({ id, ok: true, value: sanitize(value) });
     } catch (error) {
@@ -40,7 +56,9 @@ chrome.runtime.onConnect.addListener((port) => {
       entry.waiters = [];
     }
     void Promise.allSettled([
+      chatgptLoginService.close(),
       chatgptService.close(),
+      domExistenceProbe.close(),
       domService.close(),
       debuggerCoordinator.releaseOwner(chromeDebuggerOwner),
     ]);
@@ -66,7 +84,10 @@ async function dispatch(service, method, args, target, context) {
   if (service === "hara" && method === "echo") return args[0] ?? null;
   if (service === "hara.dom") return context.domService.dispatch(method, args, target);
   if (service === "hara.chatgpt") {
-    return context.chatgptService.dispatch(method, args, target);
+    const owner = CHATGPT_LOGIN_METHODS.has(method)
+      ? context.chatgptLoginService
+      : context.chatgptService;
+    return owner.dispatch(method, args, target);
   }
   if (service === "chrome.debugger") {
     return debuggerCall(method, args, context.chromeDebuggerOwner);
