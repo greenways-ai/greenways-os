@@ -88,6 +88,44 @@ export const TRIPO_SELECTOR_PROFILE = Object.freeze({
       'main a[href*="/model/" i]',
       'main a[href*="/task/" i]',
     ]),
+    assetDetail: freezeList([
+      '[data-hara-tripo-surface="asset-detail"]',
+      'main[data-asset-id]',
+      'main[data-model-id]',
+      'main[aria-label*="Model" i]',
+      'main[aria-label*="Asset" i]',
+    ]),
+    exportTrigger: freezeList([
+      '[data-hara-tripo-action="export"]',
+      'button[data-testid*="export" i]',
+      'button[aria-label="Export" i]',
+      '[role="button"][aria-label="Export" i]',
+    ]),
+    exportSurface: freezeList([
+      '[data-hara-tripo-surface="export"]',
+      '[role="dialog"][aria-label*="Export" i]',
+      '[role="dialog"][aria-label*="Download" i]',
+      '[data-testid*="export-dialog" i]',
+    ]),
+    exportFormats: freezeList([
+      '[data-hara-tripo-export-format]',
+      '[role="dialog"] [data-export-format]',
+      '[role="dialog"] [role="radio"][aria-label]',
+      '[role="dialog"] button[data-format]',
+    ]),
+    exportConfirm: freezeList([
+      '[data-hara-tripo-action="download"]',
+      '[role="dialog"] button[data-testid*="download" i]',
+      '[role="dialog"] button[aria-label="Download" i]',
+      '[role="dialog"] [role="button"][aria-label="Download" i]',
+    ]),
+    exportBlocked: freezeList([
+      '[data-hara-tripo-export-blocked="true"]',
+      '[role="dialog"] [data-export-unavailable="true"]',
+      '[role="dialog"] [role="alert"]',
+      '[role="dialog"] [aria-label*="Upgrade" i]',
+      '[role="dialog"] [aria-label*="limit" i]',
+    ]),
   }),
 });
 
