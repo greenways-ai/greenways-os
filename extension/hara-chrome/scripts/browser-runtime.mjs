@@ -1,8 +1,10 @@
 import { chromium } from "@playwright/test";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { openOrReuseTarget, resolveExactChromeTab } from "./browser-target.mjs";
+import { removeProfileWithRetry } from "./profile-cleanup.mjs";
 
 export const extensionPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -19,6 +21,7 @@ async function discoverServiceWorker(context, timeout) {
 export async function launchExtensionRuntime({
   root = extensionPath,
   profileDir = null,
+  url = "about:blank",
   timeout = 60000,
 } = {}) {
   const preservedProfile = Boolean(profileDir);
@@ -31,7 +34,7 @@ export async function launchExtensionRuntime({
   let cleanupPromise = null;
   const cleanupProfile = () => {
     if (preservedProfile) return Promise.resolve();
-    cleanupPromise ??= rm(userDataDir, { recursive: true, force: true });
+    cleanupPromise ??= removeProfileWithRetry(userDataDir);
     return cleanupPromise;
   };
 
@@ -48,6 +51,8 @@ export async function launchExtensionRuntime({
     });
     const serviceWorker = await discoverServiceWorker(context, timeout);
     const extensionId = new URL(serviceWorker.url()).host;
+    const target = await openOrReuseTarget(context, { url, timeout });
+    const binding = await resolveExactChromeTab(context, serviceWorker, target.page, { timeout });
 
     let resolveClosed;
     const closed = new Promise((resolve) => { resolveClosed = resolve; });
@@ -57,7 +62,7 @@ export async function launchExtensionRuntime({
       if (observedClosed) return;
       observedClosed = true;
       resolveClosed();
-      void cleanupProfile();
+      void cleanupProfile().catch(() => {});
     };
     context.once("close", observeClosed);
     context.browser()?.once("disconnected", observeClosed);
@@ -76,7 +81,7 @@ export async function launchExtensionRuntime({
       return closePromise;
     };
 
-    const openPanel = async ({ tabId = 0, respUrl = null } = {}) => {
+    const openPanel = async ({ tabId = binding.tabId, respUrl = null } = {}) => {
       const query = new URLSearchParams({ tabId: String(tabId) });
       if (respUrl) query.set("resp", respUrl);
       const page = await context.newPage();
@@ -101,6 +106,10 @@ export async function launchExtensionRuntime({
       extensionId,
       profileDir: userDataDir,
       preservedProfile,
+      targetPage: target.page,
+      targetId: binding.targetId,
+      targetUrl: binding.url,
+      tabId: binding.tabId,
       closed,
       close,
       openPanel,

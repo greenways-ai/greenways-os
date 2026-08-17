@@ -162,7 +162,12 @@ export class RespClient {
   }
 }
 
-export async function verifyHaraResp({ host = "127.0.0.1", port, timeout = 30000 } = {}) {
+export async function verifyHaraResp({
+  host = "127.0.0.1",
+  port,
+  timeout = 30000,
+  tabId = null,
+} = {}) {
   const client = await RespClient.connect({ host, port, timeout });
   try {
     const hello = await client.command("HELLO", "4", "CLIENT", "EMACS");
@@ -174,7 +179,19 @@ export async function verifyHaraResp({ host = "127.0.0.1", port, timeout = 30000
     if (attached !== "ROOT") throw new Error(`ROOT attachment failed: ${JSON.stringify(attached)}`);
     const value = await client.requestV4("EVAL", ["(+ 40 2)"], "ready-eval");
     if (String(value) !== "42") throw new Error(`readiness evaluation returned ${JSON.stringify(value)}`);
-    return { hello, attached, value };
+
+    let domTarget = null;
+    if (tabId !== null && tabId !== undefined) {
+      domTarget = await client.requestV4(
+        "EVAL",
+        ['(do (require [browser.dom :as dom]) (:tab-id (dom/target)))'],
+        "ready-dom-target",
+      );
+      if (Number(domTarget) !== Number(tabId)) {
+        throw new Error(`browser.dom target returned ${JSON.stringify(domTarget)}; expected ${tabId}`);
+      }
+    }
+    return { hello, attached, value, domTarget };
   } finally {
     client.close();
   }

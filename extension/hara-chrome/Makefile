@@ -4,6 +4,7 @@ SHELL := /usr/bin/env bash
 RESP_PORT ?= 7355
 WS_PORT ?= 7356
 PROFILE_DIR ?=
+URL ?= about:blank
 PLAYWRIGHT_INSTALL_FLAGS ?= --with-deps --no-shell
 
 EXTENSION_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -22,19 +23,22 @@ HARA_DIR = $(HARA_WORKSPACE_ROOT)/technology/hara
 HARA_BIN = $(HARA_DIR)/core/hara
 HARA_BUILD = $(HARA_DIR)/scripts/runtime/build-hara-wasm-raw
 HARA_RUN = "$(HARA_BIN)" --root "$(HARA_WORKSPACE_ROOT)" --allow-file --offline --no-color
+SYNC_FILE = $(EXTENSION_DIR)/scripts/sync-runtime.hal
+SYNC_TEST = $(EXTENSION_DIR)/test/sync-runtime-test.hal
 
 .NOTPARALLEL:
-.PHONY: help check-workspace dependencies browser build sync dev test test-sync test-browser
+.PHONY: help check-workspace dependencies browser build sync dev test test-fast test-sync test-browser
 
 help:
 	@printf '%s\n' \
 	  'make build        build Hara WASM and stage extension assets' \
 	  'make dev          install dependencies, build, and run headless Chromium' \
-	  'make test         run Node protocol and bridge unit tests' \
-	  'make test-sync    validate the native asset sync in fresh Hara processes' \
+	  'make test         clean-capable Node suite; builds and stages vendor assets first' \
+	  'make test-fast    focused Node tests that do not import staged runtime assets' \
+	  'make test-sync    validate native asset sync in fresh Hara processes' \
 	  'make test-browser build and run the full Playwright extension suite' \
 	  '' \
-	  'Variables: RESP_PORT=7355 WS_PORT=7356 PROFILE_DIR= HARA_WORKSPACE_ROOT='
+	  'Variables: RESP_PORT=7355 WS_PORT=7356 PROFILE_DIR= URL=about:blank HARA_WORKSPACE_ROOT='
 
 check-workspace:
 	@if [ -z "$(HARA_WORKSPACE_ROOT)" ]; then \
@@ -61,25 +65,38 @@ browser: dependencies
 
 build: check-workspace
 	"$(HARA_BUILD)" vm
-	$(HARA_RUN) run "$(EXTENSION_DIR)/scripts/sync-runtime.hal"
+	cd "$(HARA_WORKSPACE_ROOT)" && $(HARA_RUN) run "$(SYNC_FILE)"
 
 sync: check-workspace
-	$(HARA_RUN) run "$(EXTENSION_DIR)/scripts/sync-runtime.hal"
+	cd "$(HARA_WORKSPACE_ROOT)" && $(HARA_RUN) run "$(SYNC_FILE)"
 
 dev:
 	$(MAKE) dependencies
 	$(MAKE) browser
 	$(MAKE) build
-	RESP_PORT="$(RESP_PORT)" WS_PORT="$(WS_PORT)" PROFILE_DIR="$(PROFILE_DIR)" node scripts/dev-runtime.mjs
+	RESP_PORT="$(RESP_PORT)" WS_PORT="$(WS_PORT)" PROFILE_DIR="$(PROFILE_DIR)" URL="$(URL)" node scripts/dev-runtime.mjs
 
-test: dependencies
+test:
+	$(MAKE) dependencies
+	$(MAKE) build
 	node --test test/*.test.js
+
+test-fast: dependencies
+	node --test \
+	  test/browser-target.test.js \
+	  test/configuration.test.js \
+	  test/dev-runtime.test.js \
+	  test/dom-service.test.js \
+	  test/profile-cleanup.test.js \
+	  test/resp-bridge.test.js \
+	  test/resp-client.test.js \
+	  test/resp-protocol.test.js
 
 test-sync: check-workspace
 	"$(HARA_BUILD)" vm
-	cat scripts/sync-runtime.hal | $(HARA_RUN) stdin
-	$(HARA_RUN) run "$(EXTENSION_DIR)/scripts/sync-runtime.hal"
-	$(HARA_RUN) run "$(EXTENSION_DIR)/test/sync-runtime-test.hal"
+	cd "$(HARA_WORKSPACE_ROOT)" && cat "$(SYNC_FILE)" | $(HARA_RUN) stdin
+	cd "$(HARA_WORKSPACE_ROOT)" && $(HARA_RUN) run "$(SYNC_FILE)"
+	cd "$(HARA_WORKSPACE_ROOT)" && $(HARA_RUN) run "$(SYNC_TEST)"
 
 test-browser:
 	$(MAKE) dependencies

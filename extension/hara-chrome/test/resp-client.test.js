@@ -40,7 +40,7 @@ test("readRespFrame waits for complete nested frames", () => {
   });
 });
 
-test("verifyHaraResp negotiates HELLO 4 and uses Emacs-compatible request frames", async () => {
+test("verifyHaraResp negotiates protocol 4 and smoke-tests browser.dom target binding", async () => {
   const observed = [];
   const server = net.createServer((socket) => {
     let buffer = Buffer.alloc(0);
@@ -60,6 +60,9 @@ test("verifyHaraResp negotiates HELLO 4 and uses Emacs-compatible request frames
         } else if (phase === 2) {
           socket.write(encode(["RESULT", "ready-eval", "42"]));
           socket.write(encode(["DONE", "ready-eval", "OK"]));
+        } else if (phase === 3) {
+          socket.write(encode(["RESULT", "ready-dom-target", "73"]));
+          socket.write(encode(["DONE", "ready-dom-target", "OK"]));
         }
       }
     });
@@ -67,13 +70,19 @@ test("verifyHaraResp negotiates HELLO 4 and uses Emacs-compatible request frames
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   try {
-    const result = await verifyHaraResp({ port: address.port });
+    const result = await verifyHaraResp({ port: address.port, tabId: 73 });
     assert.equal(result.attached, "ROOT");
     assert.equal(result.value, "42");
+    assert.equal(result.domTarget, "73");
     assert.deepEqual(observed, [
       ["HELLO", "4", "CLIENT", "EMACS"],
       ["SESSION", "ready-session", "ATTACH", "ROOT"],
       ["EVAL", "ready-eval", "(+ 40 2)"],
+      [
+        "EVAL",
+        "ready-dom-target",
+        "(do (require [browser.dom :as dom]) (:tab-id (dom/target)))",
+      ],
     ]);
   } finally {
     await new Promise((resolve) => server.close(resolve));

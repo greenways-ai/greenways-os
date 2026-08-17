@@ -7,7 +7,8 @@
     "build": "make build",
     "sync": "make sync",
     "dev": "make dev",
-    "test": "node --test test/*.test.js",
+    "test": "make test",
+    "test:fast": "make test-fast",
     "test:sync": "make test-sync",
     "test:browser": "make test-browser"
   },

@@ -47,15 +47,29 @@ This command:
 4. starts the loopback RESP and token-protected WebSocket bridge;
 5. launches the unpacked extension in a persistent, full headless Chromium
    context;
-6. opens the local panel, waits for its WASM kernel and bridge connection, and
-   evaluates `(+ 40 2)` through protocol 4; and
-7. prints `HARA RESP 127.0.0.1:7355` and remains alive until Ctrl-C.
+6. opens or reuses the configured target URL, resolves that page's exact CDP
+   target to its Chrome tab ID, and opens the panel bound to that tab; and
+7. verifies both `(+ 40 2)` and `browser.dom/target` through protocol 4, logs
+   the final target URL and tab ID, then prints the RESP readiness line.
 
 The default profile is disposable. Supply `PROFILE_DIR` only when browser state
 must survive between runs:
 
 ```sh
 make dev RESP_PORT=7355 WS_PORT=7356 PROFILE_DIR="$HOME/.hara-chrome-profile"
+```
+
+Bind the runtime to a page with `URL` (default `about:blank`):
+
+```sh
+make dev URL=https://example.test/editor
+```
+
+Readiness is emitted in this order, after the exact tab binding and DOM smoke:
+
+```text
+HARA TARGET https://example.test/editor TAB 73
+HARA RESP 127.0.0.1:7355
 ```
 
 Other supported overrides are:
@@ -100,16 +114,53 @@ No `hara-emacs` changes are needed. Configure the external browser runtime:
 `hara-mode` negotiates `HELLO 4`, attaches to the browser's `ROOT` session, and
 uses the existing `EVAL`, `SESSION`, `DOC`, and `COMPLETE` commands.
 
+## Headless DOM access
+
+The panel registers a closed `browser.dom` Hara module alongside `chrome.api`:
+
+```clojure
+(require [browser.dom :as dom])
+(dom/target)
+(dom/query "#save")
+(dom/query-all ".row")
+(dom/query-all ".row" 250)
+(dom/refresh element)
+(dom/focus element)
+(dom/fill element "new value")
+(dom/click element)
+(dom/detach)
+```
+
+Element values are serializable snapshots containing an opaque
+`backend-node-id`; no live page object crosses the bridge. `query-all` defaults
+to 100 results, accepts at most 1,000, and raises `dom/result-limit` rather than
+truncating. Version one stays within the top-level document. Iframe and shadow
+root traversal are intentionally deferred.
+
+The service automatically owns a reference-counted `chrome.debugger` lease,
+uses fixed CDP DOM/Input operations, invalidates references after navigation,
+and detaches when the panel disconnects. It does not add `chrome.userScripts`,
+content-script injection, or another caller-supplied JavaScript interface.
+
+Distinct failures include `dom/invalid-selector`, `dom/missing-target`,
+`dom/detached-node`, `dom/navigation-invalidated`, `dom/invalid-reference`,
+`dom/invalid-limit`, and `dom/result-limit`.
+
 ## Test
 
 ```sh
 make test
+make test-fast
 make test-sync
 make test-browser
 ```
 
-`make test-sync` uses separate Hara processes to evaluate the native sync
-candidate, execute the written workflow, and validate focused staged assets.
+`make test` is clean-checkout capable: it builds and stages runtime assets
+before any Node test imports `vendor/`. `make test-fast` keeps a focused suite
+for protocol, launcher, DOM validation, and cleanup code that does not require
+runtime assets. `make test-sync` uses separate Hara processes to evaluate the
+native sync candidate, execute the written workflow, and validate focused
+staged assets.
 `make test-browser` builds first, installs full Chromium when absent, and runs
 the Playwright suite directly in unified headless mode; Xvfb is not required.
 

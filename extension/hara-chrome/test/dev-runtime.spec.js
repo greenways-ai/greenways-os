@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -64,12 +65,18 @@ function canConnect(port) {
   });
 }
 
-test("development launcher remains ready and shuts Chromium and listeners down", async () => {
+test("development launcher binds URL, exposes browser.dom, and shuts down", async () => {
   test.setTimeout(150000);
   const respPort = await freePort();
   let wsPort = await freePort();
   while (wsPort === respPort) wsPort = await freePort();
   const profileDir = await mkdtemp(path.join(os.tmpdir(), "hara-chrome-lifecycle-"));
+  const targetServer = http.createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/html" });
+    response.end("<!doctype html><title>launcher target</title><button id=save>Save</button>");
+  });
+  await new Promise((resolve) => targetServer.listen(0, "127.0.0.1", resolve));
+  const targetUrl = `http://127.0.0.1:${targetServer.address().port}/`;
   const child = spawn(process.execPath, [path.join(root, "scripts/dev-runtime.mjs")], {
     cwd: root,
     env: {
@@ -77,15 +84,22 @@ test("development launcher remains ready and shuts Chromium and listeners down",
       RESP_PORT: String(respPort),
       WS_PORT: String(wsPort),
       PROFILE_DIR: profileDir,
+      URL: targetUrl,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
   let transcript = "";
   try {
+    const targetReady = await waitForMatch(
+      child,
+      new RegExp(`HARA TARGET ${targetUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} TAB (\\d+)`),
+    );
+    const tabId = Number(targetReady.match[1]);
     const ready = await waitForMatch(child, new RegExp(`HARA RESP 127\\.0\\.0\\.1:${respPort}`));
-    const result = await verifyHaraResp({ port: respPort });
+    const result = await verifyHaraResp({ port: respPort, tabId });
     expect(result.value).toBe("42");
+    expect(Number(result.domTarget)).toBe(tabId);
     child.kill("SIGTERM");
     const exited = await waitForExit(child);
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -99,6 +113,7 @@ test("development launcher remains ready and shuts Chromium and listeners down",
       child.kill("SIGKILL");
       await waitForExit(child).catch(() => {});
     }
+    await new Promise((resolve) => targetServer.close(resolve));
     await rm(profileDir, { recursive: true, force: true });
   }
 });

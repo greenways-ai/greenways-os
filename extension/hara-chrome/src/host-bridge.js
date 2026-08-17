@@ -35,16 +35,24 @@ export function fromPlain(value) {
 /**
  * Dynamic hostCalls map: any "service/method" key becomes a function that
  * forwards the call over the extension Port and resolves with the reply.
+ * Every call carries the exact panel-bound tab metadata; closed services such
+ * as hara.dom consume it while the legacy chrome.* facade remains unchanged.
  */
-export function createHostCalls(port) {
+export function createHostCalls(port, { tabId = null } = {}) {
   const pending = new Map();
   let next = 1;
-  port.onMessage.addListener(({ id, ok, value, error }) => {
+  const target = { tabId: Number(tabId) };
+  port.onMessage.addListener(({ id, ok, value, error, code }) => {
     const entry = pending.get(id);
     if (!entry) return;
     pending.delete(id);
-    if (ok) entry.resolve(fromPlain(value));
-    else entry.reject(new Error(error ?? "host call failed"));
+    if (ok) {
+      entry.resolve(fromPlain(value));
+    } else {
+      const cause = new Error(error ?? "host call failed");
+      if (code) cause.code = code;
+      entry.reject(cause);
+    }
   });
   port.onDisconnect.addListener(() => {
     for (const entry of pending.values()) entry.reject(new Error("hara host disconnected"));
@@ -60,7 +68,13 @@ export function createHostCalls(port) {
         new Promise((resolve, reject) => {
           const id = next++;
           pending.set(id, { resolve, reject });
-          port.postMessage({ id, service, method, args: args.map(toPlain) });
+          port.postMessage({
+            id,
+            service,
+            method,
+            args: args.map(toPlain),
+            target,
+          });
         });
     },
   });
