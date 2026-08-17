@@ -39,6 +39,33 @@ export const CHATGPT_SELECTOR_PROFILE = Object.freeze({
       '[data-hara-chatgpt-section="projects"] a[href]',
       '[aria-label*="Projects" i] a[href]',
     ]),
+    searchTrigger: freezeList([
+      '[data-hara-chatgpt-action="search"]',
+      'button[data-testid*="search" i]',
+      'button[aria-label*="Search" i]',
+      '[role="button"][aria-label*="Search" i]',
+    ]),
+    searchInput: freezeList([
+      'input[data-hara-chatgpt-search-input="true"]',
+      '[role="dialog"] input[role="searchbox"]',
+      '[role="dialog"] input[placeholder*="Search" i]',
+      'input[type="search"][placeholder*="Search" i]',
+    ]),
+    searchResults: freezeList([
+      'a[data-hara-chatgpt-search-result="true"][href]',
+      '[data-hara-chatgpt-search-results="true"] a[href]',
+      '[role="dialog"] a[href^="/c/"]',
+    ]),
+    searchEmpty: freezeList([
+      '[data-hara-chatgpt-search-empty="true"]',
+      '[role="dialog"] [data-empty="true"]',
+      '[role="dialog"] [aria-label*="No results" i]',
+    ]),
+    projectChats: freezeList([
+      'a[data-hara-chatgpt-project-chat="true"][href]',
+      '[data-hara-chatgpt-project-chats="true"] a[href]',
+      'main [data-project-id] a[href^="/c/"]',
+    ]),
   }),
 });
 

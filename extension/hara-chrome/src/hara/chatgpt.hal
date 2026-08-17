@@ -35,6 +35,16 @@
   []
   (with-kind :project (call "projects")))
 
+(defn search-chats
+  "Opens the visible ChatGPT search UI, fills query, and returns settled results."
+  [query]
+  (with-kind :chat-search-result (call "search-chats" query)))
+
+(defn project-chats
+  "Lists chats visible inside project. The project must already be open."
+  [project]
+  (with-kind :chat (call "project-chats" project)))
+
 (defn open-chat
   "Re-resolves chat by logical identity and opens its current visible link."
   [chat]

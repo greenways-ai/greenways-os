@@ -84,6 +84,10 @@ test:
 test-fast: dependencies
 	node --test \
 	  test/browser-target.test.js \
+	  test/chatgpt-configuration.test.js \
+	  test/chatgpt-phase1-configuration.test.js \
+	  test/chatgpt-search-project.test.js \
+	  test/chatgpt-service.test.js \
 	  test/configuration.test.js \
 	  test/dev-runtime.test.js \
 	  test/dom-service.test.js \
