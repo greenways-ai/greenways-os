@@ -1,3 +1,4 @@
+# Triggered after the workflow exists on the branch.
 name: Materialize hara toolbar control
 
 on:
