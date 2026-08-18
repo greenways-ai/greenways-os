@@ -4,39 +4,32 @@ on:
   push:
     branches:
       - agent/hara-chrome-cdp-overlay-diagnostics-materializer-138
-  pull_request:
-    branches:
-      - main
-    types:
-      - opened
-      - synchronize
-      - reopened
 
 permissions:
   contents: write
 
 jobs:
   materialize:
-    if: github.event_name == 'push' || github.head_ref == 'agent/hara-chrome-cdp-overlay-diagnostics-materializer-138'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Validate and publish the clean diagnostics branch
+      - name: Validate, clean the accidental transport merge, and publish source
         env:
           TARGET_BRANCH: agent/hara-chrome-cdp-overlay-diagnostics-138
-          EXPECTED_BASE: 3810dba1cbe8e76e93def5cc7b9bf3e2d61088a9
+          EXPECTED_TARGET: 3810dba1cbe8e76e93def5cc7b9bf3e2d61088a9
+          EXPECTED_MAIN: d62996678ffc5f7b3ffadd5c6ad264861d51f231
+          CLEAN_BEACON_REF: 3810dba1cbe8e76e93def5cc7b9bf3e2d61088a9
           PAYLOAD_SHA256: d08b5ff9195ac9bb1ce5ab1e064ee7d246a921936983002d3bf58dc00ad50ff9
         run: |
           set -euo pipefail
 
           target_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
-          test "$target_head" = "$EXPECTED_BASE"
+          test "$target_head" = "$EXPECTED_TARGET"
 
           cat .agent/hara-cdp-overlay-diagnostics/payload.b64.chunk-* > /tmp/diagnostics.b64
           base64 --decode /tmp/diagnostics.b64 > /tmp/diagnostics.tar.gz
@@ -44,12 +37,23 @@ jobs:
 
           git fetch origin main
           base="$(git rev-parse origin/main)"
-          test "$base" = "$EXPECTED_BASE"
+          test "$base" = "$EXPECTED_MAIN"
           git reset --hard "$base"
           git clean -fdx
           tar -xzf /tmp/diagnostics.tar.gz
 
+          rm -rf .agent/hara-cdp-overlay-diagnostics
+          rm -f .github/workflows/agent-hara-cdp-overlay-diagnostics.yml
+          git show "$CLEAN_BEACON_REF:.github/workflows/beacon.yml" > .github/workflows/beacon.yml
+
           cat > /tmp/expected-files <<'EOF'
+          .agent/hara-cdp-overlay-diagnostics/payload.b64.chunk-00
+          .agent/hara-cdp-overlay-diagnostics/payload.b64.chunk-01
+          .agent/hara-cdp-overlay-diagnostics/payload.b64.chunk-02
+          .agent/hara-cdp-overlay-diagnostics/payload.b64.chunk-03
+          .agent/hara-cdp-overlay-diagnostics/trigger.txt
+          .github/workflows/agent-hara-cdp-overlay-diagnostics.yml
+          .github/workflows/beacon.yml
           extension/hara-chrome/Makefile
           extension/hara-chrome/docs/control-popup.md
           extension/hara-chrome/docs/diagnostics.md
