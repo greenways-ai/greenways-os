@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hara connection control</title>
+<link rel="stylesheet" href="./popup.css">
+<body>
+  <main class="panel" aria-labelledby="title">
+    <header>
+      <div><div class="eyebrow">CONNECTION CONTROL</div><h1 id="title">HARA</h1></div>
+      <div class="global"><span id="global-lamp" class="lamp" data-state="off"></span><span id="global-label">OFFLINE</span></div>
+    </header>
+    <section class="target" aria-label="Browser target">
+      <div id="target-label">NO TARGET</div>
+      <div id="target-title">Scanning active tab…</div>
+    </section>
+    <section aria-labelledby="connections-title">
+      <h2 id="connections-title">CONNECTIONS</h2>
+      <label class="control-row" for="binding-toggle"><span id="binding-lamp" class="lamp" data-state="off"></span><span class="copy"><span>Current tab</span><small id="binding-detail"></small></span><output id="binding-state">OFF</output><input id="binding-toggle" type="checkbox" role="switch" aria-label="Bind current tab"></label>
+      <label class="control-row" for="runtime-toggle"><span id="runtime-lamp" class="lamp" data-state="off"></span><span class="copy"><span>Hara runtime</span><small id="runtime-detail"></small></span><output id="runtime-state">OFF</output><input id="runtime-toggle" type="checkbox" role="switch" aria-label="Run Hara runtime"></label>
+      <label class="control-row" for="resp-toggle"><span id="resp-lamp" class="lamp" data-state="off"></span><span class="copy"><span>RESP</span><small id="resp-detail"></small></span><output id="resp-state">OFF</output><input id="resp-toggle" type="checkbox" role="switch" aria-label="Connect RESP"></label>
+      <label id="adapter-row" class="control-row" for="adapter-toggle"><span id="adapter-lamp" class="lamp" data-state="off"></span><span class="copy"><span id="adapter-label">Context adapter</span><small>BOUND TAB ONLY</small></span><output id="adapter-state">NONE</output><input id="adapter-toggle" type="checkbox" role="switch" aria-label="Enable contextual site adapter"></label>
+    </section>
+    <section aria-labelledby="status-title"><h2 id="status-title">STATUS</h2>
+      <div class="status-row"><span id="dom-lamp" class="lamp" data-state="off"></span><span>DOM service</span><output id="dom-state">OFF</output></div>
+      <div class="status-row"><span id="downloads-lamp" class="lamp" data-state="off"></span><span>Downloads</span><output id="downloads-state">IDLE</output></div>
+    </section>
+    <section id="error-panel" class="error" hidden aria-live="assertive"><strong id="error-code">CONTROL/ERROR</strong><span id="error-message"></span><button id="clear-error" type="button">CLEAR</button></section>
+    <footer><button id="open-repl" type="button">OPEN REPL</button><button id="reconnect" type="button">RECONNECT</button><button id="disconnect-all" type="button">DISCONNECT ALL</button></footer>
+  </main>
+  <script type="module" src="./popup.js"></script>
+</body>

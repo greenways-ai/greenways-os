@@ -1,116 +1,96 @@
-import { createBrowserBroker } from "../vendor/studio/broker.js";
-import { createHostServices } from "../vendor/studio/host-services.js";
-import { GraphHost } from "../vendor/studio/graph-host.js";
-import { SessionRouter } from "../vendor/studio/session-router.js";
-import { CapabilityRegistry } from "../vendor/studio/capability-registry.js";
-import { createClockCapability } from "../vendor/studio/capabilities/clock.js";
 import { mountStudio } from "../vendor/studio/ui.js";
-import { createHostCalls, mergeHostCalls } from "./host-bridge.js";
 import { preloadRequires, parseSourcePaths, chooseHome, restoreHome } from "./home.js";
 import { createPageTargetClient, flattenPageTargets } from "./page-target.js";
-import { connectResp, createBrowserRespHandler } from "./resp-client.js";
+import { createRuntimeClient } from "./runtime-client.js";
 
 const params = new URLSearchParams(location.search);
-const readiness = { kernel: false, resp: "offline", error: null };
+const readiness = { kernel: false, resp: "off", error: null, host: "offscreen" };
 const tabId = params.has("tabId")
   ? Number(params.get("tabId"))
   : globalThis.chrome?.devtools?.inspectedWindow?.tabId;
+if (!Number.isInteger(tabId) || tabId <= 0) throw new Error("PANEL_TARGET_TAB_REQUIRED");
 
-const asset = (path) => chrome.runtime.getURL(path);
-async function fetchText(path) {
-  const response = await fetch(asset(path));
-  if (!response.ok) throw new Error(`fetch ${path} failed: ${response.status}`);
-  return response.text();
-}
-
-const port = chrome.runtime.connect({ name: "hara-host" });
-const sessionRouter = new SessionRouter();
-const capabilityRegistry = new CapabilityRegistry({ adapters: {
-  "clock/frame": createClockCapability(),
-} });
-const graphHost = new GraphHost({
-  workerUrl: asset("vendor/studio/program-worker.js"),
-  sessionRouter,
-  capabilityRegistry,
-});
-const hostCalls = mergeHostCalls(createHostServices({
-  graphHost,
-  graphHostOptions: { sessionRouter },
-}), createHostCalls(port, { tabId }));
-
-const moduleBytes = new Uint8Array(
-  await (await fetch(asset("vendor/hara.wasm"))).arrayBuffer(),
-);
-
-const resources = {
-  "chrome.api": await fetchText("src/hara/api.hal"),
-  "browser.dom": await fetchText("src/hara/dom.hal"),
-  "browser.site.chatgpt": await fetchText("src/hara/chatgpt.hal"),
-  "browser.site.tripo": await fetchText("src/hara/tripo.hal"),
-};
-for (const name of ["store", "boot", "node", "draw", "program", "graph", "session"]) {
-  resources[`studio.${name}`] = await fetchText(`vendor/studio/hal/${name}.hal`);
-}
-
-const broker = createBrowserBroker({
-  workerUrl: asset("vendor/hta-worker.js"),
-  moduleBytes,
-  hostCalls,
-  resources,
-  onKernelStarting: async (kernel) => {
-    const mount = await kernel.context.createFilesystem({ provider: "indexeddb", key: "hara-chrome" });
-    await kernel.context.session().attachFilesystem(mount);
-  },
-  onKernelCreated: async (kernel) => sessionRouter.register(kernel.name, kernel.context, {
-    onRelease: (sessionId) => graphHost.releaseSession(sessionId),
-  }),
-  onKernelClosed: (kernel) => sessionRouter.unregister(kernel.name),
-});
-const studio = mountStudio(document.getElementById("hara-studio-mount"), { broker });
 const inspectedWindow = globalThis.chrome?.devtools?.inspectedWindow;
 const unavailablePageClient = new Proxy({}, {
   get: () => async () => { throw new Error("HARA_NOT_FOUND"); },
 });
 const pageClient = inspectedWindow ? createPageTargetClient(inspectedWindow) : unavailablePageClient;
 
-const targetSelect = document.getElementById("kernel-target");
-const kernelStatus = document.getElementById("kernel-status");
-const respUrl = document.getElementById("resp-url");
-const respButton = document.getElentById("resp-connect");
-const respStatus = document.getElementById("resp-status");
-let targetRecords = [];
-let respSocket = null;
-let refreshGeneration = 0;
-
-function localRecords() {
-  return broker.list().map((kernel) => ({
-    id: `local:${kernel}`,
-    environmentId: "local",
-    environmentLabel: "DevTools Local",
-    kind: "local",
-    kernel,
-    label: `DevTools Local · ${kernel}`,
-    state: broker.pending?.has?.(kernel) ? "starting" : "running",
-    active: studio.state.kernel === kernel,
-}));
-}
-
-async function scanTargets() {
-  const local = localRecords();
+async function pageTargetRecords() {
   try {
     const description = await pageClient.describe();
-    const page = flattenPageTargets(description).map((record) => ({
+    return flattenPageTargets(description).map((record) => ({
       ...record,
       environmentLabel: description?.brokers?.find((entry) => entry.id === record.brokerId)?.label
         ?? description?.page?.title
         ?? "Inspected page",
     }));
-    return { targets: [...page, ...local], pageFound: page.length > 0, description };
   } catch (error) {
     const message = String(error?.message ?? error);
-    if (!/HARA_NOT_FOUND|HARA_PAGE_RELOADED/.test(message)) console.debug("[hara devtools] page scan", error);
-    return { targets: local, pageFound: false, description: null };
+    if (!/HARA_NOT_FOUND|HARA_PAGE_RELOADED/.test(message)) console.debug("[hara panel] page scan", error);
+    return [];
   }
+}
+
+function brokerIdFor(environmentId) {
+  return String(environmentId ?? "").startsWith("page:")
+    ? String(environmentId).slice("page:".length)
+    : String(environmentId ?? "default");
+}
+
+const pageProvider = {
+  list: pageTargetRecords,
+  async invoke(input = {}) {
+    const brokerId = brokerIdFor(input.environmentId);
+    switch (input.operation) {
+      case "session.list": return pageClient.list(brokerId);
+      case "session.info": return pageClient.info(brokerId, input.session);
+      case "session.new": return pageClient.create(brokerId, input.session);
+      case "session.close": return pageClient.close(brokerId, input.session);
+      case "eval": return pageClient.eval({
+        brokerId,
+        session: input.session,
+        source: input.source,
+        ...(input.options ?? {}),
+      });
+      case "doc": return pageClient.doc(brokerId, input.session, input.symbol);
+      case "complete": return pageClient.complete(brokerId, input.session, input.prefix);
+      default: throw new Error(`HARA_PAGE_PROVIDER_UNSUPPORTED ${input.operation}`);
+    }
+  },
+};
+
+const runtime = createRuntimeClient({ chromeApi: chrome, targetTabId: tabId, pageProvider });
+await runtime.start();
+const broker = runtime.broker;
+const studio = mountStudio(document.getElementById("hara-studio-mount"), { broker });
+
+const targetSelect = document.getElementById("kernel-target");
+const kernelStatus = document.getElementById("kernel-status");
+const respUrl = document.getElementById("resp-url");
+const respButton = document.getElementById("resp-connect");
+const respStatus = document.getElementById("resp-status");
+let targetRecords = [];
+let refreshGeneration = 0;
+let runtimeState = runtime.status() ?? { runtimeState: "starting", respState: "off" };
+let runtimeInstanceId = runtimeState.instanceId ?? null;
+
+function localRecords() {
+  return broker.list().map((kernel) => ({
+    id: `local:${kernel}`,
+    environmentId: "local",
+    environmentLabel: "Browser local",
+    kind: "local",
+    kernel,
+    label: `Browser local · ${kernel}`,
+    state: broker.pending?.has?.(kernel) ? "starting" : "running",
+    active: studio.state.kernel === kernel,
+  }));
+}
+
+async function scanTargets() {
+  const page = await pageTargetRecords();
+  return { targets: [...page, ...localRecords()], pageFound: page.length > 0 };
 }
 
 function selectedRecord() {
@@ -131,12 +111,7 @@ function localAdapter(record) {
         state: broker.pending?.has?.(session) ? "starting" : "running",
         active: studio.state.kernel === session,
         documents: [...(broker.documents?.values?.() ?? [])]
-          .filter((document) => document.kernel === session)
-          .map((document) => ({
-            documentId: document.documentId,
-            generation: document.generation,
-            moduleId: document.moduleId,
-          })),
+          .filter((document) => document.kernel === session),
       };
     },
     eval: (session, source) => broker.eval(session, source),
@@ -188,7 +163,7 @@ async function refreshTargets() {
   targetSelect.replaceChildren(...targets.map((record) => {
     const option = document.createElement("option");
     option.value = record.id;
-    option.textContent = `${record.state === "starting" ? "◌" : record.active ? "●" : "₋") ${record.label}`;
+    option.textContent = `${record.state === "starting" ? "◌" : record.active ? "●" : "₋"} ${record.label}`;
     return option;
   }));
   const preserved = targets.some((record) => record.id === previous) ? previous : null;
@@ -198,8 +173,8 @@ async function refreshTargets() {
   targetSelect.value = preserved ?? preferred?.id ?? "";
   const pageCount = targets.filter((record) => record.kind === "page").length;
   kernelStatus.textContent = pageFound
-    ? `${pageCount} page kernel${pageCount === 1 ? "" : "s"}`
-    : "no page registry · local kernel only";
+    ? `${pageCount} page kernel${pageCount === 1 ? "" : "s"} · offscreen local`
+    : "offscreen local runtime";
 }
 
 async function evalSource(source, options = {}) {
@@ -208,38 +183,45 @@ async function evalSource(source, options = {}) {
   return target.eval(target.kernel, source, options);
 }
 
-const respHandler = createBrowserRespHandler({
-  listTargets: async () => {
-    await refreshTargets();
-    return targetRecords;
-  },
-  resolveTarget,
-});
-
 function setRespState(state, label = state) {
-  readiness.resp = state;
-  respStatus.dataset.state = state;
+  const normalized = state === "closed" ? "off" : state;
+  readiness.resp = normalized;
+  respStatus.dataset.state = normalized;
   respStatus.textContent = label;
-  respButton.textContent = state === "connected" || state === "connecting" ? "disconnect RESP" : "connect RESP";
+  respButton.textContent = normalized === "connected" || normalized === "connecting" ? "disconnect RESP" : "connect RESP";
 }
 
-function connectBridge(url = respUrl.value) {
-  respSocket?.close();
+runtime.onStatus((value) => {
+  if (value.instanceId && runtimeInstanceId && value.instanceId !== runtimeInstanceId) {
+    location.reload();
+    return;
+  }
+  if (value.instanceId) runtimeInstanceId = value.instanceId;
+  runtimeState = value;
+  readiness.kernel = value.runtimeState === "ready";
+  readiness.resp = value.respState ?? "off";
+  if (value.error) readiness.error = value.error.message ?? String(value.error);
+  setRespState(value.respState ?? "off", value.respState === "connected" ? "RESP connected" : value.respState ?? "off");
+  void refreshTargets();
+});
+runtime.onError((error) => { readiness.error = String(error?.message ?? error); });
+
+async function connectBridge(url = respUrl.value) {
+  respUrl.value = String(url ?? respUrl.value);
   setRespState("connecting");
-  respSocket = connectResp(url, respHandler, {
-    onStatus: (state) => setRespState(state, state === "connected" ? "RESP connected" : state),
-  });
-  return respSocket;
+  await runtime.connectResp(respUrl.value);
+  return true;
+}
+
+async function disconnectBridge() {
+  await runtime.disconnectResp();
+  setRespState("off", "offline");
+  return true;
 }
 
 respButton.addEventListener("click", () => {
-  if (respSocket && [WebSocket.OPEN, WebSocket.CONNECTING],.includes(respSocket.readyState)) {
-    respSocket.close();
-    respSocket = null;
-    setRespState("closed", "offline");
-  } else {
-    connectBridge();
-  }
+  if (["connected", "connecting"].includes(runtimeState?.respState)) void disconnectBridge();
+  else void connectBridge();
 });
 document.getElementById("kernel-refresh").addEventListener("click", refreshTargets);
 targetSelect.addEventListener("change", () => {
@@ -250,7 +232,10 @@ globalThis.chrome?.devtools?.network?.onNavigated?.addListener(() => setTimeout(
 
 let homeDir = null;
 let homeSourcePaths = ["."];
-const loadedResources = new Set(Object.keys(resources));
+const loadedResources = new Set([
+  "chrome.api", "browser.dom", "browser.site.chatgpt", "browser.site.tripo",
+  "studio.store", "studio.boot", "studio.node", "studio.draw", "studio.program", "studio.graph", "studio.session",
+]);
 const register = async (ns, text) => {
   const kernel = await broker.require(studio.state.kernel);
   return kernel.context.call("register-resource", [ns, text]);
@@ -258,12 +243,7 @@ const register = async (ns, text) => {
 
 async function preload(source) {
   if (!homeDir) return;
-  await preloadRequires(source, {
-    dir: homeDir,
-    sourcePaths: homeSourcePaths,
-    register,
-    loaded: loadedResources,
-  });
+  await preloadRequires(source, { dir: homeDir, sourcePaths: homeSourcePaths, register, loaded: loadedResources });
 }
 
 const homeLabel = document.getElementById("home-label");
@@ -274,12 +254,10 @@ async function setHome(dir) {
   if (dir) {
     for (const descriptor of ["project.edn", "project.hal"]) {
       try {
-        const projectSource = await (
-          await (await dir.getFileHandle(descriptor)).getFile()
-        ).text();
+        const projectSource = await (await (await dir.getFileHandle(descriptor)).getFile()).text();
         homeSourcePaths = parseSourcePaths(projectSource);
         break;
-      } catch { /* try the migration fallback */ }
+      } catch { /* try migration fallback */ }
     }
   }
 }
@@ -287,6 +265,7 @@ async function setHome(dir) {
 window.hara = {
   broker,
   studio,
+  runtime,
   evalSource,
   evalLocalSource: (source) => broker.eval(studio.state.kernel, source),
   preload,
@@ -296,12 +275,13 @@ window.hara = {
   refreshTargets,
   targets: () => [...targetRecords],
   connectResp: connectBridge,
+  disconnectResp: disconnectBridge,
   ready: readiness,
 };
 
 if (params.has("resp")) {
   respUrl.value = params.get("resp");
-  connectBridge(respUrl.value);
+  await connectBridge(respUrl.value);
 }
 
 document.getElementById("home-button").addEventListener("click", async () => {
@@ -322,11 +302,13 @@ document.getElementById("run-file-button").addEventListener("click", async () =>
   }
 });
 
+window.addEventListener("beforeunload", () => { void runtime.close(); }, { once: true });
+
 try {
   await setHome(await restoreHome());
-  await refreshTargets();
   await broker.require(studio.state.kernel);
   readiness.kernel = true;
+  await refreshTargets();
   setInterval(refreshTargets, 2000);
 } catch (error) {
   readiness.error = String(error?.message ?? error);
