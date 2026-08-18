@@ -1,75 +1,81 @@
-name: Greenways Beacon
-
-env:
-  HOPLITE_REF: f7eae49e72b6bf2f9ed56187682e4a21d6ee818c
-  HARA_REF: ba52a6bfce31aeff7359d0e60d7f8d1538204694
+name: Materialize hara offscreen runtime
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "services/beacon/**"
-      - "protocol/beacon.md"
-      - ".github/workflows/beacon.yml"
-  pull_request:
-    paths:
-      - "services/beacon/**"
-      - "protocol/beacon.md"
-      - ".github/workflows/beacon.yml"
+    branches:
+      - agent/live-module-workbench
 
 permissions:
-  contents: read
-
-concurrency:
-  group: beacon-${{ github.ref }}
-  cancel-in-progress: true
+  contents: write
 
 jobs:
-  hoplite:
+  materialize:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
-          path: greenways-os
-      - uses: actions/checkout@v5
-        with:
-          repository: greenways-ai/hoplite
-          ref: ${{ env.HOPLITE_REF }}
-          path: hoplite
-      - uses: actions/checkout@v5
-        with:
-          repository: hara-lang/hara
-          ref: ${{ env.HARA_REF }}
-          path: hara.lang
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Validate operator scripts
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Materialize, validate, and publish clean offscreen runtime branch
+        env:
+          TARGET_BRANCH: agent/hara-chrome-offscreen-runtime-133
+          PAYLOAD_SHA256: 2fe215cef1e07b5a842eb1060aa4d6928e25fada81dbd13a3c4e0d75d7165d11
         run: |
-          sh -n greenways-os/services/beacon/bin/greenways-beacon
-          sh -n greenways-os/services/beacon/bin/greenways-home
-      - name: Check the Beacon project
-        run: >-
-          cargo run --manifest-path hoplite/Cargo.toml --
-          serve check --profile server --mode prod
-          greenways-os/services/beacon
-      - name: Build the Hoplite ingress
-        run: >-
-          cargo run --manifest-path hoplite/Cargo.toml --
-          serve build --profile server --mode prod
-          greenways-os/services/beacon
-      - name: Verify the immutable Space route
-        run: |
-          CONFIG=greenways-os/services/beacon/.hoplite/conf/nginx.conf
-          OPENAPI=greenways-os/services/beacon/.hoplite/openapi/greenways-beacon.json
-          grep -F 'location ^~ /space/' "$CONFIG"
-          grep -F 'proxy_pass https://greenways.space/beacon/v1/;' "$CONFIG"
-          grep -F 'proxy_ssl_server_name on;' "$CONFIG"
-          grep -F 'proxy_ssl_name greenways.space;' "$CONFIG"
-          grep -F 'proxy_ssl_verify on;' "$CONFIG"
-          grep -F 'proxy_ssl_trusted_certificate ' "$CONFIG"
-          grep -F 'proxy_set_header Host greenways.space;' "$CONFIG"
-          grep -F 'proxy_set_header Cookie "";' "$CONFIG"
-          grep -F 'proxy_set_header Origin "";' "$CONFIG"
-          grep -F '"x-hoplite-static-proxies"' "$OPENAPI"
-          grep -F '"/space/"' "$OPENAPI"
-          grep -F '"https://greenways.space/beacon/v1/"' "$OPENAPI"
+          set -euo pipefail
+          target_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
+          test -n "$target_head"
+
+          cat .agent/hara-offscreen-runtime/part-*.b64 > /tmp/hara-offscreen-runtime.b64
+          base64 --decode /tmp/hara-offscreen-runtime.b64 > /tmp/hara-offscreen-runtime.tar.gz
+          printf '%s  %s\n' "$PAYLOAD_SHA256" /tmp/hara-offscreen-runtime.tar.gz | sha256sum --check -
+
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fdx
+          tar -xzf /tmp/hara-offscreen-runtime.tar.gz
+
+          rm -rf .agent/hara-control
+          rm -f .github/workflows/agent-hara-control-materialize.yml
+
+          for file in extension/hara-chrome/src/*.js extension/hara-chrome/test/*.js; do
+            node --check "$file"
+          done
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path('extension/hara-chrome/manifest.json').read_text())
+          assert manifest['manifest_version'] == 3
+          assert manifest['minimum_chrome_version'] == '116'
+          assert manifest['action']['default_popup'] == 'src/popup.html'
+          assert manifest['background']['service_worker'] == 'src/background.js'
+          assert 'offscreen' in manifest['permissions']
+          assert 'content_scripts' not in manifest
+
+          host = Path('extension/hara-chrome/src/runtime-host.html').read_text()
+          assert '<script type="module" src="./runtime-host.js"></script>' in host
+          assert '<iframe' not in host.lower()
+
+          panel = Path('extension/hara-chrome/src/panel.js').read_text()
+          for forbidden in ['createBrowserBroker', 'new GraphHost', 'new SessionRouter', 'vendor/hara.wasm', 'vendor/hta-worker.js']:
+              assert forbidden not in panel, forbidden
+          PY
+
+          cd extension/hara-chrome
+          npm ci
+          make test-fast
+          npx playwright test --list test/offscreen-runtime.spec.js
+          cd ../..
+
+          git diff --check
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Move hara-chrome runtime into an offscreen host"
+          git push \
+            --force-with-lease="refs/heads/$TARGET_BRANCH:$target_head" \
+            origin "HEAD:refs/heads/$TARGET_BRANCH"
