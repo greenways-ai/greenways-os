@@ -37,6 +37,28 @@ export function toPlain(value, seen = new WeakSet()) {
   return output;
 }
 
+/**
+ * Port request decoder. Tagged HTA values regain their runtime classes while
+ * ordinary option/configuration objects remain ordinary JavaScript objects.
+ */
+export function fromTransport(value) {
+  if (Array.isArray(value)) return value.map(fromTransport);
+  if (value !== null && typeof value === "object") {
+    if (value[VALUE_TAG] === "keyword") return new HtaKeyword(String(value.name ?? ""));
+    if (value[VALUE_TAG] === "symbol") return new HtaSymbol(String(value.name ?? ""));
+    if (value[VALUE_TAG] === "handle") return String(value.value ?? "");
+    if (value[VALUE_TAG] === "set") return new Set((value.values ?? []).map(fromTransport));
+    if (value[VALUE_TAG] === "map") {
+      return new Map((value.entries ?? []).map(([key, item]) => [fromTransport(key), fromTransport(item)]));
+    }
+    if (value[VALUE_TAG] === "bytes") return new Uint8Array(value.values ?? []);
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, fromTransport(item)]),
+    );
+  }
+  return value;
+}
+
 /** JSON value -> HTA-compatible value (objects become keyword-keyed Maps). */
 export function fromPlain(value) {
   if (Array.isArray(value)) return value.map(fromPlain);

@@ -153,12 +153,19 @@ test("runtime core validates bound tab IDs and resolves remote filesystem mounts
   assert.deepEqual(session.value, { kernel: "ROOT", name: "WORK" });
 });
 
-test("runtime stop failures report an actual error state instead of remaining stuck in stopping", async () => {
+test("runtime stop failures remain retryable instead of losing the live environment", async () => {
   const environment = fakeBroker();
+  let disposeAttempts = 0;
   const core = createRuntimeHostCore({
     loadRuntime: async () => ({
       broker: environment.broker,
-      dispose: async () => { throw Object.assign(new Error("reap failed"), { code: "RUNTIME_REAP_FAILED" }); },
+      dispose: async () => {
+        disposeAttempts += 1;
+        if (disposeAttempts === 1) {
+          throw Object.assign(new Error("reap failed"), { code: "RUNTIME_REAP_FAILED" });
+        }
+        environment.broker.kernels.clear();
+      },
     }),
     connectResp: () => ({ close() {} }),
     createRespHandler: () => async () => null,
@@ -169,4 +176,47 @@ test("runtime stop failures report an actual error state instead of remaining st
   await assert.rejects(core.dispatch("runtime.stop"), (error) => error.code === "RUNTIME_REAP_FAILED");
   assert.equal(core.snapshot().runtimeState, "error");
   assert.equal(core.snapshot().error.code, "RUNTIME_REAP_FAILED");
+  assert.ok(core._state().loaded, "the environment remains reachable for a cleanup retry");
+
+  const stopped = await core.dispatch("runtime.stop");
+  assert.equal(disposeAttempts, 2);
+  assert.equal(stopped.status.runtimeState, "off");
+  assert.equal(core._state().loaded, null);
+});
+
+test("stale RESP socket callbacks cannot overwrite a newer connection state", async () => {
+  const environment = fakeBroker();
+  const sockets = [];
+  const core = createRuntimeHostCore({
+    loadRuntime: async () => ({ broker: environment.broker }),
+    connectResp: (url, _handler, { onStatus }) => {
+      const socket = {
+        url,
+        closed: false,
+        close() { this.closed = true; },
+        emit(state) { onStatus(state); },
+      };
+      sockets.push(socket);
+      return socket;
+    },
+    createRespHandler: () => async () => null,
+    requestProvider: async () => [],
+  });
+
+  await core.dispatch("runtime.start", [{ targetTabId: 61 }]);
+  await core.dispatch("resp.connect", [{ url: "ws://127.0.0.1:7356/first" }]);
+  sockets[0].emit("connected");
+  assert.equal(core.snapshot().respState, "connected");
+
+  await core.dispatch("resp.connect", [{ url: "ws://127.0.0.1:7356/second" }]);
+  assert.equal(sockets[0].closed, true);
+  sockets[1].emit("connected");
+  assert.equal(core.snapshot().respState, "connected");
+
+  sockets[0].emit("closed");
+  assert.equal(core.snapshot().respState, "connected", "the replaced socket cannot mark the live connection offline");
+
+  await core.dispatch("resp.disconnect");
+  sockets[1].emit("error");
+  assert.equal(core.snapshot().respState, "off", "callbacks after explicit disconnect are ignored");
 });

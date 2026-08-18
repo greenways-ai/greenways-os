@@ -153,3 +153,25 @@ test("control state survives service-worker recreation and disconnect-all closes
   assert.equal(env.storage.session.values[CONTROL_SESSION_KEY].boundTabId, null);
   await supervisor.close();
 });
+
+
+test("closing the exact bound tab shuts down the shared runtime and clears authority", async () => {
+  const runtime = runtimeFixture();
+  const env = chromeFixture();
+  const supervisor = createControlSupervisor({ chromeApi: env.chromeApi, runtimeSupervisor: runtime });
+  await supervisor.start();
+  await supervisor.dispatch("set-binding", [true]);
+  await supervisor.dispatch("set-runtime", [true]);
+  assert.equal(runtime.status().runtimeState, "ready");
+
+  env.tabs.delete(73);
+  const snapshot = await supervisor.dispatch("status");
+  assert.equal(snapshot.binding.state, "off");
+  assert.equal(snapshot.boundTab, null);
+  assert.equal(snapshot.runtime.state, "off");
+  assert.equal(snapshot.runtime.desired, false);
+  assert.equal(snapshot.adapter.desired, false);
+  assert.ok(runtime.calls.some(([operation]) => operation === "stop"));
+  assert.equal(env.storage.session.values[CONTROL_SESSION_KEY].boundTabId, null);
+  await supervisor.close();
+});

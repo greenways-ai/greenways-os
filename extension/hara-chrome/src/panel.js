@@ -200,7 +200,7 @@ runtime.onStatus((value) => {
   runtimeState = value;
   readiness.kernel = value.runtimeState === "ready";
   readiness.resp = value.respState ?? "off";
-  if (value.error) readiness.error = value.error.message ?? String(value.error);
+  readiness.error = value.error ? value.error.message ?? String(value.error) : null;
   setRespState(value.respState ?? "off", value.respState === "connected" ? "RESP connected" : value.respState ?? "off");
   void refreshTargets();
 });
