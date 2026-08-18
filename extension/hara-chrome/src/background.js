@@ -1,8 +1,18 @@
 import { CHATGPT_LOGIN_METHODS, createChatgptLoginService } from "./chatgpt-login-service.js";
 import { createChatgptService } from "./chatgpt-service.js";
+import { createContextProbe } from "./context-probe.js";
+import { createControlSupervisor } from "./control-supervisor.js";
 import { createDebuggerCoordinator, createDomService } from "./dom-service.js";
 import { createDomExistenceProbe } from "./dom-existence-probe.js";
 import { createDownloadBroker } from "./download-broker.js";
+import {
+  CONTROL_PORT,
+  HOST_CALL_PORT,
+  PAGE_PROVIDER_PORT,
+  RUNTIME_CLIENT_PORT,
+  RUNTIME_HOST_PORT,
+} from "./runtime-protocol.js";
+import { createRuntimeSupervisor } from "./runtime-supervisor.js";
 import { TRIPO_DOWNLOAD_METHODS, createTripoDownloadService } from "./tripo-download-service.js";
 import { TRIPO_LOGIN_METHODS, createTripoLoginService } from "./tripo-login-service.js";
 import { createTripoService } from "./tripo-service.js";
@@ -13,11 +23,51 @@ const downloadBroker = createDownloadBroker({
   downloadsApi: chrome.downloads,
   coordinator: debuggerCoordinator,
 });
-let nextPort = 1;
+let controlSupervisor = null;
+const runtimeSupervisor = createRuntimeSupervisor({
+  chromeApi: chrome,
+  authorizeClientRequest: ({ tabId }) => controlSupervisor?.tabAllowed(tabId) ?? true,
+});
+const contextProbe = createContextProbe({ chromeApi: chrome, coordinator: debuggerCoordinator });
+controlSupervisor = createControlSupervisor({
+  chromeApi: chrome,
+  runtimeSupervisor,
+  probeContext: contextProbe.probe,
+  downloadStatus: () => {
+    const pending = downloadBroker._pending?.();
+    if (!pending) return "idle";
+    return pending.downloadId == null ? "armed" : "active";
+  },
+});
+const controlReady = controlSupervisor.start();
+controlReady.catch((error) => console.error("[hara control] startup", error));
+
+let nextHostPort = 1;
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== "hara-host") return;
-  const portOwner = `hara-host-${nextPort++}`;
+  switch (port.name) {
+    case CONTROL_PORT:
+      void controlReady.then(() => controlSupervisor.connectPort(port));
+      return;
+    case RUNTIME_HOST_PORT:
+      runtimeSupervisor.attachHostPort(port);
+      return;
+    case RUNTIME_CLIENT_PORT:
+      runtimeSupervisor.attachClientPort(port);
+      return;
+    case PAGE_PROVIDER_PORT:
+      runtimeSupervisor.attachProviderPort(port);
+      return;
+    case HOST_CALL_PORT:
+      connectHaraHost(port);
+      return;
+    default:
+      return;
+  }
+});
+
+function connectHaraHost(port) {
+  const portOwner = `hara-host-${nextHostPort++}`;
   const chromeDebuggerOwner = `${portOwner}:chrome-debugger`;
   const domService = createDomService({
     chromeApi: chrome,
@@ -50,9 +100,9 @@ chrome.runtime.onConnect.addListener((port) => {
     owner: portOwner,
   });
 
-  port.onMessage.addListener(async ({ id, service, method, args, target }) => {
+  const onMessage = async ({ id, service, method, args, target } = {}) => {
     try {
-      const value = await dispatch(service, method, args ?? [], target, {
+      const value = await dispatchHost(service, method, args ?? [], target, {
         chromeDebuggerOwner,
         domService,
         chatgptService,
@@ -68,9 +118,11 @@ chrome.runtime.onConnect.addListener((port) => {
         ok: false,
         error: String(error?.message ?? error),
         code: error?.code ?? null,
+        data: error?.data ?? null,
       });
     }
-  });
+  };
+  port.onMessage.addListener(onMessage);
 
   port.onDisconnect.addListener(() => {
     for (const entry of debuggerEvents.values()) {
@@ -88,7 +140,7 @@ chrome.runtime.onConnect.addListener((port) => {
       debuggerCoordinator.releaseOwner(chromeDebuggerOwner),
     ]);
   });
-});
+}
 
 chrome.debugger.onEvent.addListener((source, method, params) => {
   const entry = debuggerEvents.get(source.tabId) ?? { queue: [], waiters: [] };
@@ -105,16 +157,44 @@ chrome.debugger.onDetach.addListener((source) => {
   for (const waiter of entry.waiters) waiter.reject(new Error("debugger detached"));
 });
 
-async function dispatch(service, method, args, target, context) {
+function targetTabId(target) {
+  const value = Number(target?.tabId ?? target?.["tab-id"]);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+async function requireTabAuthority(target) {
+  const tabId = targetTabId(target);
+  if (tabId && await controlSupervisor.tabAllowed(tabId)) return tabId;
+  const error = new Error("control/tab-disabled: browser control is disabled for this tab");
+  error.code = "control/tab-disabled";
+  error.data = { tabId };
+  throw error;
+}
+
+async function requireAdapterAuthority(target, kind) {
+  const tabId = targetTabId(target);
+  if (tabId && await controlSupervisor.adapterAllowed(tabId, kind)) return tabId;
+  const error = new Error(`control/adapter-disabled: ${kind} adapter is disabled for this tab`);
+  error.code = "control/adapter-disabled";
+  error.data = { tabId, adapter: kind };
+  throw error;
+}
+
+async function dispatchHost(service, method, args, target, context) {
   if (service === "hara" && method === "echo") return args[0] ?? null;
-  if (service === "hara.dom") return context.domService.dispatch(method, args, target);
+  if (service === "hara.dom") {
+    await requireTabAuthority(target);
+    return context.domService.dispatch(method, args, target);
+  }
   if (service === "hara.chatgpt") {
+    await requireAdapterAuthority(target, "chatgpt");
     const owner = CHATGPT_LOGIN_METHODS.has(method)
       ? context.chatgptLoginService
       : context.chatgptService;
     return owner.dispatch(method, args, target);
   }
   if (service === "hara.tripo") {
+    await requireAdapterAuthority(target, "tripo");
     if (TRIPO_DOWNLOAD_METHODS.has(method)) {
       return context.tripoDownloadService.dispatch(method, args, target);
     }
@@ -126,7 +206,7 @@ async function dispatch(service, method, args, target, context) {
   if (service === "chrome.debugger") {
     return debuggerCall(method, args, context.chromeDebuggerOwner);
   }
-  if (!service.startsWith("chrome.")) {
+  if (!String(service ?? "").startsWith("chrome.")) {
     throw new Error(`host-call-denied: ${service}`);
   }
   const owner = service
@@ -179,3 +259,7 @@ async function debuggerCall(method, args, owner) {
       throw new Error(`unknown chrome.debugger method: ${method}`);
   }
 }
+
+// Test and diagnostics hooks. These are extension-only objects, not page globals.
+globalThis.haraRuntimeSupervisor = runtimeSupervisor;
+globalThis.haraControlSupervisor = controlSupervisor;
