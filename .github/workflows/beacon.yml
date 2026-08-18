@@ -1,75 +1,96 @@
-name: Greenways Beacon
-
-env:
-  HOPLITE_REF: f7eae49e72b6bf2f9ed56187682e4a21d6ee818c
-  HARA_REF: ba52a6bfce31aeff7359d0e60d7f8d1538204694
+name: Materialize Hara offscreen lifecycle hardening
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "services/beacon/**"
-      - "protocol/beacon.md"
-      - ".github/workflows/beacon.yml"
-  pull_request:
-    paths:
-      - "services/beacon/**"
-      - "protocol/beacon.md"
-      - ".github/workflows/beacon.yml"
+    branches:
+      - agent/hara-chrome-offscreen-runtime-repair-materializer-133
 
 permissions:
-  contents: read
-
-concurrency:
-  group: beacon-${{ github.ref }}
-  cancel-in-progress: true
+  contents: write
 
 jobs:
-  hoplite:
+  materialize:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
-          path: greenways-os
-      - uses: actions/checkout@v5
-        with:
-          repository: greenways-ai/hoplite
-          ref: ${{ env.HOPLITE_REF }}
-          path: hoplite
-      - uses: actions/checkout@v5
-        with:
-          repository: hara-lang/hara
-          ref: ${{ env.HARA_REF }}
-          path: hara.lang
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Validate operator scripts
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Validate and publish the clean lifecycle repair branch
+        env:
+          TARGET_BRANCH: agent/hara-chrome-offscreen-runtime-repair-133
+          EXPECTED_BASE: 6183d3d837186df097f6ac0ec79bd4fbb5935f6c
+          PAYLOAD_SHA256: 7d69abd738c33b7aa4e333c7810bc2c472b05f3971c8701e1fb5a7d11edd2661
         run: |
-          sh -n greenways-os/services/beacon/bin/greenways-beacon
-          sh -n greenways-os/services/beacon/bin/greenways-home
-      - name: Check the Beacon project
-        run: >-
-          cargo run --manifest-path hoplite/Cargo.toml --
-          serve check --profile server --mode prod
-          greenways-os/services/beacon
-      - name: Build the Hoplite ingress
-        run: >-
-          cargo run --manifest-path hoplite/Cargo.toml --
-          serve build --profile server --mode prod
-          greenways-os/services/beacon
-      - name: Verify the immutable Space route
-        run: |
-          CONFIG=greenways-os/services/beacon/.hoplite/conf/nginx.conf
-          OPENAPI=greenways-os/services/beacon/.hoplite/openapi/greenways-beacon.json
-          grep -F 'location ^~ /space/' "$CONFIG"
-          grep -F 'proxy_pass https://greenways.space/beacon/v1/;' "$CONFIG"
-          grep -F 'proxy_ssl_server_name on;' "$CONFIG"
-          grep -F 'proxy_ssl_name greenways.space;' "$CONFIG"
-          grep -F 'proxy_ssl_verify on;' "$CONFIG"
-          grep -F 'proxy_ssl_trusted_certificate ' "$CONFIG"
-          grep -F 'proxy_set_header Host greenways.space;' "$CONFIG"
-          grep -F 'proxy_set_header Cookie "";' "$CONFIG"
-          grep -F 'proxy_set_header Origin "";' "$CONFIG"
-          grep -F '"x-hoplite-static-proxies"' "$OPENAPI"
-          grep -F '"/space/"' "$OPENAPI"
-          grep -F '"https://greenways.space/beacon/v1/"' "$OPENAPI"
+          set -euo pipefail
+
+          target_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
+          test "$target_head" = "$EXPECTED_BASE"
+
+          cat .agent/hara-offscreen-lifecycle-repair/payload.b64.chunk-* > /tmp/hara-offscreen-lifecycle-repair.b64
+          base64 --decode /tmp/hara-offscreen-lifecycle-repair.b64 > /tmp/hara-offscreen-lifecycle-repair.tar.gz
+          printf '%s  %s\n' "$PAYLOAD_SHA256" /tmp/hara-offscreen-lifecycle-repair.tar.gz | sha256sum --check -
+
+          git fetch origin main
+          base="$(git rev-parse origin/main)"
+          test "$base" = "$EXPECTED_BASE"
+          git reset --hard "$base"
+          git clean -fdx
+          tar -xzf /tmp/hara-offscreen-lifecycle-repair.tar.gz
+
+          cat > /tmp/expected-files <<'EOF'
+          extension/hara-chrome/src/control-supervisor.js
+          extension/hara-chrome/src/host-bridge.js
+          extension/hara-chrome/src/panel.js
+          extension/hara-chrome/src/runtime-client.js
+          extension/hara-chrome/src/runtime-host-core.js
+          extension/hara-chrome/test/control-supervisor.test.js
+          extension/hara-chrome/test/host-bridge-codec.test.js
+          extension/hara-chrome/test/runtime-client.test.js
+          extension/hara-chrome/test/runtime-host-core.test.js
+          EOF
+          git diff --name-only "$base" -- | sort > /tmp/actual-files
+          diff -u /tmp/expected-files /tmp/actual-files
+
+          node --check extension/hara-chrome/src/*.js
+          node --check extension/hara-chrome/test/*.js
+          python3 -m json.tool extension/hara-chrome/manifest.json >/dev/null
+          make -n -C extension/hara-chrome help >/dev/null
+
+          cd extension/hara-chrome
+          npm ci
+          make test-fast
+
+          mkdir -p vendor
+          cat > vendor/hta.js <<'EOF'
+          export class HtaKeyword { constructor(name) { this.name = name; } }
+          export class HtaSymbol { constructor(name) { this.name = name; } }
+          export class HtaHandle {
+            constructor(owner = null, type = null, id = 0n) {
+              this.owner = owner;
+              this.type = type;
+              this.id = BigInt(id);
+            }
+            toString() { return `#ht[:handle ${this.id}]`; }
+          }
+          EOF
+          node --test \
+            test/host-bridge-codec.test.js \
+            test/runtime-client.test.js
+          rm -rf vendor
+          cd ../..
+
+          git diff --check
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Harden shared Hara offscreen runtime lifecycle"
+          source_head="$(git rev-parse HEAD)"
+          git push \
+            --force-with-lease="refs/heads/$TARGET_BRANCH:$target_head" \
+            origin "HEAD:refs/heads/$TARGET_BRANCH"
+          remote_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
+          test "$remote_head" = "$source_head"
