@@ -1,1 +1,1 @@
-hara-cdp-overlay-diagnostics: 1
+hara-cdp-overlay-diagnostics: 2
