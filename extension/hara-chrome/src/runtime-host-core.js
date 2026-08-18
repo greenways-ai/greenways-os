@@ -44,6 +44,7 @@ export function createRuntimeHostCore({
   let respState = "off";
   let respUrl = "ws://127.0.0.1:7356";
   let respSocket = null;
+  let respConnectionGeneration = 0;
   let targetTabId = null;
   let generation = 0;
   let runtimeInstance = 0;
@@ -121,12 +122,13 @@ export function createRuntimeHostCore({
 
   async function disposeRuntime() {
     const current = loaded;
+    if (current?.dispose) await current.dispose();
+    if (loaded !== current) return;
     loaded = null;
     loading = null;
     mounts.clear();
     candidates.clear();
     previewTraces.clear();
-    if (current?.dispose) await current.dispose();
     instanceId = null;
   }
 
@@ -217,23 +219,36 @@ export function createRuntimeHostCore({
 
   async function connectRespSocket(url = respUrl) {
     await ensureRuntime();
-    respSocket?.close?.();
+    const connectionGeneration = ++respConnectionGeneration;
+    const previousSocket = respSocket;
+    respSocket = null;
+    previousSocket?.close?.();
     respUrl = String(url || respUrl);
     respState = "connecting";
     publish();
     const handler = createRespHandler({ listTargets, resolveTarget });
-    respSocket = connectResp(respUrl, handler, {
-      onStatus: (state) => {
-        respState = state === "closed" ? "off" : state;
-        publish();
-      },
-    });
+    let socket = null;
+    const onStatus = (state) => {
+      if (connectionGeneration !== respConnectionGeneration) return;
+      if (socket !== null && respSocket !== socket) return;
+      respState = state === "closed" ? "off" : state;
+      if (state === "closed" && respSocket === socket) respSocket = null;
+      publish();
+    };
+    socket = connectResp(respUrl, handler, { onStatus });
+    if (connectionGeneration !== respConnectionGeneration) {
+      socket?.close?.();
+      return snapshot();
+    }
+    respSocket = socket;
     return snapshot();
   }
 
   async function disconnectRespSocket() {
-    respSocket?.close?.();
+    respConnectionGeneration += 1;
+    const socket = respSocket;
     respSocket = null;
+    socket?.close?.();
     respState = "off";
     publish();
     return snapshot();

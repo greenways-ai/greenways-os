@@ -105,3 +105,90 @@ test("runtime client registers its exact tab before requesting the shared runtim
   await client.close();
   await tick();
 });
+
+test("explicit null runtime instance IDs invalidate cached remote contexts", async () => {
+  let statusListener;
+  let instanceId = "runtime-a";
+  const connection = {
+    onStatus(listener) {
+      statusListener = listener;
+      listener({ runtimeState: "ready", instanceId, kernels: ["ROOT"], documents: [] });
+    },
+    reportError() {},
+    async request(method, args) {
+      if (method === "broker.require") {
+        return { value: { name: args[0] }, snapshot: { runtimeState: "ready", instanceId, kernels: ["ROOT"] } };
+      }
+      return { value: true, snapshot: { runtimeState: "ready", instanceId, kernels: ["ROOT"] } };
+    },
+  };
+
+  const broker = createRemoteBroker(connection);
+  const first = (await broker.require("ROOT")).context;
+  instanceId = null;
+  statusListener({ runtimeState: "ready", instanceId: null, kernels: ["ROOT"], documents: [] });
+  const second = (await broker.require("ROOT")).context;
+  assert.notEqual(first, second);
+});
+
+test("release waits for an in-flight remote document commit", async () => {
+  const statusListeners = new Set();
+  const commit = deferred();
+  const calls = [];
+  const connection = {
+    onStatus(listener) {
+      statusListeners.add(listener);
+      listener({ runtimeState: "ready", instanceId: "runtime-1", kernels: ["ROOT"], pending: [], documents: [] });
+    },
+    reportError(error) { throw error; },
+    async request(method, args) {
+      calls.push([method, args]);
+      if (method === "broker.prepare-document") {
+        return {
+          value: {
+            candidateId: "candidate-release",
+            kernel: "ROOT",
+            documentId: "doc-release",
+            generation: 1,
+            moduleId: "module-release",
+            value: true,
+            prepared: true,
+          },
+          snapshot: { runtimeState: "ready", instanceId: "runtime-1", kernels: ["ROOT"], documents: [] },
+        };
+      }
+      if (method === "broker.commit-document") return commit.promise;
+      if (method === "broker.release-document") {
+        return {
+          value: true,
+          snapshot: { runtimeState: "ready", instanceId: "runtime-1", kernels: ["ROOT"], documents: [] },
+        };
+      }
+      return { value: true, snapshot: { runtimeState: "ready", instanceId: "runtime-1", kernels: ["ROOT"] } };
+    },
+  };
+
+  const broker = createRemoteBroker(connection);
+  const candidate = await broker.prepareDocument("ROOT", "doc-release", "(def x 1)");
+  broker.commitDocument(candidate);
+  let released = false;
+  const release = broker.releaseDocument("ROOT", "doc-release").then((value) => {
+    released = true;
+    return value;
+  });
+  await Promise.resolve();
+  assert.equal(released, false);
+  assert.equal(calls.some(([method]) => method === "broker.release-document"), false);
+
+  commit.resolve({
+    value: true,
+    snapshot: {
+      runtimeState: "ready",
+      instanceId: "runtime-1",
+      kernels: ["ROOT"],
+      documents: [{ kernel: "ROOT", documentId: "doc-release", generation: 1, moduleId: "module-release" }],
+    },
+  });
+  assert.equal(await release, true);
+  assert.equal(calls.some(([method]) => method === "broker.release-document"), true);
+});

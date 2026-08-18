@@ -95,6 +95,13 @@ export function createControlSupervisor({
     activeTab = await queryActiveTab();
     let boundTab = await readTab(session.boundTabId);
     if (session.boundTabId && !boundTab) {
+      try {
+        runtimeStatus = (await runtimeSupervisor.stop({ closeDocument: true }))?.status
+          ?? runtimeSupervisor.status();
+      } catch (error) {
+        recordError(error);
+        runtimeStatus = runtimeSupervisor.status();
+      }
       session.bindingDesired = false;
       session.boundTabId = null;
       session.boundWindowId = null;
@@ -102,7 +109,9 @@ export function createControlSupervisor({
       session.boundTitle = null;
       session.runtimeDesired = false;
       session.respDesired = false;
+      session.adapterDesired = false;
       session.replTabId = null;
+      contextual = { adapterState: "none", authentication: null };
       await persist();
     }
     const classifiedBound = boundTab ? classifyTab(boundTab) : null;

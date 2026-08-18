@@ -1,4 +1,4 @@
-import { fromPlain } from "./host-bridge.js";
+import { fromPlain, toPlain } from "./host-bridge.js";
 import {
   PAGE_PROVIDER_PORT,
   RUNTIME_CLIENT_PORT,
@@ -37,7 +37,9 @@ export function createRemoteBroker(connection) {
 
   function applySnapshot(next) {
     if (!next || typeof next !== "object") return;
-    const nextInstanceId = next.instanceId ?? snapshot.instanceId ?? null;
+    const nextInstanceId = Object.hasOwn(next, "instanceId")
+      ? next.instanceId
+      : snapshot.instanceId ?? null;
     if (currentInstanceId !== null && nextInstanceId !== currentInstanceId) {
       contexts.clear();
       previews.clear();
@@ -213,7 +215,8 @@ export function createRemoteBroker(connection) {
     },
     async releaseDocument(kernel, documentId) {
       const key = documentKey(kernel, documentId);
-      committing.delete(key);
+      const inFlightCommit = committing.get(key);
+      if (inFlightCommit) await inFlightCommit;
       documents.delete(key);
       return envelope("broker.release-document", [kernel, documentId]);
     },
@@ -334,7 +337,7 @@ export function createRuntimeClient({
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
       try {
-        runtimePort.postMessage({ channel: "runtime-request", id, method, args });
+        runtimePort.postMessage({ channel: "runtime-request", id, method, args: toPlain(args) });
       } catch (error) {
         pending.delete(id);
         reject(error);
