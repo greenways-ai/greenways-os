@@ -70,8 +70,6 @@ jobs:
 
           cd extension/hara-chrome
           npm ci
-          make test-fast
-
           mkdir -p vendor
           cat > vendor/hta.js <<'EOF'
           export class HtaKeyword { constructor(name) { this.name = name; } }
@@ -86,8 +84,13 @@ jobs:
           }
           EOF
           node --test \
+            test/control-model.test.js \
+            test/control-supervisor.test.js \
             test/host-bridge-codec.test.js \
-            test/runtime-client.test.js
+            test/offscreen-configuration.test.js \
+            test/runtime-client.test.js \
+            test/runtime-host-core.test.js \
+            test/runtime-supervisor.test.js
           rm -rf vendor
           cd ../..
 
