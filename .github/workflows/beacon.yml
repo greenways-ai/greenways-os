@@ -88,8 +88,9 @@ jobs:
           } | sort -u > /tmp/actual-files
           diff -u /tmp/expected-files /tmp/actual-files
 
-          node --check extension/hara-chrome/src/*.js
-          node --check extension/hara-chrome/test/*.js
+          for file in extension/hara-chrome/src/*.js extension/hara-chrome/test/*.js; do
+            node --check "$file"
+          done
           python3 -m json.tool extension/hara-chrome/manifest.json >/dev/null
           make -n -C extension/hara-chrome help >/dev/null
 
