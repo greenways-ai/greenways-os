@@ -19,6 +19,13 @@ jobs:
   materialize:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      TARGET_BRANCH: agent/hara-chrome-cdp-overlay-diagnostics-138
+      EXPECTED_TARGET: 3810dba1cbe8e76e93def5cc7b9bf3e2d61088a9
+      EXPECTED_MAIN: d62996678ffc5f7b3ffadd5c6ad264861d51f231
+      CLEAN_BEACON_REF: 3810dba1cbe8e76e93def5cc7b9bf3e2d61088a9
+      PAYLOAD_SHA256: d08b5ff9195ac9bb1ce5ab1e064ee7d246a921936983002d3bf58dc00ad50ff9
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,16 +33,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Validate, clean the accidental transport merge, and publish source
-        env:
-          TARGET_BRANCH: agent/hara-chrome-cdp-overlay-diagnostics-138
-          EXPECTED_TARGET: 3810dba1cbe8e76e93def5cc7b9bf3e2d61088a9
-          EXPECTED_MAIN: d62996678ffc5f7b3ffadd5c6ad264861d51f231
-          CLEAN_BEACON_REF: 3810dba1cbe8e76e93def5cc7b9bf3e2d61088a9
-          PAYLOAD_SHA256: d08b5ff9195ac9bb1ce5ab1e064ee7d246a921936983002d3bf58dc00ad50ff9
+      - name: Verify branch guards and payload
         run: |
           set -euo pipefail
-
           target_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
           test "$target_head" = "$EXPECTED_TARGET"
 
@@ -46,7 +46,11 @@ jobs:
           git fetch origin main
           base="$(git rev-parse origin/main)"
           test "$base" = "$EXPECTED_MAIN"
-          git reset --hard "$base"
+
+      - name: Prepare clean diagnostics source tree
+        run: |
+          set -euo pipefail
+          git reset --hard "$EXPECTED_MAIN"
           git clean -fdx
           tar -xzf /tmp/diagnostics.tar.gz
 
@@ -54,6 +58,9 @@ jobs:
           rm -f .github/workflows/agent-hara-cdp-overlay-diagnostics.yml
           git show "$CLEAN_BEACON_REF:.github/workflows/beacon.yml" > .github/workflows/beacon.yml
 
+      - name: Verify exact changed-file scope
+        run: |
+          set -euo pipefail
           cat > /tmp/expected-files <<'EOF'
           .agent/hara-cdp-overlay-diagnostics/payload.b64.chunk-00
           .agent/hara-cdp-overlay-diagnostics/payload.b64.chunk-01
@@ -83,23 +90,35 @@ jobs:
           extension/hara-chrome/test/offscreen-configuration.test.js
           EOF
           {
-            git diff --name-only "$base" --
+            git diff --name-only "$EXPECTED_MAIN" --
             git ls-files --others --exclude-standard
           } | sort -u > /tmp/actual-files
           diff -u /tmp/expected-files /tmp/actual-files
 
+      - name: Validate syntax and structure
+        run: |
+          set -euo pipefail
           for file in extension/hara-chrome/src/*.js extension/hara-chrome/test/*.js; do
             node --check "$file"
           done
           python3 -m json.tool extension/hara-chrome/manifest.json >/dev/null
           make -n -C extension/hara-chrome help >/dev/null
 
-          cd extension/hara-chrome
-          npm ci
-          make test-fast
-          npx playwright test --list test/diagnostics-overlay.spec.js
-          cd ../..
+      - name: Install extension dependencies
+        working-directory: extension/hara-chrome
+        run: npm ci
 
+      - name: Run focused Node suite
+        working-directory: extension/hara-chrome
+        run: make test-fast
+
+      - name: Discover diagnostics Playwright fixture
+        working-directory: extension/hara-chrome
+        run: npx playwright test --list test/diagnostics-overlay.spec.js
+
+      - name: Validate and publish clean source commit
+        run: |
+          set -euo pipefail
           git diff --check
           git add -A
           git diff --cached --check
@@ -107,8 +126,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Add bounded CDP Overlay diagnostics"
           source_head="$(git rev-parse HEAD)"
+
+          current_target="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
+          test "$current_target" = "$EXPECTED_TARGET"
           git push \
-            --force-with-lease="refs/heads/$TARGET_BRANCH:$target_head" \
+            --force-with-lease="refs/heads/$TARGET_BRANCH:$EXPECTED_TARGET" \
             origin "HEAD:refs/heads/$TARGET_BRANCH"
+
           remote_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
           test "$remote_head" = "$source_head"
