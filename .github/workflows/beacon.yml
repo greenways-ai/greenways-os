@@ -82,7 +82,10 @@ jobs:
           extension/hara-chrome/test/diagnostics-service.test.js
           extension/hara-chrome/test/offscreen-configuration.test.js
           EOF
-          git diff --name-only "$base" -- | sort > /tmp/actual-files
+          {
+            git diff --name-only "$base" --
+            git ls-files --others --exclude-standard
+          } | sort -u > /tmp/actual-files
           diff -u /tmp/expected-files /tmp/actual-files
 
           node --check extension/hara-chrome/src/*.js
