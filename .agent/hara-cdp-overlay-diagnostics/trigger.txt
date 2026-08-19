@@ -1,1 +1,0 @@
-hara-cdp-overlay-diagnostics: 1
