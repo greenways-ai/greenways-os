@@ -9,6 +9,7 @@ let busy = 0;
 let snapshot = null;
 
 const rows = Object.fromEntries(rowNames.map((name) => [name, {
+  root: document.getElementById(`${name}-row`),
   lamp: document.getElementById(`${name}-lamp`),
   state: document.getElementById(`${name}-state`),
   detail: document.getElementById(`${name}-detail`),
@@ -16,6 +17,8 @@ const rows = Object.fromEntries(rowNames.map((name) => [name, {
 }]));
 
 const elements = {
+  panel: document.querySelector(".hara-runtime-compact"),
+  globalStatus: document.getElementById("global-status"),
   globalLamp: document.getElementById("global-lamp"),
   globalLabel: document.getElementById("global-label"),
   targetLabel: document.getElementById("target-label"),
@@ -31,6 +34,25 @@ const elements = {
   disconnectAll: document.getElementById("disconnect-all"),
 };
 
+function actualVisualState(value) {
+  if (["ready", "connected", "bound", "signed-in", "idle"].includes(value)) return "ready";
+  if (value === "connecting") return "connecting";
+  if (value === "stopping") return "stopping";
+  if (["starting", "loading", "armed", "active"].includes(value)) return "starting";
+  if (["signed-out", "authentication-required", "verification-required", "external-authentication"].includes(value)) return "attention";
+  if (["error", "blocked"].includes(value)) return "error";
+  if (["disabled", "unavailable"].includes(value)) return "disabled";
+  return "off";
+}
+
+function globalVisualState(value) {
+  if (value === "ok") return "ready";
+  if (value === "busy") return "starting";
+  if (value === "attention") return "attention";
+  if (value === "error") return "error";
+  return "off";
+}
+
 function setBusy(value) {
   busy = Math.max(0, busy + (value ? 1 : -1));
   document.body.dataset.busy = String(busy > 0);
@@ -39,9 +61,14 @@ function setBusy(value) {
 
 function setRow(name, value) {
   const row = rows[name];
+  const visualState = actualVisualState(value.state);
+  if (row.root) {
+    row.root.dataset.state = visualState;
+    if (typeof value.desired === "boolean") row.root.dataset.desired = value.desired ? "on" : "off";
+  }
   row.lamp.dataset.state = value.lamp;
   row.state.textContent = value.stateLabel;
-  if (row.detail) row.detail.textContent = value.detail ?? "";
+  if (row.detail && value.detail !== undefined) row.detail.textContent = value.detail;
   if (!row.toggle) return;
   row.toggle.checked = value.desired === true;
   row.toggle.disabled = value.disabled === true || busy > 0;
@@ -51,6 +78,9 @@ function setRow(name, value) {
 function render(value) {
   snapshot = value;
   const view = derivePopupView(value);
+  const visualState = globalVisualState(view.globalState);
+  elements.panel.dataset.state = visualState;
+  elements.globalStatus.dataset.state = visualState;
   elements.globalLamp.dataset.state = view.globalState;
   elements.globalLabel.textContent = view.globalLabel;
   elements.targetLabel.textContent = view.targetLabel;

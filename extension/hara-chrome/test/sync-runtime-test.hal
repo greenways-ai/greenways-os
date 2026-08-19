@@ -12,7 +12,9 @@
    "/application/greenways-os/extension/hara-chrome/vendor/studio/hal/boot.hal"
    "/application/greenways-os/extension/hara-chrome/vendor/studio/ui.js"
    "/application/greenways-os/extension/hara-chrome/vendor/hara.wasm"
-   "/application/greenways-os/extension/hara-chrome/vendor/ui/tokens.css"])
+   "/application/greenways-os/extension/hara-chrome/vendor/ui/tokens.css"
+   "/application/greenways-os/extension/hara-chrome/vendor/visual-language/v2-tool.css"
+   "/application/greenways-os/extension/hara-chrome/vendor/visual-language/v2/tool-runtime.css"])
 
 (def missing-assets
   (vec

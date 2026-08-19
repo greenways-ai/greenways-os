@@ -63,6 +63,10 @@ check-workspace:
 	  echo 'Missing ui/hara-ui checkout; initialise the hara-ui submodule/workspace dependency.' >&2; \
 	  exit 2; \
 	}
+	@test -f "$(EXTENSION_DIR)/ui/visual-language/src/v2-tool.css" || { \
+	  echo 'Missing ui/visual-language checkout; initialise the pinned visual-language submodule.' >&2; \
+	  exit 2; \
+	}
 
 dependencies:
 	@if [ ! -d node_modules ] || ! npm ls --silent >/dev/null 2>&1; then npm ci; fi
@@ -117,6 +121,7 @@ test-fast: dependencies
 	  test/dom-service.test.js \
 	  test/host-bridge-codec.test.js \
 	  test/offscreen-configuration.test.js \
+	  test/popup-v2.test.js \
 	  test/profile-cleanup.test.js \
 	  test/resp-bridge.test.js \
 	  test/resp-client.test.js \
