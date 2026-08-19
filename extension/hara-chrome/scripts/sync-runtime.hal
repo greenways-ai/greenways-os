@@ -27,7 +27,17 @@
    {:source (str extension-root "/ui/hara-ui/studio.css")
     :target (str extension-root "/vendor/ui/studio.css")}
    {:source (str extension-root "/ui/hara-ui/studio-shell.js")
-    :target (str extension-root "/vendor/ui/studio-shell.js")}])
+    :target (str extension-root "/vendor/ui/studio-shell.js")}
+   {:source (str extension-root "/ui/visual-language/src/tokens.css")
+    :target (str extension-root "/vendor/visual-language/tokens.css")}
+   {:source (str extension-root "/ui/visual-language/src/theme.css")
+    :target (str extension-root "/vendor/visual-language/theme.css")}
+   {:source (str extension-root "/ui/visual-language/src/v2.css")
+    :target (str extension-root "/vendor/visual-language/v2.css")}
+   {:source (str extension-root "/ui/visual-language/src/v2-tool.css")
+    :target (str extension-root "/vendor/visual-language/v2-tool.css")}
+   {:source (str extension-root "/ui/visual-language/src/v2")
+    :target (str extension-root "/vendor/visual-language/v2")}])
 
 (defn- wait!
   [pending]
