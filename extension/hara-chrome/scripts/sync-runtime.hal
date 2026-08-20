@@ -99,10 +99,9 @@
 
                 :else
                 (throw
-                 (ex-info "Unsupported hara-chrome runtime asset type"
-                          {:source current
+                 (ex :greenways.ex/unsupported-runtime-asset {:source current
                            :target destination
-                           :type (:type entry)})))))]
+                           :type (:type entry)} :ex/message "Unsupported hara-chrome runtime asset type" :ex/class :greenways.class/runtime-asset)))))]
     (copy-one! source target)))
 
 (defn- sync-asset!
@@ -113,9 +112,8 @@
       (println (str "synced " target))
       target)
     (throw
-     (ex-info "Required hara-chrome runtime asset is missing"
-              {:source source
-               :target target}))))
+     (ex :not-found {:source source
+               :target target} :ex/message "Required hara-chrome runtime asset is missing"))))
 
 (defn- ensure-runtime-assets!
   []
@@ -125,9 +123,8 @@
         (if (wait! (File/exists? source))
           (recur (inc index))
           (throw
-           (ex-info "Required hara-chrome runtime asset is missing"
-                    {:source source
-                     :target target}))))
+           (ex :not-found {:source source
+                     :target target} :ex/message "Required hara-chrome runtime asset is missing"))))
       true)))
 
 (defn- sync-runtime!

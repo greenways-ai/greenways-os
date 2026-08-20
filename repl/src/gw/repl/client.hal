@@ -55,9 +55,7 @@
                     (if user-home
                       (join-path user-home ".greenways")
                       (throw
-                       (ex-info
-                        "HOME is unavailable; set GREENWAYS_HOME or :home"
-                        {:greenways/code "home-unavailable"})))))
+                       (ex :greenways.ex/home-unavailable {:greenways/code "home-unavailable"} :ex/message "HOME is unavailable; set GREENWAYS_HOME or :home" :ex/class :greenways.class/configuration)))))
          cli (or (nonblank (:cli options))
                  (nonblank (env-value options "GREENWAYS_CLI"))
                  "greenways")
@@ -110,9 +108,7 @@
     (doseq [[key entry] value]
       (if (confidential-key? key)
         (throw
-         (ex-info
-          "Greenways response attempted to expose confidential authority"
-          {:greenways/code "confidential-response"}))
+         (ex :greenways.ex/confidential-response {:greenways/code "confidential-response"} :ex/message "Greenways response attempted to expose confidential authority" :ex/class :greenways.class/security))
         (scan-public! entry)))
 
     (sequential? value)
@@ -120,9 +116,7 @@
 
     (and (string? value) (confidential-text? value))
     (throw
-     (ex-info
-      "Greenways response attempted to expose confidential authority"
-      {:greenways/code "confidential-response"}))
+     (ex :greenways.ex/confidential-response {:greenways/code "confidential-response"} :ex/message "Greenways response attempted to expose confidential authority" :ex/class :greenways.class/security))
 
     :else nil)
   value)
@@ -141,29 +135,26 @@
     (if (or (not (string? output))
             (> (count (str/encode-utf8 output)) +maximum-json-bytes+))
       (throw
-       (ex-info "Greenways CLI returned invalid bounded JSON"
-                {:greenways/op operation
+       (ex :serialization {:greenways/op operation
                  :greenways/code "invalid-json-response"
-                 :greenways/exit (:exit result)}))
+                 :greenways/exit (:exit result)} :ex/message "Greenways CLI returned invalid bounded JSON"))
       (try
         (Json/read output)
         (catch Throwable error
           (throw
-           (ex-info "Greenways CLI returned invalid JSON"
-                    {:greenways/op operation
+           (ex :serialization {:greenways/op operation
                      :greenways/code "invalid-json-response"
-                     :greenways/exit (:exit result)})))))))
+                     :greenways/exit (:exit result)} :ex/message "Greenways CLI returned invalid JSON")))))))
 
 (defn public-failure [operation code message exit]
   (throw
-   (ex-info (if (bounded-text? message 400)
-              message
-              "Greenways operation failed")
-            {:greenways/op operation
+   (ex :greenways.ex/operation-failed {:greenways/op operation
              :greenways/code (if (bounded-text? code 80)
                                code
                                "greenways-failed")
-             :greenways/exit exit})))
+             :greenways/exit exit} :ex/message (if (bounded-text? message 400)
+              message
+              "Greenways operation failed") :ex/class :greenways.class/operation)))
 
 (defn unwrap-daemon [operation result]
   (let [envelope (scan-public! (parse-json operation result))]
@@ -247,9 +238,8 @@
     (if (nonblank value)
       value
       (throw
-       (ex-info (str label " is required")
-                {:greenways/code "invalid-arguments"
-                 :greenways/field key})))))
+       (ex :argument {:greenways/code "invalid-arguments"
+                 :greenways/field key} :ex/message (str label " is required"))))))
 
 (defn application-arguments [options]
   (let [base ["--app-id" (required-option options :app-id ":app-id")
