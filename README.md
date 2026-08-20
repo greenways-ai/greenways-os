@@ -1,6 +1,13 @@
 # Greenways OS
 
-> **Architecture direction:** Greenways is migrating to an authoritative `greenwaysd` service shared by Greenways Desktop and Greenways Server. Flutter is the management frontend and the Chrome extension becomes a browser bridge. Track the release train in [issue #49](https://github.com/greenways-ai/greenways-os/issues/49).
+> **Architecture direction:** Foreman is the first foreground Greenways
+> application and is delivered through an invisible private personal Fabric.
+> Greenways OS installs, verifies, updates, and launches Foreman through its
+> cross-platform Fabric Server and Desktop, CLI, and browser application hosts.
+> Person and AI-agent identity, permissions, storage, messaging, and application
+> history remain private Fabric services. Public publication and multi-channel
+> delivery belong to the separate Greenways Platform product. See
+> [the Fabric architecture](docs/fabric-architecture.md).
 
 The current developer release remains a programmable browser operating system built around one resident Hara kernel in a Chrome Manifest V3 service worker while that migration is implemented.
 
