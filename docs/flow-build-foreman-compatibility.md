@@ -79,3 +79,7 @@ The checker scans every tracked and non-ignored working-tree UTF-8 file except i
 The corrective source publication was validated in Actions run `32448203238`, job `96671618115`. That run materialized the ordinary source tree, passed the seven Gate 0 tests and four focused Flow/Foreman tests, checked the owned crate with Rust `1.85.1`, validated the JSON inventory, reran the closed scanner, and removed the temporary transport before publishing.
 
 The repository-wide formatter repair was bounded and published in run `32448687571`, job `96672910274`. Its guard required `cargo +1.85.1 fmt --all` to change exactly `cli/greenways/src/desktop.rs`, then removed its temporary workflow in the same commit.
+
+The Agent 1 Desktop compatibility repair was validated and published in run `32449758065`, job `96675886292`. It replaced the lint-only home override with a public factory and private stored constructor, retained the one-request-per-connection control protocol, formatted exactly the server and two affected tests with Flutter `3.47.0`, passed `flutter analyze` and the full Flutter test suite, and removed its publication workflow in the same commit.
+
+Normal workspace CI also exposed and closed a legacy CLI composition defect: the modern Desktop dispatcher now wraps the included legacy CLI through a distinct `dispatch` function placed before the included test module. This preserves the existing command implementation while allowing the combined binary to compile and pass Clippy.
