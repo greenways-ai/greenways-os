@@ -1,0 +1,35 @@
+name: A2 Desktop rustfmt export
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/a2-flow-foreman-source-repair'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install pinned Rust formatter
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt
+      - name: Format and bound the repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.85.1 fmt --all
+          git diff --check
+          changed="$(git diff --name-only)"
+          printf '%s\n' "$changed"
+          test "$changed" = "cli/greenways/src/desktop.rs"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a2-desktop-rustfmt
+          path: cli/greenways/src/desktop.rs
+          if-no-files-found: error
