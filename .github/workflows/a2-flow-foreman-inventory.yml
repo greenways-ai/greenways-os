@@ -1,21 +1,22 @@
 name: A2 branch materializer
 
 on:
-  push:
-    branches:
-      - agent/a2-flow-foreman-materialize
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   materialize:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/a2-flow-foreman-materialize'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/a2-flow-foreman-materialize
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
