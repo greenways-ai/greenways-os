@@ -18,109 +18,25 @@ jobs:
         with:
           ref: agent/flow-foreman-compatibility-proof
           fetch-depth: 0
-      - name: Recover the reviewed contract sources
+      - name: Recover and close the reviewed compatibility contracts
         run: |
           set -euo pipefail
-          git fetch --no-tags origin refs/heads/agent/a2-flow-compatibility-source:refs/remotes/origin/a2-flow-compatibility-source
-          source_ref=refs/remotes/origin/a2-flow-compatibility-source
-          copy_from_source() { mkdir -p "$(dirname "$2")"; git show "${source_ref}:$1" > "$2"; }
-          copy_from_source crates/greenways-workspace-contracts/src/flow.rs crates/greenways-workspace-contracts/src/flow.rs
-          copy_from_source crates/greenways-workspace-contracts/src/lib.rs crates/greenways-workspace-contracts/src/lib.rs
-          copy_from_source crates/greenways-workspace-contracts/tests/fixtures/flow/flow-foreman-compatibility.json crates/greenways-workspace-contracts/tests/fixtures/flow/flow-foreman-compatibility.json
-          copy_from_source crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs
-          copy_from_source protocol/compatibility/flow-build-foreman-inventory-0-alpha.json protocol/compatibility/flow-build-foreman-inventory-0-alpha.json
-          copy_from_source scripts/check-flow-foreman-compatibility.py scripts/check-flow-build-foreman-inventory.py
-          copy_from_source docs/flow-foreman-compatibility.md docs/flow-build-foreman-compatibility.md
-          copy_from_source .github/workflows/flow-foreman-compatibility.yml .github/workflows/flow-build-foreman-compatibility.yml
-          chmod +x scripts/check-flow-build-foreman-inventory.py
-      - name: Close the legacy Build target as incompatible
-        run: |
-          python3 - <<'PY'
-          from __future__ import annotations
-          import json
-          from pathlib import Path
-
-          def replace_exact(path: str, old: str, new: str, count: int = 1) -> None:
-              file = Path(path)
-              text = file.read_text(encoding="utf-8")
-              actual = text.count(old)
-              if actual != count:
-                  raise SystemExit(f"{path}: expected {count} occurrences of {old!r}, found {actual}")
-              file.write_text(text.replace(old, new), encoding="utf-8")
-
-          replace_exact("crates/greenways-workspace-contracts/src/suite.rs", "disposition: CompatibilityDisposition::InventoryRequired,", "disposition: CompatibilityDisposition::IncompatibleBlocked,")
-          replace_exact("crates/greenways-workspace-contracts/tests/suite_gate0.rs", "CompatibilityDisposition::InventoryRequired", "CompatibilityDisposition::IncompatibleBlocked")
-          replace_exact("crates/greenways-workspace-contracts/src/flow.rs", "CompatibilityDisposition::Absent,\n                false,", "CompatibilityDisposition::IncompatibleBlocked,\n                false,")
-          replace_exact("crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs", "CompatibilityDisposition::Absent", "CompatibilityDisposition::IncompatibleBlocked")
-          replace_exact("crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs", "fn build_is_absent_and_cannot_become_a_second_current_application()", "fn build_is_blocked_and_cannot_become_a_second_current_application()")
-
-          suite_path = Path("crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json")
-          suite = json.loads(suite_path.read_text(encoding="utf-8"))
-          apps = suite.get("applications")
-          if not isinstance(apps, list) or len(apps) != 2 or apps[1].get("applicationId") != "flow":
-              raise SystemExit("current suite fixture must contain exactly Spaces then Flow")
-          slots = apps[1].get("compatibility")
-          if not isinstance(slots, list) or len(slots) != 1 or slots[0].get("legacyApplicationId") != "build":
-              raise SystemExit("Flow must contain exactly one legacy Build slot")
-          slots[0]["disposition"] = "incompatible-blocked"
-          suite_path.write_text(json.dumps(suite, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-          flow_path = Path("crates/greenways-workspace-contracts/tests/fixtures/flow/flow-foreman-compatibility.json")
-          flow = json.loads(flow_path.read_text(encoding="utf-8"))
-          rules = flow.get("compatibility")
-          if not isinstance(rules, list) or not rules or rules[0].get("identity") != "build":
-              raise SystemExit("Flow compatibility fixture must begin with legacy Build")
-          rules[0]["disposition"] = "incompatible-blocked"
-          flow_path.write_text(json.dumps(flow, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-          inv_path = Path("protocol/compatibility/flow-build-foreman-inventory-0-alpha.json")
-          inv = json.loads(inv_path.read_text(encoding="utf-8"))
-          resolution = inv.get("buildResolution")
-          if not isinstance(resolution, dict):
-              raise SystemExit("inventory requires buildResolution")
-          resolution.update(classification="incompatible-blocked", requestResult="incompatible", decision="The checked baseline contains no durable Build product identity. Legacy Build application requests are explicitly blocked; do not mint an alias, redirect, command family, record migration, or second logical project.")
-          inv_path.write_text(json.dumps(inv, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-          checker = Path("scripts/check-flow-build-foreman-inventory.py")
-          text = checker.read_text(encoding="utf-8")
-          replacements = {
-              ".github/workflows/flow-foreman-compatibility.yml": ".github/workflows/flow-build-foreman-compatibility.yml",
-              "docs/flow-foreman-compatibility.md": "docs/flow-build-foreman-compatibility.md",
-              "scripts/check-flow-foreman-compatibility.py": "scripts/check-flow-build-foreman-inventory.py",
-              '"classification": "absent",\n        "requestResult": "incompatible",': '"classification": "incompatible-blocked",\n        "requestResult": "incompatible",',
-              '"disposition": "absent",\n        "discoverable": False,': '"disposition": "incompatible-blocked",\n        "discoverable": False,',
-              'rules[0].get("disposition") != "absent"': 'rules[0].get("disposition") != "incompatible-blocked"',
-          }
-          for old, new in replacements.items():
-              if old not in text:
-                  raise SystemExit(f"checker replacement source missing: {old!r}")
-              text = text.replace(old, new)
-          text = text.replace('"Flow/Foreman compatibility inventory verified: Build absent; "', '"Flow/Foreman compatibility inventory verified: legacy Build blocked; "')
-          checker.write_text(text, encoding="utf-8")
-
-          workflow = Path(".github/workflows/flow-build-foreman-compatibility.yml")
-          text = workflow.read_text(encoding="utf-8").replace("name: Flow Foreman compatibility", "name: Flow Build Foreman compatibility").replace("python3 scripts/check-flow-foreman-compatibility.py", "python3 scripts/check-flow-build-foreman-inventory.py")
-          workflow.write_text(text, encoding="utf-8")
-
-          document = Path("docs/flow-build-foreman-compatibility.md")
-          text = document.read_text(encoding="utf-8").replace("| Build application/package IDs | absent |", "| Legacy Build application target | incompatible / blocked |").replace("It records all\nBuild categories as absent", "It records the legacy Build target as blocked and all searched\nBuild product-identity categories as absent").replace("python3 scripts/check-flow-foreman-compatibility.py", "python3 scripts/check-flow-build-foreman-inventory.py")
-          document.write_text(text, encoding="utf-8")
-
-          for temporary in (
-              ".github/workflows/a2-flow-foreman-inventory.yml",
-              ".github/workflows/a2-flow-foreman-compatibility-proof.yml",
-              ".github/workflows/a2-flow-proof-scope-format.yml",
-          ):
-              path = Path(temporary)
-              if path.exists():
-                  path.unlink()
-          PY
+          git fetch --no-tags origin \
+            refs/heads/agent/a2-flow-compatibility-source:refs/remotes/origin/a2-flow-compatibility-source
+          python3 scripts/materialize-a2-flow-compatibility-proof.py
       - name: Install pinned Rust tools
-        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
+        run: >-
+          rustup toolchain install 1.85.1 --profile minimal
+          --component rustfmt --component clippy
       - name: Validate the closed contracts
         run: |
           set -euo pipefail
-          rustfmt +1.85.1 --edition 2021 crates/greenways-workspace-contracts/src/flow.rs crates/greenways-workspace-contracts/src/lib.rs crates/greenways-workspace-contracts/src/suite.rs crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs crates/greenways-workspace-contracts/tests/suite_gate0.rs
+          rustfmt +1.85.1 --edition 2021 \
+            crates/greenways-workspace-contracts/src/flow.rs \
+            crates/greenways-workspace-contracts/src/lib.rs \
+            crates/greenways-workspace-contracts/src/suite.rs \
+            crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs \
+            crates/greenways-workspace-contracts/tests/suite_gate0.rs
           python3 scripts/check-flow-build-foreman-inventory.py
           cargo +1.85.1 test -p greenways-workspace-contracts --all-targets
           cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
