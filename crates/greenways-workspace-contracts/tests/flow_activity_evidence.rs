@@ -1,16 +1,16 @@
 use greenways_workspace_contracts::{
     flow_activity_evidence_operation_catalogue, CurrentApplicationId,
-    FlowActivityEvidenceOperationCatalogue, FlowAgentMandateCapability, FlowExternalReadbackState,
-    FlowProjectActivityEvidenceSnapshot, FlowProjectArtifactState,
+    FlowActivityEvidenceOperationCatalogue, FlowAgentMandateCapability,
+    FlowExternalReadbackState, FlowProjectActivityEvidenceSnapshot, FlowProjectArtifactState,
     FlowProjectHandoffInterventionSnapshot, FlowProjectParticipationSnapshot,
     FlowProjectPresenceSnapshot, FlowWorkCoordinationSnapshot, ReferenceAuthorityState,
     ReferenceFreshness, FLOW_PROJECT_ACTIVITY_LIST_OPERATION,
-    FLOW_PROJECT_ARTIFACTS_LIST_OPERATION, FLOW_PROJECT_ARTIFACT_REJECT_OPERATION,
-    FLOW_PROJECT_ARTIFACT_REPORT_OPERATION, FLOW_PROJECT_ARTIFACT_SELECT_OPERATION,
-    FLOW_PROJECT_EXTERNAL_READBACKS_LIST_OPERATION,
+    FLOW_PROJECT_ARTIFACT_REJECT_OPERATION, FLOW_PROJECT_ARTIFACT_REPORT_OPERATION,
+    FLOW_PROJECT_ARTIFACT_SELECT_OPERATION, FLOW_PROJECT_ARTIFACTS_LIST_OPERATION,
     FLOW_PROJECT_EXTERNAL_READBACK_MARK_UNCERTAIN_OPERATION,
     FLOW_PROJECT_EXTERNAL_READBACK_OBSERVE_OPERATION,
     FLOW_PROJECT_EXTERNAL_READBACK_VERIFY_OPERATION,
+    FLOW_PROJECT_EXTERNAL_READBACKS_LIST_OPERATION,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -21,7 +21,8 @@ const PRESENCE: &str = include_str!("fixtures/flow/project-presence.json");
 const HANDOFFS: &str = include_str!("fixtures/flow/project-handoffs-interventions.json");
 const EVIDENCE: &str = include_str!("fixtures/flow/project-activity-evidence.json");
 const RESTART: &str = include_str!("fixtures/flow/project-activity-evidence-restart.json");
-const OPERATIONS: &str = include_str!("fixtures/flow/activity-evidence-operation-catalogue.json");
+const OPERATIONS: &str =
+    include_str!("fixtures/flow/activity-evidence-operation-catalogue.json");
 
 fn participation() -> FlowProjectParticipationSnapshot {
     serde_json::from_str(PARTICIPATION).expect("participation fixture should decode")
@@ -50,19 +51,19 @@ fn restart() -> FlowProjectActivityEvidenceSnapshot {
 #[test]
 fn canonical_activity_and_evidence_validate_against_exact_project_context() {
     let snapshot = evidence();
+    snapshot.validate().expect("evidence snapshot should validate");
     snapshot
-        .validate()
-        .expect("evidence snapshot should validate");
-    snapshot
-        .validate_against_context(&participation(), &coordination(), &presence(), &handoffs())
+        .validate_against_context(
+            &participation(),
+            &coordination(),
+            &presence(),
+            &handoffs(),
+        )
         .expect("evidence context should validate");
 
     assert_eq!(snapshot.artifacts.len(), 1);
     assert_eq!(snapshot.external_readbacks.len(), 1);
-    assert_eq!(
-        snapshot.artifacts[0].state,
-        FlowProjectArtifactState::Verified
-    );
+    assert_eq!(snapshot.artifacts[0].state, FlowProjectArtifactState::Verified);
     assert_eq!(
         snapshot.external_readbacks[0].state,
         FlowExternalReadbackState::Verified
@@ -73,11 +74,14 @@ fn canonical_activity_and_evidence_validate_against_exact_project_context() {
 #[test]
 fn restart_preserves_uncertainty_without_replaying_work_or_effects() {
     let snapshot = restart();
+    snapshot.validate().expect("restart snapshot should validate");
     snapshot
-        .validate()
-        .expect("restart snapshot should validate");
-    snapshot
-        .validate_against_context(&participation(), &coordination(), &presence(), &handoffs())
+        .validate_against_context(
+            &participation(),
+            &coordination(),
+            &presence(),
+            &handoffs(),
+        )
         .expect("restart evidence context should validate");
 
     assert_eq!(
@@ -218,7 +222,12 @@ fn artifact_selection_requires_an_active_human_owner_or_coordinator() {
     snapshot.artifacts[0].selected_by_membership_id =
         Some("membership/flow-agent-builder".to_owned());
     assert!(snapshot
-        .validate_against_context(&participation(), &coordination(), &presence(), &handoffs(),)
+        .validate_against_context(
+            &participation(),
+            &coordination(),
+            &presence(),
+            &handoffs(),
+        )
         .is_err());
 }
 
@@ -238,7 +247,8 @@ fn agent_reports_and_observations_require_exact_mandate_capabilities() {
         .is_err());
 
     let mut agent_observed = evidence();
-    agent_observed.external_readbacks[0].observer = agent_observed.artifacts[0].producer.clone();
+    agent_observed.external_readbacks[0].observer =
+        agent_observed.artifacts[0].producer.clone();
     let mut without_evidence_observe = participation();
     without_evidence_observe.agent_mandates[0]
         .capabilities
@@ -258,13 +268,23 @@ fn artifact_work_claim_and_readback_links_resolve_exactly() {
     let mut snapshot = evidence();
     snapshot.artifacts[0].work_id = "work/not-present".to_owned();
     assert!(snapshot
-        .validate_against_context(&participation(), &coordination(), &presence(), &handoffs(),)
+        .validate_against_context(
+            &participation(),
+            &coordination(),
+            &presence(),
+            &handoffs(),
+        )
         .is_err());
 
     let mut snapshot = evidence();
     snapshot.artifacts[0].claim_id = Some("claim/not-present".to_owned());
     assert!(snapshot
-        .validate_against_context(&participation(), &coordination(), &presence(), &handoffs(),)
+        .validate_against_context(
+            &participation(),
+            &coordination(),
+            &presence(),
+            &handoffs(),
+        )
         .is_err());
 
     let mut snapshot = evidence();
@@ -283,7 +303,8 @@ fn activity_is_append_ordered_unique_and_causally_backward_only() {
     assert!(snapshot.validate().is_err());
 
     let mut snapshot = evidence();
-    snapshot.activity[1].causal_predecessor_activity_id = Some("activity/not-earlier".to_owned());
+    snapshot.activity[1].causal_predecessor_activity_id =
+        Some("activity/not-earlier".to_owned());
     assert!(snapshot.validate().is_err());
 
     let mut snapshot = evidence();
@@ -301,7 +322,8 @@ fn selected_and_verified_records_require_matching_append_activity() {
 
     let mut snapshot = evidence();
     snapshot.activity.retain(|entry| {
-        entry.kind != greenways_workspace_contracts::FlowProjectActivityKind::ExternalEffectVerified
+        entry.kind
+            != greenways_workspace_contracts::FlowProjectActivityKind::ExternalEffectVerified
     });
     assert!(snapshot.validate().is_err());
 }
@@ -351,7 +373,8 @@ fn unknown_fields_unknown_operations_and_non_flow_ownership_fail_closed() {
     assert!(serde_json::from_value::<FlowProjectActivityEvidenceSnapshot>(value).is_err());
 
     let mut value: Value = serde_json::from_str(OPERATIONS).expect("fixture should parse");
-    value["operations"][0]["operationId"] = json!("flow.project.external-readback.invoke-provider");
+    value["operations"][0]["operationId"] =
+        json!("flow.project.external-readback.invoke-provider");
     assert!(serde_json::from_value::<FlowActivityEvidenceOperationCatalogue>(value).is_err());
 
     let mut snapshot = evidence();

@@ -1,8 +1,8 @@
 use greenways_workspace_contracts::{
     flow_project_control_room, FlowBuildoutState, FlowControlRoomActionAvailability,
-    FlowControlRoomAttentionKind, FlowControlRoomAttentionSeverity, FlowControlRoomDisabledReason,
-    FlowControlRoomRevisionSubject, FlowControlRoomSelection, FlowOperationId,
-    FlowProjectControlRoom, FlowProjectSnapshot, FlowProjectState, FlowWorkState,
+    FlowControlRoomAttentionKind, FlowControlRoomAttentionSeverity,
+    FlowControlRoomDisabledReason, FlowControlRoomRevisionSubject, FlowControlRoomSelection,
+    FlowOperationId, FlowProjectControlRoom, FlowProjectSnapshot, FlowProjectState, FlowWorkState,
 };
 use serde_json::{json, Value};
 
@@ -65,10 +65,7 @@ fn selected_terminal_work_keeps_reads_and_disables_mutation() {
         .iter()
         .find(|action| action.operation_id == FlowOperationId::WorkGet)
         .expect("work read action should exist");
-    assert_eq!(
-        get.availability,
-        FlowControlRoomActionAvailability::Available
-    );
+    assert_eq!(get.availability, FlowControlRoomActionAvailability::Available);
     assert!(get.expected_revision.is_none());
 
     for operation_id in [FlowOperationId::WorkUpdate, FlowOperationId::WorkTransition] {
@@ -77,10 +74,7 @@ fn selected_terminal_work_keeps_reads_and_disables_mutation() {
             .iter()
             .find(|action| action.operation_id == operation_id)
             .expect("selected work mutation should be represented");
-        assert_eq!(
-            action.availability,
-            FlowControlRoomActionAvailability::Disabled
-        );
+        assert_eq!(action.availability, FlowControlRoomActionAvailability::Disabled);
         assert_eq!(
             action.disabled_reason,
             Some(FlowControlRoomDisabledReason::TerminalWork)
@@ -112,10 +106,7 @@ fn selected_active_buildout_uses_its_own_revision_fence() {
             .iter()
             .find(|action| action.operation_id == operation_id)
             .expect("selected buildout mutation should be represented");
-        assert_eq!(
-            action.availability,
-            FlowControlRoomActionAvailability::Available
-        );
+        assert_eq!(action.availability, FlowControlRoomActionAvailability::Available);
         let expected = action
             .expected_revision
             .as_ref()
@@ -144,10 +135,7 @@ fn terminal_project_disables_project_owned_mutation_without_hiding_reads() {
             .iter()
             .find(|action| action.operation_id == operation_id)
             .expect("project read action should exist");
-        assert_eq!(
-            action.availability,
-            FlowControlRoomActionAvailability::Available
-        );
+        assert_eq!(action.availability, FlowControlRoomActionAvailability::Available);
     }
     for operation_id in [
         FlowOperationId::ProjectUpdate,
@@ -160,10 +148,7 @@ fn terminal_project_disables_project_owned_mutation_without_hiding_reads() {
             .iter()
             .find(|action| action.operation_id == operation_id)
             .expect("project-owned mutation should remain explicit");
-        assert_eq!(
-            action.availability,
-            FlowControlRoomActionAvailability::Disabled
-        );
+        assert_eq!(action.availability, FlowControlRoomActionAvailability::Disabled);
         assert_eq!(
             action.disabled_reason,
             Some(FlowControlRoomDisabledReason::TerminalProject)
@@ -194,18 +179,12 @@ fn attention_is_derived_from_visible_record_state() {
         room.attention[0].severity,
         FlowControlRoomAttentionSeverity::ActionRequired
     );
-    assert_eq!(
-        room.attention[1].kind,
-        FlowControlRoomAttentionKind::WorkFailed
-    );
+    assert_eq!(room.attention[1].kind, FlowControlRoomAttentionKind::WorkFailed);
     assert_eq!(
         room.attention[1].severity,
         FlowControlRoomAttentionSeverity::Critical
     );
-    assert_eq!(
-        room.attention[2].kind,
-        FlowControlRoomAttentionKind::WorkBlocked
-    );
+    assert_eq!(room.attention[2].kind, FlowControlRoomAttentionKind::WorkBlocked);
     assert_eq!(
         room.attention[3].kind,
         FlowControlRoomAttentionKind::BuildoutReview
