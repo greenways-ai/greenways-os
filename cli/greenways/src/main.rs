@@ -3,7 +3,7 @@ mod desktop;
 mod legacy {
     include!("legacy.rs");
 
-    pub(super) fn run() {
+    pub(super) fn dispatch() {
         main();
     }
 }
@@ -11,7 +11,7 @@ mod legacy {
 fn main() {
     match desktop::run_if_requested(std::env::args_os().skip(1)) {
         Ok(true) => {}
-        Ok(false) => legacy::run(),
+        Ok(false) => legacy::dispatch(),
         Err(message) => {
             eprintln!("greenways: {message}");
             std::process::exit(1);
