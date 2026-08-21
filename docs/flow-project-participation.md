@@ -134,3 +134,17 @@ Subsequent A4 pull requests own:
 5. closed Desktop, CLI, browser, and MCP Project Control Room view models.
 
 This contract introduces no generic database, filesystem, provider, browser, process, shell, native, credential, or application-authority handle.
+
+## Validation proof
+
+The self-cleaning publisher completed in Actions run `32456297673`, job `96694143637`. It:
+
+- applied pinned Rust `1.85.1` formatting;
+- removed its temporary workflow before closing evidence;
+- regenerated the Flow/Build/Foreman findings from the final working tree;
+- passed every `greenways-workspace-contracts` target;
+- passed all-target Clippy with warnings denied;
+- validated both canonical JSON fixtures and the compatibility inventory;
+- passed the permanent compatibility scanner and whitespace checks;
+- enforced the exact seven-file review allowlist; and
+- published self-cleaned head `c05c4e7800116e00abf4506c574bd8390c63cc26`.
