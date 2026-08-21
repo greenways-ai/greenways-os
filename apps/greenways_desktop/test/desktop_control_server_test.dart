@@ -226,10 +226,10 @@ final class _Fixture {
     );
     socket.add(utf8.encode('${jsonEncode(request)}\n'));
     await socket.flush();
-    socket.shutdown(SocketDirection.send);
-    final response = await socket.transform(utf8.decoder).join();
-    onResponse?.call();
+    final responseFuture = utf8.decoder.bind(socket.cast<List<int>>()).join();
     await socket.close();
+    final response = await responseFuture;
+    onResponse?.call();
     final lines = const LineSplitter().convert(response);
     expect(lines, hasLength(1));
     return _object(jsonDecode(lines.single));
