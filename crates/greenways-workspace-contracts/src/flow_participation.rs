@@ -56,10 +56,7 @@ impl FlowProjectPrincipalReference {
             MAX_PRINCIPAL_ID_BYTES,
             "invalid-flow-project-principal",
         )?;
-        require_positive_revision(
-            self.identity_revision,
-            "invalid-flow-principal-revision",
-        )
+        require_positive_revision(self.identity_revision, "invalid-flow-principal-revision")
     }
 }
 
@@ -86,16 +83,15 @@ impl FlowProjectMemberState {
     pub const fn allows_transition_to(self, next: Self) -> bool {
         matches!(
             (self, next),
-            (
-                Self::Invited,
-                Self::Active | Self::Revoked | Self::Expired
-            ) | (
-                Self::Active,
-                Self::Suspended | Self::Revoked | Self::Expired
-            ) | (
-                Self::Suspended,
-                Self::Active | Self::Revoked | Self::Expired
-            )
+            (Self::Invited, Self::Active | Self::Revoked | Self::Expired)
+                | (
+                    Self::Active,
+                    Self::Suspended | Self::Revoked | Self::Expired
+                )
+                | (
+                    Self::Suspended,
+                    Self::Active | Self::Revoked | Self::Expired
+                )
         )
     }
 
@@ -229,8 +225,14 @@ impl FlowAgentMandateState {
         matches!(
             (self, next),
             (Self::Proposed, Self::Active | Self::Revoked | Self::Expired)
-                | (Self::Active, Self::Suspended | Self::Revoked | Self::Expired)
-                | (Self::Suspended, Self::Active | Self::Revoked | Self::Expired)
+                | (
+                    Self::Active,
+                    Self::Suspended | Self::Revoked | Self::Expired
+                )
+                | (
+                    Self::Suspended,
+                    Self::Active | Self::Revoked | Self::Expired
+                )
         )
     }
 
@@ -290,8 +292,7 @@ impl FlowAgentMandate {
 
         if self.capabilities.is_empty()
             || self.capabilities.len() > MAX_MANDATE_CAPABILITIES
-            || self.capabilities.iter().collect::<BTreeSet<_>>().len()
-                != self.capabilities.len()
+            || self.capabilities.iter().collect::<BTreeSet<_>>().len() != self.capabilities.len()
         {
             return Err(ContractError::new(
                 "invalid-flow-mandate-capabilities",
@@ -397,7 +398,10 @@ impl FlowProjectParticipationSnapshot {
                     "Flow membership identities must be unique within a project",
                 ));
             }
-            if !principals.insert((member.principal.kind, member.principal.principal_id.as_str())) {
+            if !principals.insert((
+                member.principal.kind,
+                member.principal.principal_id.as_str(),
+            )) {
                 return Err(ContractError::new(
                     "duplicate-flow-project-principal",
                     "A person or agent may appear only once in a Flow project participation snapshot",
@@ -467,9 +471,7 @@ impl FlowProjectParticipationSnapshot {
                     member.state,
                     FlowProjectMemberState::Invited | FlowProjectMemberState::Active
                 ),
-                FlowAgentMandateState::Active => {
-                    member.state == FlowProjectMemberState::Active
-                }
+                FlowAgentMandateState::Active => member.state == FlowProjectMemberState::Active,
                 FlowAgentMandateState::Suspended => matches!(
                     member.state,
                     FlowProjectMemberState::Active | FlowProjectMemberState::Suspended
@@ -477,7 +479,7 @@ impl FlowProjectParticipationSnapshot {
                 FlowAgentMandateState::Revoked | FlowAgentMandateState::Expired => true,
             };
             if !membership_state_is_valid
-                || (member.state.is_current() == false && mandate.state.is_current())
+                || (!member.state.is_current() && mandate.state.is_current())
             {
                 return Err(ContractError::new(
                     "flow-agent-mandate-membership-state-mismatch",
@@ -644,52 +646,46 @@ fn canonical_operation(
     use FlowParticipationOperationScope::{
         AgentCollection, AgentMandate, Member, MemberCollection,
     };
+    use FlowParticipationResultKind::Member as MemberResult;
     use FlowParticipationResultKind::{AgentMandate as AgentResult, AgentPage, MemberPage};
-    use FlowParticipationResultKind::{Member as MemberResult};
 
-    let (scope, intent, requires_entity_id, requires_expected_project_revision, idempotency, result_kind) =
-        match operation_id {
-            FlowParticipationOperationId::MembersList => {
-                (MemberCollection, Read, false, false, None, MemberPage)
-            }
-            FlowParticipationOperationId::MemberAdd => (
-                MemberCollection,
-                Manage,
-                false,
-                true,
-                ExactRequest,
-                MemberResult,
-            ),
-            FlowParticipationOperationId::MemberUpdate
-            | FlowParticipationOperationId::MemberRemove => (
-                Member,
-                Manage,
-                true,
-                true,
-                ExactRequest,
-                MemberResult,
-            ),
-            FlowParticipationOperationId::AgentsList => {
-                (AgentCollection, Read, false, false, None, AgentPage)
-            }
-            FlowParticipationOperationId::AgentAdd => (
-                AgentCollection,
-                Manage,
-                false,
-                true,
-                ExactRequest,
-                AgentResult,
-            ),
-            FlowParticipationOperationId::AgentUpdate
-            | FlowParticipationOperationId::AgentRevoke => (
-                AgentMandate,
-                Manage,
-                true,
-                true,
-                ExactRequest,
-                AgentResult,
-            ),
-        };
+    let (
+        scope,
+        intent,
+        requires_entity_id,
+        requires_expected_project_revision,
+        idempotency,
+        result_kind,
+    ) = match operation_id {
+        FlowParticipationOperationId::MembersList => {
+            (MemberCollection, Read, false, false, None, MemberPage)
+        }
+        FlowParticipationOperationId::MemberAdd => (
+            MemberCollection,
+            Manage,
+            false,
+            true,
+            ExactRequest,
+            MemberResult,
+        ),
+        FlowParticipationOperationId::MemberUpdate | FlowParticipationOperationId::MemberRemove => {
+            (Member, Manage, true, true, ExactRequest, MemberResult)
+        }
+        FlowParticipationOperationId::AgentsList => {
+            (AgentCollection, Read, false, false, None, AgentPage)
+        }
+        FlowParticipationOperationId::AgentAdd => (
+            AgentCollection,
+            Manage,
+            false,
+            true,
+            ExactRequest,
+            AgentResult,
+        ),
+        FlowParticipationOperationId::AgentUpdate | FlowParticipationOperationId::AgentRevoke => {
+            (AgentMandate, Manage, true, true, ExactRequest, AgentResult)
+        }
+    };
 
     FlowParticipationOperationDescriptor {
         protocol: FLOW_PARTICIPATION_OPERATION_PROTOCOL.to_owned(),

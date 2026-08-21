@@ -879,6 +879,16 @@
       "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
     },
     {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-participation.json",
+      "lineText": "\"buildout-read\"",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
       "path": "crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json",
       "lineText": "\"legacyApplicationId\": \"build\",",
       "patterns": [
@@ -1073,6 +1083,16 @@
       "lineText": "project.buildouts[0].work_ids.pop();",
       "patterns": [
         "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_participation.rs",
+      "lineText": "for application_id in [\"build\", \"foreman\", \"imagine\", \"world\"] {",
+      "patterns": [
+        "foreman-token"
       ],
       "occurrences": 1,
       "classification": "retained-technical-identity",
@@ -1561,6 +1581,56 @@
     {
       "path": "docs/flow-project-contract.md",
       "lineText": "| `flow.buildout.update` | buildout | manage | project/buildout IDs and expected revision required |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-participation.md",
+      "lineText": "Greenways Flow remains the only current product-facing coordination application. Foreman remains its internal coordination engine and durable domain implementation; it is not an application target or a second participation authority.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-participation.md",
+      "lineText": "buildout-create",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-participation.md",
+      "lineText": "buildout-read",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-participation.md",
+      "lineText": "buildout-transition",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-participation.md",
+      "lineText": "buildout-update",
       "patterns": [
         "buildout-token"
       ],

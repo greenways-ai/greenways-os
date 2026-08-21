@@ -1,17 +1,16 @@
 use greenways_workspace_contracts::{
     flow_participation_operation_catalogue, CurrentApplicationId, FlowAgentMandateState,
-    FlowParticipationOperationCatalogue, FlowParticipationOperationId,
-    FlowProjectMemberRole, FlowProjectMemberState, FlowProjectParticipationSnapshot,
-    FLOW_PROJECT_AGENTS_LIST_OPERATION, FLOW_PROJECT_AGENT_ADD_OPERATION,
-    FLOW_PROJECT_AGENT_REVOKE_OPERATION, FLOW_PROJECT_AGENT_UPDATE_OPERATION,
-    FLOW_PROJECT_MEMBERS_LIST_OPERATION, FLOW_PROJECT_MEMBER_ADD_OPERATION,
-    FLOW_PROJECT_MEMBER_REMOVE_OPERATION, FLOW_PROJECT_MEMBER_UPDATE_OPERATION,
+    FlowParticipationOperationCatalogue, FlowParticipationOperationId, FlowProjectMemberRole,
+    FlowProjectMemberState, FlowProjectParticipationSnapshot, FLOW_PROJECT_AGENTS_LIST_OPERATION,
+    FLOW_PROJECT_AGENT_ADD_OPERATION, FLOW_PROJECT_AGENT_REVOKE_OPERATION,
+    FLOW_PROJECT_AGENT_UPDATE_OPERATION, FLOW_PROJECT_MEMBERS_LIST_OPERATION,
+    FLOW_PROJECT_MEMBER_ADD_OPERATION, FLOW_PROJECT_MEMBER_REMOVE_OPERATION,
+    FLOW_PROJECT_MEMBER_UPDATE_OPERATION,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
-const PARTICIPATION_FIXTURE: &str =
-    include_str!("fixtures/flow/project-participation.json");
+const PARTICIPATION_FIXTURE: &str = include_str!("fixtures/flow/project-participation.json");
 const OPERATION_FIXTURE: &str =
     include_str!("fixtures/flow/participation-operation-catalogue.json");
 
@@ -280,14 +279,10 @@ fn operation_metadata_cannot_grant_authority_or_delete_history() {
 #[test]
 fn member_and_mandate_transitions_are_closed() {
     assert!(FlowProjectMemberState::Invited.allows_transition_to(FlowProjectMemberState::Active));
-    assert!(FlowProjectMemberState::Active
-        .allows_transition_to(FlowProjectMemberState::Suspended));
-    assert!(!FlowProjectMemberState::Revoked
-        .allows_transition_to(FlowProjectMemberState::Active));
+    assert!(FlowProjectMemberState::Active.allows_transition_to(FlowProjectMemberState::Suspended));
+    assert!(!FlowProjectMemberState::Revoked.allows_transition_to(FlowProjectMemberState::Active));
 
     assert!(FlowAgentMandateState::Proposed.allows_transition_to(FlowAgentMandateState::Active));
-    assert!(FlowAgentMandateState::Active
-        .allows_transition_to(FlowAgentMandateState::Suspended));
-    assert!(!FlowAgentMandateState::Revoked
-        .allows_transition_to(FlowAgentMandateState::Active));
+    assert!(FlowAgentMandateState::Active.allows_transition_to(FlowAgentMandateState::Suspended));
+    assert!(!FlowAgentMandateState::Revoked.allows_transition_to(FlowAgentMandateState::Active));
 }
