@@ -18,6 +18,8 @@ final _requestIdPattern = RegExp(
 );
 
 final class DesktopControlServer {
+  // Keep the public `home:` override while storing the path privately.
+  // ignore: prefer_initializing_formals
   DesktopControlServer(
     this.controller, {
     required this.showWindow,
