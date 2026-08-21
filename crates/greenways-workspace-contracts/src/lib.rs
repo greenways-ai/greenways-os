@@ -6,6 +6,7 @@ mod flow_participation;
 mod flow_presence;
 mod flow_work_coordination;
 mod resource;
+mod spaces;
 mod suite;
 
 pub use chats::{
@@ -28,6 +29,7 @@ pub use resource::{
     PAGE_PROTOCOL, QUERY_PROTOCOL, RESOURCE_PROTOCOL, SESSION_HELLO_PROTOCOL,
     SIGNAL_RESOURCE_CHANGED, SUBSTRATE_PROTOCOL, TRANSACTION_PROTOCOL,
 };
+pub use spaces::*;
 pub use suite::*;
 
 use serde::{Deserialize, Serialize};
