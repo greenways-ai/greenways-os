@@ -251,7 +251,7 @@ pub fn current_suite_manifest() -> CurrentSuiteManifest {
                 compatibility: vec![CompatibilitySlot {
                     legacy_application_id: LegacyApplicationId::Build,
                     target_application_id: CurrentApplicationId::Flow,
-                    disposition: CompatibilityDisposition::InventoryRequired,
+                    disposition: CompatibilityDisposition::IncompatibleBlocked,
                     discoverable: false,
                     grants_authority: false,
                 }],

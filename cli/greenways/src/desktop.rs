@@ -50,9 +50,7 @@ enum Parsed {
     Help,
 }
 
-pub(super) fn run_if_requested(
-    arguments: impl Iterator<Item = OsString>,
-) -> Result<bool, String> {
+pub(super) fn run_if_requested(arguments: impl Iterator<Item = OsString>) -> Result<bool, String> {
     let arguments = arguments.collect::<Vec<_>>();
     if arguments.first().and_then(|value| value.to_str()) != Some("desktop") {
         return Ok(false);
@@ -167,8 +165,7 @@ fn execute(options: Options) -> Result<(), String> {
         return Err("Desktop control request exceeded its byte limit".to_owned());
     }
 
-    let mut stream =
-        UnixStream::connect(&socket).map_err(|_| unavailable(&socket))?;
+    let mut stream = UnixStream::connect(&socket).map_err(|_| unavailable(&socket))?;
     stream
         .set_read_timeout(Some(TIMEOUT))
         .map_err(|_| "could not configure Desktop control read timeout".to_owned())?;
@@ -346,9 +343,7 @@ fn object<'a>(value: &'a Value, label: &str) -> Result<&'a Map<String, Value>, S
 }
 
 fn exact(value: &Map<String, Value>, expected: &[&str], label: &str) -> Result<(), String> {
-    if value.len() != expected.len()
-        || expected.iter().any(|field| !value.contains_key(*field))
-    {
+    if value.len() != expected.len() || expected.iter().any(|field| !value.contains_key(*field)) {
         return Err(format!("{label} contains missing or unknown fields"));
     }
     Ok(())
@@ -459,9 +454,8 @@ mod tests {
 
     #[test]
     fn parses_only_the_closed_surface() {
-        let Parsed::Run(options) =
-            parse(&strings(&["status", "--json", "--home", "/tmp/gw"]))
-                .expect("status should parse")
+        let Parsed::Run(options) = parse(&strings(&["status", "--json", "--home", "/tmp/gw"]))
+            .expect("status should parse")
         else {
             panic!("expected executable options");
         };

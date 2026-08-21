@@ -36,7 +36,7 @@ fn current_suite_fixture_contains_exactly_spaces_and_flow() {
     assert_eq!(fixture.applications[1].package.id, FLOW_PACKAGE_ID);
     assert_eq!(
         fixture.applications[1].compatibility[0].disposition,
-        CompatibilityDisposition::InventoryRequired
+        CompatibilityDisposition::IncompatibleBlocked
     );
     assert!(fixture
         .applications

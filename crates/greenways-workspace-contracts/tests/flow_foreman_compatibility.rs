@@ -49,7 +49,10 @@ fn legacy_build_is_blocked_instead_of_silently_aliased() {
     assert!(result.value.is_none());
     let failure = result.failure.expect("Build should fail explicitly");
     assert_eq!(failure.code, SuiteFailureCode::Incompatible);
-    assert_eq!(failure.application_id.as_deref(), Some(BUILD_APPLICATION_ID));
+    assert_eq!(
+        failure.application_id.as_deref(),
+        Some(BUILD_APPLICATION_ID)
+    );
     assert!(!failure.retryable);
 }
 
@@ -62,7 +65,9 @@ fn foreman_is_an_internal_service_not_an_application_target() {
 
     assert_eq!(result.state, SuiteResultState::Failed);
     assert!(result.value.is_none());
-    let failure = result.failure.expect("Foreman should not resolve as an app");
+    let failure = result
+        .failure
+        .expect("Foreman should not resolve as an app");
     assert_eq!(failure.code, SuiteFailureCode::UnknownApplication);
     assert_eq!(failure.application_id.as_deref(), Some("foreman"));
     assert!(!failure.retryable);
