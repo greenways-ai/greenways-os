@@ -12,25 +12,18 @@ use greenways_workspace_contracts::{
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
-const PARTICIPATION_FIXTURE: &str =
-    include_str!("fixtures/flow/project-participation.json");
-const COORDINATION_FIXTURE: &str =
-    include_str!("fixtures/flow/work-coordination.json");
-const PRESENCE_FIXTURE: &str =
-    include_str!("fixtures/flow/project-presence.json");
-const RESTART_FIXTURE: &str =
-    include_str!("fixtures/flow/project-presence-restart.json");
-const OPERATION_FIXTURE: &str =
-    include_str!("fixtures/flow/presence-operation-catalogue.json");
+const PARTICIPATION_FIXTURE: &str = include_str!("fixtures/flow/project-participation.json");
+const COORDINATION_FIXTURE: &str = include_str!("fixtures/flow/work-coordination.json");
+const PRESENCE_FIXTURE: &str = include_str!("fixtures/flow/project-presence.json");
+const RESTART_FIXTURE: &str = include_str!("fixtures/flow/project-presence-restart.json");
+const OPERATION_FIXTURE: &str = include_str!("fixtures/flow/presence-operation-catalogue.json");
 
 fn participation_fixture() -> FlowProjectParticipationSnapshot {
-    serde_json::from_str(PARTICIPATION_FIXTURE)
-        .expect("participation fixture should decode")
+    serde_json::from_str(PARTICIPATION_FIXTURE).expect("participation fixture should decode")
 }
 
 fn coordination_fixture() -> FlowWorkCoordinationSnapshot {
-    serde_json::from_str(COORDINATION_FIXTURE)
-        .expect("coordination fixture should decode")
+    serde_json::from_str(COORDINATION_FIXTURE).expect("coordination fixture should decode")
 }
 
 fn presence_fixture() -> FlowProjectPresenceSnapshot {
@@ -84,13 +77,9 @@ fn claim_and_session_presence_are_independent_dimensions() {
         .validate_against_context(&participation, &coordination)
         .expect("an active claim does not require an observed session");
     assert_eq!(coordination.claims.len(), 1);
-    assert!(claim_without_session
-        .sessions
-        .iter()
-        .any(|session| {
-            session.presence_state == FlowSessionPresenceState::Connected
-                && session.claim_id.is_none()
-        }));
+    assert!(claim_without_session.sessions.iter().any(|session| {
+        session.presence_state == FlowSessionPresenceState::Connected && session.claim_id.is_none()
+    }));
 
     let mut no_sessions = presence_fixture();
     no_sessions.sessions.clear();
@@ -335,16 +324,16 @@ fn presence_and_attachment_lifecycles_are_closed() {
         .allows_transition_to(FlowSessionPresenceState::Connected));
     assert!(FlowSessionPresenceState::Disconnected
         .allows_transition_to(FlowSessionPresenceState::Connected));
-    assert!(!FlowSessionPresenceState::Closed
-        .allows_transition_to(FlowSessionPresenceState::Connected));
+    assert!(
+        !FlowSessionPresenceState::Closed.allows_transition_to(FlowSessionPresenceState::Connected)
+    );
     assert!(!FlowSessionPresenceState::Revoked
         .allows_transition_to(FlowSessionPresenceState::Connected));
 }
 
 #[test]
 fn legacy_and_future_application_ids_remain_outside_presence_contracts() {
-    let serialized =
-        serde_json::to_string(&presence_fixture()).expect("presence should serialize");
+    let serialized = serde_json::to_string(&presence_fixture()).expect("presence should serialize");
     for forbidden in [
         "\"applicationId\":\"build\"",
         "\"applicationId\":\"foreman\"",

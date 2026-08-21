@@ -8,16 +8,14 @@ use crate::suite::{CurrentApplicationId, CURRENT_SUITE_REVISION};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const FLOW_PROJECT_PRESENCE_PROTOCOL: &str =
-    "greenways.flow.project-presence/0-alpha";
+pub const FLOW_PROJECT_PRESENCE_PROTOCOL: &str = "greenways.flow.project-presence/0-alpha";
 pub const FLOW_PROJECT_HOST_ATTACHMENT_PROTOCOL: &str =
     "greenways.flow.project-host-attachment/0-alpha";
 pub const FLOW_PROJECT_SESSION_BINDING_PROTOCOL: &str =
     "greenways.flow.project-session-binding/0-alpha";
 pub const FLOW_PRESENCE_RECONCILIATION_PROTOCOL: &str =
     "greenways.flow.presence-reconciliation/0-alpha";
-pub const FLOW_PRESENCE_OPERATION_PROTOCOL: &str =
-    "greenways.flow.presence-operation/0-alpha";
+pub const FLOW_PRESENCE_OPERATION_PROTOCOL: &str = "greenways.flow.presence-operation/0-alpha";
 pub const FLOW_PRESENCE_OPERATION_CATALOGUE_PROTOCOL: &str =
     "greenways.flow.presence-operation-catalogue/0-alpha";
 
@@ -28,10 +26,8 @@ pub const FLOW_PROJECT_HOST_DETACH_OPERATION: &str = "flow.project.host.detach";
 pub const FLOW_PROJECT_SESSIONS_LIST_OPERATION: &str = "flow.project.sessions.list";
 pub const FLOW_PROJECT_SESSION_ATTACH_OPERATION: &str = "flow.project.session.attach";
 pub const FLOW_PROJECT_SESSION_OBSERVE_OPERATION: &str = "flow.project.session.observe";
-pub const FLOW_PROJECT_SESSION_DISCONNECT_OPERATION: &str =
-    "flow.project.session.disconnect";
-pub const FLOW_PROJECT_SESSION_RECONCILE_OPERATION: &str =
-    "flow.project.session.reconcile";
+pub const FLOW_PROJECT_SESSION_DISCONNECT_OPERATION: &str = "flow.project.session.disconnect";
+pub const FLOW_PROJECT_SESSION_RECONCILE_OPERATION: &str = "flow.project.session.reconcile";
 
 const MAX_PROJECT_ID_BYTES: usize = 256;
 const MAX_ATTACHMENT_ID_BYTES: usize = 256;
@@ -189,8 +185,7 @@ impl FlowProjectHostAttachment {
         )?;
         if self.capabilities.is_empty()
             || self.capabilities.len() > MAX_HOST_CAPABILITIES
-            || self.capabilities.iter().collect::<BTreeSet<_>>().len()
-                != self.capabilities.len()
+            || self.capabilities.iter().collect::<BTreeSet<_>>().len() != self.capabilities.len()
         {
             return Err(ContractError::new(
                 "invalid-flow-host-capabilities",
@@ -219,8 +214,7 @@ impl FlowProjectHostAttachment {
                 "Flow project host attachment timestamps must be positive and monotonic",
             ));
         }
-        if self.observation_state.requires_observation()
-            != self.last_observed_at_unix_ms.is_some()
+        if self.observation_state.requires_observation() != self.last_observed_at_unix_ms.is_some()
         {
             return Err(ContractError::new(
                 "flow-host-observation-time-mismatch",
@@ -308,11 +302,7 @@ impl FlowSessionPresenceState {
                     | Self::Revoked
             ) | (
                 Self::Attached,
-                Self::Connected
-                    | Self::Disconnected
-                    | Self::Stale
-                    | Self::Closed
-                    | Self::Revoked
+                Self::Connected | Self::Disconnected | Self::Stale | Self::Closed | Self::Revoked
             ) | (
                 Self::Connected,
                 Self::Disconnected | Self::Stale | Self::Closed | Self::Revoked
@@ -436,10 +426,7 @@ impl FlowProjectSessionBinding {
             }
         }
         require_positive_revision(self.revision, "invalid-flow-session-revision")?;
-        require_positive_revision(
-            self.session_generation,
-            "invalid-flow-session-generation",
-        )?;
+        require_positive_revision(self.session_generation, "invalid-flow-session-generation")?;
         require_positive_revision(
             self.observation_generation,
             "invalid-flow-session-observation-generation",
@@ -594,9 +581,7 @@ impl FlowPresenceReconciliation {
                 "Flow presence reconciliation previous generation must be positive and earlier",
             ));
         }
-        if self.started_at_unix_ms == 0
-            || self.completed_at_unix_ms < self.started_at_unix_ms
-        {
+        if self.started_at_unix_ms == 0 || self.completed_at_unix_ms < self.started_at_unix_ms {
             return Err(ContractError::new(
                 "invalid-flow-presence-reconciliation-time",
                 "Flow presence reconciliation timestamps must be positive and monotonic",
@@ -713,9 +698,7 @@ impl FlowProjectPresenceSnapshot {
                     "Flow host attachment identities must be unique",
                 ));
             }
-            if attachment.state.is_current()
-                && !current_hosts.insert(attachment.host_id.as_str())
-            {
+            if attachment.state.is_current() && !current_hosts.insert(attachment.host_id.as_str()) {
                 return Err(ContractError::new(
                     "duplicate-current-flow-host",
                     "One Flow project may have only one current attachment per host identity",
@@ -1080,10 +1063,7 @@ pub struct FlowPresenceOperationCatalogue {
 
 impl FlowPresenceOperationCatalogue {
     pub fn validate(&self) -> Result<(), ContractError> {
-        require_protocol(
-            &self.protocol,
-            FLOW_PRESENCE_OPERATION_CATALOGUE_PROTOCOL,
-        )?;
+        require_protocol(&self.protocol, FLOW_PRESENCE_OPERATION_CATALOGUE_PROTOCOL)?;
         require_flow_application(self.application_id, &self.application_revision)?;
         let mut ids = BTreeSet::new();
         for operation in &self.operations {
@@ -1134,8 +1114,8 @@ fn canonical_operation(operation_id: FlowPresenceOperationId) -> FlowPresenceOpe
         HostAttachment, HostCollection, SessionBinding, SessionCollection,
     };
     use FlowPresenceResultKind::{
-        HostAttachment as HostAttachmentResult, HostPage,
-        SessionBinding as SessionBindingResult, SessionPage,
+        HostAttachment as HostAttachmentResult, HostPage, SessionBinding as SessionBindingResult,
+        SessionPage,
     };
 
     let (
@@ -1146,9 +1126,7 @@ fn canonical_operation(operation_id: FlowPresenceOperationId) -> FlowPresenceOpe
         idempotency,
         result_kind,
     ) = match operation_id {
-        FlowPresenceOperationId::HostsList => {
-            (HostCollection, Read, false, false, None, HostPage)
-        }
+        FlowPresenceOperationId::HostsList => (HostCollection, Read, false, false, None, HostPage),
         FlowPresenceOperationId::HostAttach => (
             HostCollection,
             Manage,

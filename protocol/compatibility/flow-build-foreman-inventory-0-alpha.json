@@ -999,6 +999,26 @@
       "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
     },
     {
+      "path": "crates/greenways-workspace-contracts/tests/flow_presence.rs",
+      "lineText": "\"\\\"applicationId\\\":\\\"foreman\\\"\",",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_presence.rs",
+      "lineText": "for application_id in [\"build\", \"foreman\", \"imagine\", \"world\"] {",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
       "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
       "lineText": "\"\\\"applicationId\\\": \\\"foreman\\\"\",",
       "patterns": [
@@ -1451,6 +1471,16 @@
     {
       "path": "docs/fabric-technology-map.md",
       "lineText": "| What is the canonical project, run, message, artifact, or relationship value? | Flow | Foreman-owned schemas surfaced through Flow and expressed through Tahto values, links, roots, revisions, and sync |",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-host-session-presence.md",
+      "lineText": "The project remains the aggregate root. Flow remains the only current product-facing coordination application. The legacy Build application remains incompatible, Foreman remains an internal implementation identity, and Imagine and World remain unactivated.",
       "patterns": [
         "foreman-token"
       ],
