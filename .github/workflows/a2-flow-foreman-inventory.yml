@@ -47,6 +47,7 @@ jobs:
           python3 -m json.tool \
             protocol/compatibility/flow-build-foreman-inventory-0-alpha.json \
             >/dev/null
+          rm -rf a2-output
           python3 scripts/check-flow-build-foreman-inventory.py
           git diff --check
       - name: Publish one self-cleaning source commit
