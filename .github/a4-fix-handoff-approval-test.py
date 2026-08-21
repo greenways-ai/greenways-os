@@ -44,7 +44,6 @@ new = """fn intervention_decision_and_resolution_are_distinct_human_evidence() {
         .expect(\"human approval should validate without claiming resolution\");
     assert!(snapshot.interventions[0].resolution_reference.is_none());
 
-    let mut snapshot = snapshot;
     snapshot.interventions[0].decided_by_membership_id =
         Some(\"membership/flow-agent-builder\".to_owned());
     assert!(snapshot
@@ -55,5 +54,16 @@ new = """fn intervention_decision_and_resolution_are_distinct_human_evidence() {
 count = source.count(old)
 if count != 1:
     raise SystemExit(f"approval-state test block: expected one match, found {count}")
-path.write_text(source.replace(old, new, 1), encoding="utf-8")
+source = source.replace(old, new, 1)
+old_resolution = """    let mut snapshot = snapshot;
+    snapshot.interventions[1].resolution_reference = None;
+    assert!(snapshot.validate().is_err());
+"""
+new_resolution = """    snapshot.interventions[1].resolution_reference = None;
+    assert!(snapshot.validate().is_err());
+"""
+count = source.count(old_resolution)
+if count != 1:
+    raise SystemExit(f"resolution test binding: expected one match, found {count}")
+path.write_text(source.replace(old_resolution, new_resolution, 1), encoding="utf-8")
 Path(__file__).unlink()
