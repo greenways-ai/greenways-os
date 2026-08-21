@@ -80,3 +80,15 @@ compatibility decisions.
 B0 is independent and reviewable now. B1, B2, and B3 remain merge-gated on
 Agent 1's Gate 0 contract from issue #163. This inventory deliberately adds no
 shared manifest, reference, result/error, or handoff fields.
+
+
+## Gate 0 compatibility vocabulary
+
+Gate 0 records `research` as a closed compatibility input with the
+`absent` disposition established by this inventory. The token appears in the
+shared enum, canonical manifest, validation pairing, and fixture only so an
+old target can fail explicitly. It remains non-discoverable, grants no
+authority, creates no alias, and is not a second current application.
+
+These schema occurrences are reviewed as non-identity contract vocabulary;
+the only current application/package identity remains `greenways/spaces`.

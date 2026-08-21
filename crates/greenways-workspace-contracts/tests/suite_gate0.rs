@@ -1,7 +1,7 @@
 use greenways_workspace_contracts::{
     compare_handoff_replay, current_suite_manifest, resolve_application_target,
-    ApplicationAvailability, CurrentApplicationId, CurrentSuiteManifest, HandoffEnvelope,
-    HandoffReplay, HandoffState, SuiteFailureCode, SuiteResult, SuiteResultState,
+    ApplicationAvailability, CompatibilityDisposition, CurrentApplicationId, CurrentSuiteManifest,
+    HandoffEnvelope, HandoffReplay, HandoffState, SuiteFailureCode, SuiteResult, SuiteResultState,
     BUILD_APPLICATION_ID, FLOW_APPLICATION_ID, FLOW_PACKAGE_ID, FLOW_TO_SPACES_HANDOFF_ID,
     IMAGINE_APPLICATION_ID, RESEARCH_APPLICATION_ID, SPACES_APPLICATION_ID, SPACES_PACKAGE_ID,
     SPACES_TO_FLOW_HANDOFF_ID, WORLD_APPLICATION_ID,
@@ -9,12 +9,9 @@ use greenways_workspace_contracts::{
 use serde_json::{json, Value};
 
 const CURRENT_SUITE_FIXTURE: &str = include_str!("fixtures/suite/current-suite.json");
-const SPACES_TO_FLOW_FIXTURE: &str =
-    include_str!("fixtures/suite/spaces-question-to-flow.json");
-const FLOW_TO_SPACES_FIXTURE: &str =
-    include_str!("fixtures/suite/flow-result-to-spaces.json");
-const FUTURE_IMAGINE_FIXTURE: &str =
-    include_str!("fixtures/suite/future-imagine-result.json");
+const SPACES_TO_FLOW_FIXTURE: &str = include_str!("fixtures/suite/spaces-question-to-flow.json");
+const FLOW_TO_SPACES_FIXTURE: &str = include_str!("fixtures/suite/flow-result-to-spaces.json");
+const FUTURE_IMAGINE_FIXTURE: &str = include_str!("fixtures/suite/future-imagine-result.json");
 
 #[test]
 fn current_suite_fixture_contains_exactly_spaces_and_flow() {
@@ -23,10 +20,24 @@ fn current_suite_fixture_contains_exactly_spaces_and_flow() {
     fixture.validate().expect("suite fixture should validate");
     assert_eq!(fixture, current_suite_manifest());
     assert_eq!(fixture.applications.len(), 2);
-    assert_eq!(fixture.applications[0].application_id, CurrentApplicationId::Spaces);
+    assert_eq!(
+        fixture.applications[0].application_id,
+        CurrentApplicationId::Spaces
+    );
     assert_eq!(fixture.applications[0].package.id, SPACES_PACKAGE_ID);
-    assert_eq!(fixture.applications[1].application_id, CurrentApplicationId::Flow);
+    assert_eq!(
+        fixture.applications[0].compatibility[0].disposition,
+        CompatibilityDisposition::Absent
+    );
+    assert_eq!(
+        fixture.applications[1].application_id,
+        CurrentApplicationId::Flow
+    );
     assert_eq!(fixture.applications[1].package.id, FLOW_PACKAGE_ID);
+    assert_eq!(
+        fixture.applications[1].compatibility[0].disposition,
+        CompatibilityDisposition::InventoryRequired
+    );
     assert!(fixture
         .applications
         .iter()
@@ -41,8 +52,14 @@ fn canonical_handoff_fixtures_preserve_cross_application_ownership() {
         .validate()
         .expect("Spaces handoff should validate");
     assert_eq!(spaces_to_flow.handoff_id, SPACES_TO_FLOW_HANDOFF_ID);
-    assert_eq!(spaces_to_flow.source.application_id, CurrentApplicationId::Spaces);
-    assert_eq!(spaces_to_flow.target_application_id, CurrentApplicationId::Flow);
+    assert_eq!(
+        spaces_to_flow.source.application_id,
+        CurrentApplicationId::Spaces
+    );
+    assert_eq!(
+        spaces_to_flow.target_application_id,
+        CurrentApplicationId::Flow
+    );
 
     let flow_to_spaces: HandoffEnvelope =
         serde_json::from_str(FLOW_TO_SPACES_FIXTURE).expect("Flow handoff should decode");
@@ -50,8 +67,14 @@ fn canonical_handoff_fixtures_preserve_cross_application_ownership() {
         .validate()
         .expect("Flow handoff should validate");
     assert_eq!(flow_to_spaces.handoff_id, FLOW_TO_SPACES_HANDOFF_ID);
-    assert_eq!(flow_to_spaces.source.application_id, CurrentApplicationId::Flow);
-    assert_eq!(flow_to_spaces.target_application_id, CurrentApplicationId::Spaces);
+    assert_eq!(
+        flow_to_spaces.source.application_id,
+        CurrentApplicationId::Flow
+    );
+    assert_eq!(
+        flow_to_spaces.target_application_id,
+        CurrentApplicationId::Spaces
+    );
 }
 
 #[test]
@@ -132,7 +155,9 @@ fn cross_owner_and_authority_transfer_references_fail_closed() {
 fn reserved_targets_are_unactivated_without_becoming_discoverable() {
     for application_id in [IMAGINE_APPLICATION_ID, WORLD_APPLICATION_ID] {
         let result = resolve_application_target(application_id);
-        result.validate().expect("unactivated result should validate");
+        result
+            .validate()
+            .expect("unactivated result should validate");
         assert_eq!(result.state, SuiteResultState::Failed);
         assert!(result.value.is_none());
         assert_eq!(
@@ -143,7 +168,9 @@ fn reserved_targets_are_unactivated_without_becoming_discoverable() {
 
     for application_id in [RESEARCH_APPLICATION_ID, BUILD_APPLICATION_ID] {
         let result = resolve_application_target(application_id);
-        result.validate().expect("compatibility result should validate");
+        result
+            .validate()
+            .expect("compatibility result should validate");
         assert_eq!(
             result.failure.expect("failure should be present").code,
             SuiteFailureCode::Incompatible

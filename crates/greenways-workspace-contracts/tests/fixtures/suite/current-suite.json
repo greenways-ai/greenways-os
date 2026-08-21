@@ -24,7 +24,7 @@
         {
           "legacyApplicationId": "research",
           "targetApplicationId": "spaces",
-          "disposition": "inventory-required",
+          "disposition": "absent",
           "discoverable": false,
           "grantsAuthority": false
         }

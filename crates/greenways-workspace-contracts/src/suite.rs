@@ -18,8 +18,7 @@ pub const BUILD_APPLICATION_ID: &str = "build";
 pub const IMAGINE_APPLICATION_ID: &str = "imagine";
 pub const WORLD_APPLICATION_ID: &str = "world";
 
-pub const SPACES_QUESTION_TO_FLOW_OPERATION: &str =
-    "spaces.question.send-to-flow-project";
+pub const SPACES_QUESTION_TO_FLOW_OPERATION: &str = "spaces.question.send-to-flow-project";
 pub const SPACES_BRIEF_TO_FLOW_OPERATION: &str = "spaces.brief.send-to-flow-project";
 pub const FLOW_RESULT_TO_SPACES_OPERATION: &str = "flow.result.return-to-spaces";
 pub const FLOW_ARTIFACT_TO_SPACES_OPERATION: &str = "flow.artifact.add-to-spaces";
@@ -142,7 +141,11 @@ impl SuiteApplicationManifest {
         }
         validate_identifier(&self.package.id, MAX_ID_BYTES, "invalid-package-id")?;
         validate_text(&self.display_name, MAX_TITLE_BYTES, "invalid-display-name")?;
-        validate_text(&self.launcher_label, MAX_TITLE_BYTES, "invalid-launcher-label")?;
+        validate_text(
+            &self.launcher_label,
+            MAX_TITLE_BYTES,
+            "invalid-launcher-label",
+        )?;
         if self.cli_family.len() != 2 || self.cli_family[0] != "greenways" {
             return Err(ContractError::new(
                 "invalid-cli-family",
@@ -226,7 +229,7 @@ pub fn current_suite_manifest() -> CurrentSuiteManifest {
                 compatibility: vec![CompatibilitySlot {
                     legacy_application_id: LegacyApplicationId::Research,
                     target_application_id: CurrentApplicationId::Spaces,
-                    disposition: CompatibilityDisposition::InventoryRequired,
+                    disposition: CompatibilityDisposition::Absent,
                     discoverable: false,
                     grants_authority: false,
                 }],
@@ -318,8 +321,10 @@ impl SharedReference {
                 "shared reference observation must be positive",
             ));
         }
-        if matches!(self.freshness, ReferenceFreshness::Current | ReferenceFreshness::Stale)
-            && self.observed_revision.is_none()
+        if matches!(
+            self.freshness,
+            ReferenceFreshness::Current | ReferenceFreshness::Stale
+        ) && self.observed_revision.is_none()
         {
             return Err(ContractError::new(
                 "invalid-reference-freshness",
@@ -360,14 +365,22 @@ impl HandoffState {
     pub const fn allows_transition_to(self, next: Self) -> bool {
         matches!(
             (self, next),
-            (Self::Prepared, Self::ApprovalRequired | Self::Ready | Self::Cancelled)
-                | (Self::ApprovalRequired, Self::Ready | Self::Rejected | Self::Cancelled)
-                | (Self::Ready, Self::Accepted | Self::Rejected | Self::Cancelled)
-                | (Self::Accepted, Self::Importing | Self::Creating | Self::Cancelled)
-                | (
-                    Self::Importing | Self::Creating,
-                    Self::Completed | Self::Partial | Self::Cancelled | Self::Failed
-                )
+            (
+                Self::Prepared,
+                Self::ApprovalRequired | Self::Ready | Self::Cancelled
+            ) | (
+                Self::ApprovalRequired,
+                Self::Ready | Self::Rejected | Self::Cancelled
+            ) | (
+                Self::Ready,
+                Self::Accepted | Self::Rejected | Self::Cancelled
+            ) | (
+                Self::Accepted,
+                Self::Importing | Self::Creating | Self::Cancelled
+            ) | (
+                Self::Importing | Self::Creating,
+                Self::Completed | Self::Partial | Self::Cancelled | Self::Failed
+            )
         )
     }
 }
@@ -561,11 +574,7 @@ impl SuiteFailure {
             "invalid-result-message",
         )?;
         if let Some(application_id) = &self.application_id {
-            validate_identifier(
-                application_id,
-                MAX_KIND_BYTES,
-                "invalid-result-application",
-            )?;
+            validate_identifier(application_id, MAX_KIND_BYTES, "invalid-result-application")?;
         }
         if matches!(
             self.code,
@@ -785,14 +794,13 @@ fn validate_identifier(
     }
 }
 
-fn validate_text(
-    value: &str,
-    maximum: usize,
-    code: &'static str,
-) -> Result<(), ContractError> {
+fn validate_text(value: &str, maximum: usize, code: &'static str) -> Result<(), ContractError> {
     if !value.is_empty() && value.len() <= maximum {
         Ok(())
     } else {
-        Err(ContractError::new(code, "contract text is outside its byte bound"))
+        Err(ContractError::new(
+            code,
+            "contract text is outside its byte bound",
+        ))
     }
 }
