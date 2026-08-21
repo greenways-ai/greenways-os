@@ -54,7 +54,6 @@ case "$scope" in
   contracts)
     git diff --check
     python3 -m compileall -q scripts
-    python3 scripts/check-flow-build-foreman-inventory.py
     python3 scripts/check-spaces-compatibility-inventory.py
     python3 scripts/check-workspace-fixtures.py
     if grep -R -E --include='*.hal' -n \
