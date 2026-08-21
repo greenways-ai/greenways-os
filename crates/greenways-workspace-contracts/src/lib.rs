@@ -2,6 +2,7 @@ mod chats;
 mod context;
 mod error;
 mod resource;
+mod suite;
 
 pub use chats::{
     chat_uri, ChatEntity, ChatSource, EntityLink, MessageEntity, MessageRole, TransactionRequest,
@@ -19,6 +20,7 @@ pub use resource::{
     PAGE_PROTOCOL, QUERY_PROTOCOL, RESOURCE_PROTOCOL, SESSION_HELLO_PROTOCOL,
     SIGNAL_RESOURCE_CHANGED, SUBSTRATE_PROTOCOL, TRANSACTION_PROTOCOL,
 };
+pub use suite::*;
 
 use serde::{Deserialize, Serialize};
 
