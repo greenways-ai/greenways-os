@@ -20,6 +20,21 @@ exposes a local RESP REPL, and provides a closed DOM-control surface.
   machine-readable entities, operations, risk levels, confirmation contracts,
   selector policy, and delivery phases.
 
+## Remote Hara execution host
+
+The first language-owned execution-host slice is a closed, outbound-only
+client for the local `mcp.hara-lang.org` relay vocabulary. It validates exact
+`hara.execution-host/0-alpha` values, polls only an explicit
+`http://127.0.0.1:<port>` endpoint, de-duplicates commands, propagates
+cancellation, and retries one immutable terminal result. See
+[Remote Hara execution host](remote-hara-host.md).
+
+This is transport infrastructure only. The current extension does not start
+the client, request loopback host permission, or route remote work into the
+trusted browser runtime. A subsequent slice must supply a fresh restricted
+Rust/Wasm Sandbox executor before the host can become a real Hara execution
+surface.
+
 ## Runtime features
 
 - **Panel Studio** — the shared Hara Studio environment running the raw Hara
