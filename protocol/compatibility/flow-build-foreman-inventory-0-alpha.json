@@ -999,6 +999,16 @@
       "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
     },
     {
+      "path": "crates/greenways-workspace-contracts/tests/flow_handoff_intervention.rs",
+      "lineText": "for forbidden in [\"\\\"build\\\"\", \"\\\"foreman\\\"\", \"\\\"imagine\\\"\", \"\\\"world\\\"\"] {",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
       "path": "crates/greenways-workspace-contracts/tests/flow_presence.rs",
       "lineText": "\"\\\"applicationId\\\":\\\"foreman\\\"\",",
       "patterns": [
@@ -1471,6 +1481,36 @@
     {
       "path": "docs/fabric-technology-map.md",
       "lineText": "| What is the canonical project, run, message, artifact, or relationship value? | Flow | Foreman-owned schemas surfaced through Flow and expressed through Tahto values, links, roots, revisions, and sync |",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-handoffs-interventions.md",
+      "lineText": "- a Build alias or Foreman application; or",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-handoffs-interventions.md",
+      "lineText": "A Flow application handoff must use the same idempotency key, request digest, source project, target revision, and lifecycle in both the project record and shared handoff envelope. Current application targets cannot name Build, Foreman, Imagine, World, or an unknown string.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-handoffs-interventions.md",
+      "lineText": "Foreman remains Flow's internal coordination engine and durable domain implementation. It is not a handoff application target. Build remains incompatible. Imagine and World remain unactivated.",
       "patterns": [
         "foreman-token"
       ],
