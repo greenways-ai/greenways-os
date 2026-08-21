@@ -1,0 +1,101 @@
+name: A2 Desktop Dart compatibility publisher
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/a2-flow-foreman-source-repair'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+          architecture: ARM64
+      - name: Replace the lint-only constructor with a private stored constructor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/greenways_desktop/lib/services/desktop_control_server.dart')
+          source = path.read_text(encoding='utf-8')
+          old = '''  // Keep the public `home:` override while storing the path privately.
+          // ignore: prefer_initializing_formals
+          DesktopControlServer(
+            this.controller, {
+            required this.showWindow,
+            required this.quit,
+            String? home,
+          }) : _home = home;
+          '''
+          new = '''  factory DesktopControlServer(
+            ConnectionController controller, {
+            required Future<void> Function() showWindow,
+            required Future<void> Function() quit,
+            String? home,
+          }) {
+            final homeOverride = home == null || home.isEmpty ? null : home;
+            return DesktopControlServer._(
+              controller,
+              showWindow,
+              quit,
+              homeOverride,
+            );
+          }
+
+          DesktopControlServer._(
+            this.controller,
+            this.showWindow,
+            this.quit,
+            this._home,
+          );
+          '''
+          if source.count(old) != 1:
+              raise SystemExit('expected exactly one DesktopControlServer constructor block')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Format and validate the bounded Desktop source
+        working-directory: apps/greenways_desktop
+        run: |
+          set -euo pipefail
+          flutter pub get
+          dart format lib test
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze
+          flutter test
+      - name: Prove the formatter repair is closed
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff --name-only | sort > /tmp/actual-paths
+          cat > /tmp/expected-paths <<'EOF'
+          apps/greenways_desktop/lib/services/desktop_control_server.dart
+          apps/greenways_desktop/test/desktop_control_server_test.dart
+          apps/greenways_desktop/test/platform_shell_test.dart
+          EOF
+          diff -u /tmp/expected-paths /tmp/actual-paths
+      - name: Publish one self-cleaning source commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/greenways_desktop/lib/services/desktop_control_server.dart \
+            apps/greenways_desktop/test/desktop_control_server_test.dart \
+            apps/greenways_desktop/test/platform_shell_test.dart
+          git rm .github/workflows/a2-desktop-dartfmt-publisher.yml
+          git diff --cached --check
+          git commit -m "Repair the Desktop control socket contract"
+          git push origin HEAD:agent/a2-flow-foreman-source-repair
