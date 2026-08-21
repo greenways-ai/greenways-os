@@ -1,137 +1,48 @@
-name: A2 Flow Foreman inventory probe
+name: A2 branch materializer
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - agent/a2-flow-foreman-materialize
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inventory:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'agent/flow-foreman-compatibility'
+  materialize:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/a2-flow-foreman-materialize
           fetch-depth: 0
-      - name: Enumerate merged Build and Foreman identities
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
+      - name: Materialize and validate A2
+        run: python3 .github/a2-materialize-flow-foreman.py
+      - name: Publish one self-cleaning commit
+        shell: bash
         run: |
-          python3 - <<'PY'
-          from __future__ import annotations
-
-          import json
-          import re
-          import subprocess
-          from pathlib import Path
-
-          root = Path.cwd()
-          excluded = {'.github/workflows/a2-flow-foreman-inventory.yml'}
-          tracked = [
-              item.decode('utf-8')
-              for item in subprocess.check_output(['git', 'ls-files', '-z']).split(b'\0')
-              if item
-          ]
-
-          build_word = re.compile(r'(?i)\bbuild\b')
-          foreman_word = re.compile(r'(?i)\bforeman\b')
-          buildout_word = re.compile(r'(?i)\bbuildouts?\b')
-          identity_patterns = (
-              ('product-label', re.compile(r'\bGreenways Build\b')),
-              ('application-package-id', re.compile(
-                  r'(?i)(?:\bgreenways/build\b|\bbuild[-_. ](?:application|package)\b|'
-                  r'\b(?:application|package)[-_./: ]build\b|'
-                  r'\b(?:application|package)[-_ ]?id[^\n]{0,80}[\"\'`: =]build\b)'
-              )),
-              ('route-deep-link', re.compile(
-                  r'(?i)(?:greenways://build\b|(?:^|[^a-z0-9])/(?:applications/)?build(?:/|[?#\'\"\s]|$)|'
-                  r'\b(?:route|deep[-_ ]?link)[^\n]{0,80}\bbuild\b)'
-              )),
-              ('cli-command', re.compile(r'(?i)\bgreenways\s+build(?:\s|$)')),
-              ('operation-schema-record', re.compile(
-                  r'(?i)(?:\bbuild\.[a-z0-9_.-]+|\bbuild/[a-z0-9_.-]+|'
-                  r'\bbuild[-_. ](?:operation|schema|protocol|record|kind|event)\b)'
-              )),
-              ('surface-activity-record', re.compile(
-                  r'(?i)(?:\b(?:launcher|recent|search|notification|activity)[^\n]{0,100}\bbuild\b|'
-                  r'\bbuild\b[^\n]{0,100}\b(?:launcher|recent|search|notification|activity)\b)'
-              )),
-              ('handoff-application-id', re.compile(
-                  r'(?i)(?:\bhandoff[^\n]{0,100}\bbuild\b|\bbuild\b[^\n]{0,100}\bhandoff\b|'
-                  r'\b(?:source|target)[-_ ]?application[^\n]{0,80}\bbuild\b)'
-              )),
-              ('public-work-source-application', re.compile(
-                  r'(?i)(?:\bpublic[-_ ]?work[^\n]{0,100}\bbuild\b|'
-                  r'\bsource[-_ ]?application[^\n]{0,100}\bbuild\b|'
-                  r'\bbuild\b[^\n]{0,100}\bsource[-_ ]?application\b)'
-              )),
-          )
-
-          findings = []
-          text_files = 0
-          binary_files = 0
-          for relative in tracked:
-              if relative in excluded:
-                  continue
-              path = root / relative
-              if not path.is_file():
-                  continue
-              raw = path.read_bytes()
-              if b'\0' in raw:
-                  binary_files += 1
-                  continue
-              try:
-                  text = raw.decode('utf-8')
-              except UnicodeDecodeError:
-                  binary_files += 1
-                  continue
-              text_files += 1
-              for number, line in enumerate(text.splitlines(), start=1):
-                  labels = [name for name, pattern in identity_patterns if pattern.search(line)]
-                  has_foreman = bool(foreman_word.search(line))
-                  has_build = bool(build_word.search(line))
-                  has_buildout = bool(buildout_word.search(line))
-                  if not labels and not has_foreman and not has_buildout:
-                      continue
-                  findings.append({
-                      'path': relative,
-                      'line': number,
-                      'text': line.strip(),
-                      'labels': labels,
-                      'foreman': has_foreman,
-                      'standaloneBuild': has_build,
-                      'buildout': has_buildout,
-                  })
-
-          report = {
-              'baseline': {
-                  'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-                  'tree': subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(),
-              },
-              'scan': {
-                  'trackedFiles': len(tracked),
-                  'textFiles': text_files,
-                  'binaryFiles': binary_files,
-                  'excluded': sorted(excluded),
-              },
-              'counts': {
-                  'findings': len(findings),
-                  'identityContext': sum(bool(item['labels']) for item in findings),
-                  'foreman': sum(item['foreman'] for item in findings),
-                  'buildout': sum(item['buildout'] for item in findings),
-              },
-              'findings': findings,
-          }
-          output = json.dumps(report, indent=2, ensure_ascii=False)
-          Path('a2-flow-foreman-inventory.json').write_text(output + '\n', encoding='utf-8')
-          print('A2_INVENTORY_BEGIN')
-          print(output)
-          print('A2_INVENTORY_END')
-          PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: a2-flow-foreman-inventory
-          path: a2-flow-foreman-inventory.json
-          if-no-files-found: error
+          set -euo pipefail
+          rm -rf a2-output
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            README.md \
+            crates/greenways-workspace-contracts/src/suite.rs \
+            crates/greenways-workspace-contracts/tests/suite_gate0.rs \
+            crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs \
+            crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json \
+            docs/fabric-architecture.md \
+            docs/fabric-technology-map.md \
+            docs/workspace-architecture.md \
+            docs/flow-build-foreman-compatibility.md \
+            protocol/compatibility/flow-build-foreman-inventory-0-alpha.json \
+            scripts/check-flow-build-foreman-inventory.py
+          git rm \
+            .github/a2-materialize-flow-foreman.py \
+            .github/workflows/a2-flow-foreman-inventory.yml
+          git diff --cached --check
+          git commit -m "Complete Flow and Foreman compatibility contract"
+          git push origin HEAD:agent/a2-flow-foreman-materialize
