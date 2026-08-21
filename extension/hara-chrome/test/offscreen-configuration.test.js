@@ -70,7 +70,15 @@ test("popup remains a compact switch panel and never becomes page-injected UI", 
     read("../src/popup.js"),
   ]);
   assert.equal((html.match(/role="switch"/g) ?? []).length, 4);
-  for (const label of ["Current tab", "Hara runtime", "RESP", "DOM service", "Downloads", "OPEN REPL", "DISCONNECT ALL"]) {
+  for (const label of [
+    "Current tab",
+    "Hara runtime",
+    "RESP",
+    "Context adapter",
+    "Open REPL",
+    "Reconnect",
+    "Disconnect all",
+  ]) {
     assert.match(html, new RegExp(label));
   }
   assert.match(css, /width:\s*360px/);

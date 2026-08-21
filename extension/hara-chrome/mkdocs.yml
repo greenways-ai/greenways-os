@@ -3,6 +3,7 @@ nav:
   - Overview: index.md
   - Toolbar control: control-popup.md
   - Shared offscreen runtime: offscreen-runtime.md
+  - Remote Hara execution host: remote-hara-host.md
   - Browser control examples: browser-control-examples.md
   - ChatGPT REPL map: chatgpt-webapp-repl.md
   - ChatGPT login: chatgpt-login.md

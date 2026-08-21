@@ -119,14 +119,15 @@ test-fast: dependencies
 	  test/dev-runtime.test.js \
 	  test/dom-existence-probe.test.js \
 	  test/dom-service.test.js \
-	  test/host-bridge-codec.test.js \
 	  test/offscreen-configuration.test.js \
 	  test/popup-v2.test.js \
 	  test/profile-cleanup.test.js \
 	  test/resp-bridge.test.js \
 	  test/resp-client.test.js \
 	  test/resp-protocol.test.js \
-	  test/runtime-client.test.js \
+	  test/remote-host-boundary.test.js \
+	  test/remote-host-client.test.js \
+	  test/remote-host-protocol.test.js \
 	  test/runtime-host-core.test.js \
 	  test/runtime-login.test.js \
 	  test/runtime-supervisor.test.js \

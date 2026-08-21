@@ -4,11 +4,11 @@ import { test } from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("panel and background register the closed ChatGPT REPL adapter", async () => {
-  const panel = await read("../src/panel.js");
+test("offscreen runtime and background register the closed ChatGPT REPL adapter", async () => {
+  const runtimeHost = await read("../src/runtime-host.js");
   const background = await read("../src/background.js");
   assert.match(
-    panel,
+    runtimeHost,
     /["']browser\.site\.chatgpt["']\s*:\s*await fetchText\(["']src\/hara\/chatgpt\.hal["']\)/,
   );
   assert.match(background, /createChatgptService/);

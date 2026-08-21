@@ -101,6 +101,19 @@ module imports such as `hta.js -> packages/hta/index.js` and
 `chrome://extensions` -> developer mode -> **Load unpacked** -> select this
 directory. Open DevTools and choose the **hara** panel.
 
+## Remote Hara execution-host transport
+
+Hara Chrome includes a closed outbound client for the local Hara MCP relay
+register/poll/result contract. The transport is loopback-only, bearer-bound,
+generation-fenced, duplicate-safe, cancellation-aware, and covered by a real
+HTTP fixture. See [`docs/remote-hara-host.md`](docs/remote-hara-host.md).
+
+The client is deliberately not started by the production offscreen runtime
+yet. It does not request loopback host permission and it cannot use the
+existing trusted `ROOT`, browser, DOM, RESP, provider, or persistent-storage
+authority. The next delivery slice must attach a fresh restricted Rust/Wasm
+Sandbox executor before remote Hara evaluation is enabled.
+
 ## Emacs connection
 
 No `hara-emacs` changes are needed. Configure the external browser runtime:
