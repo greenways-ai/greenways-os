@@ -20,6 +20,52 @@ jobs:
           fetch-depth: 0
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
+      - name: Apply the reviewed completed-project predicate
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/greenways-workspace-contracts/src/flow.rs')
+          source = path.read_text(encoding='utf-8')
+          old = '''        if self.state == FlowProjectState::Completed {
+              if self.work.is_empty()
+                  || self
+                      .work
+                      .iter()
+                      .any(|work| !work.state.allows_project_completion())
+                  || self
+                      .buildouts
+                      .iter()
+                      .any(|buildout| !buildout.state.allows_project_completion())
+              {
+                  return Err(ContractError::new(
+                      "incomplete-flow-project",
+                      "Completed Flow projects require terminal work and buildouts",
+                  ));
+              }
+          }
+          '''
+          new = '''        if self.state == FlowProjectState::Completed
+              && (self.work.is_empty()
+                  || self
+                      .work
+                      .iter()
+                      .any(|work| !work.state.allows_project_completion())
+                  || self
+                      .buildouts
+                      .iter()
+                      .any(|buildout| !buildout.state.allows_project_completion()))
+          {
+              return Err(ContractError::new(
+                  "incomplete-flow-project",
+                  "Completed Flow projects require terminal work and buildouts",
+              ));
+          }
+          '''
+          if source.count(old) != 1:
+              raise SystemExit('expected exactly one completed-project predicate')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Format recovered Rust contracts
         run: cargo +1.85.1 fmt --all
       - name: Regenerate the exact closed compatibility findings
