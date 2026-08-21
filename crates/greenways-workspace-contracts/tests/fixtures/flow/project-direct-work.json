@@ -1,0 +1,49 @@
+{
+  "protocol": "greenways.flow.project/0-alpha",
+  "applicationId": "flow",
+  "applicationRevision": "0.1.0",
+  "projectId": "project/flow-direct-work",
+  "revision": 3,
+  "title": "Prepare the current suite release proof",
+  "summary": "A Flow project with direct work and no optional buildout grouping.",
+  "state": "active",
+  "createdAtUnixMs": 1787270400000,
+  "updatedAtUnixMs": 1787274000000,
+  "sourceReferences": [
+    {
+      "protocol": "greenways.reference/0-alpha",
+      "applicationId": "spaces",
+      "applicationRevision": "0.1.0",
+      "owner": {
+        "kind": "space",
+        "id": "space/alpha"
+      },
+      "recordKind": "question",
+      "logicalId": "question/alpha",
+      "exactRoot": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observedRevision": 7,
+      "observedAtUnixMs": 1787040000000,
+      "freshness": "exact",
+      "authorityState": "source-owned",
+      "authorityTransfer": false,
+      "summary": "Which current suite contract should Flow implement next?"
+    }
+  ],
+  "evidenceReferences": [],
+  "work": [
+    {
+      "protocol": "greenways.flow.work-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-direct-work",
+      "workId": "work/flow-direct-001",
+      "revision": 2,
+      "title": "Assemble exact release evidence",
+      "summary": "Collect current-suite fixtures, checks, and immutable revision evidence.",
+      "state": "ready",
+      "buildoutId": null,
+      "exactRoot": null
+    }
+  ],
+  "buildouts": []
+}
