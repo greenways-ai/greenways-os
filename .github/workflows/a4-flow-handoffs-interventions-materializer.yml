@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   materialize:
-    if: false
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +32,7 @@ jobs:
             git fetch origin main
             git merge --no-edit origin/main
             python3 .github/a4-materialize-flow-handoffs.py
+            python3 .github/a4-fix-handoff-approval-test.py
             cargo +1.85.1 fmt --all
             python3 scripts/check-flow-build-foreman-inventory.py
             cargo +1.85.1 test -p greenways-workspace-contracts --all-targets
@@ -58,6 +59,7 @@ jobs:
           EOF
             diff -u /tmp/expected-paths /tmp/actual-paths
             test ! -e .github/a4-materialize-flow-handoffs.py
+            test ! -e .github/a4-fix-handoff-approval-test.py
             test ! -e .github/workflows/a4-flow-handoffs-interventions-materializer.yml
             test ! -e .github/a4-flow-handoffs-interventions-error.log
             git add -- \
