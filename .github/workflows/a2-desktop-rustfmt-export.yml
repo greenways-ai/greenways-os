@@ -1,14 +1,14 @@
-name: A2 Desktop rustfmt export
+name: A2 Desktop rustfmt publisher
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  publish:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'agent/a2-flow-foreman-source-repair'
@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
       - name: Install pinned Rust formatter
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt
       - name: Format and bound the repair
@@ -28,8 +29,14 @@ jobs:
           changed="$(git diff --name-only)"
           printf '%s\n' "$changed"
           test "$changed" = "cli/greenways/src/desktop.rs"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: a2-desktop-rustfmt
-          path: cli/greenways/src/desktop.rs
-          if-no-files-found: error
+      - name: Publish one self-cleaning formatter commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cli/greenways/src/desktop.rs
+          git rm .github/workflows/a2-desktop-rustfmt-export.yml
+          git diff --cached --check
+          git commit -m "Format the Desktop control bridge"
+          git push origin HEAD:agent/a2-flow-foreman-source-repair
