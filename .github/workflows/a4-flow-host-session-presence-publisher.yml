@@ -1,0 +1,105 @@
+name: A4 Flow host session presence publisher
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/flow-host-session-presence'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
+      - name: Format the complete contract
+        run: cargo +1.85.1 fmt --all
+      - name: Remove the temporary publisher before closing evidence
+        run: git rm .github/workflows/a4-flow-host-session-presence-publisher.yml
+      - name: Regenerate exact compatibility findings
+        run: |
+          python3 - <<'PY'
+          import json
+          import runpy
+          from pathlib import Path
+
+          root = Path.cwd()
+          checker = runpy.run_path(str(root / 'scripts/check-flow-build-foreman-inventory.py'))
+          findings, forbidden, _counts = checker['scan_findings']()
+          if forbidden:
+              raise SystemExit('forbidden Build identity found:\n' + '\n'.join(forbidden))
+          path = root / 'protocol/compatibility/flow-build-foreman-inventory-0-alpha.json'
+          inventory = json.loads(path.read_text(encoding='utf-8'))
+          inventory['findings'] = findings
+          path.write_text(
+              json.dumps(inventory, indent=2, ensure_ascii=False) + '\n',
+              encoding='utf-8',
+          )
+          PY
+      - name: Validate the complete contract
+        run: |
+          set -euo pipefail
+          cargo +1.85.1 fmt --all -- --check
+          cargo +1.85.1 test -p greenways-workspace-contracts --all-targets
+          cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
+          python3 scripts/check-flow-build-foreman-inventory.py
+          python3 -m json.tool protocol/compatibility/flow-build-foreman-inventory-0-alpha.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/project-presence.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/project-presence-restart.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/presence-operation-catalogue.json >/dev/null
+          git diff --check
+      - name: Enforce the exact review surface
+        run: |
+          python3 - <<'PY'
+          import subprocess
+
+          expected = {
+              'crates/greenways-workspace-contracts/src/flow_presence.rs',
+              'crates/greenways-workspace-contracts/src/lib.rs',
+              'crates/greenways-workspace-contracts/tests/flow_presence.rs',
+              'crates/greenways-workspace-contracts/tests/fixtures/flow/project-presence.json',
+              'crates/greenways-workspace-contracts/tests/fixtures/flow/project-presence-restart.json',
+              'crates/greenways-workspace-contracts/tests/fixtures/flow/presence-operation-catalogue.json',
+              'docs/flow-host-session-presence.md',
+              'protocol/compatibility/flow-build-foreman-inventory-0-alpha.json',
+          }
+          actual = {
+              line
+              for line in subprocess.check_output(
+                  ['git', 'diff', '--name-only', 'origin/main'], text=True
+              ).splitlines()
+              if line
+          }
+          if actual != expected:
+              raise SystemExit(
+                  'A4.3 review surface mismatch\nexpected: '
+                  + repr(sorted(expected))
+                  + '\nactual: '
+                  + repr(sorted(actual))
+              )
+          PY
+      - name: Publish one self-cleaning contract commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            crates/greenways-workspace-contracts/src/flow_presence.rs \
+            crates/greenways-workspace-contracts/src/lib.rs \
+            crates/greenways-workspace-contracts/tests/flow_presence.rs \
+            crates/greenways-workspace-contracts/tests/fixtures/flow/project-presence.json \
+            crates/greenways-workspace-contracts/tests/fixtures/flow/project-presence-restart.json \
+            crates/greenways-workspace-contracts/tests/fixtures/flow/presence-operation-catalogue.json \
+            docs/flow-host-session-presence.md \
+            protocol/compatibility/flow-build-foreman-inventory-0-alpha.json
+          git diff --cached --check
+          git commit -m "Publish Flow host and session presence contracts"
+          git push origin HEAD:agent/flow-host-session-presence
