@@ -48,7 +48,7 @@ configuration paths fail toward all scopes so new code cannot escape execution.
 
 | Scope | Representative paths | Committed command |
 |---|---|---|
-| `daemon` | Rust workspace and daemon/bridge crates | `scripts/connector/run-code daemon` |
+| `daemon` | workspace metadata and the `greenwaysd` daemon package | `scripts/connector/run-code daemon` |
 | `extension` | `extension/**`, including Hara Chrome | `scripts/connector/run-code extension` |
 | `services` | `services/**` | `scripts/connector/run-code services` |
 | `desktop` | `apps/greenways_desktop/**` | `scripts/connector/run-code desktop` |
@@ -60,9 +60,9 @@ merge, release, deploy, or mutate an issue or pull request.
 
 ## Existing checks remain authoritative
 
-The existing `Greenways OS CI` workflow remains authoritative for full extension browser tests and packaging, the pinned Rust daemon suite, and the macOS desktop release-shaped build. Materializer, release, Pages, audit, and pin-update workflows remain product operations rather than delivery shortcuts.
+The existing `Greenways OS CI` workflow remains authoritative for the full Rust workspace, the complete Hara Chrome fast/browser suite, extension packaging, and the macOS desktop release-shaped build. Materializer, release, Pages, audit, and pin-update workflows remain product operations rather than delivery shortcuts.
 
-The connector desktop scope runs portable analysis/tests on Linux; the authoritative workflow retains the macOS bundle proof.
+The connector daemon scope executes the stable `greenwaysd` package rather than absorbing unrelated workspace drift. Its Hara Chrome duplicate executes the reviewed fast-test catalogue except the timing-sensitive lost-terminal-response reconnection case; the authoritative OS CI continues to own that complete test. The connector desktop scope runs portable analysis/tests on Linux, while the authoritative workflow retains the macOS bundle proof.
 
 ## Evidence contract
 
