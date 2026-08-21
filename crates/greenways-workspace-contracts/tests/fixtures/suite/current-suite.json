@@ -51,7 +51,7 @@
         {
           "legacyApplicationId": "build",
           "targetApplicationId": "flow",
-          "disposition": "inventory-required",
+          "disposition": "incompatible-blocked",
           "discoverable": false,
           "grantsAuthority": false
         }

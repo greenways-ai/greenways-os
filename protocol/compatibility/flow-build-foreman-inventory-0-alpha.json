@@ -1,0 +1,597 @@
+{
+  "protocol": "greenways.compatibility.flow-build-foreman-inventory/0-alpha",
+  "baseline": {
+    "commit": "80316806d3dac11031106aab8e6eb285b186b6ed",
+    "tree": "9e700a908302bb437460fe9a3f0b350b4ed81a8c"
+  },
+  "probe": {
+    "workflowRunId": 32444172077,
+    "jobId": 96660543231,
+    "headCommit": "8494688fb1e061670b7abafa285205970eb16f46",
+    "mergeCommit": "82738338060259dc815f8df5ffbbc052bf014e8c",
+    "mergeTree": "98f556ecb779b49b8cde6a457b5ffbf3a36b2f00",
+    "trackedFiles": 671,
+    "textFiles": 662,
+    "binaryFiles": 6,
+    "contextualFindings": 101,
+    "broadIdentityCandidates": 17,
+    "foremanLines": 74,
+    "buildoutLines": 10
+  },
+  "currentExposure": {
+    "applications": [
+      "spaces",
+      "flow"
+    ],
+    "coordinationApplication": "flow",
+    "coordinationPackage": "greenways/flow",
+    "coordinationDisplayName": "Greenways Flow",
+    "coordinationLauncherLabel": "Flow",
+    "coordinationRoutePrefix": "/flow/",
+    "coordinationCliFamily": [
+      "greenways",
+      "flow"
+    ],
+    "internalCoordinationService": "foreman",
+    "futureUnactivated": [
+      "imagine",
+      "world"
+    ]
+  },
+  "decisions": [
+    {
+      "surface": "build-application-package-id",
+      "classification": "incompatible-blocked",
+      "reason": "Only the Gate 0 legacy Build token exists. It is changed from inventory-required to incompatible-blocked and cannot alias, discover, grant authority, or create a duplicate project."
+    },
+    {
+      "surface": "build-route-deep-link",
+      "classification": "absent",
+      "reason": "The exhaustive tracked-file probe found no merged Build route or deep-link identity."
+    },
+    {
+      "surface": "build-cli-family",
+      "classification": "absent",
+      "reason": "The exhaustive tracked-file probe found no merged greenways build command family."
+    },
+    {
+      "surface": "build-operation-schema",
+      "classification": "absent",
+      "reason": "The exhaustive tracked-file probe found no Build-namespaced coordination operation or durable schema."
+    },
+    {
+      "surface": "build-stored-surface-record",
+      "classification": "absent",
+      "reason": "The exhaustive tracked-file probe found no launcher, recent, search, notification, or activity record carrying Build."
+    },
+    {
+      "surface": "build-handoff-application-id",
+      "classification": "absent",
+      "reason": "The exhaustive tracked-file probe found no handoff source or target application ID carrying Build."
+    },
+    {
+      "surface": "build-public-work-source-application",
+      "classification": "absent",
+      "reason": "The exhaustive tracked-file probe found no public-work source application value carrying Build."
+    },
+    {
+      "surface": "build-visual-language-os-fixture",
+      "classification": "absent",
+      "reason": "The Greenways OS tree contains no current Build Visual Language route or fixture; downstream adoption must use Flow."
+    },
+    {
+      "surface": "foreman-product-copy",
+      "classification": "safe-display-alias",
+      "reason": "Product-facing Foreman prose is a safe display-only migration and is changed to Flow in four architecture documents."
+    },
+    {
+      "surface": "foreman-engine-domain",
+      "classification": "retained-technical-identity",
+      "reason": "Foreman remains the internal coordination engine and durable domain implementation behind Flow."
+    },
+    {
+      "surface": "project-work-buildout-runtime",
+      "classification": "retained-technical-identity",
+      "reason": "Project, work, buildout, provider, Hara Work, and storage identities are technical domain/runtime vocabulary, not a product alias."
+    }
+  ],
+  "versionedCompatibilityAliasRequired": false,
+  "explicitDurableMigrationRequired": false,
+  "findings": [
+    {
+      "path": "README.md",
+      "lineText": "> application hosts. Foreman remains Flow's internal coordination engine and",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "Build,",
+      "patterns": [
+        "build-compatibility-enum-variant"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "RESEARCH_APPLICATION_ID | BUILD_APPLICATION_ID => SuiteResult::failed(SuiteFailure {",
+      "patterns": [
+        "build-compatibility-symbol"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "legacy_application_id: LegacyApplicationId::Build,",
+      "patterns": [
+        "build-compatibility-enum-use"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "pub const BUILD_APPLICATION_ID: &str = \"build\";",
+      "patterns": [
+        "build-compatibility-symbol"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "| (LegacyApplicationId::Build, CurrentApplicationId::Flow)",
+      "patterns": [
+        "build-compatibility-enum-use"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json",
+      "lineText": "\"legacyApplicationId\": \"build\",",
+      "patterns": [
+        "build-compatibility-fixture"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "lineText": ".expect(\"Foreman should not resolve as an app\");",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "lineText": "BUILD_APPLICATION_ID, FLOW_APPLICATION_ID, FLOW_PACKAGE_ID, IMAGINE_APPLICATION_ID,",
+      "patterns": [
+        "build-compatibility-symbol"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "lineText": "LegacyApplicationId::Build",
+      "patterns": [
+        "build-compatibility-enum-use"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "lineText": "Some(BUILD_APPLICATION_ID)",
+      "patterns": [
+        "build-compatibility-symbol"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "lineText": "assert_eq!(failure.application_id.as_deref(), Some(\"foreman\"));",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "lineText": "let result = resolve_application_target(\"foreman\");",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "lineText": "let result = resolve_application_target(BUILD_APPLICATION_ID);",
+      "patterns": [
+        "build-compatibility-symbol"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/suite_gate0.rs",
+      "lineText": "BUILD_APPLICATION_ID, FLOW_APPLICATION_ID, FLOW_PACKAGE_ID, FLOW_TO_SPACES_HANDOFF_ID,",
+      "patterns": [
+        "build-compatibility-symbol"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/suite_gate0.rs",
+      "lineText": "for application_id in [RESEARCH_APPLICATION_ID, BUILD_APPLICATION_ID] {",
+      "patterns": [
+        "build-compatibility-symbol"
+      ],
+      "occurrences": 1,
+      "classification": "incompatible-blocked",
+      "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "## Flow and Foreman",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "- Buildouts;",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "- migrations for Foreman-owned records exposed through Flow.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "- project, work-item, buildout, run, and message operations;",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "10. Restarting the Fabric Server preserves the project, buildout, causal",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "A **buildout** groups work performed across multiple platforms toward the same",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "Buildouts",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "Flow and its Foreman coordination service build on the Greenways Fabric API.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "Flow is the foreground project-centred coordination application. Foreman is",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "Foreman coordination service",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "Foreman coordination service and Greenways Fabric services.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "Foreman owns the durable project model and coordination rules. Flow owns the",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "Foreman uses bounded adapters on behalf of Flow for Codex, Kimi CLI, ChatGPT",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "The durable history underneath Flow is maintained by Foreman as facts rather",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "identities in one buildout view.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "its internal coordination service and durable domain implementation is Foreman.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "platform's native events into the common Foreman model surfaced through Flow",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "projects, buildouts, runs, messages and external-tool coordination",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "records linked to a Foreman-owned project and work item. Flow preserves",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "sessions, approvals, and buildouts from attributable events and external",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "| Workrooms | Buildouts |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-architecture.md",
+      "lineText": "| Workspace / release | Project / buildout |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "-> Foreman coordination service",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "5. the exact Foreman durable schemas surfaced through Flow over Tahto and the",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "Foreman coordination engine behind Flow",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "Foreman project and coordination schema        Foreman",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "Foreman projections surfaced through Flow.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "terminology, or ordinary user-facing records. Foreman remains the internal",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "| Greenways OS, Flow, and Foreman | Product composition and coordination service | Local key and credential custody, provider selection, consent, process lifecycle, installation trust, Fabric API composition, work coordination, and user experience | Re-exporting infrastructure internals as product concepts |",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/fabric-technology-map.md",
+      "lineText": "| What is the canonical project, run, message, artifact, or relationship value? | Flow | Foreman-owned schemas surfaced through Flow and expressed through Tahto values, links, roots, revisions, and sync |",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/workspace-architecture.md",
+      "lineText": "- [Flow, Build, and Foreman compatibility](./flow-build-foreman-compatibility.md)",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/workspace-architecture.md",
+      "lineText": "Greenways Fabric. Flow is what a person opens. Foreman remains Flow's internal",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/workspace-architecture.md",
+      "lineText": "work-runtime integration, and derived application indexes. Foreman owns the",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    }
+  ],
+  "scanCounts": {
+    "textFiles": 668,
+    "binaryFiles": 7,
+    "findings": 49
+  }
+}
