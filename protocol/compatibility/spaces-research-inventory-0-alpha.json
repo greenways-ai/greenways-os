@@ -76,5 +76,16 @@
       "scripts/check-spaces-compatibility-inventory.py"
     ]
   },
-  "findings": []
+  "findings": [
+    {
+      "path": "extension/src/app.js",
+      "lineText": "<p class=\"lede\">Your home can hold ideas, code, research, visual work, plans, and tools. Add services only when they help.</p></section>",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Ordinary description of a human activity in the developer home surface; it is not a Research application, package, route, command, schema, record, handoff, or public-work identity."
+    }
+  ]
 }

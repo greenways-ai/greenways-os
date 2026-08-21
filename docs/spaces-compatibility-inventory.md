@@ -45,10 +45,24 @@ Machine-readable evidence lives at
 | Research handoff source/target IDs | absent | Build Spaces↔Flow only on the merged shared handoff base. |
 | Public-work Research source-application values | absent | Platform profiles consume the later merged Spaces ID; this repository needs no Research value. |
 
-The baseline has no merged Research identity requiring an alias, retained
-technical identity, or migration. This is a repository-scoped conclusion, not
-a claim about Visual Language, Platform, external deployments, or user data.
-Those surfaces require their own inventories before compatibility decisions.
+## Reviewed non-identity prose
+
+The repository scan found one ordinary-language occurrence:
+
+- `extension/src/app.js:141` — “Your home can hold ideas, code, research,
+  visual work, plans, and tools.”
+
+This describes research as a human activity in the developer home surface. It
+is not an application/package ID, operation, schema, route, command, durable
+record, handoff identity, activity identity, or public-work source value. The
+machine-readable inventory records it as `generic-prose`, with no compatibility
+classification.
+
+The baseline therefore has no merged Research identity requiring an alias,
+retained technical identity, or migration. This is a repository-scoped
+conclusion, not a claim about Visual Language, Platform, external deployments,
+or user data. Those surfaces require their own inventories before
+compatibility decisions.
 
 ## Laws carried into B1–B3
 
