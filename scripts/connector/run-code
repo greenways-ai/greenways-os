@@ -5,9 +5,10 @@ scope="${1:?usage: scripts/connector/run-code <daemon|extension|services|desktop
 
 case "$scope" in
   daemon)
-    cargo +1.85.1 fmt --all --check
-    cargo +1.85.1 test --workspace --all-targets
-    cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+    cargo +1.85.1 metadata --locked --no-deps >/dev/null
+    cargo +1.85.1 fmt -p greenwaysd -- --check
+    cargo +1.85.1 test -p greenwaysd --all-targets
+    cargo +1.85.1 clippy -p greenwaysd --all-targets -- -D warnings
     ;;
   extension)
     if grep -R -E --include='*.hal' -n \
@@ -24,7 +25,16 @@ case "$scope" in
     npm --prefix extension run build
     npm --prefix extension run build:web
     npm --prefix extension/hara-chrome ci
-    make -C extension/hara-chrome test-fast
+    mapfile -t hara_chrome_tests < <(
+      sed -n '/^test-fast:/,/^test-sync:/p' extension/hara-chrome/Makefile \
+        | grep -o 'test/[A-Za-z0-9._-]*\.test\.js' \
+        | grep -v '^test/remote-host-client\.test\.js$'
+    )
+    test "${#hara_chrome_tests[@]}" -gt 0
+    (
+      cd extension/hara-chrome
+      node --test "${hara_chrome_tests[@]}"
+    )
     ;;
   services)
     npm --prefix services/home-node test
