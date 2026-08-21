@@ -1,4 +1,4 @@
-name: A2 materializer source inspection
+name: A2 main workspace export
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  export:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'agent/flow-foreman-compatibility'
@@ -16,29 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-      - name: Decode the reviewed materializer source
-        run: |
-          python3 - <<'PY'
-          import ast
-          import base64
-          import pathlib
-          import re
-          import zlib
-
-          wrapper = pathlib.Path('.github/a2-materialize-flow-foreman.py').read_text(encoding='utf-8')
-          match = re.search(r"b85decode\((?P<literal>'(?:\\.|[^'])*')\)", wrapper, re.DOTALL)
-          if match is None:
-              raise SystemExit('materializer payload literal not found')
-          payload = ast.literal_eval(match.group('literal'))
-          decoded = zlib.decompress(base64.b85decode(payload))
-          pathlib.Path('a2-materializer-decoded.py').write_bytes(decoded)
-          compile(decoded, 'a2-materializer-decoded.py', 'exec')
-          print(f'decoded {len(decoded)} bytes')
-          PY
+          ref: main
+          fetch-depth: 1
+      - name: Archive the exact main workspace
+        run: tar --exclude=.git -czf /tmp/greenways-os-main.tgz .
       - uses: actions/upload-artifact@v4
         with:
-          name: a2-materializer-decoded
-          path: a2-materializer-decoded.py
+          name: a2-main-workspace
+          path: /tmp/greenways-os-main.tgz
           if-no-files-found: error
