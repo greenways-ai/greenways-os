@@ -128,6 +128,7 @@ test-fast: dependencies
 	  test/remote-host-boundary.test.js \
 	  test/remote-host-client.test.js \
 	  test/remote-host-protocol.test.js \
+	  test/remote-sandbox-executor.test.js \
 	  test/runtime-host-core.test.js \
 	  test/runtime-login.test.js \
 	  test/runtime-supervisor.test.js \
