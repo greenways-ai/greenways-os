@@ -72,4 +72,4 @@ The executable inventory is:
 - `scripts/check-flow-build-foreman-inventory.py`;
 - `crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs`.
 
-The checker scans every tracked UTF-8 file except its own evidence files. It rejects current Build product identities, compares every remaining Foreman/buildout/legacy-Build occurrence against the exact reviewed inventory, and validates the canonical Flow manifest. New occurrences fail closed until the inventory and this decision record are reviewed together.
+The checker scans every tracked and non-ignored working-tree UTF-8 file except its own evidence files. Including non-ignored untracked files makes newly created source fail closed before it is staged; generated staging directories must therefore be removed before invoking the checker. It rejects current Build product identities, compares every remaining Foreman/buildout/legacy-Build occurrence against the exact reviewed inventory, and validates the canonical Flow manifest.
