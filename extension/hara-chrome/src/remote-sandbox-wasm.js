@@ -42,14 +42,6 @@ export function createRestrictedBrowserWasmRuntimeFactory(options = {}) {
       filesystemHost: null,
       kernelId: `MCP.${request.requestId}`,
     });
-    return {
-      context,
-      worker,
-      async close() {
-        // HtaContext owns its protocol-level close; terminate remains an
-        // independent hard cleanup boundary in the executor.
-        await context.close?.();
-      },
-    };
+    return { context, worker };
   };
 }
