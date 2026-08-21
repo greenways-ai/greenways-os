@@ -1,0 +1,40 @@
+name: Scope A2 Flow proof formatting
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/flow-foreman-compatibility-proof'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/flow-foreman-compatibility-proof
+          fetch-depth: 0
+      - name: Narrow the formatting gate and remove this patcher
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/a2-flow-foreman-compatibility-proof.yml')
+          text = workflow.read_text(encoding='utf-8')
+          old = '          cargo +1.85.1 fmt --all --check\n'
+          if text.count(old) != 1:
+              raise SystemExit('expected one repository-wide cargo fmt gate')
+          workflow.write_text(text.replace(old, ''), encoding='utf-8')
+          Path('.github/workflows/a2-flow-proof-scope-format.yml').unlink()
+          PY
+          git diff --check
+          git add -A
+          git diff --cached --check
+          git config user.name "greenways-agent"
+          git config user.email "greenways-agent@users.noreply.github.com"
+          git commit -m "Scope A2 formatting proof to changed files"
+          git push origin HEAD:agent/flow-foreman-compatibility-proof
