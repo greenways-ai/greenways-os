@@ -1,0 +1,68 @@
+name: Materialize A2 Flow compatibility proof
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/flow-foreman-compatibility-proof'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/flow-foreman-compatibility-proof
+          fetch-depth: 0
+      - name: Recover and close the reviewed compatibility contracts
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            refs/heads/agent/a2-flow-compatibility-source:refs/remotes/origin/a2-flow-compatibility-source
+          python3 scripts/materialize-a2-flow-compatibility-proof.py
+      - name: Install pinned Rust tools
+        run: >-
+          rustup toolchain install 1.85.1 --profile minimal
+          --component rustfmt --component clippy
+      - name: Validate the closed contracts
+        run: |
+          set -euo pipefail
+          rustfmt +1.85.1 --edition 2021 \
+            crates/greenways-workspace-contracts/src/flow.rs \
+            crates/greenways-workspace-contracts/src/lib.rs \
+            crates/greenways-workspace-contracts/src/suite.rs \
+            crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs \
+            crates/greenways-workspace-contracts/tests/suite_gate0.rs
+          python3 scripts/check-flow-build-foreman-inventory.py
+          cargo +1.85.1 test -p greenways-workspace-contracts --all-targets
+          cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
+          git diff --check
+      - name: Package the validated connector publication
+        run: |
+          git diff --binary --full-index > a2-flow-foreman-compatibility-proof.patch
+          git status --short > a2-flow-foreman-compatibility-proof.status
+          test -s a2-flow-foreman-compatibility-proof.patch
+          cat a2-flow-foreman-compatibility-proof.status
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a2-flow-foreman-compatibility-proof
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            a2-flow-foreman-compatibility-proof.patch
+            a2-flow-foreman-compatibility-proof.status
+            .github/workflows/flow-build-foreman-compatibility.yml
+            crates/greenways-workspace-contracts/src/flow.rs
+            crates/greenways-workspace-contracts/src/lib.rs
+            crates/greenways-workspace-contracts/src/suite.rs
+            crates/greenways-workspace-contracts/tests/fixtures/flow/flow-foreman-compatibility.json
+            crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json
+            crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs
+            crates/greenways-workspace-contracts/tests/suite_gate0.rs
+            docs/flow-build-foreman-compatibility.md
+            protocol/compatibility/flow-build-foreman-inventory-0-alpha.json
+            scripts/check-flow-build-foreman-inventory.py
