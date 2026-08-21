@@ -1,24 +1,31 @@
 name: A4 Flow handoffs and interventions materializer
 
 on:
-  push:
-    branches:
-      - agent/flow-handoffs-interventions
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   materialize:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/flow-handoffs-interventions' &&
+      github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/flow-handoffs-interventions
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-      - name: Fetch current main
-        run: git fetch origin main
+      - name: Merge the exact current main revision
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit origin/main
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
       - name: Register the contract and bounded agent request capabilities
@@ -31,8 +38,9 @@ jobs:
 
           def replace_once(path: Path, old: str, new: str, label: str) -> None:
               source = path.read_text(encoding='utf-8')
-              if source.count(old) != 1:
-                  raise SystemExit(f'{label}: expected one match, found {source.count(old)}')
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
               path.write_text(source.replace(old, new, 1), encoding='utf-8')
 
           lib = Path('crates/greenways-workspace-contracts/src/lib.rs')
@@ -125,12 +133,11 @@ This contract introduces no generic database, filesystem, provider, browser, pro
               'protocol/compatibility/flow-build-foreman-inventory-0-alpha.json'
           )
           checker = runpy.run_path('scripts/check-flow-build-foreman-inventory.py')
-          findings, forbidden, counts = checker['scan_findings']()
+          findings, forbidden, _counts = checker['scan_findings']()
           if forbidden:
               raise SystemExit('forbidden Build identity found:\n' + '\n'.join(forbidden))
           inventory = json.loads(inventory_path.read_text(encoding='utf-8'))
           inventory['findings'] = findings
-          inventory['scanCounts'] = counts
           inventory_path.write_text(
               json.dumps(inventory, indent=2, ensure_ascii=False) + '\n',
               encoding='utf-8',
@@ -171,8 +178,6 @@ This contract introduces no generic database, filesystem, provider, browser, pro
       - name: Publish one self-cleaning branch commit
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- \
             crates/greenways-workspace-contracts/src/flow_handoff_intervention.rs \
             crates/greenways-workspace-contracts/src/flow_participation.rs \
