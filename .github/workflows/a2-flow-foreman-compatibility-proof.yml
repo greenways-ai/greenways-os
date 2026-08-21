@@ -94,12 +94,15 @@ jobs:
               '"classification": "absent",\n        "requestResult": "incompatible",': '"classification": "incompatible-blocked",\n        "requestResult": "incompatible",',
               '"disposition": "absent",\n        "discoverable": False,': '"disposition": "incompatible-blocked",\n        "discoverable": False,',
               'rules[0].get("disposition") != "absent"': 'rules[0].get("disposition") != "incompatible-blocked"',
-              "Build absent; Foreman display-only at the product boundary;": "legacy Build blocked; Foreman display-only at the product boundary;",
           }
           for old, new in replacements.items():
               if old not in text:
                   raise SystemExit(f"checker replacement source missing: {old!r}")
               text = text.replace(old, new)
+          text = text.replace(
+              '"Flow/Foreman compatibility inventory verified: Build absent; "',
+              '"Flow/Foreman compatibility inventory verified: legacy Build blocked; "',
+          )
           checker.write_text(text, encoding="utf-8")
 
           workflow = Path(".github/workflows/flow-build-foreman-compatibility.yml")
