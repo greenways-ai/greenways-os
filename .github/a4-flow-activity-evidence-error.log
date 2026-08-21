@@ -4,18 +4,18 @@ Already up to date.
 rm '.github/a4-flow-activity-evidence-error.log'
 rm '.github/workflows/a4-flow-activity-evidence-materializer.yml'
 rm '.github/a4-materialize-flow-activity-evidence.py'
-Flow/Build/Foreman compatibility inventory is closed: 190 findings across 715 UTF-8 files; Build is incompatible-blocked and Foreman/buildout identities are technical only.
+Flow/Build/Foreman compatibility inventory is closed: 196 findings across 716 UTF-8 files; Build is incompatible-blocked and Foreman/buildout identities are technical only.
     Updating crates.io index
  Downloading crates ...
-  Downloaded proc-macro2 v1.0.107
-  Downloaded itoa v1.0.18
-  Downloaded zmij v1.0.23
-  Downloaded quote v1.0.47
-  Downloaded unicode-ident v1.0.24
   Downloaded serde_derive v1.0.229
+  Downloaded itoa v1.0.18
+  Downloaded quote v1.0.47
+  Downloaded zmij v1.0.23
+  Downloaded unicode-ident v1.0.24
   Downloaded serde_core v1.0.229
-  Downloaded serde v1.0.229
   Downloaded memchr v2.8.3
+  Downloaded proc-macro2 v1.0.107
+  Downloaded serde v1.0.229
   Downloaded serde_json v1.0.151
   Downloaded syn v3.0.3
    Compiling proc-macro2 v1.0.107
@@ -23,11 +23,11 @@ Flow/Build/Foreman compatibility inventory is closed: 190 findings across 715 UT
    Compiling unicode-ident v1.0.24
    Compiling serde_core v1.0.229
    Compiling zmij v1.0.23
-   Compiling serde_json v1.0.151
    Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling itoa v1.0.18
    Compiling memchr v2.8.3
    Compiling syn v3.0.3
-   Compiling itoa v1.0.18
    Compiling serde_derive v1.0.229
    Compiling greenways-workspace-contracts v0.1.0 (/home/runner/work/greenways-os/greenways-os/crates/greenways-workspace-contracts)
 warning: constant `MAX_INTERVENTION_ID_BYTES` is never used
@@ -40,7 +40,7 @@ warning: constant `MAX_INTERVENTION_ID_BYTES` is never used
 
 warning: `greenways-workspace-contracts` (lib test) generated 1 warning
 warning: `greenways-workspace-contracts` (lib) generated 1 warning (1 duplicate)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.07s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.47s
      Running unittests src/lib.rs (target/debug/deps/greenways_workspace_contracts-446b9d115434ad96)
 
 running 0 tests
@@ -57,14 +57,14 @@ test authority_credentials_private_references_and_payload_bytes_fail_closed ... 
 test agent_reports_and_observations_require_exact_mandate_capabilities ... ok
 test canonical_activity_and_evidence_validate_against_exact_project_context ... ok
 test operation_fixture_matches_the_exact_closed_catalogue ... ok
-test provider_acceptance_is_not_external_effect_verification ... ok
 test current_evidence_exposes_no_legacy_or_future_application_identity ... ok
+test provider_acceptance_is_not_external_effect_verification ... ok
 test projection_rebuild_cannot_repeat_work_transfer_provider_or_effects ... ok
 test artifact_work_claim_and_readback_links_resolve_exactly ... ok
 test selected_and_verified_records_require_matching_append_activity ... ok
-test verified_effect_requires_exact_current_authoritative_readback ... ok
-test unknown_fields_unknown_operations_and_non_flow_ownership_fail_closed ... ok
 test restart_preserves_uncertainty_without_replaying_work_or_effects ... ok
+test unknown_fields_unknown_operations_and_non_flow_ownership_fail_closed ... ok
+test verified_effect_requires_exact_current_authoritative_readback ... ok
 
 test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
 
@@ -85,17 +85,17 @@ test approval_required_handoff_has_exactly_one_current_human_review ... ok
 test application_and_operation_catalogues_expose_flow_and_spaces_only ... ok
 test authority_credentials_work_state_and_effect_replay_fail_closed ... ok
 test exact_replay_is_idempotent_and_changed_content_collides ... ok
+test canonical_handoffs_validate_against_the_exact_project_context ... ok
 test agent_requests_require_the_exact_closed_mandate_capability ... ok
 test common_application_handoff_and_project_lifecycle_cannot_diverge ... ok
 test handoff_lifecycle_requires_acceptance_transfer_and_receipt_evidence ... ok
-test canonical_handoffs_validate_against_the_exact_project_context ... ok
 test operation_fixture_matches_the_exact_closed_catalogue ... ok
 test reconciliation_cannot_repeat_transfer_provider_work_or_external_effects ... ok
-test resolved_intervention_requires_exact_project_owned_resolution_evidence ... ok
 test intervention_decision_and_resolution_are_distinct_human_evidence ... ok
+test resolved_intervention_requires_exact_project_owned_resolution_evidence ... ok
 test restart_fixture_reconciles_evidence_without_repeating_work_or_effects ... ok
-test project_local_targets_and_claim_context_must_resolve_exactly ... ok
 test unknown_fields_and_unknown_operations_fail_closed ... ok
+test project_local_targets_and_claim_context_must_resolve_exactly ... ok
 
 test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
 
@@ -106,15 +106,15 @@ test current_session_cannot_survive_a_terminal_host_attachment ... ok
 test claim_and_session_presence_are_independent_dimensions ... ok
 test canonical_presence_and_restart_fixtures_validate_against_current_context ... ok
 test duplicate_current_hosts_and_sessions_are_rejected ... ok
-test operation_metadata_order_and_identity_cannot_drift ... ok
 test operation_fixture_matches_the_exact_closed_catalogue ... ok
 test presence_and_attachment_lifecycles_are_closed ... ok
+test operation_metadata_order_and_identity_cannot_drift ... ok
 test current_agent_sessions_require_exact_active_mandates ... ok
 test project_host_attachment_is_not_host_presence_or_execution_authority ... ok
 test restart_evidence_never_changes_work_outcome_or_repeats_provider_work ... ok
 test legacy_and_future_application_ids_remain_outside_presence_contracts ... ok
-test stale_reconciliation_requires_stale_or_unknown_evidence ... ok
 test provider_secrets_urls_and_native_handles_are_not_schema_fields ... ok
+test stale_reconciliation_requires_stale_or_unknown_evidence ... ok
 test session_context_references_fail_closed ... ok
 
 test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
@@ -125,14 +125,14 @@ running 11 tests
 test canonical_project_fixtures_validate ... ok
 test lifecycle_transitions_are_closed_and_terminal_states_do_not_reopen ... ok
 test buildout_membership_must_agree_in_both_directions ... ok
-test flow_ownership_is_exact_and_future_or_legacy_ids_are_rejected ... ok
 test operation_metadata_cannot_drift_or_grant_authority ... ok
+test flow_ownership_is_exact_and_future_or_legacy_ids_are_rejected ... ok
 test current_catalogue_does_not_expose_legacy_or_future_applications ... ok
-test shared_references_never_transfer_authority_or_duplicate_identity ... ok
 test operation_fixture_matches_the_closed_catalogue ... ok
+test shared_references_never_transfer_authority_or_duplicate_identity ... ok
 test project_membership_is_closed_to_one_aggregate ... ok
-test unknown_fields_and_unknown_operations_fail_closed ... ok
 test terminal_aggregates_require_terminal_members ... ok
+test unknown_fields_and_unknown_operations_fail_closed ... ok
 
 test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
@@ -141,13 +141,13 @@ test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 running 11 tests
 test canonical_participation_fixture_validates ... ok
 test duplicate_memberships_and_principals_fail_closed ... ok
+test lifecycle_evidence_and_authority_fail_closed ... ok
+test mandates_require_the_exact_agent_membership ... ok
 test member_and_mandate_transitions_are_closed ... ok
 test operation_metadata_cannot_grant_authority_or_delete_history ... ok
-test lifecycle_evidence_and_authority_fail_closed ... ok
-test participation_operation_fixture_matches_the_closed_catalogue ... ok
-test mandates_require_the_exact_agent_membership ... ok
-test participation_records_cannot_cross_projects ... ok
 test revoked_membership_cannot_retain_a_current_mandate ... ok
+test participation_records_cannot_cross_projects ... ok
+test participation_operation_fixture_matches_the_closed_catalogue ... ok
 test project_requires_one_active_human_owner ... ok
 test schemas_reject_unknown_capabilities_fields_and_applications ... ok
 
@@ -160,16 +160,16 @@ test claim_fences_and_claimants_are_unique ... ok
 test claim_contention_must_match_observed_active_overlap ... ok
 test canonical_clean_and_contended_snapshots_validate ... ok
 test dependency_assignment_and_claim_transitions_are_closed ... ok
+test agent_claim_requires_active_matching_work_claim_mandate ... ok
 test claims_never_copy_runtime_state_or_transfer_authority ... ok
 test current_assignments_are_unique_and_require_lifecycle_evidence ... ok
-test agent_claim_requires_active_matching_work_claim_mandate ... ok
 test operation_metadata_cannot_delete_history_copy_runtime_or_grant_authority ... ok
-test dependency_graph_rejects_self_edges_duplicates_and_cycles ... ok
 test operation_fixture_matches_the_closed_catalogue ... ok
+test dependency_graph_rejects_self_edges_duplicates_and_cycles ... ok
 test suspended_assignee_cannot_retain_an_accepted_assignment ... ok
 test person_claims_and_assignment_actors_remain_separate ... ok
-test schemas_reject_unknown_fields_operations_and_applications ... ok
 test terminal_work_cannot_retain_current_coordination_fixture ... ok
+test schemas_reject_unknown_fields_operations_and_applications ... ok
 
 test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
@@ -198,8 +198,8 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 10 tests
 test accepted_external_records_cannot_revert_to_candidate_authority ... ok
-test a_candidate_cannot_become_a_tahto_semantic_link ... ok
 test canonical_space_keeps_all_truthfulness_states_distinct ... ok
+test a_candidate_cannot_become_a_tahto_semantic_link ... ok
 test manifest_is_exactly_tied_to_the_current_spaces_application ... ok
 test asserted_and_semantic_relationships_require_reviewed_authority ... ok
 test display_summaries_cannot_replace_source_or_concept_identity ... ok
@@ -225,10 +225,10 @@ test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
     Checking serde_core v1.0.229
     Checking zmij v1.0.23
-    Checking memchr v2.8.3
     Checking itoa v1.0.18
-    Checking serde_json v1.0.151
+    Checking memchr v2.8.3
     Checking serde v1.0.229
+    Checking serde_json v1.0.151
     Checking greenways-workspace-contracts v0.1.0 (/home/runner/work/greenways-os/greenways-os/crates/greenways-workspace-contracts)
 error: constant `MAX_INTERVENTION_ID_BYTES` is never used
   --> crates/greenways-workspace-contracts/src/flow_activity_evidence.rs:49:7
