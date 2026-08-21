@@ -168,8 +168,7 @@ fn unknown_fields_and_unknown_operations_fail_closed() {
     value["providerHandle"] = json!("native://unbounded");
     assert!(serde_json::from_value::<FlowProjectSnapshot>(value).is_err());
 
-    let mut value: Value =
-        serde_json::from_str(OPERATION_CATALOGUE).expect("fixture should parse");
+    let mut value: Value = serde_json::from_str(OPERATION_CATALOGUE).expect("fixture should parse");
     value["operations"][0]["operationId"] = json!("flow.project.delete");
     assert!(serde_json::from_value::<FlowOperationCatalogue>(value).is_err());
 }
@@ -191,8 +190,10 @@ fn operation_metadata_cannot_drift_or_grant_authority() {
     assert!(flow_operation_catalogue()
         .operations
         .iter()
-        .all(|operation| operation.operation_id != FlowOperationId::ProjectCreate
-            || !operation.requires_expected_revision));
+        .all(
+            |operation| operation.operation_id != FlowOperationId::ProjectCreate
+                || !operation.requires_expected_revision
+        ));
 }
 
 #[test]

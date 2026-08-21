@@ -5,11 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const FLOW_PROJECT_PROTOCOL: &str = "greenways.flow.project/0-alpha";
 pub const FLOW_WORK_REFERENCE_PROTOCOL: &str = "greenways.flow.work-reference/0-alpha";
-pub const FLOW_BUILDOUT_REFERENCE_PROTOCOL: &str =
-    "greenways.flow.buildout-reference/0-alpha";
+pub const FLOW_BUILDOUT_REFERENCE_PROTOCOL: &str = "greenways.flow.buildout-reference/0-alpha";
 pub const FLOW_OPERATION_PROTOCOL: &str = "greenways.flow.operation/0-alpha";
-pub const FLOW_OPERATION_CATALOGUE_PROTOCOL: &str =
-    "greenways.flow.operation-catalogue/0-alpha";
+pub const FLOW_OPERATION_CATALOGUE_PROTOCOL: &str = "greenways.flow.operation-catalogue/0-alpha";
 
 pub const FLOW_PROJECT_LIST_OPERATION: &str = "flow.project.list";
 pub const FLOW_PROJECT_GET_OPERATION: &str = "flow.project.get";
@@ -87,11 +85,7 @@ impl FlowWorkState {
                 | (Self::Ready, Self::Running | Self::Blocked | Self::Cancelled)
                 | (
                     Self::Running,
-                    Self::Blocked
-                        | Self::Review
-                        | Self::Completed
-                        | Self::Cancelled
-                        | Self::Failed
+                    Self::Blocked | Self::Review | Self::Completed | Self::Cancelled | Self::Failed
                 )
                 | (
                     Self::Blocked,
@@ -128,11 +122,7 @@ impl FlowBuildoutState {
             (Self::Planned, Self::Active | Self::Cancelled)
                 | (
                     Self::Active,
-                    Self::Blocked
-                        | Self::Review
-                        | Self::Completed
-                        | Self::Cancelled
-                        | Self::Failed
+                    Self::Blocked | Self::Review | Self::Completed | Self::Cancelled | Self::Failed
                 )
                 | (
                     Self::Blocked,
@@ -235,17 +225,9 @@ impl FlowBuildoutReference {
             "invalid-flow-buildout-id",
         )?;
         require_positive_revision(self.revision, "invalid-flow-buildout-revision")?;
-        validate_text(
-            &self.title,
-            MAX_TITLE_BYTES,
-            "invalid-flow-buildout-title",
-        )?;
+        validate_text(&self.title, MAX_TITLE_BYTES, "invalid-flow-buildout-title")?;
         if let Some(summary) = &self.summary {
-            validate_text(
-                summary,
-                MAX_SUMMARY_BYTES,
-                "invalid-flow-buildout-summary",
-            )?;
+            validate_text(summary, MAX_SUMMARY_BYTES, "invalid-flow-buildout-summary")?;
         }
         if self.work_ids.is_empty() || self.work_ids.len() > MAX_BUILDOUT_WORK {
             return Err(ContractError::new(
@@ -305,17 +287,9 @@ impl FlowProjectSnapshot {
             "invalid-flow-project-id",
         )?;
         require_positive_revision(self.revision, "invalid-flow-project-revision")?;
-        validate_text(
-            &self.title,
-            MAX_TITLE_BYTES,
-            "invalid-flow-project-title",
-        )?;
+        validate_text(&self.title, MAX_TITLE_BYTES, "invalid-flow-project-title")?;
         if let Some(summary) = &self.summary {
-            validate_text(
-                summary,
-                MAX_SUMMARY_BYTES,
-                "invalid-flow-project-summary",
-            )?;
+            validate_text(summary, MAX_SUMMARY_BYTES, "invalid-flow-project-summary")?;
         }
         if self.created_at_unix_ms == 0
             || self.updated_at_unix_ms == 0
@@ -457,8 +431,8 @@ impl FlowProjectSnapshot {
             }
         }
 
-        if self.state == FlowProjectState::Completed {
-            if self.work.is_empty()
+        if self.state == FlowProjectState::Completed
+            && (self.work.is_empty()
                 || self
                     .work
                     .iter()
@@ -466,13 +440,12 @@ impl FlowProjectSnapshot {
                 || self
                     .buildouts
                     .iter()
-                    .any(|buildout| !buildout.state.allows_project_completion())
-            {
-                return Err(ContractError::new(
-                    "incomplete-flow-project",
-                    "Completed Flow projects require terminal work and buildouts",
-                ));
-            }
+                    .any(|buildout| !buildout.state.allows_project_completion()))
+        {
+            return Err(ContractError::new(
+                "incomplete-flow-project",
+                "Completed Flow projects require terminal work and buildouts",
+            ));
         }
 
         Ok(())
@@ -661,12 +634,16 @@ fn canonical_operation(operation_id: FlowOperationId) -> FlowOperationDescriptor
         idempotency,
         result_kind,
     ) = match operation_id {
-        FlowOperationId::ProjectList => {
-            (ProjectCollection, Read, false, false, false, None, ProjectPage)
-        }
-        FlowOperationId::ProjectGet => {
-            (ProjectScope, Read, true, false, false, None, Project)
-        }
+        FlowOperationId::ProjectList => (
+            ProjectCollection,
+            Read,
+            false,
+            false,
+            false,
+            None,
+            ProjectPage,
+        ),
+        FlowOperationId::ProjectGet => (ProjectScope, Read, true, false, false, None, Project),
         FlowOperationId::ProjectCreate => (
             ProjectCollection,
             Manage,
@@ -685,40 +662,16 @@ fn canonical_operation(operation_id: FlowOperationId) -> FlowOperationDescriptor
             ExactRequest,
             Project,
         ),
-        FlowOperationId::WorkList => {
-            (WorkScope, Read, true, false, false, None, WorkPage)
-        }
+        FlowOperationId::WorkList => (WorkScope, Read, true, false, false, None, WorkPage),
         FlowOperationId::WorkGet => (WorkScope, Read, true, true, false, None, Work),
-        FlowOperationId::WorkCreate => (
-            WorkScope,
-            Manage,
-            true,
-            false,
-            true,
-            ExactRequest,
-            Work,
-        ),
-        FlowOperationId::WorkUpdate | FlowOperationId::WorkTransition => (
-            WorkScope,
-            Manage,
-            true,
-            true,
-            true,
-            ExactRequest,
-            Work,
-        ),
-        FlowOperationId::BuildoutList => (
-            BuildoutScope,
-            Read,
-            true,
-            false,
-            false,
-            None,
-            BuildoutPage,
-        ),
-        FlowOperationId::BuildoutGet => {
-            (BuildoutScope, Read, true, true, false, None, Buildout)
+        FlowOperationId::WorkCreate => (WorkScope, Manage, true, false, true, ExactRequest, Work),
+        FlowOperationId::WorkUpdate | FlowOperationId::WorkTransition => {
+            (WorkScope, Manage, true, true, true, ExactRequest, Work)
         }
+        FlowOperationId::BuildoutList => {
+            (BuildoutScope, Read, true, false, false, None, BuildoutPage)
+        }
+        FlowOperationId::BuildoutGet => (BuildoutScope, Read, true, true, false, None, Buildout),
         FlowOperationId::BuildoutCreate => (
             BuildoutScope,
             Manage,
@@ -876,11 +829,7 @@ fn validate_digest(value: &str) -> Result<(), ContractError> {
     }
 }
 
-fn validate_text(
-    value: &str,
-    maximum: usize,
-    code: &'static str,
-) -> Result<(), ContractError> {
+fn validate_text(value: &str, maximum: usize, code: &'static str) -> Result<(), ContractError> {
     if !value.is_empty() && value.len() <= maximum {
         Ok(())
     } else {

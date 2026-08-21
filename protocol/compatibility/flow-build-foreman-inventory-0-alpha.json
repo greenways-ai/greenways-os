@@ -109,6 +109,566 @@
       "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
     },
     {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Completed Flow projects require terminal work and buildouts\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Completed or cancelled Flow buildouts require terminal work\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Direct Flow work cannot appear in a buildout\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow buildout application revision must match its project\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow buildout identities must be unique within a project\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow buildout must contain a bounded non-empty work list\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow buildout references work outside the project snapshot\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow buildout work identities must be unique\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow project buildout collection exceeds its bound\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow work and buildout membership must agree exactly\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow work buildout membership must resolve inside its project\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"Flow work cannot belong to more than one buildout\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"buildout/\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 2,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"cross-project-flow-buildout\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"duplicate-flow-buildout-id\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"duplicate-flow-buildout-membership\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"duplicate-flow-buildout-work\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"flow-buildout-membership-mismatch\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"flow-buildout-revision-mismatch\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"invalid-flow-buildout-id\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 2,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"invalid-flow-buildout-work\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"non-terminal-flow-buildout-work\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"orphaned-flow-buildout-work\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"too-many-flow-project-buildouts\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"unexpected-flow-buildout-work\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "\"unknown-flow-buildout-work\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "#[serde(rename = \"flow.buildout.create\")]",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "#[serde(rename = \"flow.buildout.get\")]",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "#[serde(rename = \"flow.buildout.list\")]",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "#[serde(rename = \"flow.buildout.transition\")]",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "#[serde(rename = \"flow.buildout.update\")]",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "&buildout.project_id,",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": ".any(|buildout| !buildout.state.allows_project_completion()))",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": ".buildouts",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": ".insert(buildout.buildout_id.as_str(), buildout)",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "Buildout,",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 4,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "FlowOperationId::BuildoutGet => (BuildoutScope, Read, true, true, false, None, Buildout),",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "buildout.state,",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "buildout.validate()?;",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "for buildout in &self.buildouts {",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 2,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "for work_id in &buildout.work_ids {",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "if buildout.application_revision != self.application_revision {",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "if self.buildouts.len() > MAX_PROJECT_BUILDOUTS {",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "if work.buildout_id.as_deref() != Some(buildout.buildout_id.as_str()) {",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "pub buildouts: Vec<FlowBuildoutReference>,",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "pub const FLOW_BUILDOUT_CREATE_OPERATION: &str = \"flow.buildout.create\";",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "pub const FLOW_BUILDOUT_GET_OPERATION: &str = \"flow.buildout.get\";",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "pub const FLOW_BUILDOUT_LIST_OPERATION: &str = \"flow.buildout.list\";",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "pub const FLOW_BUILDOUT_REFERENCE_PROTOCOL: &str = \"greenways.flow.buildout-reference/0-alpha\";",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "pub const FLOW_BUILDOUT_TRANSITION_OPERATION: &str = \"flow.buildout.transition\";",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "pub const FLOW_BUILDOUT_UPDATE_OPERATION: &str = \"flow.buildout.update\";",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "require_positive_revision(self.revision, \"invalid-flow-buildout-revision\")?;",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "use FlowOperationResultKind::{Buildout, BuildoutPage, Project, ProjectPage, Work, WorkPage};",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "use FlowOperationScope::{Buildout as BuildoutScope, Project as ProjectScope};",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "validate_text(&self.title, MAX_TITLE_BYTES, \"invalid-flow-buildout-title\")?;",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/flow.rs",
+      "lineText": "validate_text(summary, MAX_SUMMARY_BYTES, \"invalid-flow-buildout-summary\")?;",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
       "path": "crates/greenways-workspace-contracts/src/suite.rs",
       "lineText": "Build,",
       "patterns": [
@@ -157,6 +717,166 @@
       "occurrences": 1,
       "classification": "incompatible-blocked",
       "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"operationId\": \"flow.buildout.create\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"operationId\": \"flow.buildout.get\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"operationId\": \"flow.buildout.list\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"operationId\": \"flow.buildout.transition\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"operationId\": \"flow.buildout.update\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"resultKind\": \"buildout\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 4,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"resultKind\": \"buildout-page\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json",
+      "lineText": "\"scope\": \"buildout\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 5,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json",
+      "lineText": "\"buildoutId\": \"buildout/flow-control-room\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 3,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json",
+      "lineText": "\"buildouts\": [",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json",
+      "lineText": "\"protocol\": \"greenways.flow.buildout-reference/0-alpha\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json",
+      "lineText": "\"summary\": \"A Flow project whose related work is grouped by one optional buildout.\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json",
+      "lineText": "\"summary\": \"Define the bounded project, work, buildout, and evidence composition.\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json",
+      "lineText": "\"title\": \"Control Room contract buildout\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-direct-work.json",
+      "lineText": "\"buildouts\": []",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/project-direct-work.json",
+      "lineText": "\"summary\": \"A Flow project with direct work and no optional buildout grouping.\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
     },
     {
       "path": "crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json",
@@ -237,6 +957,126 @@
       "occurrences": 1,
       "classification": "incompatible-blocked",
       "reason": "The legacy Build token is recognized only to fail explicitly; it is not a current application, alias, migration target, authority grant, or duplicate project."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "\"\\\"applicationId\\\": \\\"foreman\\\"\",",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": ".all(|work| work.buildout_id.as_deref() == Some(\"buildout/flow-control-room\")));",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": ".expect(\"buildout Flow project should validate\");",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "assert!(direct.buildouts.is_empty());",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "assert_eq!(grouped.buildouts.len(), 1);",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "const BUILDOUT_PROJECT: &str = include_str!(\"fixtures/flow/project-buildout.json\");",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "for application_id in [\"build\", \"foreman\", \"imagine\", \"world\"] {",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "project.buildouts.push(project.buildouts[0].clone());",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "project.buildouts[0]",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "project.buildouts[0].project_id = \"project/other\".to_owned();",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "project.buildouts[0].state = FlowBuildoutState::Completed;",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 2,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_project_contract.rs",
+      "lineText": "project.buildouts[0].work_ids.pop();",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
     },
     {
       "path": "crates/greenways-workspace-contracts/tests/suite_gate0.rs",
@@ -553,6 +1393,176 @@
       "lineText": "| What is the canonical project, run, message, artifact, or relationship value? | Flow | Foreman-owned schemas surfaced through Flow and expressed through Tahto values, links, roots, revisions, and sync |",
       "patterns": [
         "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "- Foreman provider/execution behavior;",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "- `crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json` demonstrates one optional buildout with exact two-way work membership.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "- `crates/greenways-workspace-contracts/tests/fixtures/flow/project-direct-work.json` demonstrates a project with direct work and no buildout.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "- zero or more optional buildout references.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "A buildout is an optional grouping inside one project. It is never an application identity. Direct work has no buildout ID. Grouped work names exactly one buildout, and that buildout must list the same work ID. A work item cannot belong to two buildouts or to another project.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "Buildout states are `planned`, `active`, `blocked`, `review`, `completed`, `cancelled`, and `failed`. Completed and cancelled buildouts require all listed work to be completed or cancelled.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "Foreman remains Flow's internal coordination engine and durable domain implementation. It is not a package, launcher application, route family, CLI family, operation namespace, or application target. The project contract therefore exposes no Foreman application identity and no generic execution handle.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "Greenways Flow is the only current product-facing coordination application. Every project, work reference, buildout reference, and operation descriptor is owned by application `flow` at the exact current suite revision.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "Project states are `draft`, `active`, `paused`, `review`, `completed`, and `cancelled`. Completed and cancelled projects do not reopen through the current contract. A completed project must contain at least one work item and all work/buildouts must be completed or cancelled.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "There is no delete operation. Durable project, work, buildout, evidence, and execution receipts are not erased through the current catalogue. Later approval, resume, handoff, GitHub-record opening, and provider actions must either map truthfully onto these records or introduce separately reviewed operation contracts.",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "This contract consumes the current suite foundation and the merged Flow/Foreman compatibility law. It defines the product records that later Desktop, CLI, browser, Platform, and Project Control Room slices may consume. It does not register those hosts or implement provider execution.",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "| Buildout reference | `greenways.flow.buildout-reference/0-alpha` | `buildout/...`, positive revision, one project, non-empty work membership |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "| `flow.buildout.create` | buildout | manage | project expected revision and exact-request idempotency |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "| `flow.buildout.get` | buildout | read | project and buildout IDs required |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "| `flow.buildout.list` | project buildouts | read | project ID required |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "| `flow.buildout.transition` | buildout | manage | project/buildout IDs and expected revision required |",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-contract.md",
+      "lineText": "| `flow.buildout.update` | buildout | manage | project/buildout IDs and expected revision required |",
+      "patterns": [
+        "buildout-token"
       ],
       "occurrences": 1,
       "classification": "retained-technical-identity",
