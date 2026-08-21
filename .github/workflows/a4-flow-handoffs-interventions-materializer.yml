@@ -1,23 +1,21 @@
 name: A4 Flow handoffs and interventions materializer
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - agent/flow-handoffs-interventions
 
 permissions:
   contents: write
 
 jobs:
   materialize:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'agent/flow-handoffs-interventions' &&
-      github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: agent/flow-handoffs-interventions
           fetch-depth: 0
       - name: Merge the exact current main revision
         run: |
