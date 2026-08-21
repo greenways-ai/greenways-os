@@ -1,0 +1,31 @@
+{
+  "protocol": "greenways.handoff/0-alpha",
+  "handoffId": "handoff/gate0/flow-result-to-spaces",
+  "idempotencyKey": "idempotency/gate0/flow-result-to-spaces",
+  "source": {
+    "protocol": "greenways.reference.shared/0-alpha",
+    "applicationId": "flow",
+    "applicationRevision": "0.1.0",
+    "ownerApplicationId": "flow",
+    "ownerKind": "project",
+    "ownerId": "project/gate0-current-suite",
+    "recordKind": "result",
+    "logicalId": "result/gate0-spaces-return",
+    "exactRoot": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "observedRevision": 1,
+    "observedAtUnixMs": 1700000000000,
+    "freshness": "current",
+    "authorityState": "resolution-required",
+    "authorityTransfer": false,
+    "summary": "Gate 0 Flow result",
+    "detail": "Selected result only; no project authority is transferred."
+  },
+  "targetApplicationId": "spaces",
+  "targetApplicationRevision": "0.1.0",
+  "targetOwnerKind": "space",
+  "targetOwnerId": "space/gate0-current-suite",
+  "operation": "flow.result.return-to-spaces",
+  "expectedResultKind": "spaces-evidence-context",
+  "requestDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "state": "prepared"
+}

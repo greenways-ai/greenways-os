@@ -1,0 +1,61 @@
+{
+  "protocol": "greenways.suite.current/0-alpha",
+  "revision": "0.1.0",
+  "versionLaw": "exact",
+  "applications": [
+    {
+      "protocol": "greenways.suite.application/0-alpha",
+      "applicationId": "spaces",
+      "revision": "0.1.0",
+      "versionLaw": "exact",
+      "package": {
+        "id": "greenways/spaces",
+        "revision": "0.1.0"
+      },
+      "displayName": "Greenways Spaces",
+      "launcherLabel": "Spaces",
+      "purpose": "understand",
+      "routePrefix": "/spaces/",
+      "cliFamily": [
+        "greenways",
+        "spaces"
+      ],
+      "compatibility": [
+        {
+          "legacyApplicationId": "research",
+          "targetApplicationId": "spaces",
+          "disposition": "inventory-required",
+          "discoverable": false,
+          "grantsAuthority": false
+        }
+      ]
+    },
+    {
+      "protocol": "greenways.suite.application/0-alpha",
+      "applicationId": "flow",
+      "revision": "0.1.0",
+      "versionLaw": "exact",
+      "package": {
+        "id": "greenways/flow",
+        "revision": "0.1.0"
+      },
+      "displayName": "Greenways Flow",
+      "launcherLabel": "Flow",
+      "purpose": "coordinate",
+      "routePrefix": "/flow/",
+      "cliFamily": [
+        "greenways",
+        "flow"
+      ],
+      "compatibility": [
+        {
+          "legacyApplicationId": "build",
+          "targetApplicationId": "flow",
+          "disposition": "inventory-required",
+          "discoverable": false,
+          "grantsAuthority": false
+        }
+      ]
+    }
+  ]
+}

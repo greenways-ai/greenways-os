@@ -1,0 +1,11 @@
+{
+  "protocol": "greenways.result/0-alpha",
+  "state": "failed",
+  "value": null,
+  "failure": {
+    "code": "unactivated-application",
+    "message": "Requested application is reserved but is not activated.",
+    "retryable": false,
+    "applicationId": "imagine"
+  }
+}
