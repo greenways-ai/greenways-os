@@ -4,10 +4,17 @@ import { test } from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("panel registers browser.dom and propagates its exact bound tab to host calls", async () => {
-  const panel = await read("../src/panel.js");
-  assert.match(panel, /createHostCalls\(port, \{ tabId \}\)/);
-  assert.match(panel, /["']browser\.dom["']\s*:\s*await fetchText\(["']src\/hara\/dom\.hal["']\)/);
+test("offscreen runtime registers browser.dom and propagates its exact bound tab to host calls", async () => {
+  const runtimeHost = await read("../src/runtime-host.js");
+  assert.match(runtimeHost, /createReconnectableHostCalls/);
+  assert.match(
+    runtimeHost,
+    /target:\s*\(\)\s*=>\s*\(\{ tabId: Number\(targetTabId\) \|\| null \}\)/,
+  );
+  assert.match(
+    runtimeHost,
+    /["']browser\.dom["']\s*:\s*await fetchText\(["']src\/hara\/dom\.hal["']\)/,
+  );
 });
 
 test("browser.dom remains a closed module without userscripts or content injection", async () => {

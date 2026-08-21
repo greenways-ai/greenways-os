@@ -149,6 +149,15 @@ chrome-hara bridge (node): RESP TCP server ⟷ WS ⟷ extension
 - Chrome shows its "debugging this browser" infobar while `chrome.debugger`
   is attached — inherent to the API.
 
+### Remote language-host boundary
+
+The language-owned Hara MCP path is separate from the trusted browser runtime.
+`remote-host-client.js` is an outbound-only loopback transport and does not
+import the broker, `ROOT`, RESP, Chrome host calls, DOM or provider adapters,
+or persistent filesystem. It remains dormant until a later slice supplies a
+fresh restricted Rust/Wasm Sandbox executor. Transport-fixture results are not
+Hara execution evidence.
+
 ## Known limitations
 
 - HTA0 has no float tag: fractional CDP results are truncated to integers

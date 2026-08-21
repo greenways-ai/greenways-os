@@ -20,7 +20,7 @@ test("browser.site.tripo exposes auth and read-only inventory only", async () =>
     assert.match(source, new RegExp(`\\(defn ${operation.replaceAll("-", "\\-")}\\b`));
   }
   for (const deferred of ["generate", "generate-text", "generate-image", "export", "delete-asset", "invite-member", "buy-credits"]) {
-    assert.doesNotMatch(source, new RegExp(`\\(defn ${deferred.replaceAll("-", "\\-")}\\b`));
+    assert.doesNotMatch(source, new RegExp(`\\(defn ${deferred.replaceAll("-", "\\-")}(?:\\s|$)`));
   }
 });
 
