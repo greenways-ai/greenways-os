@@ -1,16 +1,17 @@
 name: Materialize Gate 0 contract
 
 on:
-  push:
-    branches:
-      - agent/suite-contract-foundation
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   materialize:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/suite-contract-foundation'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
