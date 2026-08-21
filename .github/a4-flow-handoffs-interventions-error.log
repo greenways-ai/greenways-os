@@ -26,17 +26,18 @@ Merge made by the 'ort' strategy.
  create mode 100644 crates/greenways-workspace-contracts/tests/fixtures/spaces/space-truth-states.json
  create mode 100644 crates/greenways-workspace-contracts/tests/spaces_domain_contract.rs
  create mode 100644 docs/spaces-domain-contract.md
+rm '.github/a4-flow-handoffs-interventions-error.log'
 Flow/Build/Foreman compatibility inventory is closed: 187 findings across 708 UTF-8 files; Build is incompatible-blocked and Foreman/buildout identities are technical only.
     Updating crates.io index
  Downloading crates ...
-  Downloaded itoa v1.0.18
-  Downloaded serde_derive v1.0.229
-  Downloaded zmij v1.0.23
   Downloaded quote v1.0.47
-  Downloaded unicode-ident v1.0.24
-  Downloaded serde_core v1.0.229
-  Downloaded serde v1.0.229
   Downloaded memchr v2.8.3
+  Downloaded serde_core v1.0.229
+  Downloaded itoa v1.0.18
+  Downloaded zmij v1.0.23
+  Downloaded unicode-ident v1.0.24
+  Downloaded serde_derive v1.0.229
+  Downloaded serde v1.0.229
   Downloaded proc-macro2 v1.0.107
   Downloaded serde_json v1.0.151
   Downloaded syn v3.0.3
@@ -52,33 +53,54 @@ Flow/Build/Foreman compatibility inventory is closed: 187 findings across 708 UT
    Compiling syn v3.0.3
    Compiling serde_derive v1.0.229
    Compiling greenways-workspace-contracts v0.1.0 (/home/runner/work/greenways-os/greenways-os/crates/greenways-workspace-contracts)
-warning: method `is_current` is never used
-   --> crates/greenways-workspace-contracts/src/flow_handoff_intervention.rs:230:14
-    |
-183 | impl FlowProjectHandoffState {
-    | ---------------------------- method in this implementation
-...
-230 |     const fn is_current(self) -> bool {
-    |              ^^^^^^^^^^
-    |
-    = note: `#[warn(dead_code)]` on by default
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.69s
+     Running unittests src/lib.rs (target/debug/deps/greenways_workspace_contracts-446b9d115434ad96)
 
-warning: `greenways-workspace-contracts` (lib test) generated 1 warning (1 duplicate)
-warning: `greenways-workspace-contracts` (lib) generated 1 warning
-error[E0618]: expected function, found `FlowProjectParticipationSnapshot`
-   --> crates/greenways-workspace-contracts/tests/flow_handoff_intervention.rs:225:29
-    |
-26  | fn participation() -> FlowProjectParticipationSnapshot {
-    | ------------------------------------------------------ this function of the same name is available here, but it's shadowed by the local binding
-...
-217 |     let mut participation = participation();
-    |         ----------------- `participation` has type `FlowProjectParticipationSnapshot`
-...
-225 |     let mut participation = participation();
-    |                             ^^^^^^^^^^^^^--
-    |                             |
-    |                             call expression requires function
+running 0 tests
 
-For more information about this error, try `rustc --explain E0618`.
-error: could not compile `greenways-workspace-contracts` (test "flow_handoff_intervention") due to 1 previous error
-warning: build failed, waiting for other jobs to finish...
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/flow_foreman_compatibility.rs (target/debug/deps/flow_foreman_compatibility-05d14044e016ba8b)
+
+running 4 tests
+test foreman_is_an_internal_service_not_an_application_target ... ok
+test future_targets_remain_unactivated ... ok
+test flow_is_the_only_current_coordination_product ... ok
+test legacy_build_is_blocked_instead_of_silently_aliased ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/flow_handoff_intervention.rs (target/debug/deps/flow_handoff_intervention-1996d2c17e534cfe)
+
+running 15 tests
+test approval_required_handoff_has_exactly_one_current_human_review ... ok
+test application_and_operation_catalogues_expose_flow_and_spaces_only ... ok
+test authority_credentials_work_state_and_effect_replay_fail_closed ... ok
+test exact_replay_is_idempotent_and_changed_content_collides ... ok
+test agent_requests_require_the_exact_closed_mandate_capability ... ok
+test canonical_handoffs_validate_against_the_exact_project_context ... ok
+test common_application_handoff_and_project_lifecycle_cannot_diverge ... ok
+test handoff_lifecycle_requires_acceptance_transfer_and_receipt_evidence ... ok
+test operation_fixture_matches_the_exact_closed_catalogue ... ok
+test intervention_decision_and_resolution_are_distinct_human_evidence ... FAILED
+test reconciliation_cannot_repeat_transfer_provider_work_or_external_effects ... ok
+test resolved_intervention_requires_exact_project_owned_resolution_evidence ... ok
+test restart_fixture_reconciles_evidence_without_repeating_work_or_effects ... ok
+test unknown_fields_and_unknown_operations_fail_closed ... ok
+test project_local_targets_and_claim_context_must_resolve_exactly ... ok
+
+failures:
+
+---- intervention_decision_and_resolution_are_distinct_human_evidence stdout ----
+
+thread 'intervention_decision_and_resolution_are_distinct_human_evidence' panicked at crates/greenways-workspace-contracts/tests/flow_handoff_intervention.rs:266:10:
+human approval should validate without claiming resolution: ContractError { code: "flow-handoff-approval-intervention-mismatch", message: "Approval-required Flow handoff requires exactly one current human review intervention" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    intervention_decision_and_resolution_are_distinct_human_evidence
+
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p greenways-workspace-contracts --test flow_handoff_intervention`
