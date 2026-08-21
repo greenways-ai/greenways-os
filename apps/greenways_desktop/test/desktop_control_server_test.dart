@@ -14,34 +14,37 @@ import 'support/fakes.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('binds a private socket and returns the exact redacted snapshot', () async {
-    final fixture = await _Fixture.start();
-    addTearDown(fixture.close);
+  test(
+    'binds a private socket and returns the exact redacted snapshot',
+    () async {
+      final fixture = await _Fixture.start();
+      addTearDown(fixture.close);
 
-    final response = await fixture.request('status');
+      final response = await fixture.request('status');
 
-    expect(response.keys.toSet(), {
-      'protocol',
-      'requestId',
-      'outcome',
-      'snapshot',
-      'error',
-    });
-    expect(response['protocol'], desktopControlResultProtocol);
-    expect(response['outcome'], 'ok');
-    final snapshot = _object(response['snapshot']);
-    expect(snapshot['protocol'], desktopConnectionStatusProtocol);
-    expect(snapshot['state'], 'disconnected');
-    expect(jsonEncode(response), isNot(contains('credential')));
-    expect(jsonEncode(response), isNot(contains('local/session/')));
+      expect(response.keys.toSet(), {
+        'protocol',
+        'requestId',
+        'outcome',
+        'snapshot',
+        'error',
+      });
+      expect(response['protocol'], desktopControlResultProtocol);
+      expect(response['outcome'], 'ok');
+      final snapshot = _object(response['snapshot']);
+      expect(snapshot['protocol'], desktopConnectionStatusProtocol);
+      expect(snapshot['state'], 'disconnected');
+      expect(jsonEncode(response), isNot(contains('credential')));
+      expect(jsonEncode(response), isNot(contains('local/session/')));
 
-    final path = fixture.server.socketPath!;
-    final stat = await FileStat.stat(path);
-    expect(stat.type, FileSystemEntityType.unixDomainSock);
-    expect(stat.mode & 0x1ff, 0x180);
-    final runStat = await FileStat.stat(Directory(path).parent.path);
-    expect(runStat.mode & 0x1ff, 0x1c0);
-  });
+      final path = fixture.server.socketPath!;
+      final stat = await FileStat.stat(path);
+      expect(stat.type, FileSystemEntityType.unixDomainSock);
+      expect(stat.mode & 0x1ff, 0x180);
+      final runStat = await FileStat.stat(Directory(path).parent.path);
+      expect(runStat.mode & 0x1ff, 0x1c0);
+    },
+  );
 
   test('rejects unknown request fields and commands', () async {
     final fixture = await _Fixture.start();
@@ -69,23 +72,26 @@ void main() {
     expect(_object(unknownCommand['error'])['code'], 'invalid-request');
   });
 
-  test('routes visible connection changes through ConnectionController', () async {
-    final bridge = FakeDesktopBridge();
-    final fixture = await _Fixture.start(bridge: bridge);
-    addTearDown(fixture.close);
+  test(
+    'routes visible connection changes through ConnectionController',
+    () async {
+      final bridge = FakeDesktopBridge();
+      final fixture = await _Fixture.start(bridge: bridge);
+      addTearDown(fixture.close);
 
-    final connected = await fixture.request('connect');
-    expect(bridge.connects, 1);
-    expect(_object(connected['snapshot'])['state'], 'connected');
+      final connected = await fixture.request('connect');
+      expect(bridge.connects, 1);
+      expect(_object(connected['snapshot'])['state'], 'connected');
 
-    final refreshed = await fixture.request('refresh');
-    expect(bridge.refreshes, 1);
-    expect(_object(refreshed['snapshot'])['state'], 'connected');
+      final refreshed = await fixture.request('refresh');
+      expect(bridge.refreshes, 1);
+      expect(_object(refreshed['snapshot'])['state'], 'connected');
 
-    final disconnected = await fixture.request('disconnect');
-    expect(bridge.disconnects, 1);
-    expect(_object(disconnected['snapshot'])['state'], 'disconnected');
-  });
+      final disconnected = await fixture.request('disconnect');
+      expect(bridge.disconnects, 1);
+      expect(_object(disconnected['snapshot'])['state'], 'disconnected');
+    },
+  );
 
   test('serializes commands and returns desktop-busy for overlap', () async {
     final bridge = _BlockingDesktopBridge();
@@ -133,7 +139,9 @@ void main() {
   });
 
   test('refuses unsafe stale entries instead of replacing them', () async {
-    final home = await Directory.systemTemp.createTemp('greenways-control-unsafe-');
+    final home = await Directory.systemTemp.createTemp(
+      'greenways-control-unsafe-',
+    );
     addTearDown(() => home.delete(recursive: true));
     final run = Directory('${home.path}/run');
     await run.create();
@@ -158,7 +166,10 @@ void main() {
   test('removes only its owned socket on clean shutdown', () async {
     final fixture = await _Fixture.start();
     final path = fixture.server.socketPath!;
-    expect(await FileSystemEntity.type(path), FileSystemEntityType.unixDomainSock);
+    expect(
+      await FileSystemEntity.type(path),
+      FileSystemEntityType.unixDomainSock,
+    );
 
     await fixture.server.close();
 

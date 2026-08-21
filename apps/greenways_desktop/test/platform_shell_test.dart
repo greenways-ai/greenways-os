@@ -68,31 +68,34 @@ void main() {
     },
   );
 
-  test('explicit quit closes transport before native application exit', () async {
-    final channel = RecordingMethodChannel();
-    final bridge = FakeDesktopBridge();
-    final controller = ConnectionController(bridge, autoRefresh: false);
-    final order = <String>[];
-    final shell = DesktopPlatformShell(
-      controller,
-      channel: channel,
-      beforeQuit: () async => order.add('control'),
-    );
-    await shell.prepare();
-    channel.outbound.clear();
+  test(
+    'explicit quit closes transport before native application exit',
+    () async {
+      final channel = RecordingMethodChannel();
+      final bridge = FakeDesktopBridge();
+      final controller = ConnectionController(bridge, autoRefresh: false);
+      final order = <String>[];
+      final shell = DesktopPlatformShell(
+        controller,
+        channel: channel,
+        beforeQuit: () async => order.add('control'),
+      );
+      await shell.prepare();
+      channel.outbound.clear();
 
-    await shell.quit();
+      await shell.quit();
 
-    order.addAll(
-      channel.outbound
-          .where((call) => call.method == 'quit')
-          .map((_) => 'native'),
-    );
-    expect(order, ['control', 'native']);
-    expect(bridge.closed, isTrue);
-    shell.dispose();
-    controller.dispose();
-  });
+      order.addAll(
+        channel.outbound
+            .where((call) => call.method == 'quit')
+            .map((_) => 'native'),
+      );
+      expect(order, ['control', 'native']);
+      expect(bridge.closed, isTrue);
+      shell.dispose();
+      controller.dispose();
+    },
+  );
 
   test('unknown native window commands fail closed', () async {
     final channel = RecordingMethodChannel();
