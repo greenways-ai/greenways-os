@@ -1,21 +1,17 @@
 name: Materialize A2 Flow compatibility proof
 
 on:
-  push:
-    branches:
-      - agent/flow-foreman-compatibility-proof
   pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   materialize:
     if: >-
-      github.event_name == 'push' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'agent/flow-foreman-compatibility-proof')
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/flow-foreman-compatibility-proof'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -99,10 +95,7 @@ jobs:
               if old not in text:
                   raise SystemExit(f"checker replacement source missing: {old!r}")
               text = text.replace(old, new)
-          text = text.replace(
-              '"Flow/Foreman compatibility inventory verified: Build absent; "',
-              '"Flow/Foreman compatibility inventory verified: legacy Build blocked; "',
-          )
+          text = text.replace('"Flow/Foreman compatibility inventory verified: Build absent; "', '"Flow/Foreman compatibility inventory verified: legacy Build blocked; "')
           checker.write_text(text, encoding="utf-8")
 
           workflow = Path(".github/workflows/flow-build-foreman-compatibility.yml")
@@ -113,29 +106,47 @@ jobs:
           text = document.read_text(encoding="utf-8").replace("| Build application/package IDs | absent |", "| Legacy Build application target | incompatible / blocked |").replace("It records all\nBuild categories as absent", "It records the legacy Build target as blocked and all searched\nBuild product-identity categories as absent").replace("python3 scripts/check-flow-foreman-compatibility.py", "python3 scripts/check-flow-build-foreman-inventory.py")
           document.write_text(text, encoding="utf-8")
 
-          for temporary in (".github/workflows/a2-flow-foreman-inventory.yml", ".github/workflows/a2-flow-foreman-compatibility-proof.yml"):
+          for temporary in (
+              ".github/workflows/a2-flow-foreman-inventory.yml",
+              ".github/workflows/a2-flow-foreman-compatibility-proof.yml",
+              ".github/workflows/a2-flow-proof-scope-format.yml",
+          ):
               path = Path(temporary)
               if path.exists():
                   path.unlink()
           PY
       - name: Install pinned Rust tools
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
-      - name: Format and validate the closed contracts
+      - name: Validate the closed contracts
         run: |
           set -euo pipefail
           rustfmt +1.85.1 --edition 2021 crates/greenways-workspace-contracts/src/flow.rs crates/greenways-workspace-contracts/src/lib.rs crates/greenways-workspace-contracts/src/suite.rs crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs crates/greenways-workspace-contracts/tests/suite_gate0.rs
-          cargo +1.85.1 fmt --all --check
           python3 scripts/check-flow-build-foreman-inventory.py
           cargo +1.85.1 test -p greenways-workspace-contracts --all-targets
           cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
           git diff --check
-      - name: Commit the permanent A2 proof
+      - name: Package the validated connector publication
         run: |
-          set -euo pipefail
-          git add -A
-          git diff --cached --check
-          if git diff --cached --quiet; then exit 0; fi
-          git config user.name "greenways-agent"
-          git config user.email "greenways-agent@users.noreply.github.com"
-          git commit -m "Close Flow and Foreman compatibility proof"
-          git push origin HEAD:agent/flow-foreman-compatibility-proof
+          git diff --binary --full-index > a2-flow-foreman-compatibility-proof.patch
+          git status --short > a2-flow-foreman-compatibility-proof.status
+          test -s a2-flow-foreman-compatibility-proof.patch
+          cat a2-flow-foreman-compatibility-proof.status
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a2-flow-foreman-compatibility-proof
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            a2-flow-foreman-compatibility-proof.patch
+            a2-flow-foreman-compatibility-proof.status
+            .github/workflows/flow-build-foreman-compatibility.yml
+            crates/greenways-workspace-contracts/src/flow.rs
+            crates/greenways-workspace-contracts/src/lib.rs
+            crates/greenways-workspace-contracts/src/suite.rs
+            crates/greenways-workspace-contracts/tests/fixtures/flow/flow-foreman-compatibility.json
+            crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json
+            crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs
+            crates/greenways-workspace-contracts/tests/suite_gate0.rs
+            docs/flow-build-foreman-compatibility.md
+            protocol/compatibility/flow-build-foreman-inventory-0-alpha.json
+            scripts/check-flow-build-foreman-inventory.py
