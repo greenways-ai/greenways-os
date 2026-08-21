@@ -46,6 +46,14 @@ jobs:
           if test.count(old_import) != 1:
               raise SystemExit('expected exactly one test import insertion point')
           test = test.replace(old_import, new_import, 1)
+          if test.count('fn coordination(') != 1:
+              raise SystemExit('expected exactly one coordination fixture helper')
+          if test.count('fn participation()') != 1:
+              raise SystemExit('expected exactly one participation fixture helper')
+          test = test.replace('fn coordination(', 'fn coordination_fixture(', 1)
+          test = test.replace('fn participation()', 'fn participation_fixture()', 1)
+          test = test.replace('coordination(', 'coordination_fixture(')
+          test = test.replace('participation()', 'participation_fixture()')
           old_retain = '\n'.join([
               '    participation.agent_mandates[0]',
               '        .capabilities',
