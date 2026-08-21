@@ -136,6 +136,36 @@
       "kind": "generic-prose",
       "classification": null,
       "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/spaces/core.inc.rs",
+      "lineText": "if self.compatibility.legacy_application_id != LegacyApplicationId::Research",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "The B1 Spaces domain manifest repeats the merged absent compatibility disposition without creating a discoverable legacy application, alias, migration, duplicate Space, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/spaces/core.inc.rs",
+      "lineText": "legacy_application_id: LegacyApplicationId::Research,",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "The B1 Spaces domain manifest repeats the merged absent compatibility disposition without creating a discoverable legacy application, alias, migration, duplicate Space, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/spaces/domain-manifest.json",
+      "lineText": "\"legacyApplicationId\": \"research\",",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "The B1 Spaces domain manifest repeats the merged absent compatibility disposition without creating a discoverable legacy application, alias, migration, duplicate Space, or authority path."
     }
   ]
 }

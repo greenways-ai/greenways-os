@@ -1,0 +1,92 @@
+{
+  "protocol": "greenways.spaces.domain/0-alpha",
+  "applicationId": "spaces",
+  "applicationRevision": "0.1.0",
+  "packageId": "greenways/spaces",
+  "recordKinds": [
+    "space",
+    "reference",
+    "map",
+    "map-node",
+    "visual-relationship",
+    "topic",
+    "note",
+    "question",
+    "hypothesis",
+    "finding",
+    "lens",
+    "brief",
+    "activity"
+  ],
+  "importReferenceKinds": [
+    "hestia-source",
+    "hestia-anchor",
+    "hestia-candidate",
+    "hestia-assertion",
+    "tahto-concept",
+    "tahto-semantic-relationship",
+    "flow-object",
+    "public-work"
+  ],
+  "exportReferenceKinds": [
+    "space",
+    "map",
+    "question",
+    "finding",
+    "brief"
+  ],
+  "promotionOutcomes": [
+    "keep-visual-association",
+    "review-hestia-assertion",
+    "propose-tahto-semantic-relationship"
+  ],
+  "fabricGroups": [
+    {
+      "id": "reader",
+      "permissions": [
+        "read-space"
+      ]
+    },
+    {
+      "id": "composer",
+      "permissions": [
+        "read-space",
+        "edit-perspective",
+        "attach-source-reference",
+        "compose-brief"
+      ]
+    },
+    {
+      "id": "reviewer",
+      "permissions": [
+        "read-space",
+        "review-evidence",
+        "propose-knowledge-assertion",
+        "propose-semantic-relationship"
+      ]
+    },
+    {
+      "id": "flow-handoff",
+      "permissions": [
+        "read-space",
+        "send-selected-context-to-flow",
+        "import-selected-flow-result"
+      ]
+    },
+    {
+      "id": "publisher",
+      "permissions": [
+        "read-space",
+        "release-selected-work"
+      ]
+    }
+  ],
+  "compatibility": {
+    "legacyApplicationId": "research",
+    "disposition": "absent",
+    "migration": "absent",
+    "discoverable": false,
+    "grantsAuthority": false,
+    "createsDuplicateSpace": false
+  }
+}

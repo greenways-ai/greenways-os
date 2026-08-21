@@ -1,0 +1,45 @@
+name: Spaces domain contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/spaces-domain-contract.yml"
+      - "crates/greenways-workspace-contracts/**"
+      - "docs/spaces-domain-contract.md"
+      - "scripts/check-spaces-compatibility-inventory.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/spaces-domain-contract.yml"
+      - "crates/greenways-workspace-contracts/**"
+      - "docs/spaces-domain-contract.md"
+      - "scripts/check-spaces-compatibility-inventory.py"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Check formatting
+        run: |
+          cargo +1.85.1 fmt --all --check
+          rustfmt +1.85.1 --edition 2021 --check crates/greenways-workspace-contracts/src/spaces/*.inc.rs
+      - name: Test Spaces domain contracts
+        run: cargo +1.85.1 test -p greenways-workspace-contracts --all-targets
+      - name: Lint Spaces domain contracts
+        run: cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
+      - name: Verify closed compatibility inventory
+        run: python3 scripts/check-spaces-compatibility-inventory.py
+      - name: Parse canonical fixtures
+        run: |
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/spaces/domain-manifest.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/spaces/space-truth-states.json >/dev/null
+      - name: Check changed-file whitespace
+        run: git diff --check "$(git merge-base HEAD origin/main)" HEAD
