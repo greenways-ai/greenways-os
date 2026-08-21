@@ -1,0 +1,93 @@
+{
+  "protocol": "greenways.flow.work-coordination/0-alpha",
+  "applicationId": "flow",
+  "applicationRevision": "0.1.0",
+  "projectId": "project/flow-control-room",
+  "projectRevision": 7,
+  "work": [
+    {
+      "protocol": "greenways.flow.work-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "workId": "work/flow-control-room-actions",
+      "revision": 2,
+      "title": "Specify truthful management actions",
+      "summary": "Keep approve, resume, handoff, and record-opening actions evidence-backed.",
+      "state": "running",
+      "buildoutId": "buildout/flow-control-room",
+      "exactRoot": null
+    }
+  ],
+  "dependencies": [],
+  "assignments": [
+    {
+      "protocol": "greenways.flow.work-assignment/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "assignmentId": "assignment/flow-actions-agent",
+      "revision": 2,
+      "workId": "work/flow-control-room-actions",
+      "assigneeMembershipId": "membership/flow-agent-builder",
+      "assignedByMembershipId": "membership/flow-owner",
+      "state": "accepted",
+      "assignedAtUnixMs": 1787274100000,
+      "respondedAtUnixMs": 1787274160000,
+      "expiresAtUnixMs": 1789862400000,
+      "releasedAtUnixMs": null,
+      "revokedAtUnixMs": null,
+      "authorityTransfer": false
+    }
+  ],
+  "claims": [
+    {
+      "protocol": "greenways.flow.work-claim/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "claimId": "claim/flow-actions-agent-generation-2",
+      "revision": 3,
+      "workId": "work/flow-control-room-actions",
+      "claimantMembershipId": "membership/flow-agent-builder",
+      "agentMandateId": "mandate/flow-agent-builder-current",
+      "state": "active",
+      "contention": "contended",
+      "leaseGeneration": 2,
+      "proposedAtUnixMs": 1787274400000,
+      "activatedAtUnixMs": 1787274460000,
+      "lastObservedAtUnixMs": 1787274500000,
+      "expiresAtUnixMs": 1787278100000,
+      "releasedAtUnixMs": null,
+      "revokedAtUnixMs": null,
+      "staleAtUnixMs": null,
+      "staleReason": null,
+      "authorityTransfer": false,
+      "copiesWorkRuntimeState": false
+    },
+    {
+      "protocol": "greenways.flow.work-claim/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "claimId": "claim/flow-actions-owner-generation-3",
+      "revision": 1,
+      "workId": "work/flow-control-room-actions",
+      "claimantMembershipId": "membership/flow-owner",
+      "agentMandateId": null,
+      "state": "active",
+      "contention": "contended",
+      "leaseGeneration": 3,
+      "proposedAtUnixMs": 1787274520000,
+      "activatedAtUnixMs": 1787274580000,
+      "lastObservedAtUnixMs": 1787274600000,
+      "expiresAtUnixMs": 1787278200000,
+      "releasedAtUnixMs": null,
+      "revokedAtUnixMs": null,
+      "staleAtUnixMs": null,
+      "staleReason": null,
+      "authorityTransfer": false,
+      "copiesWorkRuntimeState": false
+    }
+  ]
+}

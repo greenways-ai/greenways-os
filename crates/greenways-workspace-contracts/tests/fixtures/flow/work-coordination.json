@@ -1,0 +1,98 @@
+{
+  "protocol": "greenways.flow.work-coordination/0-alpha",
+  "applicationId": "flow",
+  "applicationRevision": "0.1.0",
+  "projectId": "project/flow-control-room",
+  "projectRevision": 7,
+  "work": [
+    {
+      "protocol": "greenways.flow.work-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "workId": "work/flow-control-room-model",
+      "revision": 4,
+      "title": "Freeze the project read model",
+      "summary": "Define the bounded project, work, buildout, and evidence composition.",
+      "state": "completed",
+      "buildoutId": "buildout/flow-control-room",
+      "exactRoot": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "protocol": "greenways.flow.work-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "workId": "work/flow-control-room-actions",
+      "revision": 2,
+      "title": "Specify truthful management actions",
+      "summary": "Keep approve, resume, handoff, and record-opening actions evidence-backed.",
+      "state": "running",
+      "buildoutId": "buildout/flow-control-room",
+      "exactRoot": null
+    }
+  ],
+  "dependencies": [
+    {
+      "protocol": "greenways.flow.work-dependency/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "dependencyId": "dependency/flow-actions-requires-model",
+      "revision": 2,
+      "workId": "work/flow-control-room-actions",
+      "dependsOnWorkId": "work/flow-control-room-model",
+      "kind": "blocks",
+      "state": "satisfied",
+      "createdAtUnixMs": 1787271000000,
+      "resolvedAtUnixMs": 1787274000000,
+      "authorityTransfer": false
+    }
+  ],
+  "assignments": [
+    {
+      "protocol": "greenways.flow.work-assignment/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "assignmentId": "assignment/flow-actions-agent",
+      "revision": 2,
+      "workId": "work/flow-control-room-actions",
+      "assigneeMembershipId": "membership/flow-agent-builder",
+      "assignedByMembershipId": "membership/flow-owner",
+      "state": "accepted",
+      "assignedAtUnixMs": 1787274100000,
+      "respondedAtUnixMs": 1787274160000,
+      "expiresAtUnixMs": 1789862400000,
+      "releasedAtUnixMs": null,
+      "revokedAtUnixMs": null,
+      "authorityTransfer": false
+    }
+  ],
+  "claims": [
+    {
+      "protocol": "greenways.flow.work-claim/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "claimId": "claim/flow-actions-agent-generation-1",
+      "revision": 2,
+      "workId": "work/flow-control-room-actions",
+      "claimantMembershipId": "membership/flow-agent-builder",
+      "agentMandateId": "mandate/flow-agent-builder-current",
+      "state": "active",
+      "contention": "none",
+      "leaseGeneration": 1,
+      "proposedAtUnixMs": 1787274200000,
+      "activatedAtUnixMs": 1787274260000,
+      "lastObservedAtUnixMs": 1787274300000,
+      "expiresAtUnixMs": 1787277900000,
+      "releasedAtUnixMs": null,
+      "revokedAtUnixMs": null,
+      "staleAtUnixMs": null,
+      "staleReason": null,
+      "authorityTransfer": false,
+      "copiesWorkRuntimeState": false
+    }
+  ]
+}

@@ -63,6 +63,7 @@
         "work-create",
         "work-update",
         "work-transition",
+        "work-claim",
         "buildout-read"
       ],
       "validFromUnixMs": 1787270580000,

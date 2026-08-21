@@ -48,6 +48,7 @@ work-read
 work-create
 work-update
 work-transition
+work-claim
 buildout-read
 buildout-create
 buildout-update
