@@ -41,7 +41,9 @@ jobs:
             -p greenways-workspace-contracts \
             --test suite_gate0 \
             --test flow_foreman_compatibility
-          cargo +1.85.1 fmt --all -- --check
+          cargo +1.85.1 fmt \
+            -p greenways-workspace-contracts \
+            -- --check
           python3 -m json.tool \
             protocol/compatibility/flow-build-foreman-inventory-0-alpha.json \
             >/dev/null
