@@ -66,7 +66,15 @@ jobs:
           ])
           if test.count(old_retain) != 1:
               raise SystemExit('expected exactly one work-claim test predicate')
-          test_path.write_text(test.replace(old_retain, new_retain, 1), encoding='utf-8')
+          test = test.replace(old_retain, new_retain, 1)
+          revoked_member = '\n'.join([
+              '    participation.members[1].state = FlowProjectMemberState::Revoked;',
+              '    participation.members[1].revoked_at_unix_ms = Some(1787274400000);',
+          ])
+          if test.count(revoked_member) != 1:
+              raise SystemExit('expected exactly one coupled revoked membership test setup')
+          test = test.replace(revoked_member + '\n', '', 1)
+          test_path.write_text(test, encoding='utf-8')
 
           fixture_path = Path(
               'crates/greenways-workspace-contracts/tests/fixtures/flow/project-participation.json'
