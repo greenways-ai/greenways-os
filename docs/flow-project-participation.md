@@ -2,7 +2,7 @@
 
 Status: current Agent 1 A4.1 contract for #163, #146, and #161.
 
-This contract extends the merged Flow project aggregate with project membership and bounded agent mandates. It does not introduce host/session presence, work claims, handoffs, interventions, or a Control Room view model.
+This contract defines the project membership and bounded agent-mandate boundary. Later merged contracts add host/session presence, work claims, and the two request-only handoff/intervention capabilities without widening identity, provider, host, credential, or application authority.
 
 ## Product boundary
 
@@ -49,6 +49,8 @@ work-create
 work-update
 work-transition
 work-claim
+handoff-request
+intervention-raise
 buildout-read
 buildout-create
 buildout-update
@@ -124,15 +126,11 @@ Later host and Control Room projections must show these dimensions separately.
 - `crates/greenways-workspace-contracts/tests/fixtures/flow/participation-operation-catalogue.json` freezes the exact eight-operation extension.
 - `crates/greenways-workspace-contracts/tests/flow_project_participation.rs` covers ownership, identity separation, cross-project rejection, duplicate principals, orphaned and duplicate current mandates, lifecycle evidence, authority transfer, unknown fields/capabilities, legacy/future application IDs, and operation drift.
 
-## Deferred slices
+## Downstream extensions
 
-Subsequent A4 pull requests own:
+Merged A4 contracts now consume this boundary for work dependencies and claims, host/session presence, and project handoff/intervention requests. `handoff-request` and `intervention-raise` allow an active agent to propose bounded coordination records only; they do not allow the agent to approve interventions, manage membership or mandates, attach hosts, invoke providers, select credentials, repeat effects, or transfer authority.
 
-1. work dependency and claim/lease records;
-2. host/session presence and restart reconciliation;
-3. handoff and intervention records;
-4. activity/evidence and external read-back projections; and
-5. closed Desktop, CLI, browser, and MCP Project Control Room view models.
+Activity/evidence, external read-back, and closed Desktop, CLI, browser, and MCP Project Control Room view models remain later independent slices.
 
 This contract introduces no generic database, filesystem, provider, browser, process, shell, native, credential, or application-authority handle.
 

@@ -2,6 +2,7 @@ mod chats;
 mod context;
 mod error;
 mod flow;
+mod flow_handoff_intervention;
 mod flow_participation;
 mod flow_presence;
 mod flow_work_coordination;
@@ -17,6 +18,7 @@ pub use chats::{
 pub use context::reject_server_context;
 pub use error::{ContractError, ErrorCode, PublicFailure, ERROR_PROTOCOL, MAX_PUBLIC_ERROR_BYTES};
 pub use flow::*;
+pub use flow_handoff_intervention::*;
 pub use flow_participation::*;
 pub use flow_presence::*;
 pub use flow_work_coordination::*;

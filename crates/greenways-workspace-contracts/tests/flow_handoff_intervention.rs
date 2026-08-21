@@ -1,16 +1,15 @@
 use greenways_workspace_contracts::{
     compare_flow_project_handoff_replay, flow_handoff_intervention_operation_catalogue,
     CurrentApplicationId, FlowAgentMandateCapability, FlowHandoffInterventionOperationCatalogue,
-    FlowHandoffInterventionOperationId, FlowHandoffReconciliationState,
-    FlowProjectHandoffInterventionSnapshot, FlowProjectHandoffReplay, FlowProjectHandoffState,
-    FlowProjectInterventionDecision, FlowProjectInterventionState,
-    FlowProjectParticipationSnapshot, FlowProjectPresenceSnapshot, FlowWorkCoordinationSnapshot,
+    FlowHandoffReconciliationState, FlowProjectHandoffInterventionSnapshot,
+    FlowProjectHandoffReplay, FlowProjectHandoffState, FlowProjectInterventionDecision,
+    FlowProjectInterventionState, FlowProjectParticipationSnapshot, FlowProjectPresenceSnapshot,
+    FlowWorkCoordinationSnapshot, FLOW_PROJECT_HANDOFFS_LIST_OPERATION,
     FLOW_PROJECT_HANDOFF_CANCEL_OPERATION, FLOW_PROJECT_HANDOFF_DECIDE_OPERATION,
     FLOW_PROJECT_HANDOFF_OBSERVE_OPERATION, FLOW_PROJECT_HANDOFF_RECONCILE_OPERATION,
-    FLOW_PROJECT_HANDOFF_REQUEST_OPERATION, FLOW_PROJECT_HANDOFFS_LIST_OPERATION,
+    FLOW_PROJECT_HANDOFF_REQUEST_OPERATION, FLOW_PROJECT_INTERVENTIONS_LIST_OPERATION,
     FLOW_PROJECT_INTERVENTION_ACKNOWLEDGE_OPERATION, FLOW_PROJECT_INTERVENTION_DECIDE_OPERATION,
     FLOW_PROJECT_INTERVENTION_RAISE_OPERATION, FLOW_PROJECT_INTERVENTION_RESOLVE_OPERATION,
-    FLOW_PROJECT_INTERVENTIONS_LIST_OPERATION,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -66,7 +65,9 @@ fn canonical_handoffs_validate_against_the_exact_project_context() {
 #[test]
 fn restart_fixture_reconciles_evidence_without_repeating_work_or_effects() {
     let snapshot = restart();
-    snapshot.validate().expect("restart snapshot should validate");
+    snapshot
+        .validate()
+        .expect("restart snapshot should validate");
     snapshot
         .validate_against_context(&participation(), &coordination(), &presence())
         .expect("restart context should validate");
@@ -140,8 +141,7 @@ fn exact_replay_is_idempotent_and_changed_content_collides() {
 
     let mut changed = existing.clone();
     changed.context_digest =
-        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-            .to_owned();
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned();
     assert_eq!(
         compare_flow_project_handoff_replay(existing, &changed)
             .expect_err("changed content should collide")
@@ -170,8 +170,9 @@ fn handoff_lifecycle_requires_acceptance_transfer_and_receipt_evidence() {
 
     assert!(FlowProjectHandoffState::Prepared
         .allows_transition_to(FlowProjectHandoffState::ApprovalRequired));
-    assert!(FlowProjectHandoffState::Received
-        .allows_transition_to(FlowProjectHandoffState::Completed));
+    assert!(
+        FlowProjectHandoffState::Received.allows_transition_to(FlowProjectHandoffState::Completed)
+    );
     assert!(!FlowProjectHandoffState::Completed
         .allows_transition_to(FlowProjectHandoffState::Transferring));
 }
@@ -202,7 +203,9 @@ fn approval_required_handoff_has_exactly_one_current_human_review() {
     assert!(snapshot.validate().is_err());
 
     let mut snapshot = handoffs();
-    snapshot.interventions.push(snapshot.interventions[0].clone());
+    snapshot
+        .interventions
+        .push(snapshot.interventions[0].clone());
     snapshot.interventions[2].intervention_id =
         "intervention/flow-result-to-spaces-approval-duplicate".to_owned();
     assert!(snapshot.validate().is_err());
@@ -210,20 +213,24 @@ fn approval_required_handoff_has_exactly_one_current_human_review() {
 
 #[test]
 fn agent_requests_require_the_exact_closed_mandate_capability() {
-    let mut participation = participation();
-    participation.agent_mandates[0]
+    let mut without_handoff_capability = participation();
+    without_handoff_capability.agent_mandates[0]
         .capabilities
         .retain(|capability| *capability != FlowAgentMandateCapability::HandoffRequest);
     assert!(handoffs()
-        .validate_against_context(&participation, &coordination(), &presence())
+        .validate_against_context(&without_handoff_capability, &coordination(), &presence(),)
         .is_err());
 
-    let mut participation = participation();
-    participation.agent_mandates[0]
+    let mut without_intervention_capability = participation();
+    without_intervention_capability.agent_mandates[0]
         .capabilities
         .retain(|capability| *capability != FlowAgentMandateCapability::InterventionRaise);
     assert!(handoffs()
-        .validate_against_context(&participation, &coordination(), &presence())
+        .validate_against_context(
+            &without_intervention_capability,
+            &coordination(),
+            &presence(),
+        )
         .is_err());
 }
 
@@ -254,12 +261,19 @@ fn intervention_decision_and_resolution_are_distinct_human_evidence() {
     review.decision = Some(FlowProjectInterventionDecision::Approve);
     review.decided_at_unix_ms = Some(1787275480000);
     review.decided_by_membership_id = Some("membership/flow-owner".to_owned());
+    let handoff = &mut snapshot.handoffs[1];
+    handoff.state = FlowProjectHandoffState::Ready;
+    handoff.approved_at_unix_ms = Some(1787275480000);
+    handoff
+        .application_handoff
+        .as_mut()
+        .expect("application handoff should exist")
+        .state = greenways_workspace_contracts::HandoffState::Ready;
     snapshot
         .validate_against_context(&participation(), &coordination(), &presence())
         .expect("human approval should validate without claiming resolution");
     assert!(snapshot.interventions[0].resolution_reference.is_none());
 
-    let mut snapshot = snapshot;
     snapshot.interventions[0].decided_by_membership_id =
         Some("membership/flow-agent-builder".to_owned());
     assert!(snapshot
@@ -281,7 +295,6 @@ fn resolved_intervention_requires_exact_project_owned_resolution_evidence() {
         .validate_against_context(&participation(), &coordination(), &presence())
         .expect("project-owned resolution evidence should validate");
 
-    let mut snapshot = snapshot;
     snapshot.interventions[1].resolution_reference = None;
     assert!(snapshot.validate().is_err());
 }
@@ -344,9 +357,8 @@ fn application_and_operation_catalogues_expose_flow_and_spaces_only() {
         assert!(!serialized.contains(forbidden));
     }
     let catalogue = flow_handoff_intervention_operation_catalogue();
-    assert!(catalogue.operations.iter().all(|operation| {
-        operation.application_id == CurrentApplicationId::Flow
-            && operation.operation_id != FlowHandoffInterventionOperationId::HandoffsList
-                || operation.application_id == CurrentApplicationId::Flow
-    }));
+    assert!(catalogue
+        .operations
+        .iter()
+        .all(|operation| operation.application_id == CurrentApplicationId::Flow));
 }

@@ -64,6 +64,8 @@
         "work-update",
         "work-transition",
         "work-claim",
+        "handoff-request",
+        "intervention-raise",
         "buildout-read"
       ],
       "validFromUnixMs": 1787270580000,

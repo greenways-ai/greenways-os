@@ -18,8 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const FLOW_PROJECT_HANDOFF_INTERVENTION_PROTOCOL: &str =
     "greenways.flow.project-handoffs-interventions/0-alpha";
 pub const FLOW_PROJECT_HANDOFF_PROTOCOL: &str = "greenways.flow.project-handoff/0-alpha";
-pub const FLOW_PROJECT_INTERVENTION_PROTOCOL: &str =
-    "greenways.flow.project-intervention/0-alpha";
+pub const FLOW_PROJECT_INTERVENTION_PROTOCOL: &str = "greenways.flow.project-intervention/0-alpha";
 pub const FLOW_HANDOFF_RECONCILIATION_PROTOCOL: &str =
     "greenways.flow.handoff-reconciliation/0-alpha";
 pub const FLOW_HANDOFF_INTERVENTION_OPERATION_PROTOCOL: &str =
@@ -33,16 +32,12 @@ pub const FLOW_PROJECT_HANDOFF_DECIDE_OPERATION: &str = "flow.project.handoff.de
 pub const FLOW_PROJECT_HANDOFF_OBSERVE_OPERATION: &str = "flow.project.handoff.observe";
 pub const FLOW_PROJECT_HANDOFF_CANCEL_OPERATION: &str = "flow.project.handoff.cancel";
 pub const FLOW_PROJECT_HANDOFF_RECONCILE_OPERATION: &str = "flow.project.handoff.reconcile";
-pub const FLOW_PROJECT_INTERVENTIONS_LIST_OPERATION: &str =
-    "flow.project.interventions.list";
-pub const FLOW_PROJECT_INTERVENTION_RAISE_OPERATION: &str =
-    "flow.project.intervention.raise";
+pub const FLOW_PROJECT_INTERVENTIONS_LIST_OPERATION: &str = "flow.project.interventions.list";
+pub const FLOW_PROJECT_INTERVENTION_RAISE_OPERATION: &str = "flow.project.intervention.raise";
 pub const FLOW_PROJECT_INTERVENTION_ACKNOWLEDGE_OPERATION: &str =
     "flow.project.intervention.acknowledge";
-pub const FLOW_PROJECT_INTERVENTION_DECIDE_OPERATION: &str =
-    "flow.project.intervention.decide";
-pub const FLOW_PROJECT_INTERVENTION_RESOLVE_OPERATION: &str =
-    "flow.project.intervention.resolve";
+pub const FLOW_PROJECT_INTERVENTION_DECIDE_OPERATION: &str = "flow.project.intervention.decide";
+pub const FLOW_PROJECT_INTERVENTION_RESOLVE_OPERATION: &str = "flow.project.intervention.resolve";
 
 const MAX_PROJECT_ID_BYTES: usize = 256;
 const MAX_HANDOFF_ID_BYTES: usize = 256;
@@ -229,18 +224,6 @@ impl FlowProjectHandoffState {
                 | Self::Received
                 | Self::Completed
                 | Self::Partial
-        )
-    }
-
-    const fn is_current(self) -> bool {
-        !matches!(
-            self,
-            Self::Completed
-                | Self::Partial
-                | Self::Rejected
-                | Self::Cancelled
-                | Self::Failed
-                | Self::Expired
         )
     }
 }
@@ -532,26 +515,18 @@ impl FlowProjectHandoff {
                     && self.stale_reason.is_none()
                     && self.terminal_code.is_none()
             }
-            FlowProjectHandoffState::Rejected => terminal_evidence_matches(
-                self,
-                FlowProjectHandoffTerminalCode::Rejected,
-                true,
-            ),
-            FlowProjectHandoffState::Cancelled => terminal_evidence_matches(
-                self,
-                FlowProjectHandoffTerminalCode::Cancelled,
-                false,
-            ),
-            FlowProjectHandoffState::Failed => terminal_evidence_matches(
-                self,
-                FlowProjectHandoffTerminalCode::Failed,
-                false,
-            ),
-            FlowProjectHandoffState::Expired => terminal_evidence_matches(
-                self,
-                FlowProjectHandoffTerminalCode::Expired,
-                false,
-            ),
+            FlowProjectHandoffState::Rejected => {
+                terminal_evidence_matches(self, FlowProjectHandoffTerminalCode::Rejected, true)
+            }
+            FlowProjectHandoffState::Cancelled => {
+                terminal_evidence_matches(self, FlowProjectHandoffTerminalCode::Cancelled, false)
+            }
+            FlowProjectHandoffState::Failed => {
+                terminal_evidence_matches(self, FlowProjectHandoffTerminalCode::Failed, false)
+            }
+            FlowProjectHandoffState::Expired => {
+                terminal_evidence_matches(self, FlowProjectHandoffTerminalCode::Expired, false)
+            }
             FlowProjectHandoffState::Stale => {
                 self.accepted_at_unix_ms.is_some()
                     && self.completed_at_unix_ms.is_none()
@@ -716,19 +691,20 @@ impl FlowProjectInterventionState {
                     | Self::Expired
             ) | (
                 Self::Acknowledged,
-                Self::DecisionRequired
-                    | Self::Resolved
-                    | Self::Dismissed
-                    | Self::Expired
+                Self::DecisionRequired | Self::Resolved | Self::Dismissed | Self::Expired
             ) | (
                 Self::DecisionRequired,
                 Self::Approved | Self::Rejected | Self::Dismissed | Self::Expired
-            ) | (Self::Approved, Self::Resolved) | (Self::Rejected, Self::Resolved)
+            ) | (Self::Approved, Self::Resolved)
+                | (Self::Rejected, Self::Resolved)
         )
     }
 
     const fn is_current(self) -> bool {
-        matches!(self, Self::Open | Self::Acknowledged | Self::DecisionRequired)
+        matches!(
+            self,
+            Self::Open | Self::Acknowledged | Self::DecisionRequired
+        )
     }
 }
 
@@ -800,11 +776,7 @@ impl FlowProjectIntervention {
             "invalid-flow-intervention-summary",
         )?;
         if let Some(detail) = &self.detail {
-            validate_text(
-                detail,
-                MAX_DETAIL_BYTES,
-                "invalid-flow-intervention-detail",
-            )?;
+            validate_text(detail, MAX_DETAIL_BYTES, "invalid-flow-intervention-detail")?;
         }
         if self.created_at_unix_ms == 0 {
             return Err(ContractError::new(
@@ -1059,10 +1031,7 @@ pub struct FlowProjectHandoffInterventionSnapshot {
 
 impl FlowProjectHandoffInterventionSnapshot {
     pub fn validate(&self) -> Result<(), ContractError> {
-        require_protocol(
-            &self.protocol,
-            FLOW_PROJECT_HANDOFF_INTERVENTION_PROTOCOL,
-        )?;
+        require_protocol(&self.protocol, FLOW_PROJECT_HANDOFF_INTERVENTION_PROTOCOL)?;
         require_flow_application(self.application_id, &self.application_revision)?;
         validate_scoped_identifier(
             &self.project_id,
@@ -1323,13 +1292,7 @@ impl FlowProjectHandoffInterventionSnapshot {
                     ));
                 }
             }
-            validate_handoff_target(
-                handoff,
-                &members,
-                &mandates,
-                &attachments,
-                &sessions,
-            )?;
+            validate_handoff_target(handoff, &members, &mandates, &attachments, &sessions)?;
         }
 
         for intervention in &self.interventions {
@@ -1419,8 +1382,7 @@ impl FlowProjectHandoffInterventionSnapshot {
             }
             if matches!(
                 intervention.kind,
-                FlowProjectInterventionKind::Approval
-                    | FlowProjectInterventionKind::HandoffReview
+                FlowProjectInterventionKind::Approval | FlowProjectInterventionKind::HandoffReview
             ) && intervention.subject_kind != FlowProjectInterventionSubjectKind::Handoff
             {
                 return Err(ContractError::new(
@@ -1429,8 +1391,7 @@ impl FlowProjectHandoffInterventionSnapshot {
                 ));
             }
             if intervention.kind == FlowProjectInterventionKind::UncertainEffect
-                && intervention.subject_kind
-                    != FlowProjectInterventionSubjectKind::ExternalEffect
+                && intervention.subject_kind != FlowProjectInterventionSubjectKind::ExternalEffect
             {
                 return Err(ContractError::new(
                     "flow-uncertain-effect-subject-mismatch",
@@ -1524,10 +1485,7 @@ pub struct FlowHandoffInterventionOperationDescriptor {
 
 impl FlowHandoffInterventionOperationDescriptor {
     pub fn validate(&self) -> Result<(), ContractError> {
-        require_protocol(
-            &self.protocol,
-            FLOW_HANDOFF_INTERVENTION_OPERATION_PROTOCOL,
-        )?;
+        require_protocol(&self.protocol, FLOW_HANDOFF_INTERVENTION_OPERATION_PROTOCOL)?;
         require_flow_application(self.application_id, &self.application_revision)?;
         if self.grants_application_authority
             || self.deletes_durable_history
@@ -1585,8 +1543,8 @@ impl FlowHandoffInterventionOperationCatalogue {
     }
 }
 
-pub fn flow_handoff_intervention_operation_catalogue(
-) -> FlowHandoffInterventionOperationCatalogue {
+pub fn flow_handoff_intervention_operation_catalogue() -> FlowHandoffInterventionOperationCatalogue
+{
     FlowHandoffInterventionOperationCatalogue {
         protocol: FLOW_HANDOFF_INTERVENTION_OPERATION_CATALOGUE_PROTOCOL.to_owned(),
         application_id: CurrentApplicationId::Flow,
@@ -1619,8 +1577,7 @@ fn canonical_operation(
         Handoff, HandoffCollection, Intervention, InterventionCollection,
     };
     use FlowHandoffInterventionResultKind::{
-        Handoff as HandoffResult, HandoffPage, Intervention as InterventionResult,
-        InterventionPage,
+        Handoff as HandoffResult, HandoffPage, Intervention as InterventionResult, InterventionPage,
     };
 
     let (scope, intent, requires_entity_id, idempotency, result_kind) = match operation_id {
@@ -1656,13 +1613,9 @@ fn canonical_operation(
         ),
         FlowHandoffInterventionOperationId::InterventionAcknowledge
         | FlowHandoffInterventionOperationId::InterventionDecide
-        | FlowHandoffInterventionOperationId::InterventionResolve => (
-            Intervention,
-            Manage,
-            true,
-            ExactRequest,
-            InterventionResult,
-        ),
+        | FlowHandoffInterventionOperationId::InterventionResolve => {
+            (Intervention, Manage, true, ExactRequest, InterventionResult)
+        }
     };
 
     FlowHandoffInterventionOperationDescriptor {
@@ -1691,14 +1644,12 @@ fn validate_request_actor<'a>(
     mandates: &BTreeMap<&'a str, &'a crate::flow_participation::FlowAgentMandate>,
     sessions: &BTreeMap<&'a str, &'a crate::flow_presence::FlowProjectSessionBinding>,
 ) -> Result<(), ContractError> {
-    let member = members
-        .get(actor.membership_id.as_str())
-        .ok_or_else(|| {
-            ContractError::new(
-                "unknown-flow-handoff-actor",
-                "Flow handoff/intervention actor must be a project member",
-            )
-        })?;
+    let member = members.get(actor.membership_id.as_str()).ok_or_else(|| {
+        ContractError::new(
+            "unknown-flow-handoff-actor",
+            "Flow handoff/intervention actor must be a project member",
+        )
+    })?;
     if member.state != FlowProjectMemberState::Active {
         return Err(ContractError::new(
             "inactive-flow-handoff-actor",
@@ -1794,14 +1745,12 @@ fn validate_handoff_target<'a>(
                         "Flow handoff target mandate must exist in participation",
                     )
                 })?;
-            let member = members
-                .get(mandate.membership_id.as_str())
-                .ok_or_else(|| {
-                    ContractError::new(
-                        "orphaned-flow-handoff-target-mandate",
-                        "Flow handoff target mandate must retain its project membership",
-                    )
-                })?;
+            let member = members.get(mandate.membership_id.as_str()).ok_or_else(|| {
+                ContractError::new(
+                    "orphaned-flow-handoff-target-mandate",
+                    "Flow handoff target mandate must retain its project membership",
+                )
+            })?;
             if mandate.state != FlowAgentMandateState::Active
                 || member.state != FlowProjectMemberState::Active
                 || handoff.source_actor.agent_mandate_id.as_deref()
@@ -1931,21 +1880,34 @@ fn terminal_evidence_matches(
 fn suite_state_matches(flow: FlowProjectHandoffState, suite: SuiteHandoffState) -> bool {
     matches!(
         (flow, suite),
-        (FlowProjectHandoffState::Prepared, SuiteHandoffState::Prepared)
+        (
+            FlowProjectHandoffState::Prepared,
+            SuiteHandoffState::Prepared
+        ) | (
+            FlowProjectHandoffState::ApprovalRequired,
+            SuiteHandoffState::ApprovalRequired
+        ) | (FlowProjectHandoffState::Ready, SuiteHandoffState::Ready)
             | (
-                FlowProjectHandoffState::ApprovalRequired,
-                SuiteHandoffState::ApprovalRequired
+                FlowProjectHandoffState::Accepted,
+                SuiteHandoffState::Accepted
             )
-            | (FlowProjectHandoffState::Ready, SuiteHandoffState::Ready)
-            | (FlowProjectHandoffState::Accepted, SuiteHandoffState::Accepted)
             | (
                 FlowProjectHandoffState::Transferring,
                 SuiteHandoffState::Importing | SuiteHandoffState::Creating
             )
-            | (FlowProjectHandoffState::Completed, SuiteHandoffState::Completed)
+            | (
+                FlowProjectHandoffState::Completed,
+                SuiteHandoffState::Completed
+            )
             | (FlowProjectHandoffState::Partial, SuiteHandoffState::Partial)
-            | (FlowProjectHandoffState::Rejected, SuiteHandoffState::Rejected)
-            | (FlowProjectHandoffState::Cancelled, SuiteHandoffState::Cancelled)
+            | (
+                FlowProjectHandoffState::Rejected,
+                SuiteHandoffState::Rejected
+            )
+            | (
+                FlowProjectHandoffState::Cancelled,
+                SuiteHandoffState::Cancelled
+            )
             | (FlowProjectHandoffState::Failed, SuiteHandoffState::Failed)
     )
 }
@@ -2161,11 +2123,7 @@ fn validate_digest(value: &str) -> Result<(), ContractError> {
     }
 }
 
-fn validate_text(
-    value: &str,
-    maximum: usize,
-    code: &'static str,
-) -> Result<(), ContractError> {
+fn validate_text(value: &str, maximum: usize, code: &'static str) -> Result<(), ContractError> {
     if !value.is_empty() && value.len() <= maximum {
         Ok(())
     } else {
