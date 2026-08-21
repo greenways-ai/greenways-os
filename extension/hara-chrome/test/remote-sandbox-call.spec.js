@@ -1,72 +1,78 @@
 import { expect, test } from "@playwright/test";
 
-import { activeTabId, launchWithExtension } from "./extension.js";
+const pageUrl = new URL("../src/runtime.html", import.meta.url).href;
 
-test("restricted browser-Wasm call sends argument values as HTA bindings", async () => {
-  const { context, extensionId, serviceWorker } = await launchWithExtension();
-  try {
-    const target = await context.newPage();
-    await target.goto("about:blank");
-    const tabId = await activeTabId(serviceWorker);
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/panel.html?tabId=${tabId}`);
+test("remote qualified calls use eval-bound values in fresh real Wasm workers", async ({ page }) => {
+  await page.goto(pageUrl);
+  const proof = await page.evaluate(async () => {
+    const { createRemoteSandboxExecutor } = await import("./remote-sandbox-executor.js");
+    const { createRestrictedBrowserWasmRuntimeFactory } = await import("./remote-sandbox-wasm.js");
+    const sha256 = async (value) => {
+      const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+      return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+    };
 
-    const result = await page.evaluate(async () => {
-      const [{ createRemoteSandboxExecutor }, { createRestrictedBrowserWasmRuntimeFactory }] =
-        await Promise.all([
-          import(chrome.runtime.getURL("src/remote-sandbox-executor.js")),
-          import(chrome.runtime.getURL("src/remote-sandbox-wasm.js")),
-        ]);
-      const moduleBytes = new Uint8Array(
-        await (await fetch(chrome.runtime.getURL("vendor/hara.wasm"))).arrayBuffer(),
-      );
-      const executor = createRemoteSandboxExecutor({
-        createRuntime: createRestrictedBrowserWasmRuntimeFactory({
-          moduleBytes,
-          workerUrl: chrome.runtime.getURL("vendor/hta-worker.js"),
-        }),
-      });
-      const descriptor = {
-        protocol: "hara.execution-host/0-alpha",
-        hostId: "hara.chrome.call-proof",
-        generation: 1,
-        kind: "browser-wasm",
-        state: "ready",
-        backend: "rust-wasm",
-        runtimeBuild: `sha256:${"1".repeat(64)}`,
-        haraVersion: "browser-proof",
-        profiles: ["hara.mcp-pure/0-alpha"],
-        operations: ["runtime.get", "sandbox.eval", "sandbox.call"],
-        limits: {
-          maxSourceBytes: 65_536,
-          maxOutputBytes: 1_048_576,
-          maxWallMs: 30_000,
-        },
-        observedAt: new Date().toISOString(),
-      };
-      const request = {
-        protocol: "hara.execution-host/0-alpha",
-        requestId: "00000000-0000-4000-8000-000000000187",
-        operation: "sandbox.call",
-        profile: "hara.mcp-pure/0-alpha",
-        namespace: "std.foundation",
-        symbol: "+",
-        arguments: [40, 2],
-        sourceDigest: `sha256:${"2".repeat(64)}`,
-        limits: { wallMs: 5_000, outputBytes: 262_144 },
-      };
-      try {
-        return await executor.execute(request, { descriptor });
-      } finally {
-        await executor.close();
+    const moduleBytes = new Uint8Array(await (await fetch("../vendor/hara.wasm")).arrayBuffer());
+    const runtimeBuild = await sha256(moduleBytes);
+    const workers = [];
+    class TrackingWorker extends Worker {
+      constructor(url, options) {
+        super(url, options);
+        workers.push({ name: options?.name ?? null });
       }
+    }
+    const factory = createRestrictedBrowserWasmRuntimeFactory({
+      workerUrl: new URL("../vendor/hta-worker.js", location.href),
+      moduleBytes,
+      WorkerCtor: TrackingWorker,
     });
+    const executor = createRemoteSandboxExecutor({ createRuntime: factory });
+    const descriptor = {
+      protocol: "hara.execution-host/0-alpha",
+      hostId: "hara.chrome.call-proof",
+      generation: 3,
+      kind: "browser-wasm",
+      state: "ready",
+      backend: "raw-wasm-gate1",
+      runtimeBuild,
+      haraVersion: "raw-wasm-gate1",
+      profiles: ["hara.mcp-pure/0-alpha"],
+      operations: ["runtime.get", "sandbox.eval", "sandbox.call"],
+      limits: { maxSourceBytes: 65536, maxOutputBytes: 1048576, maxWallMs: 30000 },
+      observedAt: new Date().toISOString(),
+    };
+    const emptyDigest = await sha256("");
+    const request = {
+      protocol: "hara.execution-host/0-alpha",
+      requestId: "00000000-0000-4000-8000-000000000191",
+      operation: "sandbox.call",
+      profile: "hara.mcp-pure/0-alpha",
+      namespace: "std.foundation",
+      symbol: "+",
+      arguments: [40, 2],
+      sourceDigest: emptyDigest,
+      limits: { wallMs: 10000, outputBytes: 262144 },
+    };
+    const first = await executor.execute(request, { descriptor });
+    const nestedPayload = { marker: "__hta_arg_0 ) (browser.dom/read)" };
+    const second = await executor.execute({
+      ...request,
+      requestId: "00000000-0000-4000-8000-000000000192",
+      arguments: [nestedPayload],
+    }, { descriptor });
+    const active = executor.active();
+    await executor.close();
+    return { first, second, nestedPayload, workers, active, runtimeBuild };
+  });
 
-    expect(result.status).toBe("completed");
-    expect(result.value).toEqual({ text: "42", json: 42 });
-    expect(result.runtime.backend).toBe("rust-wasm");
-    expect(result.evidence.cleanup).toBe("completed");
-  } finally {
-    await context.close();
-  }
+  expect(proof.first.status).toBe("completed");
+  expect(proof.first.value).toEqual({ text: "42", json: 42 });
+  expect(proof.first.runtime.runtimeBuild).toBe(proof.runtimeBuild);
+  expect(proof.second.status).toBe("failed");
+  expect(JSON.stringify(proof.second)).not.toContain("browser.dom/read) enabled");
+  expect(proof.nestedPayload.marker).toContain("browser.dom/read");
+  expect(proof.workers).toHaveLength(2);
+  expect(new Set(proof.workers.map(({ name }) => name)).size).toBe(2);
+  expect(proof.active).toBe(0);
 });

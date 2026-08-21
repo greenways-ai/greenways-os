@@ -9,6 +9,10 @@ import {
 
 const MAX_DEPTH = 32;
 const MAX_COLLECTION = 1_024;
+const SAFE_NAMESPACE = /^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*$/u;
+const SAFE_SYMBOL = /^[A-Za-z_+*?!<>=-][A-Za-z0-9_+*?!<>=.-]*$/u;
+
+export const REMOTE_SANDBOX_EXECUTION_OPERATIONS = Object.freeze(["sandbox.eval", "sandbox.call"]);
 
 function executorError(code, message, data = null) {
   const error = new Error(message);
@@ -47,6 +51,12 @@ function statusFor(error, cancellation) {
   if (cancellation === "deadline-exceeded" || error?.code === "remote/timed-out") return "timed-out";
   if (cancellation || error?.name === "AbortError" || error?.code === "remote/cancelled") return "cancelled";
   return "failed";
+}
+
+function cancellationError(reason) {
+  return reason === "deadline-exceeded"
+    ? executorError("remote/timed-out", "remote Hara execution exceeded its wall-clock limit")
+    : executorError("remote/cancelled", "remote Hara execution was cancelled");
 }
 
 function displayScalar(value) {
@@ -96,14 +106,16 @@ function jsonProjection(value, depth = 0) {
   }
   if (value instanceof Map) {
     if (value.size > MAX_COLLECTION) return undefined;
-    const projected = {};
+    const keys = new Set();
+    const entries = [];
     for (const [key, entry] of value) {
-      if (typeof key !== "string" || Object.hasOwn(projected, key)) return undefined;
+      if (typeof key !== "string" || keys.has(key)) return undefined;
       const item = jsonProjection(entry, depth + 1);
       if (item === undefined && entry !== undefined) return undefined;
-      projected[key] = item ?? null;
+      keys.add(key);
+      entries.push([key, item ?? null]);
     }
-    return projected;
+    return Object.fromEntries(entries);
   }
   return undefined;
 }
@@ -118,14 +130,32 @@ export function projectRemoteValue(value, outputBytes) {
   return projection;
 }
 
+function assertSafeCallTarget(namespace, symbol) {
+  if (!SAFE_NAMESPACE.test(namespace) || !SAFE_SYMBOL.test(symbol)) {
+    throw executorError("remote/call-target-invalid", "qualified Hara call target contains unsupported syntax");
+  }
+}
+
 export function buildBoundCall(request) {
   if (request.operation !== "sandbox.call") throw executorError("remote/operation-invalid", "bound call requires sandbox.call");
+  assertSafeCallTarget(request.namespace, request.symbol);
   const callable = `${request.namespace}/${request.symbol}`;
   const placeholders = request.arguments.map((_, index) => `__hta_arg_${index}`);
+  const invocation = `(${callable}${placeholders.length ? ` ${placeholders.join(" ")}` : ""})`;
   return {
-    source: `(${callable}${placeholders.length ? ` ${placeholders.join(" ")}` : ""})`,
+    source: request.source ? `${request.source}\n${invocation}` : invocation,
     bindings: cloneJson(request.arguments),
   };
+}
+
+async function defaultSourceDigest(source) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle?.digest) {
+    throw executorError("remote/executor-config-invalid", "Web Crypto SHA-256 is required for source binding");
+  }
+  const bytes = new TextEncoder().encode(source);
+  const digest = new Uint8Array(await subtle.digest("SHA-256", bytes));
+  return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function makeResult({ request, descriptor, status, value = null, diagnostic = null, startedAt, completedAt, cleanup }) {
@@ -158,47 +188,67 @@ function makeResult({ request, descriptor, status, value = null, diagnostic = nu
   return assertResultBound(result, request, descriptor);
 }
 
+function requestSource(request) {
+  return typeof request.source === "string" ? request.source : "";
+}
+
 function assertDescriptorFor(request, descriptor) {
   parseHostDescriptor(descriptor);
   if (descriptor.kind !== "browser-wasm") {
     throw executorError("remote/host-incompatible", "restricted browser executor requires a browser-wasm host");
   }
+  if (descriptor.state !== "ready") {
+    throw executorError("remote/host-incompatible", "restricted browser executor requires a ready host descriptor");
+  }
   if (!descriptor.profiles.includes(PURE_PROFILE)) {
     throw executorError("remote/host-incompatible", `host does not advertise ${PURE_PROFILE}`);
+  }
+  const unsupported = descriptor.operations.filter(
+    (operation) => operation !== "runtime.get" && !REMOTE_SANDBOX_EXECUTION_OPERATIONS.includes(operation),
+  );
+  if (unsupported.length) {
+    throw executorError(
+      "remote/host-incompatible",
+      `restricted browser executor cannot advertise unsupported operations: ${unsupported.join(", ")}`,
+    );
   }
   if (!descriptor.operations.includes(request.operation)) {
     throw executorError("remote/operation-unsupported", `host does not advertise ${request.operation}`);
   }
+  if (request.limits.wallMs > descriptor.limits.maxWallMs) {
+    throw executorError("remote/limit-exceeded", "request wall-clock limit exceeds the host descriptor");
+  }
+  if (request.limits.outputBytes > descriptor.limits.maxOutputBytes) {
+    throw executorError("remote/limit-exceeded", "request output limit exceeds the host descriptor");
+  }
+  if (textBytes(requestSource(request)) > descriptor.limits.maxSourceBytes) {
+    throw executorError("remote/limit-exceeded", "request source exceeds the host descriptor");
+  }
 }
 
-function raceCancellation(pending, signal, timeoutMs, timers) {
-  let cancellation = null;
+function createCancellation(entry, signal, timeoutMs, timers) {
+  let rejectCancellation;
   let timeout = null;
   let abortListener = null;
-  const cancelPending = (reason) => {
-    if (cancellation) return;
-    cancellation = reason;
-    try { pending?.cancel?.(); } catch { /* best effort */ }
-  };
-  const cancelled = new Promise((_, reject) => {
-    if (signal?.aborted) {
-      cancelPending("client-cancelled");
-      reject(executorError("remote/cancelled", "remote Hara execution was cancelled"));
-      return;
-    }
-    abortListener = () => {
-      cancelPending("client-cancelled");
-      reject(executorError("remote/cancelled", "remote Hara execution was cancelled"));
-    };
-    signal?.addEventListener("abort", abortListener, { once: true });
-    timeout = timers.setTimeout(() => {
-      cancelPending("deadline-exceeded");
-      reject(executorError("remote/timed-out", "remote Hara execution exceeded its wall-clock limit"));
-    }, timeoutMs);
+  const promise = new Promise((_, reject) => {
+    rejectCancellation = reject;
   });
+  const cancel = (reason = "client-cancelled") => {
+    if (entry.cancelReason) return false;
+    entry.cancelReason = reason;
+    try { entry.controller.abort(reason); } catch { /* best effort */ }
+    try { entry.pending?.cancel?.(); } catch { /* best effort */ }
+    try { entry.runtime?.worker?.terminate?.(); } catch { /* best effort */ }
+    rejectCancellation(cancellationError(reason));
+    return true;
+  };
+  abortListener = () => cancel(signal?.reason === "deadline-exceeded" ? "deadline-exceeded" : "client-cancelled");
+  if (signal?.aborted) abortListener();
+  else signal?.addEventListener("abort", abortListener, { once: true });
+  timeout = timers.setTimeout(() => cancel("deadline-exceeded"), timeoutMs);
   return {
-    promise: Promise.race([Promise.resolve(pending), cancelled]),
-    cancellation: () => cancellation,
+    promise,
+    cancel,
     dispose() {
       if (timeout !== null) timers.clearTimeout(timeout);
       if (abortListener) signal?.removeEventListener("abort", abortListener);
@@ -221,8 +271,15 @@ async function closeRuntime(runtime) {
   return certain ? "completed" : "uncertain";
 }
 
+async function closeEntryRuntime(entry) {
+  if (!entry.runtime) return "uncertain";
+  entry.cleanupPromise ??= closeRuntime(entry.runtime);
+  return await entry.cleanupPromise;
+}
+
 export function createRemoteSandboxExecutor(options = {}) {
   const createRuntime = checkedFunction(options.createRuntime, "createRuntime");
+  const digestSource = checkedFunction(options.digestSource ?? defaultSourceDigest, "digestSource");
   const now = checkedFunction(options.now ?? (() => new Date()), "now");
   const timers = {
     setTimeout: checkedFunction(options.setTimeoutImpl ?? setTimeout, "setTimeoutImpl"),
@@ -239,42 +296,72 @@ export function createRemoteSandboxExecutor(options = {}) {
     if (active.has(request.requestId)) throw executorError("remote/request-busy", `request ${request.requestId} is already active`);
 
     const startedAt = nowIso(now);
-    let runtime = null;
+    const entry = {
+      requestId: request.requestId,
+      controller: new AbortController(),
+      runtime: null,
+      pending: null,
+      cancelReason: null,
+      cleanupPromise: null,
+      cancellation: null,
+    };
+    entry.cancellation = createCancellation(entry, signal, request.limits.wallMs, timers);
+    active.set(request.requestId, entry);
+
     let cancellation = null;
     let projected = null;
     let failure = null;
     let cleanup = "uncertain";
 
     try {
-      runtime = await createRuntime({ request: cloneJson(request), descriptor: cloneJson(host) });
-      if (!runtime?.context?.call) throw executorError("remote/runtime-invalid", "runtime factory must return a HtaContext-like call surface");
-      active.set(request.requestId, runtime);
+      const actualDigest = await Promise.race([
+        Promise.resolve(digestSource(requestSource(request))),
+        entry.cancellation.promise,
+      ]);
+      if (actualDigest !== request.sourceDigest) {
+        throw executorError("remote/source-digest-mismatch", "request source does not match its SHA-256 digest");
+      }
 
-      let pending;
+      const runtimePromise = Promise.resolve().then(() => createRuntime({
+        request: cloneJson(request),
+        descriptor: cloneJson(host),
+        signal: entry.controller.signal,
+      }));
+      runtimePromise
+        .then(async (runtime) => {
+          entry.runtime = runtime;
+          if (entry.cancelReason || closed) await closeEntryRuntime(entry);
+        })
+        .catch(() => {});
+      entry.runtime = await Promise.race([runtimePromise, entry.cancellation.promise]);
+      if (!entry.runtime?.context?.call) {
+        throw executorError("remote/runtime-invalid", "runtime factory must return a HtaContext-like call surface");
+      }
+      if (entry.cancelReason) throw cancellationError(entry.cancelReason);
+
       if (request.operation === "sandbox.eval") {
-        pending = runtime.context.call("eval", [request.source]);
+        entry.pending = entry.runtime.context.call("eval", [request.source]);
       } else if (request.operation === "sandbox.call") {
         const bound = buildBoundCall(request);
-        pending = runtime.context.call("eval-bound", [bound.source, bound.bindings]);
+        entry.pending = entry.runtime.context.call("eval-bound", [bound.source, bound.bindings]);
       } else {
         throw executorError("remote/operation-unsupported", `${request.operation} is not implemented by the browser-Wasm executor`);
       }
-      runtime.pending = pending;
-
-      const raced = raceCancellation(pending, signal, request.limits.wallMs, timers);
-      try {
-        projected = projectRemoteValue(await raced.promise, request.limits.outputBytes);
-      } catch (error) {
-        cancellation = raced.cancellation();
-        failure = error;
-      } finally {
-        raced.dispose();
+      if (entry.cancelReason) {
+        try { entry.pending?.cancel?.(); } catch { /* best effort */ }
+        throw cancellationError(entry.cancelReason);
       }
+      projected = projectRemoteValue(
+        await Promise.race([Promise.resolve(entry.pending), entry.cancellation.promise]),
+        request.limits.outputBytes,
+      );
     } catch (error) {
+      cancellation = entry.cancelReason;
       failure = error;
     } finally {
+      entry.cancellation.dispose();
       active.delete(request.requestId);
-      if (runtime) cleanup = await closeRuntime(runtime);
+      cleanup = await closeEntryRuntime(entry);
     }
 
     const completedAt = nowIso(now);
@@ -291,23 +378,18 @@ export function createRemoteSandboxExecutor(options = {}) {
     return makeResult({ request, descriptor: host, status, diagnostic, startedAt, completedAt, cleanup });
   }
 
-  async function cancel(requestId) {
-    const runtime = active.get(requestId);
-    if (!runtime) return false;
-    try { runtime.pending?.cancel?.(); } catch { /* best effort */ }
-    try { runtime.worker?.terminate?.(); } catch { /* best effort */ }
-    return true;
+  async function cancel(requestId, reason = "client-cancelled") {
+    const entry = active.get(requestId);
+    if (!entry) return false;
+    return entry.cancellation.cancel(reason === "deadline-exceeded" ? reason : "client-cancelled");
   }
 
   async function close() {
     if (closed) return;
     closed = true;
-    const runtimes = [...active.values()];
-    active.clear();
-    for (const runtime of runtimes) {
-      try { runtime.pending?.cancel?.(); } catch { /* best effort */ }
-    }
-    await Promise.allSettled(runtimes.map(closeRuntime));
+    const entries = [...active.values()];
+    for (const entry of entries) entry.cancellation.cancel("relay-closing");
+    await Promise.allSettled(entries.map(closeEntryRuntime));
   }
 
   return Object.freeze({ execute, cancel, close, active: () => active.size });
