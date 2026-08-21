@@ -1,6 +1,7 @@
 mod chats;
 mod context;
 mod error;
+mod flow;
 mod resource;
 mod suite;
 
@@ -11,6 +12,7 @@ pub use chats::{
 };
 pub use context::reject_server_context;
 pub use error::{ContractError, ErrorCode, PublicFailure, ERROR_PROTOCOL, MAX_PUBLIC_ERROR_BYTES};
+pub use flow::*;
 pub use resource::{
     validate_resource_uri, Availability, ChangeStatus, QueryRequest, ResourceChanged,
     ResourceDescriptor, ResourceKind, ResourceLimits, ResourceOperation, SessionHello,

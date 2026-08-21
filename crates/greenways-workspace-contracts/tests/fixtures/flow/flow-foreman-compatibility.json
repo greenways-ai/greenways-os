@@ -1,0 +1,136 @@
+{
+  "protocol": "greenways.flow.foreman-compatibility/0-alpha",
+  "revision": "0.1.0",
+  "versionLaw": "exact",
+  "product": {
+    "applicationId": "flow",
+    "packageId": "greenways/flow",
+    "displayName": "Greenways Flow",
+    "launcherLabel": "Flow",
+    "routePrefix": "/flow/",
+    "cliCommand": "greenways flow",
+    "operationNamespace": "flow.",
+    "permissionNamespace": "flow.",
+    "visualLanguageRoute": "/v2/applications/flow/"
+  },
+  "service": {
+    "protocol": "greenways.foreman.service/0-alpha",
+    "revision": "0.1.0",
+    "serviceId": "foreman",
+    "displayName": "Foreman",
+    "protocolNamespace": "foreman.",
+    "productFacing": false,
+    "discoverable": false,
+    "grantsApplicationAuthority": false
+  },
+  "aggregate": {
+    "aggregateRootKind": "project",
+    "projectReferencePrefix": "project/",
+    "workReferencePrefix": "work/",
+    "buildoutReferencePrefix": "buildout/",
+    "buildoutRequired": false,
+    "crossProjectImplicitMove": false
+  },
+  "operationFamilies": [
+    "flow.project.",
+    "flow.membership.",
+    "flow.agent-mandate.",
+    "flow.host.",
+    "flow.session.",
+    "flow.work.",
+    "flow.handoff.",
+    "flow.intervention.",
+    "flow.activity.",
+    "flow.buildout."
+  ],
+  "compatibility": [
+    {
+      "identity": "build",
+      "kind": "legacy-application",
+      "disposition": "absent",
+      "accepted": false,
+      "discoverable": false,
+      "productFacing": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false
+    },
+    {
+      "identity": "Foreman",
+      "kind": "display-label",
+      "disposition": "safe-display-alias",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false
+    },
+    {
+      "identity": "foreman",
+      "kind": "service-identity",
+      "disposition": "retained-technical-identity",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false
+    },
+    {
+      "identity": "foreman.*",
+      "kind": "technical-namespace",
+      "disposition": "retained-technical-identity",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false
+    },
+    {
+      "identity": "project/*",
+      "kind": "durable-record-family",
+      "disposition": "retained-technical-identity",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false
+    },
+    {
+      "identity": "work/*",
+      "kind": "durable-record-family",
+      "disposition": "retained-technical-identity",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false
+    },
+    {
+      "identity": "buildout/*",
+      "kind": "durable-record-family",
+      "disposition": "retained-technical-identity",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false
+    }
+  ],
+  "surfaces": [
+    {
+      "kind": "launcher",
+      "identity": "Flow"
+    },
+    {
+      "kind": "route",
+      "identity": "/flow/"
+    },
+    {
+      "kind": "cli",
+      "identity": "greenways flow"
+    },
+    {
+      "kind": "visual-language",
+      "identity": "/v2/applications/flow/"
+    }
+  ]
+}

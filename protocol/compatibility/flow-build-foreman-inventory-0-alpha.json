@@ -1,0 +1,177 @@
+{
+  "protocol": "greenways.flow.build-foreman-compatibility-inventory/0-alpha",
+  "baseline": {
+    "repository": "greenways-ai/greenways-os",
+    "branch": "main",
+    "commit": "80316806d3dac11031106aab8e6eb285b186b6ed",
+    "tree": "9e700a908302bb437460fe9a3f0b350b4ed81a8c"
+  },
+  "classifications": [
+    "absent",
+    "safe-display-alias",
+    "versioned-compatibility-alias",
+    "explicit-migration",
+    "retained-technical-identity",
+    "incompatible-blocked"
+  ],
+  "buildResolution": {
+    "legacyApplicationId": "build",
+    "targetApplicationId": "flow",
+    "classification": "absent",
+    "requestResult": "incompatible",
+    "discoverable": false,
+    "grantsAuthority": false,
+    "createsParallelRecord": false,
+    "decision": "The checked baseline contains no durable Build product identity. Do not mint an alias, redirect, command family, record migration, or second logical project."
+  },
+  "buildCategories": [
+    {
+      "id": "application-package-ids",
+      "classification": "absent",
+      "decision": "No Build application or package identity is merged."
+    },
+    {
+      "id": "operations-schemas-protocols-record-kinds",
+      "classification": "absent",
+      "decision": "No build.* product operation, schema, protocol, event, or record kind is merged."
+    },
+    {
+      "id": "routes-deep-links",
+      "classification": "absent",
+      "decision": "No /build/ product route or Build deep link is merged."
+    },
+    {
+      "id": "cli-commands",
+      "classification": "absent",
+      "decision": "No greenways build command family is merged."
+    },
+    {
+      "id": "surface-activity-records",
+      "classification": "absent",
+      "decision": "No launcher, recent, search, notification, or activity identity names Build as an application."
+    },
+    {
+      "id": "handoff-application-ids",
+      "classification": "absent",
+      "decision": "No handoff source or target application ID names Build."
+    },
+    {
+      "id": "public-work-source-application",
+      "classification": "absent",
+      "decision": "No public-work source application names Build."
+    },
+    {
+      "id": "visual-language-routes-fixtures",
+      "classification": "absent",
+      "decision": "No current Visual Language route or fixture registers Build."
+    }
+  ],
+  "compatibility": [
+    {
+      "identity": "Foreman",
+      "kind": "display-label",
+      "classification": "safe-display-alias",
+      "currentOwner": "flow",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "grantsAuthority": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false,
+      "decision": "Read earlier foreground-product prose as display lineage for Flow; it cannot register another application."
+    },
+    {
+      "identity": "foreman",
+      "kind": "service-identity",
+      "classification": "retained-technical-identity",
+      "currentOwner": "flow",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "grantsAuthority": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false,
+      "decision": "Retain Foreman as Flow's internal coordination service identity."
+    },
+    {
+      "identity": "foreman.*",
+      "kind": "technical-namespace",
+      "classification": "retained-technical-identity",
+      "currentOwner": "flow",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "grantsAuthority": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false,
+      "decision": "Do not destructively rename stable Foreman service protocols or operations when they are introduced."
+    },
+    {
+      "identity": "project/*",
+      "kind": "durable-record-family",
+      "classification": "retained-technical-identity",
+      "currentOwner": "flow",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "grantsAuthority": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false,
+      "decision": "Project remains the durable aggregate root and is not renamed for product presentation."
+    },
+    {
+      "identity": "work/*",
+      "kind": "durable-record-family",
+      "classification": "retained-technical-identity",
+      "currentOwner": "flow",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "grantsAuthority": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false,
+      "decision": "Work identity remains project-scoped and distinct from product naming."
+    },
+    {
+      "identity": "buildout/*",
+      "kind": "durable-record-family",
+      "classification": "retained-technical-identity",
+      "currentOwner": "flow",
+      "accepted": true,
+      "discoverable": false,
+      "productFacing": false,
+      "grantsAuthority": false,
+      "rewriteDurableIdentity": false,
+      "createsParallelRecord": false,
+      "decision": "Buildout remains an optional project-local grouping; ordinary project work cannot require one."
+    }
+  ],
+  "scan": {
+    "trackedFilesOnly": true,
+    "binaryPolicy": "skip-nul-or-invalid-utf8",
+    "strongBuildIdentityCount": 0,
+    "foremanNamespaceCount": 0,
+    "buildoutPrefixCount": 0,
+    "foremanTokenCounts": {
+      "README.md": 2,
+      "docs/fabric-architecture.md": 53,
+      "docs/fabric-technology-map.md": 22,
+      "docs/workspace-architecture.md": 4
+    },
+    "buildoutTokenCounts": {
+      "docs/fabric-architecture.md": 10
+    },
+    "excludedPaths": [
+      ".github/workflows/flow-foreman-compatibility.yml",
+      "crates/greenways-workspace-contracts/src/flow.rs",
+      "crates/greenways-workspace-contracts/src/suite.rs",
+      "crates/greenways-workspace-contracts/tests/fixtures/flow/flow-foreman-compatibility.json",
+      "crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json",
+      "crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs",
+      "crates/greenways-workspace-contracts/tests/suite_gate0.rs",
+      "docs/flow-foreman-compatibility.md",
+      "protocol/compatibility/flow-build-foreman-inventory-0-alpha.json",
+      "scripts/check-flow-foreman-compatibility.py"
+    ]
+  }
+}
