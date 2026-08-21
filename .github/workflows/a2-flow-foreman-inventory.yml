@@ -21,7 +21,7 @@ jobs:
       - name: Install pinned Rust formatter
         run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt
       - name: Materialize compatibility contract and evidence
-        run: python3 .github/a2-materialize-flow-foreman.py
+        run: python3 .github/a2-run-fixed-materializer.py
       - uses: actions/upload-artifact@v4
         with:
           name: a2-flow-foreman-materialized
