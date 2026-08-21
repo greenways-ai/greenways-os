@@ -97,6 +97,98 @@ This contract introduces no generic database, filesystem, provider, browser, pro
     "Participation downstream status",
 )
 
+handoff_source = ROOT / "crates/greenways-workspace-contracts/src/flow_handoff_intervention.rs"
+replace_once(
+    handoff_source,
+    """    const fn is_current(self) -> bool {
+        !matches!(
+            self,
+            Self::Completed
+                | Self::Partial
+                | Self::Rejected
+                | Self::Cancelled
+                | Self::Failed
+                | Self::Expired
+        )
+    }
+""",
+    "",
+    "Unused handoff current-state helper",
+)
+
+tests = ROOT / "crates/greenways-workspace-contracts/tests/flow_handoff_intervention.rs"
+replace_once(
+    tests,
+    "    FlowHandoffInterventionOperationId, FlowHandoffReconciliationState,\n",
+    "    FlowHandoffReconciliationState,\n",
+    "Unused operation ID test import",
+)
+replace_once(
+    tests,
+    """fn agent_requests_require_the_exact_closed_mandate_capability() {
+    let mut participation = participation();
+    participation.agent_mandates[0]
+        .capabilities
+        .retain(|capability| *capability != FlowAgentMandateCapability::HandoffRequest);
+    assert!(handoffs()
+        .validate_against_context(&participation, &coordination(), &presence())
+        .is_err());
+
+    let mut participation = participation();
+    participation.agent_mandates[0]
+        .capabilities
+        .retain(|capability| *capability != FlowAgentMandateCapability::InterventionRaise);
+    assert!(handoffs()
+        .validate_against_context(&participation, &coordination(), &presence())
+        .is_err());
+}
+""",
+    """fn agent_requests_require_the_exact_closed_mandate_capability() {
+    let mut without_handoff_capability = participation();
+    without_handoff_capability.agent_mandates[0]
+        .capabilities
+        .retain(|capability| *capability != FlowAgentMandateCapability::HandoffRequest);
+    assert!(handoffs()
+        .validate_against_context(
+            &without_handoff_capability,
+            &coordination(),
+            &presence(),
+        )
+        .is_err());
+
+    let mut without_intervention_capability = participation();
+    without_intervention_capability.agent_mandates[0]
+        .capabilities
+        .retain(|capability| *capability != FlowAgentMandateCapability::InterventionRaise);
+    assert!(handoffs()
+        .validate_against_context(
+            &without_intervention_capability,
+            &coordination(),
+            &presence(),
+        )
+        .is_err());
+}
+""",
+    "Mandate capability test bindings",
+)
+replace_once(
+    tests,
+    """    let catalogue = flow_handoff_intervention_operation_catalogue();
+    assert!(catalogue.operations.iter().all(|operation| {
+        operation.application_id == CurrentApplicationId::Flow
+            && operation.operation_id != FlowHandoffInterventionOperationId::HandoffsList
+                || operation.application_id == CurrentApplicationId::Flow
+    }));
+""",
+    """    let catalogue = flow_handoff_intervention_operation_catalogue();
+    assert!(catalogue
+        .operations
+        .iter()
+        .all(|operation| operation.application_id == CurrentApplicationId::Flow));
+""",
+    "Current Flow operation ownership assertion",
+)
+
 subprocess.run(
     ["git", "rm", "--ignore-unmatch", str(ERROR_LOG.relative_to(ROOT))],
     cwd=ROOT,
