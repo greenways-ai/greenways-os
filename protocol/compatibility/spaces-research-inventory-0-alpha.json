@@ -86,6 +86,56 @@
       "kind": "generic-prose",
       "classification": null,
       "reason": "Ordinary description of a human activity in the developer home surface; it is not a Research application, package, route, command, schema, record, handoff, or public-work identity."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "pub const RESEARCH_APPLICATION_ID: &str = \"research\";",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "Research,",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "(LegacyApplicationId::Research, CurrentApplicationId::Spaces)",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "legacy_application_id: LegacyApplicationId::Research,",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json",
+      "lineText": "\"legacyApplicationId\": \"research\",",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
     }
   ]
 }
