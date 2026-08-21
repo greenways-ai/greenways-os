@@ -26,48 +26,41 @@ jobs:
           from pathlib import Path
 
           path = Path('crates/greenways-workspace-contracts/src/flow.rs')
-          source = path.read_text(encoding='utf-8')
-          old = '''        if self.state == FlowProjectState::Completed {
-              if self.work.is_empty()
-                  || self
-                      .work
-                      .iter()
-                      .any(|work| !work.state.allows_project_completion())
-                  || self
-                      .buildouts
-                      .iter()
-                      .any(|buildout| !buildout.state.allows_project_completion())
-              {
-                  return Err(ContractError::new(
-                      "incomplete-flow-project",
-                      "Completed Flow projects require terminal work and buildouts",
-                  ));
-              }
-          }
-          '''
-          new = '''        if self.state == FlowProjectState::Completed
-              && (self.work.is_empty()
-                  || self
-                      .work
-                      .iter()
-                      .any(|work| !work.state.allows_project_completion())
-                  || self
-                      .buildouts
-                      .iter()
-                      .any(|buildout| !buildout.state.allows_project_completion()))
-          {
-              return Err(ContractError::new(
-                  "incomplete-flow-project",
-                  "Completed Flow projects require terminal work and buildouts",
-              ));
-          }
-          '''
-          if source.count(old) != 1:
-              raise SystemExit('expected exactly one completed-project predicate')
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          lines = path.read_text(encoding='utf-8').splitlines()
+          start_line = '        if self.state == FlowProjectState::Completed {'
+          try:
+              start = lines.index(start_line)
+              ok = lines.index('        Ok(())', start)
+          except ValueError as error:
+              raise SystemExit(f'completed-project predicate anchor missing: {error}')
+          end = ok - 2
+          if end <= start or lines[end] != '        }' or lines[end - 1] != '            }':
+              raise SystemExit('completed-project predicate boundary changed')
+          replacement = [
+              '        if self.state == FlowProjectState::Completed',
+              '            && (self.work.is_empty()',
+              '                || self',
+              '                    .work',
+              '                    .iter()',
+              '                    .any(|work| !work.state.allows_project_completion())',
+              '                || self',
+              '                    .buildouts',
+              '                    .iter()',
+              '                    .any(|buildout| !buildout.state.allows_project_completion()))',
+              '        {',
+              '            return Err(ContractError::new(',
+              '                "incomplete-flow-project",',
+              '                "Completed Flow projects require terminal work and buildouts",',
+              '            ));',
+              '        }',
+          ]
+          lines[start : end + 1] = replacement
+          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
       - name: Format recovered Rust contracts
         run: cargo +1.85.1 fmt --all
+      - name: Remove the temporary publisher before closing the inventory
+        run: git rm .github/workflows/a3-flow-project-recovery.yml
       - name: Regenerate the exact closed compatibility findings
         run: |
           python3 - <<'PY'
@@ -106,7 +99,6 @@ jobs:
           import subprocess
 
           allowed = {
-              '.github/workflows/a3-flow-project-recovery.yml',
               'crates/greenways-workspace-contracts/src/flow.rs',
               'crates/greenways-workspace-contracts/src/lib.rs',
               'crates/greenways-workspace-contracts/tests/flow_project_contract.rs',
@@ -145,7 +137,6 @@ jobs:
             crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json \
             docs/flow-project-contract.md \
             protocol/compatibility/flow-build-foreman-inventory-0-alpha.json
-          git rm .github/workflows/a3-flow-project-recovery.yml
           git diff --cached --check
           git commit -m "Publish the recovered Flow project foundation"
           git push origin HEAD:agent/flow-project-foundation-repair
