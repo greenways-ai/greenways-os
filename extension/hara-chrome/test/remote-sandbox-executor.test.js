@@ -2,163 +2,293 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  REMOTE_SANDBOX_EXECUTION_OPERATIONS,
   buildBoundCall,
   createRemoteSandboxExecutor,
   projectRemoteValue,
 } from "../src/remote-sandbox-executor.js";
-import { testDescriptor, testRequest } from "./remote-host-fixtures.js";
+import {
+  TEST_REQUEST_ID,
+  TEST_SOURCE_DIGEST,
+  testDescriptor,
+  testRequest,
+} from "./remote-host-fixtures.js";
 
-function callRequest(overrides = {}) {
-  return testRequest({
-    operation: "sandbox.call",
-    namespace: "std.foundation",
-    symbol: "+",
-    arguments: [40, 2],
-    source: undefined,
+function restrictedDescriptor(overrides = {}) {
+  return testDescriptor({
+    operations: ["runtime.get", ...REMOTE_SANDBOX_EXECUTION_OPERATIONS],
     ...overrides,
   });
 }
 
-function cancellable(value, { delayMs = 0 } = {}) {
-  let timer = null;
-  let rejectPending;
-  const promise = new Promise((resolve, reject) => {
-    rejectPending = reject;
-    timer = setTimeout(() => resolve(value), delayMs);
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
   });
+  promise.cancelled = false;
   promise.cancel = () => {
-    if (timer !== null) clearTimeout(timer);
-    rejectPending(Object.assign(new Error("cancelled"), { name: "AbortError", code: "remote/cancelled" }));
-    return true;
+    promise.cancelled = true;
+    reject(new Error("cancelled"));
   };
-  return promise;
+  return { promise, resolve, reject };
 }
 
-function harness({ value = 42, delayMs = 0, closeError = null } = {}) {
-  const runtimes = [];
+async function eventually(predicate, timeoutMs = 1_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = predicate();
+    if (value) return value;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error(`condition was not met within ${timeoutMs}ms`);
+}
+
+function executorHarness({ value = 42, closeFails = false, pending = null, ...overrides } = {}) {
   const calls = [];
+  const workers = [];
+  const runtimes = [];
+  let sequence = 0;
   const executor = createRemoteSandboxExecutor({
-    createRuntime: async ({ request }) => {
+    now: () => new Date(`2026-08-21T00:00:00.${String(sequence++).padStart(3, "0")}Z`),
+    digestSource: async () => TEST_SOURCE_DIGEST,
+    async createRuntime({ request, signal }) {
       const worker = {
-        terminated: 0,
-        terminate() { this.terminated += 1; },
+        name: request.requestId,
+        terminated: false,
+        terminate() { this.terminated = true; },
       };
       const context = {
-        closed: 0,
+        calls,
         call(target, args) {
-          calls.push({ requestId: request.requestId, target, args });
-          const pending = cancellable(value, { delayMs });
-          runtime.pending = pending;
-          return pending;
+          calls.push({ target, args, signal });
+          return pending?.promise ?? Promise.resolve(value);
         },
         async close() {
-          this.closed += 1;
-          if (closeError) throw closeError;
+          if (closeFails) throw new Error("close failed");
         },
       };
-      const runtime = { requestId: request.requestId, worker, context, pending: null };
+      workers.push(worker);
+      const runtime = { worker, context };
       runtimes.push(runtime);
       return runtime;
     },
+    ...overrides,
   });
-  return { executor, runtimes, calls };
+  return { executor, calls, workers, runtimes };
 }
 
-test("each remote execution gets a fresh runtime and deterministic cleanup", async () => {
-  const fixture = harness();
-  const descriptor = testDescriptor({ backend: "rust-wasm", haraVersion: "test-hara" });
-  const firstRequest = testRequest();
-  const secondRequest = testRequest({ requestId: "00000000-0000-4000-8000-000000000172" });
+test("eval executes in one fresh runtime and returns exact bound evidence", async () => {
+  const { executor, calls, workers } = executorHarness({ value: 42 });
+  const descriptor = restrictedDescriptor();
+  const result = await executor.execute(testRequest(), { descriptor });
 
-  const first = await fixture.executor.execute(firstRequest, { descriptor });
-  const second = await fixture.executor.execute(secondRequest, { descriptor });
-
-  assert.equal(fixture.runtimes.length, 2);
-  assert.notEqual(fixture.runtimes[0], fixture.runtimes[1]);
-  for (const runtime of fixture.runtimes) {
-    assert.equal(runtime.context.closed, 1);
-    assert.equal(runtime.worker.terminated, 1);
-  }
-  assert.equal(first.status, "completed");
-  assert.deepEqual(first.value, { text: "42", json: 42 });
-  assert.equal(first.evidence.cleanup, "completed");
-  assert.equal(second.status, "completed");
+  assert.equal(result.status, "completed");
+  assert.deepEqual(result.value, { text: "42", json: 42 });
+  assert.equal(result.runtime.hostId, descriptor.hostId);
+  assert.equal(result.runtime.hostGeneration, descriptor.generation);
+  assert.equal(result.evidence.sourceDigest, TEST_SOURCE_DIGEST);
+  assert.equal(result.evidence.cleanup, "completed");
+  assert.deepEqual(calls.map(({ target, args }) => ({ target, args })), [
+    { target: "eval", args: ["(+ 40 2)"] },
+  ]);
+  assert.equal(workers[0].terminated, true);
+  assert.equal(executor.active(), 0);
+  await executor.close();
 });
 
-test("sandbox.eval forwards the exact source without trusted broker indirection", async () => {
-  const fixture = harness();
-  const request = testRequest({ source: "(+ 19 23)" });
-  await fixture.executor.execute(request, { descriptor: testDescriptor() });
-  assert.deepEqual(fixture.calls, [{
-    requestId: request.requestId,
-    target: "eval",
-    args: ["(+ 19 23)"],
-  }]);
-});
-
-test("sandbox.call transports arguments through eval-bound placeholders instead of source interpolation", async () => {
-  const request = callRequest({ arguments: ["secret value", { nested: [1, 2] }] });
-  const bound = buildBoundCall(request);
-  assert.equal(bound.source, "(std.foundation/+ __hta_arg_0 __hta_arg_1)");
-  assert.equal(bound.source.includes("secret value"), false);
-  assert.deepEqual(bound.bindings, request.arguments);
-
-  const fixture = harness({ value: 42 });
-  await fixture.executor.execute(request, { descriptor: testDescriptor() });
-  assert.equal(fixture.calls[0].target, "eval-bound");
-  assert.equal(fixture.calls[0].args[0], bound.source);
-  assert.deepEqual(fixture.calls[0].args[1], request.arguments);
-});
-
-test("AbortSignal cancels the active HTA call and returns a cancelled terminal result", async () => {
-  const fixture = harness({ delayMs: 5_000 });
-  const controller = new AbortController();
-  const pending = fixture.executor.execute(testRequest(), {
-    descriptor: testDescriptor(),
-    signal: controller.signal,
+test("qualified call uses eval-bound placeholders, transfer-safe bindings, and its optional source", async () => {
+  const value = new Map([["answer", 42]]);
+  const { executor, calls } = executorHarness({ value });
+  const request = testRequest({
+    operation: "sandbox.call",
+    namespace: "example.core",
+    symbol: "add",
+    arguments: [40, 2],
+    source: "(ns example.core)",
   });
-  setTimeout(() => controller.abort("client-cancelled"), 5);
-  const result = await pending;
+  const result = await executor.execute(request, { descriptor: restrictedDescriptor() });
+
+  assert.equal(result.status, "completed");
+  assert.deepEqual(result.value, { text: "{\"answer\" 42}", json: { answer: 42 } });
+  assert.deepEqual(calls.map(({ target, args }) => ({ target, args })), [
+    {
+      target: "eval-bound",
+      args: ["(ns example.core)\n(example.core/add __hta_arg_0 __hta_arg_1)", [40, 2]],
+    },
+  ]);
+  await executor.close();
+});
+
+test("qualified call target syntax fails closed before source construction", () => {
+  assert.throws(
+    () => buildBoundCall({
+      operation: "sandbox.call",
+      namespace: "std.foundation)(browser.dom/read",
+      symbol: "+",
+      arguments: [],
+    }),
+    (error) => error.code === "remote/call-target-invalid",
+  );
+  assert.throws(
+    () => buildBoundCall({
+      operation: "sandbox.call",
+      namespace: "std.foundation",
+      symbol: "+)(browser.dom/read",
+      arguments: [],
+    }),
+    (error) => error.code === "remote/call-target-invalid",
+  );
+});
+
+test("source digest mismatch fails before a runtime is created", async () => {
+  const { executor, runtimes } = executorHarness({
+    digestSource: async () => `sha256:${"3".repeat(64)}`,
+  });
+  const result = await executor.execute(testRequest(), { descriptor: restrictedDescriptor() });
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.diagnostics[0].code, "remote/source-digest-mismatch");
+  assert.equal(result.evidence.cleanup, "uncertain");
+  assert.equal(runtimes.length, 0);
+  await executor.close();
+});
+
+test("descriptor state, bounds, and advertised operations remain truthful", async () => {
+  const { executor } = executorHarness();
+  await assert.rejects(
+    executor.execute(testRequest(), { descriptor: restrictedDescriptor({ state: "degraded" }) }),
+    (error) => error.code === "remote/host-incompatible",
+  );
+  await assert.rejects(
+    executor.execute(testRequest(), { descriptor: testDescriptor() }),
+    (error) => error.code === "remote/host-incompatible",
+  );
+  await assert.rejects(
+    executor.execute(testRequest(), {
+      descriptor: restrictedDescriptor({
+        limits: { maxSourceBytes: 65_536, maxOutputBytes: 1_048_576, maxWallMs: 1 },
+      }),
+    }),
+    (error) => error.code === "remote/limit-exceeded",
+  );
+  await executor.close();
+});
+
+test("duplicate request ID is reserved before asynchronous runtime creation", async () => {
+  const gate = deferred();
+  let factoryCalls = 0;
+  const executor = createRemoteSandboxExecutor({
+    digestSource: async () => TEST_SOURCE_DIGEST,
+    async createRuntime() {
+      factoryCalls += 1;
+      await gate.promise;
+      return {
+        worker: { terminate() {} },
+        context: {
+          call() { return Promise.resolve(42); },
+          async close() {},
+        },
+      };
+    },
+  });
+  const descriptor = restrictedDescriptor();
+  const first = executor.execute(testRequest(), { descriptor });
+  await eventually(() => factoryCalls === 1);
+  assert.equal(executor.active(), 1);
+  await assert.rejects(
+    executor.execute(testRequest(), { descriptor }),
+    (error) => error.code === "remote/request-busy",
+  );
+  assert.equal(factoryCalls, 1);
+  gate.resolve();
+  assert.equal((await first).status, "completed");
+  await executor.close();
+});
+
+test("direct executor cancellation settles the active request as cancelled", async () => {
+  const pending = deferred();
+  const { executor, workers } = executorHarness({ pending });
+  const running = executor.execute(testRequest(), { descriptor: restrictedDescriptor() });
+  await eventually(() => workers.length === 1);
+  assert.equal(executor.active(), 1);
+  assert.equal(await executor.cancel(TEST_REQUEST_ID, "client-cancelled"), true);
+  const result = await running;
 
   assert.equal(result.status, "cancelled");
-  assert.equal(result.evidence.cleanup, "completed");
-  assert.equal(fixture.runtimes[0].worker.terminated, 1);
-  assert.match(result.diagnostics[0].code, /cancelled/u);
+  assert.equal(result.diagnostics[0].code, "remote/cancelled");
+  assert.equal(pending.promise.cancelled, true);
+  assert.equal(workers[0].terminated, true);
+  assert.equal(await executor.cancel(TEST_REQUEST_ID), false);
+  await executor.close();
 });
 
-test("request wall limit cancels the HTA call and returns timed-out", async () => {
-  const fixture = harness({ delayMs: 5_000 });
-  const request = testRequest({ limits: { wallMs: 5, outputBytes: 262_144 } });
-  const result = await fixture.executor.execute(request, { descriptor: testDescriptor() });
-  assert.equal(result.status, "timed-out");
-  assert.equal(result.evidence.cleanup, "completed");
-});
-
-test("non-transferable runtime handles fail closed instead of leaking native identity", async () => {
-  const fixture = harness({ value: { constructor: { name: "HtaHandle" }, id: 99n, owner: "runtime" } });
-  const result = await fixture.executor.execute(testRequest(), { descriptor: testDescriptor() });
-  assert.equal(result.status, "failed");
-  assert.equal(result.value, null);
-  assert.equal(result.diagnostics[0].code, "remote/result-not-transferable");
-  assert.equal(JSON.stringify(result).includes("99"), false);
-  assert.equal(JSON.stringify(result).includes("runtime"), true); // runtime evidence is expected; handle identity is not.
-});
-
-test("cleanup uncertainty is reported when context closure cannot be verified", async () => {
-  const fixture = harness({ closeError: new Error("close failed") });
-  const result = await fixture.executor.execute(testRequest(), { descriptor: testDescriptor() });
-  assert.equal(result.status, "completed");
-  assert.equal(result.evidence.cleanup, "uncertain");
-  assert.equal(fixture.runtimes[0].worker.terminated, 1);
-});
-
-test("transfer projection is JSON only for safe values and enforces output bounds", () => {
-  assert.deepEqual(projectRemoteValue(new Map([["answer", 42]]), 1024), {
-    text: "{\"answer\" 42}",
-    json: { answer: 42 },
+test("wall timeout cancels the pending task and releases the runtime", async () => {
+  const pending = deferred();
+  const { executor, workers } = executorHarness({
+    pending,
+    setTimeoutImpl: (callback) => setImmediate(callback),
+    clearTimeoutImpl: (handle) => clearImmediate(handle),
   });
+  const result = await executor.execute(testRequest({ limits: { wallMs: 5, outputBytes: 262_144 } }), {
+    descriptor: restrictedDescriptor(),
+  });
+
+  assert.equal(result.status, "timed-out");
+  assert.equal(result.diagnostics[0].code, "remote/timed-out");
+  assert.equal(pending.promise.cancelled, true);
+  assert.equal(workers[0].terminated, true);
+  assert.equal(executor.active(), 0);
+  await executor.close();
+});
+
+test("cleanup failure is reported as uncertain without changing the completed value", async () => {
+  const { executor } = executorHarness({ value: true, closeFails: true });
+  const result = await executor.execute(testRequest(), { descriptor: restrictedDescriptor() });
+  assert.equal(result.status, "completed");
+  assert.deepEqual(result.value, { text: "true", json: true });
+  assert.equal(result.evidence.cleanup, "uncertain");
+  await executor.close();
+});
+
+test("output projection rejects unsupported and oversized values and preserves prototype-like keys", () => {
   assert.throws(
-    () => projectRemoteValue("x".repeat(100), 8),
+    () => projectRemoteValue({ privileged: true }, 1_024),
+    (error) => error.code === "remote/result-not-transferable",
+  );
+  assert.throws(
+    () => projectRemoteValue("x".repeat(256), 16),
     (error) => error.code === "remote/limit-exceeded",
+  );
+  const projection = projectRemoteValue(new Map([["__proto__", 42]]), 1_024);
+  assert.equal(Object.getPrototypeOf(projection.json), Object.prototype);
+  assert.equal(Object.hasOwn(projection.json, "__proto__"), true);
+  assert.equal(projection.json.__proto__, 42);
+});
+
+test("unsupported check requests fail before runtime creation", async () => {
+  const { executor, runtimes } = executorHarness();
+  const result = await executor.execute(testRequest({
+    operation: "sandbox.check",
+    checkProfile: "reader",
+  }), {
+    descriptor: restrictedDescriptor({
+      operations: ["runtime.get", "sandbox.eval", "sandbox.call"],
+    }),
+  }).catch((error) => error);
+  assert.equal(result.code, "remote/operation-unsupported");
+  assert.equal(runtimes.length, 0);
+  await executor.close();
+});
+
+test("new request after close is rejected and close is idempotent", async () => {
+  const { executor } = executorHarness();
+  await executor.close();
+  await executor.close();
+  await assert.rejects(
+    executor.execute(testRequest(), { descriptor: restrictedDescriptor() }),
+    (error) => error.code === "remote/executor-closed",
   );
 });
