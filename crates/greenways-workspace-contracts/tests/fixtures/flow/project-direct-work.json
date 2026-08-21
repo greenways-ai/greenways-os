@@ -1,0 +1,49 @@
+{
+  "protocol": "greenways.flow.project/0-alpha",
+  "applicationId": "flow",
+  "applicationRevision": "0.1.0",
+  "projectId": "project/flow-direct-work",
+  "revision": 3,
+  "title": "Prepare the current suite release proof",
+  "summary": "A Flow project with direct work and no optional buildout grouping.",
+  "state": "active",
+  "createdAtUnixMs": 1787270400000,
+  "updatedAtUnixMs": 1787274000000,
+  "sourceReferences": [
+    {
+      "protocol": "greenways.reference.shared/0-alpha",
+      "applicationId": "spaces",
+      "applicationRevision": "0.1.0",
+      "ownerApplicationId": "spaces",
+      "ownerKind": "space",
+      "ownerId": "space/gate0-current-suite",
+      "recordKind": "question",
+      "logicalId": "question/gate0-flow-contract",
+      "exactRoot": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "observedRevision": 1,
+      "observedAtUnixMs": 1700000000000,
+      "freshness": "current",
+      "authorityState": "resolution-required",
+      "authorityTransfer": false,
+      "summary": "Gate 0 suite contract question",
+      "detail": "Selected context only; no Space authority is transferred."
+    }
+  ],
+  "evidenceReferences": [],
+  "work": [
+    {
+      "protocol": "greenways.flow.work-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-direct-work",
+      "workId": "work/flow-direct-001",
+      "revision": 2,
+      "title": "Assemble exact release evidence",
+      "summary": "Collect current-suite fixtures, checks, and immutable revision evidence.",
+      "state": "ready",
+      "buildoutId": null,
+      "exactRoot": null
+    }
+  ],
+  "buildouts": []
+}

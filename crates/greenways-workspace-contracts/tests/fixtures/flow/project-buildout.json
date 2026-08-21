@@ -1,0 +1,98 @@
+{
+  "protocol": "greenways.flow.project/0-alpha",
+  "applicationId": "flow",
+  "applicationRevision": "0.1.0",
+  "projectId": "project/flow-control-room",
+  "revision": 7,
+  "title": "Flow Project Control Room foundation",
+  "summary": "A Flow project whose related work is grouped by one optional buildout.",
+  "state": "active",
+  "createdAtUnixMs": 1787270400000,
+  "updatedAtUnixMs": 1787277600000,
+  "sourceReferences": [
+    {
+      "protocol": "greenways.reference.shared/0-alpha",
+      "applicationId": "spaces",
+      "applicationRevision": "0.1.0",
+      "ownerApplicationId": "spaces",
+      "ownerKind": "space",
+      "ownerId": "space/gate0-current-suite",
+      "recordKind": "question",
+      "logicalId": "question/gate0-flow-contract",
+      "exactRoot": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "observedRevision": 1,
+      "observedAtUnixMs": 1700000000000,
+      "freshness": "current",
+      "authorityState": "resolution-required",
+      "authorityTransfer": false,
+      "summary": "Gate 0 suite contract question",
+      "detail": "Selected context only; no Space authority is transferred."
+    }
+  ],
+  "evidenceReferences": [
+    {
+      "protocol": "greenways.reference.shared/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "ownerApplicationId": "flow",
+      "ownerKind": "project",
+      "ownerId": "project/gate0-current-suite",
+      "recordKind": "result",
+      "logicalId": "result/gate0-spaces-return",
+      "exactRoot": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "observedRevision": 1,
+      "observedAtUnixMs": 1700000000000,
+      "freshness": "current",
+      "authorityState": "resolution-required",
+      "authorityTransfer": false,
+      "summary": "Gate 0 Flow result",
+      "detail": "Selected result only; no project authority is transferred."
+    }
+  ],
+  "work": [
+    {
+      "protocol": "greenways.flow.work-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "workId": "work/flow-control-room-model",
+      "revision": 4,
+      "title": "Freeze the project read model",
+      "summary": "Define the bounded project, work, buildout, and evidence composition.",
+      "state": "completed",
+      "buildoutId": "buildout/flow-control-room",
+      "exactRoot": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "protocol": "greenways.flow.work-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "workId": "work/flow-control-room-actions",
+      "revision": 2,
+      "title": "Specify truthful management actions",
+      "summary": "Keep later approve, resume, handoff, and record-opening actions evidence-backed.",
+      "state": "running",
+      "buildoutId": "buildout/flow-control-room",
+      "exactRoot": null
+    }
+  ],
+  "buildouts": [
+    {
+      "protocol": "greenways.flow.buildout-reference/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "buildoutId": "buildout/flow-control-room",
+      "revision": 3,
+      "title": "Control Room contract buildout",
+      "summary": "Optional grouping for the current Project Control Room contract work.",
+      "state": "active",
+      "workIds": [
+        "work/flow-control-room-model",
+        "work/flow-control-room-actions"
+      ],
+      "exactRoot": null
+    }
+  ]
+}
