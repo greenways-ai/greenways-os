@@ -95,3 +95,7 @@ This slice does not add:
 - Imagine or World discovery.
 
 Those surfaces may consume the contract only after this record and operation inventory is merged. Host adoption must preserve exact application/revision identity, expected-revision concurrency, exact-request idempotency, and the existing authority boundary.
+
+## Recovery validation
+
+The self-cleaning recovery publisher completed in Actions run `32454905901`, job `96690216342`. It applied the reviewed lifecycle correction, ran the complete workspace-contract test suite, denied all Clippy warnings, validated every canonical JSON fixture, regenerated and verified the closed compatibility findings from the final source tree, enforced the exact eight-file review surface, and removed its temporary workflow before publishing head `beeb26b8ce4b6a145fbfa4bc1fc68bc2425bfb12`.
