@@ -1,11 +1,11 @@
 mod desktop;
 
 mod legacy {
-    include!("legacy.rs");
-
     pub(super) fn dispatch() {
         main();
     }
+
+    include!("legacy.rs");
 }
 
 fn main() {
