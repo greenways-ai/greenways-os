@@ -1,0 +1,154 @@
+name: A4 Flow Control Room branch materializer
+
+on:
+  push:
+    branches:
+      - agent/flow-project-control-room-contract
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/flow-project-control-room-contract
+          fetch-depth: 0
+      - name: Fetch current main
+        run: git fetch origin main
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
+      - name: Close the crate export and remove temporary branch files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lib = Path('crates/greenways-workspace-contracts/src/lib.rs')
+          source = lib.read_text(encoding='utf-8')
+          if 'mod flow_control_room;\n' not in source:
+              source = source.replace('mod flow;\n', 'mod flow;\nmod flow_control_room;\n', 1)
+          if 'pub use flow_control_room::*;\n' not in source:
+              source = source.replace('pub use flow::*;\n', 'pub use flow::*;\npub use flow_control_room::*;\n', 1)
+          lib.write_text(source, encoding='utf-8')
+
+          test = Path('crates/greenways-workspace-contracts/tests/flow_project_control_room.rs')
+          test_source = test.read_text(encoding='utf-8')
+          test.write_text(
+              test_source.replace('        "greenways/build",\n', ''),
+              encoding='utf-8',
+          )
+
+          Path('crates/greenways-workspace-contracts/src/lib.control-room.fragment').unlink(
+              missing_ok=True
+          )
+          Path('.github/workflows/a4-flow-control-room-materializer.yml').unlink()
+          PY
+      - name: Format the owned Rust source
+        run: cargo +1.85.1 fmt --all
+      - name: Refresh the closed compatibility inventory
+        run: |
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import runpy
+          import subprocess
+          from pathlib import Path
+
+          root = Path.cwd()
+          checker = runpy.run_path(
+              str(root / 'scripts/check-flow-build-foreman-inventory.py')
+          )
+          findings, forbidden, counts = checker['scan_findings']()
+          if forbidden:
+              raise SystemExit(
+                  'forbidden current Build identity found:\n' + '\n'.join(forbidden)
+              )
+
+          path = root / 'protocol/compatibility/flow-build-foreman-inventory-0-alpha.json'
+          inventory = json.loads(path.read_text(encoding='utf-8'))
+          inventory['findings'] = findings
+          inventory['reviewedThrough'] = {
+              'slice': 'agent-1-a4-flow-project-control-room-contract',
+              'baseCommit': subprocess.check_output(
+                  ['git', 'merge-base', 'HEAD', 'origin/main'],
+                  cwd=root,
+                  text=True,
+              ).strip(),
+              'trackedUtf8Files': counts['textFiles'],
+              'closedFindings': counts['findings'],
+          }
+          path.write_text(
+              json.dumps(inventory, indent=2, ensure_ascii=False) + '\n',
+              encoding='utf-8',
+          )
+          PY
+      - name: Validate the complete A4.1 contract
+        run: |
+          set -euo pipefail
+          python3 scripts/check-flow-build-foreman-inventory.py
+          cargo +1.85.1 fmt --all -- --check
+          cargo +1.85.1 test -p greenways-workspace-contracts
+          cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
+          python3 -m json.tool \
+            protocol/compatibility/flow-build-foreman-inventory-0-alpha.json \
+            >/dev/null
+          python3 -m json.tool \
+            crates/greenways-workspace-contracts/tests/fixtures/flow/project-control-room-buildout.json \
+            >/dev/null
+          git diff --check
+      - name: Enforce the exact review surface
+        run: |
+          python3 - <<'PY'
+          import subprocess
+
+          expected = {
+              'crates/greenways-workspace-contracts/src/flow_control_room.rs',
+              'crates/greenways-workspace-contracts/src/lib.rs',
+              'crates/greenways-workspace-contracts/tests/flow_project_control_room.rs',
+              'crates/greenways-workspace-contracts/tests/fixtures/flow/project-control-room-buildout.json',
+              'docs/flow-project-control-room-contract.md',
+              'protocol/compatibility/flow-build-foreman-inventory-0-alpha.json',
+          }
+          actual = {
+              line
+              for line in subprocess.check_output(
+                  ['git', 'diff', '--name-only', 'origin/main'], text=True
+              ).splitlines()
+              if line
+          }
+          if actual != expected:
+              raise SystemExit(
+                  'A4.1 review surface mismatch\nexpected: '
+                  + repr(sorted(expected))
+                  + '\nactual: '
+                  + repr(sorted(actual))
+              )
+          for helper in [
+              '.github/workflows/a4-flow-control-room-materializer.yml',
+              'crates/greenways-workspace-contracts/src/lib.control-room.fragment',
+          ]:
+              if subprocess.run(['test', '-e', helper]).returncode == 0:
+                  raise SystemExit(f'temporary helper survived: {helper}')
+          PY
+      - name: Publish one self-cleaning branch commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            crates/greenways-workspace-contracts/src/flow_control_room.rs \
+            crates/greenways-workspace-contracts/src/lib.rs \
+            crates/greenways-workspace-contracts/tests/flow_project_control_room.rs \
+            crates/greenways-workspace-contracts/tests/fixtures/flow/project-control-room-buildout.json \
+            docs/flow-project-control-room-contract.md \
+            protocol/compatibility/flow-build-foreman-inventory-0-alpha.json
+          git rm --ignore-unmatch -- \
+            .github/workflows/a4-flow-control-room-materializer.yml \
+            crates/greenways-workspace-contracts/src/lib.control-room.fragment
+          git diff --cached --check
+          git commit -m "Define the Flow Project Control Room contract"
+          git push origin HEAD:agent/flow-project-control-room-contract
