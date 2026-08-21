@@ -1,0 +1,44 @@
+name: A2 materializer source inspection
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/flow-foreman-compatibility'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Decode the reviewed materializer source
+        run: |
+          python3 - <<'PY'
+          import ast
+          import base64
+          import pathlib
+          import re
+          import zlib
+
+          wrapper = pathlib.Path('.github/a2-materialize-flow-foreman.py').read_text(encoding='utf-8')
+          match = re.search(r"b85decode\((?P<literal>'(?:\\.|[^'])*')\)", wrapper, re.DOTALL)
+          if match is None:
+              raise SystemExit('materializer payload literal not found')
+          payload = ast.literal_eval(match.group('literal'))
+          decoded = zlib.decompress(base64.b85decode(payload))
+          pathlib.Path('a2-materializer-decoded.py').write_bytes(decoded)
+          compile(decoded, 'a2-materializer-decoded.py', 'exec')
+          print(f'decoded {len(decoded)} bytes')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a2-materializer-decoded
+          path: a2-materializer-decoded.py
+          if-no-files-found: error
