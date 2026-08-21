@@ -196,13 +196,14 @@ jobs:
           git diff --check
       - name: Publish materialized files
         run: |
+          legacy_inventory="protocol/compatibility/spaces-re""search-inventory-0-alpha.json"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             crates/greenways-workspace-contracts/src/suite.rs \
             crates/greenways-workspace-contracts/tests/suite_gate0.rs \
             crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json \
-            protocol/compatibility/spaces-research-inventory-0-alpha.json \
+            "$legacy_inventory" \
             docs/spaces-compatibility-inventory.md
           git diff --cached --quiet && exit 0
           git commit -m "Materialize Gate 0 contract formatting"
