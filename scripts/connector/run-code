@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scope="${1:?usage: scripts/connector/run-code <daemon|extension|services|desktop|contracts>}"
+
+case "$scope" in
+  daemon)
+    cargo +1.85.1 fmt --all --check
+    cargo +1.85.1 test --workspace --all-targets
+    cargo +1.85.1 clippy --workspace --all-targets -- -D warnings
+    ;;
+  extension)
+    if grep -R -E --include='*.hal' -n \
+      -e '\(ns[[:space:]]+greenways\.' \
+      -e '\[[[:space:]]*greenways\.' \
+      -e '\([[:space:]]*greenways\.' \
+      -e '[[:space:]]greenways\.[A-Za-z0-9_.-]+/' \
+      .; then
+      echo "Legacy greenways.* HAL namespace found" >&2
+      exit 1
+    fi
+    npm --prefix extension ci
+    npm --prefix extension test
+    npm --prefix extension run build
+    npm --prefix extension run build:web
+    npm --prefix extension/hara-chrome ci
+    make -C extension/hara-chrome test-fast
+    ;;
+  services)
+    npm --prefix services/home-node test
+    npm --prefix services/mcp-gateway ci
+    npm --prefix services/mcp-gateway run check
+    npm --prefix services/identity test
+    npm --prefix services/packages ci
+    npm --prefix services/packages test
+    npm --prefix services/assets ci
+    npm --prefix services/assets run check
+    npm --prefix services/devtools-node ci
+    npm --prefix services/devtools-node test
+    npm --prefix services/browser-bridge ci
+    npm --prefix services/browser-bridge test
+    ;;
+  desktop)
+    cargo +1.85.1 test -p greenways-desktop-bridge -p greenways-browser-bridge-host --all-targets
+    cargo +1.85.1 clippy -p greenways-desktop-bridge -p greenways-browser-bridge-host --all-targets -- -D warnings
+    flutter config --enable-linux-desktop
+    (
+      cd apps/greenways_desktop
+      flutter --suppress-analytics pub get
+      flutter --suppress-analytics analyze
+      flutter --suppress-analytics test
+    )
+    ;;
+  contracts)
+    git diff --check
+    python3 -m compileall -q scripts
+    python3 scripts/check-flow-build-foreman-inventory.py
+    python3 scripts/check-spaces-compatibility-inventory.py
+    python3 scripts/check-workspace-fixtures.py
+    if grep -R -E --include='*.hal' -n \
+      -e '\(ns[[:space:]]+greenways\.' \
+      -e '\[[[:space:]]*greenways\.' \
+      -e '\([[:space:]]*greenways\.' \
+      -e '[[:space:]]greenways\.[A-Za-z0-9_.-]+/' \
+      .; then
+      echo "Legacy greenways.* HAL namespace found" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    printf 'unknown connector scope: %s\n' "$scope" >&2
+    exit 64
+    ;;
+esac

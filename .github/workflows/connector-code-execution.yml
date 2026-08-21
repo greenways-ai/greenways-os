@@ -1,0 +1,243 @@
+name: Connector code execution
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - 'agent/**'
+      - 'chat/**'
+      - 'codex/**'
+      - 'copilot/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-code-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    outputs:
+      daemon: ${{ steps.scope.outputs.daemon }}
+      extension: ${{ steps.scope.outputs.extension }}
+      services: ${{ steps.scope.outputs.services }}
+      desktop: ${{ steps.scope.outputs.desktop }}
+      contracts: ${{ steps.scope.outputs.contracts }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate the committed connector contract
+        run: |
+          bash -n scripts/connector/detect-code-scope scripts/connector/run-code
+          scripts/connector/detect-code-scope --self-test
+      - name: Select executable scopes
+        id: scope
+        env:
+          CONNECTOR_BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+          CONNECTOR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+        run: scripts/connector/detect-code-scope
+
+  daemon:
+    needs: contract
+    if: needs.contract.outputs.daemon == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Execute daemon scope
+        run: scripts/connector/run-code daemon
+      - name: Record execution evidence
+        if: success()
+        run: |
+          mkdir -p connector-evidence
+          cat > connector-evidence/daemon.txt <<EOF
+          repository=greenways-ai/greenways-os
+          scope=daemon
+          base=${{ github.event.pull_request.base.sha || github.event.before || 'manual' }}
+          head=${{ github.sha }}
+          run=${{ github.run_id }}
+          attempt=${{ github.run_attempt }}
+          command=scripts/connector/run-code daemon
+          EOF
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: connector-daemon-${{ github.run_id }}-${{ github.run_attempt }}
+          path: connector-evidence/daemon.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  extension:
+    needs: contract
+    if: needs.contract.outputs.extension == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            extension/package-lock.json
+            extension/hara-chrome/package-lock.json
+      - name: Execute extension scope
+        run: scripts/connector/run-code extension
+      - name: Record execution evidence
+        if: success()
+        run: |
+          mkdir -p connector-evidence
+          cat > connector-evidence/extension.txt <<EOF
+          repository=greenways-ai/greenways-os
+          scope=extension
+          base=${{ github.event.pull_request.base.sha || github.event.before || 'manual' }}
+          head=${{ github.sha }}
+          run=${{ github.run_id }}
+          attempt=${{ github.run_attempt }}
+          command=scripts/connector/run-code extension
+          EOF
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: connector-extension-${{ github.run_id }}-${{ github.run_attempt }}
+          path: connector-evidence/extension.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  services:
+    needs: contract
+    if: needs.contract.outputs.services == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            services/browser-bridge/package-lock.json
+            services/mcp-gateway/package-lock.json
+            services/packages/package-lock.json
+            services/assets/package-lock.json
+            services/devtools-node/package-lock.json
+      - name: Execute services scope
+        run: scripts/connector/run-code services
+      - name: Record execution evidence
+        if: success()
+        run: |
+          mkdir -p connector-evidence
+          cat > connector-evidence/services.txt <<EOF
+          repository=greenways-ai/greenways-os
+          scope=services
+          base=${{ github.event.pull_request.base.sha || github.event.before || 'manual' }}
+          head=${{ github.sha }}
+          run=${{ github.run_id }}
+          attempt=${{ github.run_attempt }}
+          command=scripts/connector/run-code services
+          EOF
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: connector-services-${{ github.run_id }}-${{ github.run_attempt }}
+          path: connector-evidence/services.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop:
+    needs: contract
+    if: needs.contract.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt,clippy
+      - name: Execute desktop scope
+        run: scripts/connector/run-code desktop
+      - name: Record execution evidence
+        if: success()
+        run: |
+          mkdir -p connector-evidence
+          cat > connector-evidence/desktop.txt <<EOF
+          repository=greenways-ai/greenways-os
+          scope=desktop
+          base=${{ github.event.pull_request.base.sha || github.event.before || 'manual' }}
+          head=${{ github.sha }}
+          run=${{ github.run_id }}
+          attempt=${{ github.run_attempt }}
+          command=scripts/connector/run-code desktop
+          EOF
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: connector-desktop-${{ github.run_id }}-${{ github.run_attempt }}
+          path: connector-evidence/desktop.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  contracts:
+    needs: contract
+    if: needs.contract.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute contracts scope
+        run: scripts/connector/run-code contracts
+      - name: Record execution evidence
+        if: success()
+        run: |
+          mkdir -p connector-evidence
+          cat > connector-evidence/contracts.txt <<EOF
+          repository=greenways-ai/greenways-os
+          scope=contracts
+          base=${{ github.event.pull_request.base.sha || github.event.before || 'manual' }}
+          head=${{ github.sha }}
+          run=${{ github.run_id }}
+          attempt=${{ github.run_attempt }}
+          command=scripts/connector/run-code contracts
+          EOF
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: connector-contracts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: connector-evidence/contracts.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  evidence-gate:
+    if: always()
+    needs:
+      - contract
+      - daemon
+      - extension
+      - services
+      - desktop
+      - contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a truthful connector result
+        env:
+          CONTRACT: ${{ needs.contract.result }}
+          DAEMON: ${{ needs.daemon.result }}
+          EXTENSION: ${{ needs.extension.result }}
+          SERVICES: ${{ needs.services.result }}
+          DESKTOP: ${{ needs.desktop.result }}
+          CONTRACTS: ${{ needs.contracts.result }}
+        run: |
+          set -euo pipefail
+          test "$CONTRACT" = success
+          for result in "$DAEMON" "$EXTENSION" "$SERVICES" "$DESKTOP" "$CONTRACTS"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "unexpected connector scope result: $result" >&2; exit 1 ;;
+            esac
+          done

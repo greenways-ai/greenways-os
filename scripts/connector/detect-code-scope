@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCOPES=(daemon extension services desktop contracts)
+declare -A SELECTED=()
+
+reset_scopes() {
+  local scope
+  for scope in "${SCOPES[@]}"; do
+    SELECTED["$scope"]=false
+  done
+}
+
+mark() {
+  SELECTED["$1"]=true
+}
+
+mark_all() {
+  local scope
+  for scope in "${SCOPES[@]}"; do
+    mark "$scope"
+  done
+}
+
+classify_paths() {
+  local path known
+  for path in "$@"; do
+    known=false
+    case "$path" in
+      .github/workflows/connector-code-execution.yml|scripts/connector/run-code)
+        mark_all; known=true
+        ;;
+      .github/CHATGPT_PROJECT_WORKFLOW.md|scripts/connector/detect-code-scope|AGENTS.md)
+        known=true
+        ;;
+      Cargo.toml|Cargo.lock|crates/*|src/*|rust-toolchain|rust-toolchain.toml)
+        mark "daemon"; known=true
+        ;;
+      extension/*)
+        mark "extension"; known=true
+        ;;
+      services/*)
+        mark "services"; known=true
+        ;;
+      apps/greenways_desktop/*)
+        mark "desktop"; known=true
+        ;;
+      .hara/*|config/*|governance/*|fixtures/*|scripts/*|packages/*)
+        mark "contracts"; known=true
+        ;;
+      .github/workflows/*|Makefile)
+        mark_all; known=true
+        ;;
+      docs/*|README.md|CONTRIBUTING.md|CHANGELOG.md|LICENSE|LICENSE-*|*.md|.gitignore|.editorconfig|.github/ISSUE_TEMPLATE/*|.github/PULL_REQUEST_TEMPLATE*)
+        known=true
+        ;;
+    esac
+    if [[ "$known" != true ]]; then
+      printf 'Unclassified path %s; selecting all executable scopes.\n' "$path" >&2
+      mark_all
+    fi
+  done
+}
+
+expect_scope() {
+  local scope="$1" expected="$2"
+  if [[ "${SELECTED[$scope]}" != "$expected" ]]; then
+    printf 'Expected %s=%s, got %s\n' "$scope" "$expected" "${SELECTED[$scope]}" >&2
+    exit 1
+  fi
+}
+
+self_test() {
+  reset_scopes; classify_paths "crates/greenways-daemon/src/main.rs"
+  expect_scope daemon true; expect_scope extension false; expect_scope services false; expect_scope desktop false; expect_scope contracts false
+  reset_scopes; classify_paths "extension/src/background.ts"
+  expect_scope extension true; expect_scope daemon false
+  reset_scopes; classify_paths "services/mcp-gateway/src/index.ts"
+  expect_scope services true; expect_scope extension false
+  reset_scopes; classify_paths "apps/greenways_desktop/lib/main.dart"
+  expect_scope desktop true; expect_scope daemon false
+  reset_scopes; classify_paths "config/current-suite.json"
+  expect_scope contracts true; expect_scope desktop false
+  reset_scopes; classify_paths "README.md"
+  expect_scope daemon false; expect_scope extension false; expect_scope services false; expect_scope desktop false; expect_scope contracts false
+  reset_scopes; classify_paths "scripts/connector/run-code"
+  expect_scope daemon true; expect_scope extension true; expect_scope services true; expect_scope desktop true; expect_scope contracts true
+  printf 'connector scope detector self-test passed\n'
+}
+
+emit_outputs() {
+  local scope value
+  for scope in "${SCOPES[@]}"; do
+    value="${SELECTED[$scope]}"
+    printf '%s=%s\n' "$scope" "$value"
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+      printf '%s=%s\n' "$scope" "$value" >> "$GITHUB_OUTPUT"
+    fi
+  done
+}
+
+resolve_base() {
+  if [[ -n "${CONNECTOR_BASE_SHA:-}" ]]; then
+    printf '%s\n' "$CONNECTOR_BASE_SHA"
+    return
+  fi
+
+  local base_ref="${CONNECTOR_BASE_REF:-main}"
+  git fetch --no-tags --prune origin "$base_ref"
+  git merge-base HEAD FETCH_HEAD
+}
+
+main() {
+  if [[ "${1:-}" == "--self-test" ]]; then
+    self_test
+    return
+  fi
+
+  local base
+  base="$(resolve_base)"
+  mapfile -t changed < <(git diff --name-only "$base...HEAD")
+  reset_scopes
+  classify_paths "${changed[@]}"
+  emit_outputs
+}
+
+reset_scopes
+main "$@"
