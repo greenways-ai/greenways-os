@@ -8,12 +8,9 @@ use crate::suite::{CurrentApplicationId, CURRENT_SUITE_REVISION};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const FLOW_WORK_COORDINATION_PROTOCOL: &str =
-    "greenways.flow.work-coordination/0-alpha";
-pub const FLOW_WORK_DEPENDENCY_PROTOCOL: &str =
-    "greenways.flow.work-dependency/0-alpha";
-pub const FLOW_WORK_ASSIGNMENT_PROTOCOL: &str =
-    "greenways.flow.work-assignment/0-alpha";
+pub const FLOW_WORK_COORDINATION_PROTOCOL: &str = "greenways.flow.work-coordination/0-alpha";
+pub const FLOW_WORK_DEPENDENCY_PROTOCOL: &str = "greenways.flow.work-dependency/0-alpha";
+pub const FLOW_WORK_ASSIGNMENT_PROTOCOL: &str = "greenways.flow.work-assignment/0-alpha";
 pub const FLOW_WORK_CLAIM_PROTOCOL: &str = "greenways.flow.work-claim/0-alpha";
 pub const FLOW_WORK_COORDINATION_OPERATION_PROTOCOL: &str =
     "greenways.flow.work-coordination-operation/0-alpha";
@@ -327,13 +324,11 @@ impl FlowWorkClaimState {
     pub const fn allows_transition_to(self, next: Self) -> bool {
         matches!(
             (self, next),
-            (
-                Self::Proposed,
-                Self::Active | Self::Expired | Self::Revoked
-            ) | (
-                Self::Active,
-                Self::Released | Self::Expired | Self::Revoked | Self::Stale
-            )
+            (Self::Proposed, Self::Active | Self::Expired | Self::Revoked)
+                | (
+                    Self::Active,
+                    Self::Released | Self::Expired | Self::Revoked | Self::Stale
+                )
         )
     }
 
@@ -994,10 +989,7 @@ pub struct FlowWorkCoordinationOperationDescriptor {
 
 impl FlowWorkCoordinationOperationDescriptor {
     pub fn validate(&self) -> Result<(), ContractError> {
-        require_protocol(
-            &self.protocol,
-            FLOW_WORK_COORDINATION_OPERATION_PROTOCOL,
-        )?;
+        require_protocol(&self.protocol, FLOW_WORK_COORDINATION_OPERATION_PROTOCOL)?;
         require_flow_application(self.application_id, &self.application_revision)?;
         if self.grants_application_authority
             || self.deletes_durable_history
@@ -1159,22 +1151,12 @@ fn canonical_operation(
             ExactRequest,
             ClaimResult,
         ),
-        FlowWorkCoordinationOperationId::ClaimRelease => (
-            Claim,
-            Manage,
-            true,
-            true,
-            ExactRequest,
-            ClaimResult,
-        ),
-        FlowWorkCoordinationOperationId::ClaimReconcile => (
-            Claim,
-            Reconcile,
-            true,
-            true,
-            ExactRequest,
-            ClaimResult,
-        ),
+        FlowWorkCoordinationOperationId::ClaimRelease => {
+            (Claim, Manage, true, true, ExactRequest, ClaimResult)
+        }
+        FlowWorkCoordinationOperationId::ClaimReconcile => {
+            (Claim, Reconcile, true, true, ExactRequest, ClaimResult)
+        }
     };
 
     FlowWorkCoordinationOperationDescriptor {

@@ -1,6 +1,6 @@
 use greenways_workspace_contracts::{
-    flow_work_coordination_operation_catalogue, CurrentApplicationId, FlowAgentMandateState,
-    FlowWorkAssignmentState, FlowWorkClaimContention, FlowWorkClaimState,
+    flow_work_coordination_operation_catalogue, CurrentApplicationId, FlowAgentMandateCapability,
+    FlowAgentMandateState, FlowWorkAssignmentState, FlowWorkClaimContention, FlowWorkClaimState,
     FlowWorkCoordinationOperationCatalogue, FlowWorkCoordinationOperationId,
     FlowWorkCoordinationSnapshot, FlowWorkDependencyState, FlowWorkState,
     FLOW_WORK_ASSIGNMENTS_LIST_OPERATION, FLOW_WORK_ASSIGNMENT_DECIDE_OPERATION,
@@ -10,43 +10,41 @@ use greenways_workspace_contracts::{
     FLOW_WORK_DEPENDENCIES_LIST_OPERATION, FLOW_WORK_DEPENDENCY_ADD_OPERATION,
     FLOW_WORK_DEPENDENCY_UPDATE_OPERATION,
 };
-use greenways_workspace_contracts::{
-    FlowProjectMemberState, FlowProjectParticipationSnapshot,
-};
+use greenways_workspace_contracts::{FlowProjectMemberState, FlowProjectParticipationSnapshot};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
-const COORDINATION_FIXTURE: &str =
-    include_str!("fixtures/flow/work-coordination.json");
-const CONTENTION_FIXTURE: &str =
-    include_str!("fixtures/flow/work-claim-contention.json");
+const COORDINATION_FIXTURE: &str = include_str!("fixtures/flow/work-coordination.json");
+const CONTENTION_FIXTURE: &str = include_str!("fixtures/flow/work-claim-contention.json");
 const OPERATION_FIXTURE: &str =
     include_str!("fixtures/flow/work-coordination-operation-catalogue.json");
-const PARTICIPATION_FIXTURE: &str =
-    include_str!("fixtures/flow/project-participation.json");
+const PARTICIPATION_FIXTURE: &str = include_str!("fixtures/flow/project-participation.json");
 
-fn coordination(source: &str) -> FlowWorkCoordinationSnapshot {
+fn coordination_fixture(source: &str) -> FlowWorkCoordinationSnapshot {
     serde_json::from_str(source).expect("Flow work coordination fixture should decode")
 }
 
-fn participation() -> FlowProjectParticipationSnapshot {
+fn participation_fixture() -> FlowProjectParticipationSnapshot {
     serde_json::from_str(PARTICIPATION_FIXTURE)
         .expect("Flow project participation fixture should decode")
 }
 
 #[test]
 fn canonical_clean_and_contended_snapshots_validate() {
-    let participation = participation();
+    let participation = participation_fixture();
 
-    let clean = coordination(COORDINATION_FIXTURE);
-    clean.validate().expect("clean work coordination should validate");
-    clean.validate_against_participation(&participation)
+    let clean = coordination_fixture(COORDINATION_FIXTURE);
+    clean
+        .validate()
+        .expect("clean work coordination should validate");
+    clean
+        .validate_against_participation(&participation)
         .expect("clean work coordination should match participation");
     assert_eq!(clean.application_id, CurrentApplicationId::Flow);
     assert_eq!(clean.claims[0].contention, FlowWorkClaimContention::None);
     assert!(!clean.claims[0].copies_work_runtime_state);
 
-    let contended = coordination(CONTENTION_FIXTURE);
+    let contended = coordination_fixture(CONTENTION_FIXTURE);
     contended
         .validate()
         .expect("explicitly contended claims should validate");
@@ -97,7 +95,7 @@ fn operation_fixture_matches_the_closed_catalogue() {
 
 #[test]
 fn dependency_graph_rejects_self_edges_duplicates_and_cycles() {
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.dependencies[0].depends_on_work_id = fixture.dependencies[0].work_id.clone();
     assert_eq!(
         fixture
@@ -107,7 +105,7 @@ fn dependency_graph_rejects_self_edges_duplicates_and_cycles() {
         "self-referential-flow-dependency"
     );
 
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     let mut duplicate = fixture.dependencies[0].clone();
     duplicate.dependency_id = "dependency/duplicate-edge".to_owned();
     fixture.dependencies.push(duplicate);
@@ -119,7 +117,7 @@ fn dependency_graph_rejects_self_edges_duplicates_and_cycles() {
         "duplicate-flow-dependency-edge"
     );
 
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.work[0].state = FlowWorkState::Running;
     fixture.dependencies[0].state = FlowWorkDependencyState::Active;
     fixture.dependencies[0].resolved_at_unix_ms = None;
@@ -139,7 +137,7 @@ fn dependency_graph_rejects_self_edges_duplicates_and_cycles() {
 
 #[test]
 fn current_assignments_are_unique_and_require_lifecycle_evidence() {
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     let mut duplicate = fixture.assignments[0].clone();
     duplicate.assignment_id = "assignment/flow-actions-agent-second".to_owned();
     fixture.assignments.push(duplicate);
@@ -151,7 +149,7 @@ fn current_assignments_are_unique_and_require_lifecycle_evidence() {
         "duplicate-current-flow-assignment"
     );
 
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.assignments[0].responded_at_unix_ms = None;
     assert_eq!(
         fixture
@@ -164,7 +162,7 @@ fn current_assignments_are_unique_and_require_lifecycle_evidence() {
 
 #[test]
 fn claim_contention_must_match_observed_active_overlap() {
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.claims[0].contention = FlowWorkClaimContention::Contended;
     assert_eq!(
         fixture
@@ -174,7 +172,7 @@ fn claim_contention_must_match_observed_active_overlap() {
         "flow-claim-contention-mismatch"
     );
 
-    let mut fixture = coordination(CONTENTION_FIXTURE);
+    let mut fixture = coordination_fixture(CONTENTION_FIXTURE);
     fixture.claims.pop();
     assert_eq!(
         fixture
@@ -184,7 +182,7 @@ fn claim_contention_must_match_observed_active_overlap() {
         "flow-claim-contention-mismatch"
     );
 
-    let mut fixture = coordination(CONTENTION_FIXTURE);
+    let mut fixture = coordination_fixture(CONTENTION_FIXTURE);
     fixture.claims[0].contention = FlowWorkClaimContention::None;
     assert_eq!(
         fixture
@@ -197,7 +195,7 @@ fn claim_contention_must_match_observed_active_overlap() {
 
 #[test]
 fn claim_fences_and_claimants_are_unique() {
-    let mut fixture = coordination(CONTENTION_FIXTURE);
+    let mut fixture = coordination_fixture(CONTENTION_FIXTURE);
     fixture.claims[1].lease_generation = fixture.claims[0].lease_generation;
     assert_eq!(
         fixture
@@ -207,9 +205,8 @@ fn claim_fences_and_claimants_are_unique() {
         "duplicate-flow-lease-generation"
     );
 
-    let mut fixture = coordination(CONTENTION_FIXTURE);
-    fixture.claims[1].claimant_membership_id =
-        fixture.claims[0].claimant_membership_id.clone();
+    let mut fixture = coordination_fixture(CONTENTION_FIXTURE);
+    fixture.claims[1].claimant_membership_id = fixture.claims[0].claimant_membership_id.clone();
     fixture.claims[1].agent_mandate_id = fixture.claims[0].agent_mandate_id.clone();
     assert_eq!(
         fixture
@@ -221,8 +218,8 @@ fn claim_fences_and_claimants_are_unique() {
 }
 
 #[test]
-fn terminal_work_cannot_retain_current_coordination() {
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+fn terminal_work_cannot_retain_current_coordination_fixture() {
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.work[1].state = FlowWorkState::Completed;
     assert_eq!(
         fixture
@@ -232,7 +229,7 @@ fn terminal_work_cannot_retain_current_coordination() {
         "terminal-work-has-current-assignment"
     );
 
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.assignments.clear();
     fixture.work[1].state = FlowWorkState::Completed;
     assert_eq!(
@@ -246,12 +243,12 @@ fn terminal_work_cannot_retain_current_coordination() {
 
 #[test]
 fn agent_claim_requires_active_matching_work_claim_mandate() {
-    let coordination = coordination(COORDINATION_FIXTURE);
+    let coordination = coordination_fixture(COORDINATION_FIXTURE);
 
-    let mut participation = participation();
+    let mut participation = participation_fixture();
     participation.agent_mandates[0]
         .capabilities
-        .retain(|capability| format!("{capability:?}") != "WorkClaim");
+        .retain(|capability| *capability != FlowAgentMandateCapability::WorkClaim);
     assert_eq!(
         coordination
             .validate_against_participation(&participation)
@@ -260,11 +257,9 @@ fn agent_claim_requires_active_matching_work_claim_mandate() {
         "inactive-or-unauthorised-flow-agent-claim"
     );
 
-    let mut participation = participation();
+    let mut participation = participation_fixture();
     participation.agent_mandates[0].state = FlowAgentMandateState::Revoked;
     participation.agent_mandates[0].revoked_at_unix_ms = Some(1787274400000);
-    participation.members[1].state = FlowProjectMemberState::Revoked;
-    participation.members[1].revoked_at_unix_ms = Some(1787274400000);
     assert_eq!(
         coordination
             .validate_against_participation(&participation)
@@ -273,11 +268,11 @@ fn agent_claim_requires_active_matching_work_claim_mandate() {
         "inactive-or-unauthorised-flow-agent-claim"
     );
 
-    let mut coordination = coordination(COORDINATION_FIXTURE);
+    let mut coordination = coordination_fixture(COORDINATION_FIXTURE);
     coordination.claims[0].agent_mandate_id = None;
     assert_eq!(
         coordination
-            .validate_against_participation(&participation())
+            .validate_against_participation(&participation_fixture())
             .expect_err("agent claim requires exact mandate")
             .code,
         "agent-flow-claim-missing-mandate"
@@ -286,23 +281,22 @@ fn agent_claim_requires_active_matching_work_claim_mandate() {
 
 #[test]
 fn person_claims_and_assignment_actors_remain_separate() {
-    let mut coordination = coordination(CONTENTION_FIXTURE);
-    coordination.claims[1].agent_mandate_id =
-        Some("mandate/flow-agent-builder-current".to_owned());
+    let mut coordination = coordination_fixture(CONTENTION_FIXTURE);
+    coordination.claims[1].agent_mandate_id = Some("mandate/flow-agent-builder-current".to_owned());
     assert_eq!(
         coordination
-            .validate_against_participation(&participation())
+            .validate_against_participation(&participation_fixture())
             .expect_err("person claim cannot borrow agent mandate")
             .code,
         "person-flow-claim-has-agent-mandate"
     );
 
-    let mut coordination = coordination(COORDINATION_FIXTURE);
+    let mut coordination = coordination_fixture(COORDINATION_FIXTURE);
     coordination.assignments[0].assigned_by_membership_id =
         "membership/flow-agent-builder".to_owned();
     assert_eq!(
         coordination
-            .validate_against_participation(&participation())
+            .validate_against_participation(&participation_fixture())
             .expect_err("agent cannot act as assignment authority")
             .code,
         "invalid-flow-assignment-actor"
@@ -311,8 +305,8 @@ fn person_claims_and_assignment_actors_remain_separate() {
 
 #[test]
 fn suspended_assignee_cannot_retain_an_accepted_assignment() {
-    let coordination = coordination(COORDINATION_FIXTURE);
-    let mut participation = participation();
+    let coordination = coordination_fixture(COORDINATION_FIXTURE);
+    let mut participation = participation_fixture();
     participation.members[1].state = FlowProjectMemberState::Suspended;
     participation.agent_mandates[0].state = FlowAgentMandateState::Suspended;
     assert_eq!(
@@ -326,7 +320,7 @@ fn suspended_assignee_cannot_retain_an_accepted_assignment() {
 
 #[test]
 fn claims_never_copy_runtime_state_or_transfer_authority() {
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.claims[0].copies_work_runtime_state = true;
     assert_eq!(
         fixture
@@ -336,7 +330,7 @@ fn claims_never_copy_runtime_state_or_transfer_authority() {
         "flow-claim-authority-or-runtime-copy"
     );
 
-    let mut fixture = coordination(COORDINATION_FIXTURE);
+    let mut fixture = coordination_fixture(COORDINATION_FIXTURE);
     fixture.claims[0].authority_transfer = true;
     assert_eq!(
         fixture
@@ -396,15 +390,17 @@ fn operation_metadata_cannot_delete_history_copy_runtime_or_grant_authority() {
 
 #[test]
 fn dependency_assignment_and_claim_transitions_are_closed() {
-    assert!(FlowWorkDependencyState::Proposed
-        .allows_transition_to(FlowWorkDependencyState::Active));
-    assert!(!FlowWorkDependencyState::Satisfied
-        .allows_transition_to(FlowWorkDependencyState::Active));
+    assert!(FlowWorkDependencyState::Proposed.allows_transition_to(FlowWorkDependencyState::Active));
+    assert!(
+        !FlowWorkDependencyState::Satisfied.allows_transition_to(FlowWorkDependencyState::Active)
+    );
 
-    assert!(FlowWorkAssignmentState::Assigned
-        .allows_transition_to(FlowWorkAssignmentState::Accepted));
-    assert!(!FlowWorkAssignmentState::Released
-        .allows_transition_to(FlowWorkAssignmentState::Accepted));
+    assert!(
+        FlowWorkAssignmentState::Assigned.allows_transition_to(FlowWorkAssignmentState::Accepted)
+    );
+    assert!(
+        !FlowWorkAssignmentState::Released.allows_transition_to(FlowWorkAssignmentState::Accepted)
+    );
 
     assert!(FlowWorkClaimState::Proposed.allows_transition_to(FlowWorkClaimState::Active));
     assert!(FlowWorkClaimState::Active.allows_transition_to(FlowWorkClaimState::Stale));

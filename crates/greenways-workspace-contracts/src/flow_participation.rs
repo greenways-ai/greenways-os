@@ -204,6 +204,7 @@ pub enum FlowAgentMandateCapability {
     WorkCreate,
     WorkUpdate,
     WorkTransition,
+    WorkClaim,
     BuildoutRead,
     BuildoutCreate,
     BuildoutUpdate,

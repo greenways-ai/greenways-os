@@ -889,6 +889,36 @@
       "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
     },
     {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/work-claim-contention.json",
+      "lineText": "\"buildoutId\": \"buildout/flow-control-room\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/work-coordination.json",
+      "lineText": "\"buildoutId\": \"buildout/flow-control-room\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 2,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/flow/work-coordination.json",
+      "lineText": "\"summary\": \"Define the bounded project, work, buildout, and evidence composition.\",",
+      "patterns": [
+        "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
       "path": "crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json",
       "lineText": "\"legacyApplicationId\": \"build\",",
       "patterns": [
@@ -1090,6 +1120,16 @@
     },
     {
       "path": "crates/greenways-workspace-contracts/tests/flow_project_participation.rs",
+      "lineText": "for application_id in [\"build\", \"foreman\", \"imagine\", \"world\"] {",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/flow_work_coordination.rs",
       "lineText": "for application_id in [\"build\", \"foreman\", \"imagine\", \"world\"] {",
       "patterns": [
         "foreman-token"
@@ -1590,6 +1630,16 @@
     },
     {
       "path": "docs/flow-project-participation.md",
+      "lineText": "- regenerated the Flow/Build/Foreman findings from the final working tree;",
+      "patterns": [
+        "foreman-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-project-participation.md",
       "lineText": "Greenways Flow remains the only current product-facing coordination application. Foreman remains its internal coordination engine and durable domain implementation; it is not an application target or a second participation authority.",
       "patterns": [
         "foreman-token"
@@ -1633,6 +1683,16 @@
       "lineText": "buildout-update",
       "patterns": [
         "buildout-token"
+      ],
+      "occurrences": 1,
+      "classification": "retained-technical-identity",
+      "reason": "Foreman, project, work, and buildout vocabulary is retained only for the internal coordination engine, durable domain, compatibility evidence, tests, or diagnostics."
+    },
+    {
+      "path": "docs/flow-work-coordination.md",
+      "lineText": "Greenways Flow remains the only current product-facing coordination application. Foreman remains Flow's internal coordination engine and durable domain implementation; it is not an application target, provider, claimant, or second work authority.",
+      "patterns": [
+        "foreman-token"
       ],
       "occurrences": 1,
       "classification": "retained-technical-identity",
