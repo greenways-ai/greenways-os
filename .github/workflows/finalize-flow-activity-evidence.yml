@@ -1,0 +1,207 @@
+name: Finalize Flow activity and evidence
+
+on:
+  push:
+    branches:
+      - agent/flow-activity-evidence-finalizer
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+
+concurrency:
+  group: finalize-flow-activity-evidence
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: "196"
+      SOURCE_BRANCH: agent/flow-activity-evidence
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/flow-activity-evidence-finalizer
+          fetch-depth: 0
+      - name: Wait for the self-cleaning source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=0
+          for _ in $(seq 1 42); do
+            git fetch origin "$SOURCE_BRANCH" main
+            git checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
+            if [[ -e .github/a4-flow-activity-evidence-error.log ]]; then
+              cat .github/a4-flow-activity-evidence-error.log
+              exit 1
+            fi
+            if grep -q '^mod flow_activity_evidence;$' \
+                crates/greenways-workspace-contracts/src/lib.rs \
+              && [[ ! -e .github/a4-materialize-flow-activity-evidence.py ]] \
+              && [[ ! -e .github/a4-fix-flow-activity-evidence.py ]] \
+              && [[ ! -e .github/workflows/a4-flow-activity-evidence-materializer.yml ]] \
+              && [[ ! -e .github/workflows/a4-flow-activity-evidence-retry.yml ]]; then
+              ready=1
+              break
+            fi
+            git checkout -B finalizer origin/agent/flow-activity-evidence-finalizer
+            sleep 10
+          done
+          if [[ $ready -ne 1 ]]; then
+            echo "A4.5 source branch did not reach its self-cleaned state" >&2
+            exit 1
+          fi
+      - name: Merge the exact current main revision into the source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main "$SOURCE_BRANCH"
+          git checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
+          before="$(git rev-parse HEAD)"
+          git merge --no-edit origin/main
+          after="$(git rev-parse HEAD)"
+          if [[ "$after" != "$before" ]]; then
+            git push origin HEAD:"$SOURCE_BRANCH"
+          fi
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
+      - name: Verify the exact review surface and contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main "$SOURCE_BRANCH"
+          git checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
+          test ! -e .github/a4-flow-activity-evidence-error.log
+          test ! -e .github/a4-materialize-flow-activity-evidence.py
+          test ! -e .github/a4-fix-flow-activity-evidence.py
+          test ! -e .github/workflows/a4-flow-activity-evidence-materializer.yml
+          test ! -e .github/workflows/a4-flow-activity-evidence-retry.yml
+          git diff --name-only origin/main | sort > /tmp/actual-paths
+          cat > /tmp/expected-paths <<'EOF'
+          crates/greenways-workspace-contracts/src/flow_activity_evidence.rs
+          crates/greenways-workspace-contracts/src/flow_participation.rs
+          crates/greenways-workspace-contracts/src/lib.rs
+          crates/greenways-workspace-contracts/tests/fixtures/flow/activity-evidence-operation-catalogue.json
+          crates/greenways-workspace-contracts/tests/fixtures/flow/project-activity-evidence-restart.json
+          crates/greenways-workspace-contracts/tests/fixtures/flow/project-activity-evidence.json
+          crates/greenways-workspace-contracts/tests/fixtures/flow/project-participation.json
+          crates/greenways-workspace-contracts/tests/flow_activity_evidence.rs
+          docs/flow-activity-evidence.md
+          docs/flow-handoffs-interventions.md
+          docs/flow-project-participation.md
+          protocol/compatibility/flow-build-foreman-inventory-0-alpha.json
+          EOF
+          diff -u /tmp/expected-paths /tmp/actual-paths
+          cargo +1.85.1 fmt --all -- --check
+          python3 scripts/check-flow-build-foreman-inventory.py
+          cargo +1.85.1 test -p greenways-workspace-contracts --all-targets
+          cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
+          python3 -m json.tool protocol/compatibility/flow-build-foreman-inventory-0-alpha.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/project-participation.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/project-activity-evidence.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/project-activity-evidence-restart.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/activity-evidence-operation-catalogue.json >/dev/null
+          git diff --check
+      - name: Wait for ordinary pull-request checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          complete=0
+          for _ in $(seq 1 48); do
+            checks="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json name,state,link 2>/dev/null || printf '[]')"
+            count="$(jq 'length' <<<"$checks")"
+            if [[ "$count" -eq 0 ]]; then
+              sleep 10
+              continue
+            fi
+            failures="$(jq '[.[] | select(.state == "FAILURE" or .state == "ERROR" or .state == "CANCELLED" or .state == "TIMED_OUT")] | length' <<<"$checks")"
+            pending="$(jq '[.[] | select(.state == "PENDING" or .state == "QUEUED" or .state == "IN_PROGRESS" or .state == "EXPECTED")] | length' <<<"$checks")"
+            if [[ "$failures" -gt 0 ]]; then
+              jq . <<<"$checks"
+              exit 1
+            fi
+            if [[ "$pending" -eq 0 ]]; then
+              jq . <<<"$checks"
+              complete=1
+              break
+            fi
+            sleep 10
+          done
+          if [[ $complete -ne 1 ]]; then
+            echo "A4.5 pull-request checks did not complete" >&2
+            exit 1
+          fi
+      - name: Mark review-ready and merge the bounded contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr ready "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" || true
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --squash \
+            --subject "Define Flow project activity and evidence (#196)" \
+            --body "Complete Agent 1 A4.5 for #161 and #163: add project artifacts, human outcome selection, authoritative external read-back, append-oriented causal activity, restart-safe projection evidence, closed operations, fixtures, and authority/future-product negatives."
+      - name: Post the merged handoff packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          merge_sha="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .merge_commit_sha)"
+          cat > /tmp/a4-5-handoff.md <<EOF
+          ## A4.5 merged — Flow project activity and evidence
+
+          - Pull request: #196
+          - Merged commit: \`$merge_sha\`
+          - Base branch: \`main\`
+          - Product exposure: current Flow; Spaces references remain source-owned observations
+
+          ### Contracts merged
+
+          - \`greenways.flow.project-activity-evidence/0-alpha\`
+          - \`greenways.flow.project-artifact/0-alpha\`
+          - \`greenways.flow.external-readback/0-alpha\`
+          - \`greenways.flow.project-activity/0-alpha\`
+          - exact nine-operation activity/evidence catalogue
+
+          The contract keeps reported output, artifact availability, human selection, artifact verification, provider acceptance, external observation, and authoritative read-back verification as separate evidence claims. Activity is append-oriented, causally ordered, and cannot mutate source authority or repeat Work, handoff transfer, provider work, or external effects.
+
+          ### Canonical evidence
+
+          - \`crates/greenways-workspace-contracts/src/flow_activity_evidence.rs\`
+          - \`crates/greenways-workspace-contracts/tests/flow_activity_evidence.rs\`
+          - active, restart/uncertain, and operation-catalogue fixtures under \`tests/fixtures/flow/\`
+          - \`docs/flow-activity-evidence.md\`
+
+          ### Validation
+
+          The exact self-cleaned twelve-file review surface passed pinned Rust 1.85.1 formatting, every workspace-contract target, all-target Clippy with warnings denied, the permanent Flow/Build/Foreman scanner, JSON parsing, whitespace checks, and every ordinary pull-request check before merge.
+
+          ### Downstream action unblocked
+
+          Proceed to the closed Desktop/CLI/browser/MCP Project Control Room view model. It must compose the merged project, participation, work, presence, handoff/intervention, and activity/evidence contracts without inventing host-local state or presenting acceptance, selection, resolution, or provider acknowledgement as verified completion.
+          EOF
+          gh issue comment 161 --repo "$GITHUB_REPOSITORY" --body-file /tmp/a4-5-handoff.md
+          cat >> /tmp/a4-5-train.md <<EOF
+          ## Agent 1 A4.5 merged — activity, artifacts, and verified read-back
+
+          Merged PR: #196  
+          Merged commit: \`$merge_sha\`
+
+          A4.5 now supplies the append-oriented evidence layer required by the Flow Project Control Room: bounded artifact reports, attributable human selection, explicit verification-pending/verified/failed states, provider-accepted versus authoritative-read-back separation, causal project activity, and restart-safe no-replay projections.
+
+          ### Train position
+
+          - A4.1 project/member/agent operations: merged.
+          - A4.2 work/dependency/claim operations: merged.
+          - A4.3 host/session presence and restart reconciliation: merged.
+          - A4.4 handoff/intervention operations: merged.
+          - A4.5 activity/evidence and external read-back: merged at #196.
+          - Next: closed Desktop/CLI/browser/MCP Project Control Room view models.
+          - Then: current application inventory and generic host registration.
+          EOF
+          gh issue comment 163 --repo "$GITHUB_REPOSITORY" --body-file /tmp/a4-5-train.md
