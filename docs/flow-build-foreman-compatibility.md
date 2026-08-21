@@ -73,3 +73,9 @@ The executable inventory is:
 - `crates/greenways-workspace-contracts/tests/flow_foreman_compatibility.rs`.
 
 The checker scans every tracked and non-ignored working-tree UTF-8 file except its own evidence files. Including non-ignored untracked files makes newly created source fail closed before it is staged; generated staging directories must therefore be removed before invoking the checker. It rejects current Build product identities, compares every remaining Foreman/buildout/legacy-Build occurrence against the exact reviewed inventory, and validates the canonical Flow manifest.
+
+## Publication proof
+
+The corrective source publication was validated in Actions run `32448203238`, job `96671618115`. That run materialized the ordinary source tree, passed the seven Gate 0 tests and four focused Flow/Foreman tests, checked the owned crate with Rust `1.85.1`, validated the JSON inventory, reran the closed scanner, and removed the temporary transport before publishing.
+
+The repository-wide formatter repair was bounded and published in run `32448687571`, job `96672910274`. Its guard required `cargo +1.85.1 fmt --all` to change exactly `cli/greenways/src/desktop.rs`, then removed its temporary workflow in the same commit.
