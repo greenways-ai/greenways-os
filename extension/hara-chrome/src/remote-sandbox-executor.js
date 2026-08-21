@@ -1,7 +1,6 @@
 import {
   EXECUTION_RESULT_PROTOCOL,
   PURE_PROFILE,
-  RemoteHostProtocolError,
   assertResultBound,
   cloneJson,
   parseExecutionRequest,
@@ -215,11 +214,6 @@ async function closeRuntime(runtime) {
     certain = false;
   }
   try {
-    await runtime.close?.();
-  } catch {
-    certain = false;
-  }
-  try {
     runtime.worker?.terminate?.();
   } catch {
     certain = false;
@@ -265,6 +259,7 @@ export function createRemoteSandboxExecutor(options = {}) {
       } else {
         throw executorError("remote/operation-unsupported", `${request.operation} is not implemented by the browser-Wasm executor`);
       }
+      runtime.pending = pending;
 
       const raced = raceCancellation(pending, signal, request.limits.wallMs, timers);
       try {
@@ -309,6 +304,9 @@ export function createRemoteSandboxExecutor(options = {}) {
     closed = true;
     const runtimes = [...active.values()];
     active.clear();
+    for (const runtime of runtimes) {
+      try { runtime.pending?.cancel?.(); } catch { /* best effort */ }
+    }
     await Promise.allSettled(runtimes.map(closeRuntime));
   }
 
