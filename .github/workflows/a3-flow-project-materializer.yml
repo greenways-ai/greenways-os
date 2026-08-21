@@ -1,0 +1,86 @@
+name: A3 Flow project branch materializer
+
+on:
+  push:
+    branches:
+      - agent/flow-project-contract
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/flow-project-contract
+          fetch-depth: 0
+      - name: Fetch current main
+        run: git fetch origin main
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --component rustfmt --component clippy
+      - name: Materialize the exact Flow project tree
+        run: python3 .github/a3-materialize-flow-project.py
+      - name: Format and validate the contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.85.1 fmt --all
+          python3 scripts/check-flow-build-foreman-inventory.py
+          cargo +1.85.1 test -p greenways-workspace-contracts
+          cargo +1.85.1 clippy -p greenways-workspace-contracts --all-targets -- -D warnings
+          python3 -m json.tool protocol/compatibility/flow-build-foreman-inventory-0-alpha.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/project-direct-work.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json >/dev/null
+          python3 -m json.tool crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json >/dev/null
+          git diff --check
+      - name: Enforce the exact review surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+
+          expected = {
+              'crates/greenways-workspace-contracts/src/flow.rs',
+              'crates/greenways-workspace-contracts/src/lib.rs',
+              'crates/greenways-workspace-contracts/tests/flow_project_contract.rs',
+              'crates/greenways-workspace-contracts/tests/fixtures/flow/operation-catalogue.json',
+              'crates/greenways-workspace-contracts/tests/fixtures/flow/project-buildout.json',
+              'crates/greenways-workspace-contracts/tests/fixtures/flow/project-direct-work.json',
+              'docs/flow-project-contract.md',
+              'protocol/compatibility/flow-build-foreman-inventory-0-alpha.json',
+          }
+          actual = {
+              line
+              for line in subprocess.check_output(
+                  ['git', 'diff', '--name-only', 'origin/main'], text=True
+              ).splitlines()
+              if line
+          }
+          if actual != expected:
+              raise SystemExit(
+                  'A3 review surface mismatch\nexpected: '
+                  + repr(sorted(expected))
+                  + '\nactual: '
+                  + repr(sorted(actual))
+              )
+          for helper in [
+              '.github/a3-materialize-flow-project.py',
+              '.github/workflows/a3-flow-project-materializer.yml',
+          ]:
+              if subprocess.run(['test', '-e', helper]).returncode == 0:
+                  raise SystemExit(f'temporary helper survived: {helper}')
+          PY
+      - name: Publish one self-cleaning branch commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Define the current Flow project contract"
+          git push origin HEAD:agent/flow-project-contract
