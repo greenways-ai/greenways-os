@@ -3,6 +3,7 @@ mod context;
 mod error;
 mod flow;
 mod flow_participation;
+mod flow_presence;
 mod flow_work_coordination;
 mod resource;
 mod suite;
@@ -16,6 +17,7 @@ pub use context::reject_server_context;
 pub use error::{ContractError, ErrorCode, PublicFailure, ERROR_PROTOCOL, MAX_PUBLIC_ERROR_BYTES};
 pub use flow::*;
 pub use flow_participation::*;
+pub use flow_presence::*;
 pub use flow_work_coordination::*;
 pub use resource::{
     validate_resource_uri, Availability, ChangeStatus, QueryRequest, ResourceChanged,
