@@ -31,37 +31,41 @@ jobs:
 
           path = Path('apps/greenways_desktop/lib/services/desktop_control_server.dart')
           source = path.read_text(encoding='utf-8')
-          old = '''  // Keep the public `home:` override while storing the path privately.
-          // ignore: prefer_initializing_formals
-          DesktopControlServer(
-            this.controller, {
-            required this.showWindow,
-            required this.quit,
-            String? home,
-          }) : _home = home;
-          '''
-          new = '''  factory DesktopControlServer(
-            ConnectionController controller, {
-            required Future<void> Function() showWindow,
-            required Future<void> Function() quit,
-            String? home,
-          }) {
-            final homeOverride = home == null || home.isEmpty ? null : home;
-            return DesktopControlServer._(
-              controller,
-              showWindow,
-              quit,
-              homeOverride,
-            );
-          }
-
-          DesktopControlServer._(
-            this.controller,
-            this.showWindow,
-            this.quit,
-            this._home,
-          );
-          '''
+          old = '\n'.join([
+              '  // Keep the public `home:` override while storing the path privately.',
+              '  // ignore: prefer_initializing_formals',
+              '  DesktopControlServer(',
+              '    this.controller, {',
+              '    required this.showWindow,',
+              '    required this.quit,',
+              '    String? home,',
+              '  }) : _home = home;',
+              '',
+          ])
+          new = '\n'.join([
+              '  factory DesktopControlServer(',
+              '    ConnectionController controller, {',
+              '    required Future<void> Function() showWindow,',
+              '    required Future<void> Function() quit,',
+              '    String? home,',
+              '  }) {',
+              '    final homeOverride = home == null || home.isEmpty ? null : home;',
+              '    return DesktopControlServer._(',
+              '      controller,',
+              '      showWindow,',
+              '      quit,',
+              '      homeOverride,',
+              '    );',
+              '  }',
+              '',
+              '  DesktopControlServer._(',
+              '    this.controller,',
+              '    this.showWindow,',
+              '    this.quit,',
+              '    this._home,',
+              '  );',
+              '',
+          ])
           if source.count(old) != 1:
               raise SystemExit('expected exactly one DesktopControlServer constructor block')
           path.write_text(source.replace(old, new, 1), encoding='utf-8')
