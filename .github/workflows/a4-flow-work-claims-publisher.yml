@@ -46,12 +46,16 @@ jobs:
           if test.count(old_import) != 1:
               raise SystemExit('expected exactly one test import insertion point')
           test = test.replace(old_import, new_import, 1)
-          old_retain = '''    participation.agent_mandates[0]
-              .capabilities
-              .retain(|capability| format!("{capability:?}") != "WorkClaim");'''
-          new_retain = '''    participation.agent_mandates[0]
-              .capabilities
-              .retain(|capability| *capability != FlowAgentMandateCapability::WorkClaim);'''
+          old_retain = '\n'.join([
+              '    participation.agent_mandates[0]',
+              '        .capabilities',
+              '        .retain(|capability| format!("{capability:?}") != "WorkClaim");',
+          ])
+          new_retain = '\n'.join([
+              '    participation.agent_mandates[0]',
+              '        .capabilities',
+              '        .retain(|capability| *capability != FlowAgentMandateCapability::WorkClaim);',
+          ])
           if test.count(old_retain) != 1:
               raise SystemExit('expected exactly one work-claim test predicate')
           test_path.write_text(test.replace(old_retain, new_retain, 1), encoding='utf-8')
