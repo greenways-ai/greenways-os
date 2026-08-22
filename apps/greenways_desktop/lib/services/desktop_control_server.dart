@@ -6,24 +6,31 @@ import '../controller/connection_controller.dart';
 import '../model/connection_snapshot.dart';
 
 const desktopControlProtocol = 'greenways-desktop-control/0-alpha';
-const desktopControlResultProtocol =
-    'greenways-desktop-control-result/0-alpha';
+const desktopControlResultProtocol = 'greenways-desktop-control-result/0-alpha';
 const desktopControlSocketName = 'greenways-desktop.sock';
 const _maximumRequestBytes = 8 * 1024;
 const _requestTimeout = Duration(seconds: 5);
 const _probeTimeout = Duration(milliseconds: 150);
 
-final _requestIdPattern = RegExp(
-  r'^desktop/control/[A-Za-z0-9._:-]{8,160}$',
-);
+final _requestIdPattern = RegExp(r'^desktop/control/[A-Za-z0-9._:-]{8,160}$');
 
 final class DesktopControlServer {
-  DesktopControlServer(
-    this.controller, {
-    required this.showWindow,
-    required this.quit,
+  factory DesktopControlServer(
+    ConnectionController controller, {
+    required Future<void> Function() showWindow,
+    required Future<void> Function() quit,
     String? home,
-  }) : _home = home;
+  }) {
+    final homeOverride = home == null || home.isEmpty ? null : home;
+    return DesktopControlServer._(controller, showWindow, quit, homeOverride);
+  }
+
+  DesktopControlServer._(
+    this.controller,
+    this.showWindow,
+    this.quit,
+    this._home,
+  );
 
   final ConnectionController controller;
   final Future<void> Function() showWindow;
@@ -217,15 +224,21 @@ final class DesktopControlServer {
   }
 
   Future<List<int>> _readFrame(Socket socket) async {
-    final bytes = await socket.fold<List<int>>(<int>[], (buffer, data) {
-      if (buffer.length + data.length > _maximumRequestBytes + 1) {
-        throw const FormatException('Desktop control request is too large.');
-      }
-      buffer.addAll(data);
-      return buffer;
-    }).timeout(_requestTimeout);
+    final bytes = await socket
+        .fold<List<int>>(<int>[], (buffer, data) {
+          if (buffer.length + data.length > _maximumRequestBytes + 1) {
+            throw const FormatException(
+              'Desktop control request is too large.',
+            );
+          }
+          buffer.addAll(data);
+          return buffer;
+        })
+        .timeout(_requestTimeout);
     if (bytes.isEmpty || bytes.length > _maximumRequestBytes + 1) {
-      throw const FormatException('Desktop control request is empty or too large.');
+      throw const FormatException(
+        'Desktop control request is empty or too large.',
+      );
     }
     if (bytes.last != 0x0a || bytes.take(bytes.length - 1).contains(0x0a)) {
       throw const FormatException(
@@ -236,7 +249,9 @@ final class DesktopControlServer {
   }
 
   _DesktopControlRequest _decodeRequest(List<int> frame) {
-    final Object? decoded = jsonDecode(utf8.decode(frame, allowMalformed: false));
+    final Object? decoded = jsonDecode(
+      utf8.decode(frame, allowMalformed: false),
+    );
     final request = _object(decoded, 'request');
     final attributableRequestId = _attributableRequestId(request['requestId']);
     try {
@@ -375,11 +390,7 @@ final class _CommandResult {
 }
 
 final class _DesktopControlException implements Exception {
-  const _DesktopControlException(
-    this.code,
-    this.message, {
-    this.requestId,
-  });
+  const _DesktopControlException(this.code, this.message, {this.requestId});
 
   final String code;
   final String message;
@@ -412,11 +423,7 @@ void _requireExactKeys(Map<String, Object?> value, Set<String> expected) {
   }
 }
 
-String _text(
-  Map<String, Object?> value,
-  String field, {
-  required int maximum,
-}) {
+String _text(Map<String, Object?> value, String field, {required int maximum}) {
   final text = value[field];
   if (text is! String ||
       text.isEmpty ||

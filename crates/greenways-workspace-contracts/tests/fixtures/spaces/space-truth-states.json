@@ -1,0 +1,546 @@
+{
+  "protocol": "greenways.spaces.space/0-alpha",
+  "applicationId": "spaces",
+  "applicationRevision": "0.1.0",
+  "id": "space/spaces-domain-contract",
+  "revision": 1,
+  "subject": "Industrial emissions and warming",
+  "purpose": "Inspect exact evidence, separate working perspective from canonical truth, and produce a cited brief.",
+  "scope": "Original sources, reviewed assertions, unresolved concepts, and one bounded Flow question.",
+  "ownerId": "identity/alex",
+  "privacy": "private",
+  "state": "active",
+  "references": [
+    {
+      "id": "reference/source",
+      "kind": "hestia-source",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "hestia-source",
+        "logicalId": "hestia/source/climate-report",
+        "exactRoot": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "observedRevision": 4,
+        "observedAtUnixMs": 1700000000001,
+        "freshness": "current",
+        "authorityState": "observed",
+        "authorityTransfer": false,
+        "summary": "Original climate report",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    },
+    {
+      "id": "reference/anchor",
+      "kind": "hestia-anchor",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "hestia-anchor",
+        "logicalId": "hestia/anchor/climate-report/section-4",
+        "exactRoot": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "observedRevision": 2,
+        "observedAtUnixMs": 1700000000002,
+        "freshness": "current",
+        "authorityState": "observed",
+        "authorityTransfer": false,
+        "summary": "Section 4 source anchor",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    },
+    {
+      "id": "reference/candidate",
+      "kind": "hestia-candidate",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "hestia-candidate",
+        "logicalId": "hestia/candidate/emissions-link",
+        "exactRoot": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "observedRevision": 1,
+        "observedAtUnixMs": 1700000000003,
+        "freshness": "current",
+        "authorityState": "resolution-required",
+        "authorityTransfer": false,
+        "summary": "Machine-suggested emissions relationship",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    },
+    {
+      "id": "reference/assertion",
+      "kind": "hestia-assertion",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "hestia-assertion",
+        "logicalId": "hestia/assertion/emissions-link",
+        "exactRoot": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        "observedRevision": 3,
+        "observedAtUnixMs": 1700000000004,
+        "freshness": "current",
+        "authorityState": "observed",
+        "authorityTransfer": false,
+        "summary": "Reviewed emissions assertion",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    },
+    {
+      "id": "reference/concept",
+      "kind": "tahto-concept",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "tahto-concept",
+        "logicalId": "tahto/concept/industrial-emissions",
+        "exactRoot": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+        "observedRevision": 7,
+        "observedAtUnixMs": 1700000000005,
+        "freshness": "current",
+        "authorityState": "observed",
+        "authorityTransfer": false,
+        "summary": "Industrial emissions concept",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    },
+    {
+      "id": "reference/semantic",
+      "kind": "tahto-semantic-relationship",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "tahto-semantic-relationship",
+        "logicalId": "tahto/relationship/emissions-drives-warming",
+        "exactRoot": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+        "observedRevision": 2,
+        "observedAtUnixMs": 1700000000006,
+        "freshness": "current",
+        "authorityState": "observed",
+        "authorityTransfer": false,
+        "summary": "Validated semantic relationship",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    },
+    {
+      "id": "reference/flow",
+      "kind": "flow-object",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "flow-object",
+        "logicalId": "flow/project/climate-evidence/work/question-1",
+        "exactRoot": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "observedRevision": 1,
+        "observedAtUnixMs": 1700000000007,
+        "freshness": "current",
+        "authorityState": "observed",
+        "authorityTransfer": false,
+        "summary": "Flow work created from the Space question",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    },
+    {
+      "id": "reference/public",
+      "kind": "public-work",
+      "observation": {
+        "protocol": "greenways.reference.shared/0-alpha",
+        "applicationId": "spaces",
+        "applicationRevision": "0.1.0",
+        "ownerApplicationId": "spaces",
+        "ownerKind": "space",
+        "ownerId": "space/spaces-domain-contract",
+        "recordKind": "public-work",
+        "logicalId": "platform/work/climate-brief",
+        "exactRoot": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+        "observedRevision": 1,
+        "observedAtUnixMs": 1700000000008,
+        "freshness": "current",
+        "authorityState": "observed",
+        "authorityTransfer": false,
+        "summary": "Published climate brief",
+        "detail": "Display text is non-authoritative; exact identity remains in logicalId and exactRoot."
+      }
+    }
+  ],
+  "maps": [
+    {
+      "id": "map/evidence",
+      "revision": 1,
+      "title": "Evidence map",
+      "view": "evidence",
+      "lensId": "lens/review",
+      "selectedRecordIds": [
+        "note/sourced",
+        "question/flow",
+        "finding/derived",
+        "finding/asserted"
+      ],
+      "groups": [
+        {
+          "id": "group/sources",
+          "title": "Sources",
+          "nodeIds": [
+            "node/source",
+            "node/topic"
+          ]
+        },
+        {
+          "id": "group/findings",
+          "title": "Findings",
+          "nodeIds": [
+            "node/candidate",
+            "node/asserted"
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "id": "node/source",
+          "revision": 1,
+          "target": {
+            "kind": "reference",
+            "id": "reference/source"
+          },
+          "label": "Original report",
+          "layout": {
+            "xMilli": 0,
+            "yMilli": 0,
+            "widthMilli": 3200,
+            "heightMilli": 1800
+          }
+        },
+        {
+          "id": "node/topic",
+          "revision": 1,
+          "target": {
+            "kind": "topic",
+            "id": "topic/unresolved"
+          },
+          "label": "Unresolved policy mechanism",
+          "layout": {
+            "xMilli": 4200,
+            "yMilli": 0,
+            "widthMilli": 3200,
+            "heightMilli": 1800
+          }
+        },
+        {
+          "id": "node/candidate",
+          "revision": 1,
+          "target": {
+            "kind": "finding",
+            "id": "finding/candidate"
+          },
+          "label": "Candidate relation",
+          "layout": {
+            "xMilli": 0,
+            "yMilli": 2800,
+            "widthMilli": 3200,
+            "heightMilli": 1800
+          }
+        },
+        {
+          "id": "node/asserted",
+          "revision": 1,
+          "target": {
+            "kind": "finding",
+            "id": "finding/asserted"
+          },
+          "label": "Reviewed assertion",
+          "layout": {
+            "xMilli": 4200,
+            "yMilli": 2800,
+            "widthMilli": 3200,
+            "heightMilli": 1800
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "relationship/proximity",
+          "revision": 1,
+          "fromNodeId": "node/source",
+          "toNodeId": "node/topic",
+          "relationship": "related",
+          "origin": "layout-proximity",
+          "promotion": "visual-association",
+          "referenceIds": []
+        },
+        {
+          "id": "relationship/candidate",
+          "revision": 1,
+          "fromNodeId": "node/candidate",
+          "toNodeId": "node/asserted",
+          "relationship": "supports",
+          "origin": "machine-suggestion",
+          "promotion": "hestia-candidate",
+          "referenceIds": [
+            "reference/candidate"
+          ]
+        },
+        {
+          "id": "relationship/assertion",
+          "revision": 1,
+          "fromNodeId": "node/source",
+          "toNodeId": "node/asserted",
+          "relationship": "supports",
+          "origin": "manual",
+          "promotion": "hestia-assertion",
+          "referenceIds": [
+            "reference/assertion"
+          ]
+        },
+        {
+          "id": "relationship/semantic-proposal",
+          "revision": 1,
+          "fromNodeId": "node/source",
+          "toNodeId": "node/topic",
+          "relationship": "explains",
+          "origin": "manual",
+          "promotion": "tahto-semantic-proposal",
+          "referenceIds": [
+            "reference/assertion"
+          ]
+        },
+        {
+          "id": "relationship/semantic",
+          "revision": 1,
+          "fromNodeId": "node/source",
+          "toNodeId": "node/asserted",
+          "relationship": "explains",
+          "origin": "imported",
+          "promotion": "tahto-semantic-relationship",
+          "referenceIds": [
+            "reference/assertion",
+            "reference/semantic"
+          ]
+        }
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "id": "topic/unresolved",
+      "revision": 1,
+      "label": "Policy feedback mechanism",
+      "resolution": "unresolved",
+      "conceptReferenceId": null
+    },
+    {
+      "id": "topic/resolved",
+      "revision": 1,
+      "label": "Industrial emissions",
+      "resolution": "resolved",
+      "conceptReferenceId": "reference/concept"
+    }
+  ],
+  "notes": [
+    {
+      "id": "note/unsourced",
+      "revision": 1,
+      "body": "A private working note that does not claim evidence.",
+      "grounding": {
+        "state": "unsourced",
+        "referenceIds": []
+      }
+    },
+    {
+      "id": "note/sourced",
+      "revision": 1,
+      "body": "The report records the selected observation at the cited anchor.",
+      "grounding": {
+        "state": "sourced",
+        "referenceIds": [
+          "reference/source",
+          "reference/anchor"
+        ]
+      }
+    }
+  ],
+  "questions": [
+    {
+      "id": "question/flow",
+      "revision": 1,
+      "text": "Which intervention assumptions should be tested next?",
+      "state": "sent-to-flow",
+      "grounding": {
+        "state": "sourced",
+        "referenceIds": [
+          "reference/source"
+        ]
+      },
+      "flowReferenceId": "reference/flow"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "hypothesis/feedback",
+      "revision": 1,
+      "statement": "Industrial feedback effects amplify the observed warming path.",
+      "state": "under-review",
+      "supportingReferenceIds": [
+        "reference/source",
+        "reference/assertion"
+      ],
+      "conflictingReferenceIds": [
+        "reference/candidate"
+      ],
+      "missingEvidence": [
+        "Independent replication across a second source root."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding/candidate",
+      "revision": 1,
+      "statement": "The suggested relation may explain the observed trend.",
+      "state": "candidate",
+      "grounding": {
+        "state": "candidate",
+        "referenceIds": [
+          "reference/candidate"
+        ]
+      }
+    },
+    {
+      "id": "finding/derived",
+      "revision": 1,
+      "statement": "The selected source and anchor support a bounded derived conclusion.",
+      "state": "reviewed",
+      "grounding": {
+        "state": "derived",
+        "referenceIds": [
+          "reference/source",
+          "reference/anchor"
+        ]
+      }
+    },
+    {
+      "id": "finding/asserted",
+      "revision": 1,
+      "statement": "The reviewed assertion is preserved separately from the map layout.",
+      "state": "reviewed",
+      "grounding": {
+        "state": "asserted",
+        "referenceIds": [
+          "reference/source",
+          "reference/assertion"
+        ]
+      }
+    }
+  ],
+  "lenses": [
+    {
+      "id": "lens/review",
+      "revision": 1,
+      "title": "Review states",
+      "includeRecordKinds": [
+        "topic",
+        "note",
+        "question",
+        "hypothesis",
+        "finding",
+        "brief"
+      ],
+      "groundingStates": [
+        "unsourced",
+        "unresolved",
+        "sourced",
+        "derived",
+        "candidate",
+        "asserted"
+      ],
+      "sort": "grounding-state",
+      "descending": false
+    }
+  ],
+  "briefs": [
+    {
+      "id": "brief/cited",
+      "revision": 1,
+      "title": "Cited climate brief",
+      "state": "reviewed",
+      "sections": [
+        {
+          "id": "section/evidence",
+          "heading": "Evidence",
+          "body": "The source and anchor support the selected observation.",
+          "grounding": {
+            "state": "derived",
+            "referenceIds": [
+              "reference/source",
+              "reference/anchor"
+            ]
+          }
+        },
+        {
+          "id": "section/assertion",
+          "heading": "Reviewed conclusion",
+          "body": "The accepted assertion remains separately addressable.",
+          "grounding": {
+            "state": "asserted",
+            "referenceIds": [
+              "reference/assertion"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "id": "activity/import",
+      "atUnixMs": 1700000000100,
+      "actorId": "identity/alex",
+      "kind": "source-imported",
+      "subjectKind": "reference",
+      "subjectId": "reference/source",
+      "summary": "Imported an exact Hestia source observation."
+    },
+    {
+      "id": "activity/review",
+      "atUnixMs": 1700000000200,
+      "actorId": "identity/alex",
+      "kind": "evidence-reviewed",
+      "subjectKind": "finding",
+      "subjectId": "finding/asserted",
+      "summary": "Reviewed the finding without changing its source or semantic owner."
+    },
+    {
+      "id": "activity/handoff",
+      "atUnixMs": 1700000000300,
+      "actorId": "identity/alex",
+      "kind": "handoff-prepared",
+      "subjectKind": "question",
+      "subjectId": "question/flow",
+      "summary": "Prepared selected context for the current Flow application."
+    }
+  ]
+}

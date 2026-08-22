@@ -17,7 +17,7 @@ against explicitly granted authority.
 Greenways OS is not the foreground product interface. It is the installed
 foundation that delivers and grounds applications. A person installs
 Greenways OS; setup installs the required Fabric components, connects the
-device, installs the bundled Foreman application, and opens Foreman without
+device, installs the bundled Flow application, and opens Flow without
 asking the person to understand the kernel, service, runtime, keychain, or
 identity protocols.
 
@@ -52,7 +52,7 @@ The user-facing model uses ordinary terms:
 | Device | A trusted computer participating in the Fabric |
 | Person | A human identity presented by name and profile |
 | Agent | A named AI profile with its own permissions and history |
-| App | A product installed on the Fabric, such as Foreman |
+| App | A product installed on the Fabric, such as Flow |
 | Project | A bounded body of work and its external references |
 | Work item | A requested outcome, such as a feature or GitHub issue |
 | Run | One bounded execution performed by an agent session |
@@ -70,13 +70,13 @@ connections, permissions, approvals, and recovery.
 The product hierarchy is:
 
 ```text
-Foreman                              what the person opens and uses
+Flow                              what the person opens and uses
   <- Greenways application host      installs, verifies, updates and presents it
     -> Greenways Fabric Server       grounds identity, storage, messages and work
       -> operating system            supplies process, filesystem and key storage
 ```
 
-Foreman is presented as the application name in window titles, installers,
+Flow is presented as the application name in window titles, installers,
 launchers, browser surfaces, commands, and ordinary help. Greenways appears as
 the trusted product family and connection status, not as an operating-system
 console.
@@ -96,7 +96,7 @@ Connections, Activity, Storage, and Diagnostics.
 ## System shape
 
 ```text
-               Foreman
+               Flow
         +----------+-----------+
         |          |           |
      Desktop      CLI       Browser
@@ -156,7 +156,7 @@ A client is an enrolled interface to a Fabric. Initial clients are:
 - Browser, for reviewed interaction with web applications and browser-only
   provider sessions.
 
-These are delivery surfaces rather than separate product centres. Foreman owns
+These are delivery surfaces rather than separate product centres. Flow owns
 the user experience presented through each surface. The generic client host
 handles connection, app loading, permissions, secure messages, updates, and
 local capability brokering underneath it.
@@ -167,7 +167,7 @@ unrestricted database interface. Losing a client can revoke that client
 without replacing the person's identity or other devices.
 
 The connection experience should resemble a private network product: install
-Greenways, name the device, approve the connection, and arrive in Foreman. The
+Greenways, name the device, approve the connection, and arrive in Flow. The
 cryptographic and transport details remain invisible unless a user opens
 diagnostics.
 
@@ -203,16 +203,17 @@ history, or authority policy.
 
 The kernel supplies identity, permissions, records, messaging, jobs, storage,
 and application isolation. Product behavior lives in installed applications.
-The first application is Foreman.
+The first application is Flow. Its user-facing product identity is Flow;
+its internal coordination service and durable domain implementation is Foreman.
 
 An installed application has two ordinary parts:
 
 ```text
-Foreman frontend
+Flow frontend
   Desktop, browser and CLI presentation
           |
           v
-Foreman application service
+Foreman coordination service
   projects, buildouts, runs, messages and external-tool coordination
           |
           v
@@ -220,14 +221,15 @@ Greenways Fabric API
   identity, access, content, storage, sync, messaging, work and connections
 ```
 
-Foreman builds on the Greenways Fabric API. It does not call Hoplite, Historia,
-Tahto, Hestia, Ignatius, Hara, Hodos, a database, or a keychain directly. The
-Fabric Server composes those implementation technologies behind the API.
+Flow and its Foreman coordination service build on the Greenways Fabric API.
+They do not call Hoplite, Historia, Tahto, Hestia, Ignatius, Hara, Hodos, a
+database, or a keychain directly. The Fabric Server composes those
+implementation technologies behind the API.
 
 The frontend receives bounded view models and sends closed application events.
 It does not reconstruct authority, merge synchronized state, interpret chain
 records, or possess provider credentials. Those responsibilities remain in the
-Foreman application service and Greenways Fabric services.
+Foreman coordination service and Greenways Fabric services.
 
 An application declares its operations and required permissions. Installation
 does not grant every requested permission. Consequential operations are checked
@@ -251,35 +253,35 @@ activity      attributable history and external verification
 ```
 
 These names are stable Greenways product contracts. Their implementations may
-compose several infrastructure services and may evolve without forcing Foreman
+compose several infrastructure services and may evolve without forcing Flow
 to adopt infrastructure-specific records.
 
 ## Application delivery
 
-Foreman is delivered by Greenways OS as its preinstalled default first-party
+Flow is delivered by Greenways OS as its preinstalled default first-party
 application, but it remains architecturally separate from the kernel:
 
 ```text
 Greenways OS installer or update
   -> installs or verifies the Greenways Fabric Server
   -> installs the application host for this operating system
-  -> verifies and installs the signed Foreman application package
+  -> verifies and installs the signed Flow application package
   -> enrols this device through ordinary setup
-  -> opens Foreman
+  -> opens Flow
 ```
 
 The Fabric Server can start, recover, synchronize, and enforce permissions
-without Foreman running. Foreman can update or restart without replacing the
+without Flow running. Flow can update or restart without replacing the
 person's Fabric identity or durable history. Future Greenways applications use
 the same installed foundation rather than shipping another private service,
 identity system, or data authority.
 
-Greenways OS owns Foreman installation, update, rollback, and launch. Foreman
+Greenways OS owns Flow installation, update, rollback, and launch. Flow
 does not update or replace the kernel beneath itself. The application package
 is independently versioned so its interface and coordination behavior can
 evolve without treating the Fabric as disposable application state.
 
-A Foreman application release contains only the pieces required by its
+A Flow application release contains only the pieces required by its
 declared surfaces and service operations:
 
 - shared application metadata and permissions;
@@ -288,18 +290,19 @@ declared surfaces and service operations:
 - CLI commands;
 - browser companion views and reviewed browser commands;
 - provider and tool adapter declarations; and
-- migrations for Foreman-owned records.
+- migrations for Foreman-owned records exposed through Flow.
 
-The Greenways client host verifies, loads, and connects those pieces. Foreman
+The Greenways client host verifies, loads, and connects those pieces. Flow
 does not receive unrestricted access to the Fabric database, root identity, or
 other installed applications.
 
-## Foreman
+## Flow and Foreman
 
-Foreman is the frontend and application service for unified work and agent
-coordination. It is broader than a terminal coding harness: it presents CLI
-sessions, browser sessions, desktop tools, provider APIs, GitHub work, build
-systems, and other web applications around the same project outcomes.
+Flow is the foreground project-centred coordination application. Foreman is
+its internal coordination engine and durable domain implementation. It is
+broader than a terminal coding harness: it presents CLI sessions, browser
+sessions, desktop tools, provider APIs, GitHub work, build systems, and other
+web applications around the same project outcomes.
 
 Its primary views are intentionally ordinary:
 
@@ -315,16 +318,16 @@ Its primary views are intentionally ordinary:
 A **buildout** groups work performed across multiple platforms toward the same
 project outcome. It can include GitHub issues, agent runs, provider sessions,
 branches, pull requests, CI jobs, browser interactions, artifacts, decisions,
-and unresolved blockers. Foreman presents one status without pretending that
+and unresolved blockers. Flow presents one status without pretending that
 all platforms share the same native lifecycle.
 
-Foreman owns its project model, coordination rules, and user-facing
-projections. The Fabric API supplies identity, authorisation, content history,
-durable messaging, synchronization, shared commits, connections, and
-attributable records without exposing which infrastructure service implements
-each operation.
+Foreman owns the durable project model and coordination rules. Flow owns the
+user-facing projections and actions over that model. The Fabric API supplies
+identity, authorisation, content history, durable messaging, synchronization,
+shared commits, connections, and attributable records without exposing which
+infrastructure service implements each operation.
 
-The default Foreman navigation should reflect its work model:
+The default Flow navigation should reflect its work model:
 
 ```text
 Today
@@ -344,16 +347,16 @@ separate control plane that displaces the work.
 ## Relationship to the visual-language prototypes
 
 The existing Greenways OS V2 visual-language work is a useful interaction
-prototype for Foreman. Its buffer model, split panes, Today view, contextual
+prototype for Flow. Its buffer model, split panes, Today view, contextual
 browser companion, agent progress, approval cards, and activity stream map well
-to Foreman.
+to Flow.
 
 The hierarchy and vocabulary need to change:
 
-| Prototype concept | Foreman presentation |
+| Prototype concept | Flow presentation |
 | --- | --- |
-| Greenways OS window | Foreman window |
-| Greenways Desktop | Foreman |
+| Greenways OS window | Flow window |
+| Greenways Desktop | Flow |
 | Workspace / release | Project / buildout |
 | Publishing room | Current project |
 | Studio and campaigns | Separate publication product or later apps |
@@ -367,7 +370,7 @@ The hierarchy and vocabulary need to change:
 The current prototypes are located in the sibling visual-language project,
 including `GreenwaysOsV2NativeDesktop.astro`,
 `GreenwaysOsV2ExtensionDesktop.astro`, and the popup and side-panel surfaces.
-They should inform Foreman rather than define a user-facing Greenways OS shell.
+They should inform Flow rather than define a user-facing Greenways OS shell.
 
 ## Agent-to-agent communication
 
@@ -376,7 +379,7 @@ unrecorded side channel. Communication is mediated by the Fabric:
 
 ```text
 Kimi CLI session
-  -> Foreman request
+  -> Flow request
   -> Fabric permission and availability check
   -> durable message recorded for the target
   -> ChatGPT browser session adapter
@@ -425,10 +428,10 @@ session's authority.
 
 ## Provider and tool adapters
 
-Foreman uses adapters for Codex, Kimi CLI, ChatGPT in a browser, GitHub, CI
-systems, and future tools. Each adapter translates a platform's native events
-into the common Foreman model while preserving the original identifiers and
-URLs.
+Foreman uses bounded adapters on behalf of Flow for Codex, Kimi CLI, ChatGPT
+in a browser, GitHub, CI systems, and future tools. Each adapter translates a
+platform's native events into the common Foreman model surfaced through Flow
+while preserving the original identifiers and URLs.
 
 An adapter owns only its connection and platform translation. It cannot bypass
 Fabric permissions or write fabricated completion evidence. Browser adapters
@@ -442,8 +445,9 @@ does not determine the product hierarchy.
 ## GitHub and external effects
 
 GitHub issues, branches, pull requests, reviews, and checks are external
-records linked to a Foreman project and work item. Foreman preserves GitHub as
-the authority for GitHub state and reads changed state back after mutations.
+records linked to a Foreman-owned project and work item. Flow preserves
+GitHub as the authority for GitHub state and reads changed state back after
+mutations.
 
 Creating an issue, commenting, pushing a branch, opening a pull request,
 merging, or changing repository settings are distinct permissions. A general
@@ -461,9 +465,10 @@ Every authorised mutation records:
 
 ## History and projections
 
-The durable history underneath Foreman records facts rather than mutable status
-summaries. Foreman builds current views of projects, runs, sessions, approvals,
-and buildouts from attributable events and external read-back.
+The durable history underneath Flow is maintained by Foreman as facts rather
+than mutable status summaries. Flow builds current views of projects, runs,
+sessions, approvals, and buildouts from attributable events and external
+read-back.
 
 The underlying history implementation is enabling infrastructure. Product
 contracts refer to activity, messages, runs, artifacts, decisions, and
@@ -471,7 +476,7 @@ checkpoints rather than its technology name.
 
 ## Greenways Platform boundary
 
-Foreman and the private Fabric do not publish public content directly across
+Flow and the private Fabric do not publish public content directly across
 many channels. A Fabric application may prepare an approved immutable release
 and hand it to Greenways Platform. Greenways Platform owns public pages,
 channel configuration, transformations, delivery, retries, reconciliation, and
@@ -487,7 +492,7 @@ because a release is published.
 2. The Fabric Server is the only writable authority for its current generation.
 3. Product contracts use ordinary Greenways terms, not enabling-technology
    names.
-4. Foreman is the foreground application; the Fabric is an invisible grounding
+4. Flow is the foreground application; the Fabric is an invisible grounding
    and delivery layer during ordinary use.
 5. Cryptographic details are invisible during ordinary use but inspectable in
    diagnostics and recovery.
@@ -497,7 +502,7 @@ because a release is published.
 9. Receiving agents do not lend their complete authority to callers.
 10. External actions require their own permissions and verified read-back.
 11. Apps depend on versioned Fabric contracts; the kernel remains minimal.
-12. Foreman can stop or update without invalidating Fabric identity or history.
+12. Flow can stop or update without invalidating Fabric identity or history.
 13. Private source and work history do not become public publication state.
 14. Infrastructure implementations remain replaceable behind adapters.
 15. Tahto owns portable semantics, authority, and synchronization; Hestia owns
@@ -508,26 +513,26 @@ because a release is published.
 
 ## First product proof
 
-The first end-to-end proof is Foreman coordinating two different provider
+The first end-to-end proof is Flow coordinating two different provider
 surfaces:
 
 1. A person installs Greenways OS; it verifies the Fabric components, installs
-   Foreman, and opens directly into the Foreman experience.
+   Flow, and opens directly into the Flow experience.
 2. Setup creates a person, names the device, and completes recovery without
    presenting cryptographic terminology or an OS administration dashboard.
-3. The person installs Foreman and creates a project linked to a GitHub
+3. The person installs Flow and creates a project linked to a GitHub
    repository.
 4. A Builder agent profile is allowed to read that project and request work
    from approved sessions.
 5. A Kimi CLI session sends a bounded question to an available ChatGPT browser
-   session through Foreman.
+   session through Flow.
 6. The ChatGPT session returns a result through the Fabric without revealing
    its browser credentials or unrelated conversation state.
-7. Foreman records the request, progress, result, artifacts, and both session
+7. Flow records the request, progress, result, artifacts, and both session
    identities in one buildout view.
-8. The agent proposes creating a GitHub issue; Foreman pauses for the required
+8. The agent proposes creating a GitHub issue; Flow pauses for the required
    permission or approval.
-9. After approval, GitHub returns a real issue identifier and Foreman reads it
+9. After approval, GitHub returns a real issue identifier and Flow reads it
    back before showing it as created.
 10. Restarting the Fabric Server preserves the project, buildout, causal
     history, and unresolved work without repeating completed external effects.

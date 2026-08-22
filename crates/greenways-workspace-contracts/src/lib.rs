@@ -1,7 +1,14 @@
 mod chats;
 mod context;
 mod error;
+mod flow;
+mod flow_handoff_intervention;
+mod flow_participation;
+mod flow_presence;
+mod flow_work_coordination;
 mod resource;
+mod spaces;
+mod suite;
 
 pub use chats::{
     chat_uri, ChatEntity, ChatSource, EntityLink, MessageEntity, MessageRole, TransactionRequest,
@@ -10,6 +17,11 @@ pub use chats::{
 };
 pub use context::reject_server_context;
 pub use error::{ContractError, ErrorCode, PublicFailure, ERROR_PROTOCOL, MAX_PUBLIC_ERROR_BYTES};
+pub use flow::*;
+pub use flow_handoff_intervention::*;
+pub use flow_participation::*;
+pub use flow_presence::*;
+pub use flow_work_coordination::*;
 pub use resource::{
     validate_resource_uri, Availability, ChangeStatus, QueryRequest, ResourceChanged,
     ResourceDescriptor, ResourceKind, ResourceLimits, ResourceOperation, SessionHello,
@@ -19,6 +31,8 @@ pub use resource::{
     PAGE_PROTOCOL, QUERY_PROTOCOL, RESOURCE_PROTOCOL, SESSION_HELLO_PROTOCOL,
     SIGNAL_RESOURCE_CHANGED, SUBSTRATE_PROTOCOL, TRANSACTION_PROTOCOL,
 };
+pub use spaces::*;
+pub use suite::*;
 
 use serde::{Deserialize, Serialize};
 

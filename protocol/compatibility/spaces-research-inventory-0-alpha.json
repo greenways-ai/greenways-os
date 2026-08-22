@@ -1,0 +1,171 @@
+{
+  "protocol": "greenways.spaces.research-compatibility-inventory/0-alpha",
+  "baseline": {
+    "repository": "greenways-ai/greenways-os",
+    "branch": "main",
+    "commit": "39f3b80820eead14a9c74430caeb93d88f3915bb",
+    "tree": "521b46e81bf7ab7d8d61eb2f741ffbef6d3cc38c"
+  },
+  "classifications": [
+    "absent",
+    "safe display alias",
+    "versioned compatibility alias",
+    "explicit migration",
+    "retained technical identity",
+    "incompatible / blocked"
+  ],
+  "categories": [
+    {
+      "id": "application-package-ids",
+      "classification": "absent",
+      "decision": "Mint only the Gate 0 Spaces identity; do not create a Research alias unless later evidence proves a merged durable identifier.",
+      "evidence": "No merged Research application or package identity is declared in the checked baseline."
+    },
+    {
+      "id": "operations-schemas-record-kinds",
+      "classification": "absent",
+      "decision": "New application-owned operations and record kinds may use spaces.* after Gate 0; no research.* compatibility family is justified by this baseline.",
+      "evidence": "No merged research.* operation, schema, namespace, event, or record-kind identity is declared in the checked baseline."
+    },
+    {
+      "id": "routes-deep-links",
+      "classification": "absent",
+      "decision": "Publish /spaces/ routes only after the shared route contract lands; do not add an unproven /research/ redirect.",
+      "evidence": "No merged Research route or deep-link identity is declared in the checked baseline."
+    },
+    {
+      "id": "cli-commands",
+      "classification": "absent",
+      "decision": "Introduce greenways spaces commands only after Gate 0; do not reserve greenways research as a compatibility command without durable evidence.",
+      "evidence": "No merged greenways research command family is declared in the checked baseline."
+    },
+    {
+      "id": "stored-project-space-records",
+      "classification": "absent",
+      "decision": "Do not invent a Research-project migration or guess legacy records into a Space; add an explicit migration only if persisted evidence is later found.",
+      "evidence": "No merged Research project, nested-space, or stored aggregate identity is declared in the checked baseline."
+    },
+    {
+      "id": "surface-activity-records",
+      "classification": "absent",
+      "decision": "Use Spaces for new launcher, recents, search, notification, and activity identities; preserve generic human-activity prose as non-identity text.",
+      "evidence": "No merged Research product surface or activity-record identity is declared in the checked baseline."
+    },
+    {
+      "id": "handoff-application-ids",
+      "classification": "absent",
+      "decision": "Define current Spaces-to-Flow profiles only after the shared handoff base merges; do not create Research-to-Build aliases without merged source or target IDs.",
+      "evidence": "No merged Research handoff source or target application identity is declared in the checked baseline."
+    },
+    {
+      "id": "public-work-source-application",
+      "classification": "absent",
+      "decision": "Platform adoption may use the future merged Spaces application ID; no Research source-application compatibility value is justified by this repository baseline.",
+      "evidence": "No merged Research public-work source-application value is declared in the checked baseline."
+    }
+  ],
+  "scan": {
+    "term": "research",
+    "caseSensitive": false,
+    "trackedFilesOnly": true,
+    "binaryPolicy": "skip files containing NUL or invalid UTF-8",
+    "excludedPaths": [
+      ".github/workflows/spaces-compatibility-inventory.yml",
+      "docs/spaces-compatibility-inventory.md",
+      "protocol/compatibility/spaces-research-inventory-0-alpha.json",
+      "scripts/check-spaces-compatibility-inventory.py"
+    ]
+  },
+  "findings": [
+    {
+      "path": "extension/src/app.js",
+      "lineText": "<p class=\"lede\">Your home can hold ideas, code, research, visual work, plans, and tools. Add services only when they help.</p></section>",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Ordinary description of a human activity in the developer home surface; it is not a Research application, package, route, command, schema, record, handoff, or public-work identity."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "pub const RESEARCH_APPLICATION_ID: &str = \"research\";",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "Research,",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "(LegacyApplicationId::Research, CurrentApplicationId::Spaces)",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/suite.rs",
+      "lineText": "legacy_application_id: LegacyApplicationId::Research,",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/suite/current-suite.json",
+      "lineText": "\"legacyApplicationId\": \"research\",",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "Gate 0 closed compatibility vocabulary records the absent Research inventory without registering a discoverable application, alias, route, command, durable record, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/spaces/core.inc.rs",
+      "lineText": "if self.compatibility.legacy_application_id != LegacyApplicationId::Research",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "The B1 Spaces domain manifest repeats the merged absent compatibility disposition without creating a discoverable legacy application, alias, migration, duplicate Space, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/src/spaces/core.inc.rs",
+      "lineText": "legacy_application_id: LegacyApplicationId::Research,",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "The B1 Spaces domain manifest repeats the merged absent compatibility disposition without creating a discoverable legacy application, alias, migration, duplicate Space, or authority path."
+    },
+    {
+      "path": "crates/greenways-workspace-contracts/tests/fixtures/spaces/domain-manifest.json",
+      "lineText": "\"legacyApplicationId\": \"research\",",
+      "pattern": "generic-prose",
+      "category": null,
+      "occurrences": 1,
+      "kind": "generic-prose",
+      "classification": null,
+      "reason": "The B1 Spaces domain manifest repeats the merged absent compatibility disposition without creating a discoverable legacy application, alias, migration, duplicate Space, or authority path."
+    }
+  ]
+}

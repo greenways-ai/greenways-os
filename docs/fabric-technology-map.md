@@ -27,21 +27,22 @@ the migrations have already landed.
 
 ## Purpose
 
-Greenways OS presents Foreman, people, agents, projects, devices, connections,
+Greenways OS presents Flow, people, agents, projects, devices, connections,
 permissions, approvals, storage, and activity. This document maps those product
 concepts onto portable definitions, client packages, effectful executors, and
 the Greenways product composition.
 
 Technology names belong in architecture, dependency, diagnostics, migration,
-and conformance material. They do not become Foreman navigation, setup
-terminology, or ordinary user-facing records.
+and conformance material. They do not become Flow navigation, setup
+terminology, or ordinary user-facing records. Foreman remains the internal
+coordination engine behind Flow.
 
-Foreman does not import these implementations directly. The dependency
+Flow does not import these implementations directly. The dependency
 direction is:
 
 ```text
-Foreman frontend
-  -> Foreman application service
+Flow frontend
+  -> Foreman coordination service
     -> Greenways Fabric API
       -> Greenways OS product composition
         -> selected portable kernels, client packages and executors
@@ -58,7 +59,7 @@ Foreman frontend
 | Hoplite | Effectful serving executor | Production HTTP routing, request boundaries, streaming, workers, and prepared Hara application hosting | Product identity, application policy, semantic or knowledge ownership, authority, databases, or the complete Fabric Server |
 | Ignatius | Effectful shared-finality executor | Ordered accepted shared transitions, exact roots, compare-and-set heads, immutable blocks, scoped refs, and receipts | Ordinary local work, bulk content, graph retrieval, authorization policy, transport, or product UI |
 | Hara | Package and portable-kernel substrate | Portable programs, validators, reducers, package contracts, and runtime execution | Product vocabulary, host resource ownership, provider selection, or ambient authority |
-| Greenways OS and Foreman | Product composition | Local key and credential custody, provider selection, consent, process lifecycle, installation trust, Fabric API composition, work coordination, and user experience | Re-exporting infrastructure internals as product concepts |
+| Greenways OS, Flow, and Foreman | Product composition and coordination service | Local key and credential custody, provider selection, consent, process lifecycle, installation trust, Fabric API composition, work coordination, and user experience | Re-exporting infrastructure internals as product concepts |
 
 The architecture is not a linear request path through every technology. Tahto
 and Hestia define reusable semantic and knowledge contracts. Hodos consumes
@@ -86,7 +87,8 @@ EXECUTORS                       |
 Hoplite serving        Ignatius shared finality
                                 |
 PRODUCT                         v
-                    Greenways OS + Foreman
+                    Greenways OS + Flow
+                    Foreman coordination engine behind Flow
 ```
 
 The diagram classifies responsibilities; it does not require every operation
@@ -102,11 +104,11 @@ The boundary can be tested with ordinary questions:
 | May this installed app use a local capability? | Greenways OS | Local app approval and current capability decision |
 | Who is this person or agent across projects and devices? | Greenways identity service | Tahto authority profiles combined with native key possession |
 | May this agent perform this consequential project action? | Greenways Access | Tahto authority closure and deterministic decision; Greenways OS enforces the effect |
-| What is the canonical project, run, message, artifact, or relationship value? | Foreman | Foreman-owned schemas expressed through Tahto values, links, roots, revisions, and sync |
-| What sources, claims, evidence, lineage, and retrieval structures can be constructed? | Foreman knowledge and search | Hestia knowledge profiles and providers, with exact anchors to sources and Tahto roots where applicable |
+| What is the canonical project, run, message, artifact, or relationship value? | Flow | Foreman-owned schemas surfaced through Flow and expressed through Tahto values, links, roots, revisions, and sync |
+| What sources, claims, evidence, lineage, and retrieval structures can be constructed? | Flow knowledge and search | Hestia knowledge profiles and providers, with exact anchors to sources and Tahto roots where applicable |
 | Which shared transition was accepted and in what order? | Greenways collaboration service | Ignatius signed transaction and canonical receipt |
 | How is a remote service exposed over HTTP? | Greenways Server | Hoplite routes, workers, request boundaries, streaming, and hosting |
-| How is a visible client component found and instantiated? | Foreman client | Hodos resolves an inert catalogue entry and materializes an approved Hara package in the browser |
+| How is a visible client component found and instantiated? | Flow client | Hodos resolves an inert catalogue entry and materializes an approved Hara package in the browser |
 
 ## Semantic and knowledge boundary
 
@@ -213,15 +215,15 @@ context, browser captures, Git repositories, or media payloads. Purely personal
 work does not require an Ignatius transaction.
 
 Hoplite and Ignatius remain independently understandable executors. Neither
-defines Tahto semantics, Hestia knowledge, Hodos clients, or Foreman product
+defines Tahto semantics, Hestia knowledge, Hodos clients, or Flow product
 behavior.
 
 ## Operation composition
 
-A consequential Foreman operation may compose only the capabilities it needs:
+A consequential Flow operation may compose only the capabilities it needs:
 
-1. Foreman submits a bounded Fabric operation against a project and work item.
-2. Greenways OS authenticates the enrolled client and installed Foreman app.
+1. Flow submits a bounded Fabric operation against a project and work item.
+2. Greenways OS authenticates the enrolled client and installed Flow app.
 3. For a consequential action, Greenways OS resolves an exact Tahto authority
    closure and consumes the deterministic decision before enforcing the effect.
 4. If source-grounded knowledge or retrieval is required, a Hestia package or
@@ -231,7 +233,7 @@ A consequential Foreman operation may compose only the capabilities it needs:
 6. If a remote HTTP boundary is required, Hoplite executes that serving role.
 7. If shared finality is required, Ignatius commits the accepted exact roots and
    returns a receipt.
-8. Foreman receives an ordinary result and attributable activity update.
+8. Flow receives an ordinary result and attributable activity update.
 
 An operation may use none, one, or several of these components. In particular,
 Hestia is not in the authorization path, Hodos is not a server path, and
@@ -239,7 +241,7 @@ Ignatius is not in ordinary local or token-by-token message traffic.
 
 ## Agent-to-agent communication
 
-For a Kimi CLI session calling a ChatGPT browser session, Foreman sees one
+For a Kimi CLI session calling a ChatGPT browser session, Flow sees one
 application-level exchange:
 
 ```text
@@ -252,7 +254,8 @@ message.send
 The Fabric may compose that exchange using:
 
 ```text
-Foreman application schema and operation       Foreman
+Flow application contract                      Flow
+Foreman project and coordination schema        Foreman
 canonical message, run and authority values    Tahto
 source-grounded history and retrieval           Hestia, when required
 visible browser component lifecycle             Hodos, when used
@@ -282,15 +285,15 @@ must prove:
    knowledge packages cannot be confused;
 4. a client-only Hodos package graph with browser materialization, capability
    denial, offline pinned-package, and deterministic disposal evidence;
-5. the exact Foreman schemas expressed over Tahto and the Hestia profiles that
-   construct knowledge over Foreman, GitHub, conversation, code, and document
+5. the exact Foreman durable schemas surfaced through Flow over Tahto and the
+   Hestia profiles that construct knowledge over Flow, GitHub, conversation, code, and document
    sources;
 6. the threshold and exact-root handoff for optional Ignatius finality;
 7. the local IPC versus Hoplite HTTP boundary of the cross-platform Fabric
    Server; and
 8. a real-process recovery proof across local custody, Tahto state and
    authority, Hestia knowledge projections, optional shared finality, and
-   Foreman projections.
+   Foreman projections surfaced through Flow.
 
 Do not remove legacy packages, rewrite archives, or repoint consumers merely
 because this target map is documented. Protocol ownership and compatibility

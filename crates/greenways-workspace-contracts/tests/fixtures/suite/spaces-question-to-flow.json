@@ -1,0 +1,31 @@
+{
+  "protocol": "greenways.handoff/0-alpha",
+  "handoffId": "handoff/gate0/spaces-question-to-flow",
+  "idempotencyKey": "idempotency/gate0/spaces-question-to-flow",
+  "source": {
+    "protocol": "greenways.reference.shared/0-alpha",
+    "applicationId": "spaces",
+    "applicationRevision": "0.1.0",
+    "ownerApplicationId": "spaces",
+    "ownerKind": "space",
+    "ownerId": "space/gate0-current-suite",
+    "recordKind": "question",
+    "logicalId": "question/gate0-flow-contract",
+    "exactRoot": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "observedRevision": 1,
+    "observedAtUnixMs": 1700000000000,
+    "freshness": "current",
+    "authorityState": "resolution-required",
+    "authorityTransfer": false,
+    "summary": "Gate 0 suite contract question",
+    "detail": "Selected context only; no Space authority is transferred."
+  },
+  "targetApplicationId": "flow",
+  "targetApplicationRevision": "0.1.0",
+  "targetOwnerKind": "project",
+  "targetOwnerId": "project/gate0-current-suite",
+  "operation": "spaces.question.send-to-flow-project",
+  "expectedResultKind": "flow-project-work",
+  "requestDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "state": "prepared"
+}

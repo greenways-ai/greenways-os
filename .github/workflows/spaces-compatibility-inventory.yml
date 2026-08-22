@@ -1,0 +1,21 @@
+name: Spaces compatibility inventory
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify merged Research identity inventory
+        run: python3 scripts/check-spaces-compatibility-inventory.py
+      - name: Check whitespace
+        run: git diff --check HEAD^ HEAD

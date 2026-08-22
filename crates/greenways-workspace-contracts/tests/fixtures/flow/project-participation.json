@@ -1,0 +1,77 @@
+{
+  "protocol": "greenways.flow.project-participation/0-alpha",
+  "applicationId": "flow",
+  "applicationRevision": "0.1.0",
+  "projectId": "project/flow-control-room",
+  "projectRevision": 7,
+  "members": [
+    {
+      "protocol": "greenways.flow.project-member/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "membershipId": "membership/flow-owner",
+      "revision": 3,
+      "principal": {
+        "kind": "person",
+        "principalId": "person/flow-owner",
+        "identityRevision": 4
+      },
+      "role": "owner",
+      "state": "active",
+      "invitedAtUnixMs": 1787270400000,
+      "activatedAtUnixMs": 1787270460000,
+      "expiresAtUnixMs": null,
+      "revokedAtUnixMs": null,
+      "authorityTransfer": false
+    },
+    {
+      "protocol": "greenways.flow.project-member/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "membershipId": "membership/flow-agent-builder",
+      "revision": 2,
+      "principal": {
+        "kind": "agent",
+        "principalId": "agent/flow-builder",
+        "identityRevision": 8
+      },
+      "role": "contributor",
+      "state": "active",
+      "invitedAtUnixMs": 1787270520000,
+      "activatedAtUnixMs": 1787270580000,
+      "expiresAtUnixMs": 1789862400000,
+      "revokedAtUnixMs": null,
+      "authorityTransfer": false
+    }
+  ],
+  "agentMandates": [
+    {
+      "protocol": "greenways.flow.agent-mandate/0-alpha",
+      "applicationId": "flow",
+      "applicationRevision": "0.1.0",
+      "projectId": "project/flow-control-room",
+      "mandateId": "mandate/flow-agent-builder-current",
+      "revision": 2,
+      "membershipId": "membership/flow-agent-builder",
+      "agentId": "agent/flow-builder",
+      "state": "active",
+      "capabilities": [
+        "project-read",
+        "work-read",
+        "work-create",
+        "work-update",
+        "work-transition",
+        "work-claim",
+        "handoff-request",
+        "intervention-raise",
+        "buildout-read"
+      ],
+      "validFromUnixMs": 1787270580000,
+      "expiresAtUnixMs": 1789862400000,
+      "revokedAtUnixMs": null,
+      "authorityTransfer": false
+    }
+  ]
+}
