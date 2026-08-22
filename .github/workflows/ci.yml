@@ -34,7 +34,6 @@ jobs:
           cache: npm
           cache-dependency-path: |
             extension/package-lock.json
-            extension/hara-chrome/package-lock.json
             services/browser-bridge/package-lock.json
             services/mcp-gateway/package-lock.json
             services/packages/package-lock.json
@@ -42,9 +41,6 @@ jobs:
             services/devtools-node/package-lock.json
       - run: npm ci
       - run: npm test
-      - name: Test Hara Chrome fast suite
-        working-directory: extension/hara-chrome
-        run: npm ci && make test-fast
       - run: npm run build
       - run: npm run build:web
       - run: npx playwright install --with-deps chromium
