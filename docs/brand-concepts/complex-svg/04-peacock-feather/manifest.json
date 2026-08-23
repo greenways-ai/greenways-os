@@ -1,0 +1,102 @@
+{
+  "id": "mosaic",
+  "palette": [
+    "#48a897",
+    "#1b8479",
+    "#91b194",
+    "#327f9a",
+    "#3b584f",
+    "#3f905a",
+    "#164773",
+    "#0f563f",
+    "#0f1b2c",
+    "#738560"
+  ],
+  "source": {
+    "width": 640,
+    "height": 637,
+    "sha256": "c4fbd121db12161e9ab78aa242f0248b35a609927642b90ac0969549a3659444"
+  },
+  "bounds": {
+    "x": 118,
+    "y": 48,
+    "width": 439,
+    "height": 547
+  },
+  "pathCount": 146,
+  "anchorCount": 7214,
+  "byteLength": 35130,
+  "settings": {
+    "maxDimension": 640,
+    "background": "transparent",
+    "backgroundTolerance": 32,
+    "maskMode": "solid",
+    "minComponentArea": 96,
+    "cropPadding": 6,
+    "preset": "poster",
+    "clustering": "color-cluster",
+    "hierarchical": "cutout",
+    "mode": "polygon",
+    "filterSpeckle": 12,
+    "colorPrecision": 6,
+    "layerDifference": 24,
+    "cornerThreshold": 60,
+    "lengthThreshold": 4,
+    "maxIterations": 3,
+    "spliceThreshold": 45,
+    "simplify": 3,
+    "pathPrecision": 2,
+    "maxColors": 10,
+    "optimize": 2
+  },
+  "background": {
+    "color": [
+      60,
+      60,
+      68
+    ],
+    "mode": "transparent"
+  },
+  "mask": {
+    "mode": "solid",
+    "backgroundPixels": 278423,
+    "foregroundPixels": 129257,
+    "candidateComponents": 158,
+    "retainedComponents": 1,
+    "removedComponents": 157,
+    "removedComponentPixels": 362,
+    "backgroundColors": [
+      [
+        60,
+        60,
+        68
+      ],
+      [
+        60,
+        60,
+        60
+      ],
+      [
+        52,
+        52,
+        52
+      ],
+      [
+        44,
+        44,
+        44
+      ],
+      [
+        44,
+        44,
+        52
+      ],
+      [
+        60,
+        68,
+        68
+      ]
+    ]
+  },
+  "file": "01-mosaic.svg"
+}

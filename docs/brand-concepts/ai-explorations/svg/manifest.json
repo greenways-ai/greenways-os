@@ -1,0 +1,1169 @@
+{
+  "tool": "@hara-lang/svg-tool",
+  "version": "0.1.0",
+  "palette": {
+    "ink": "#101612",
+    "teal": "#167f87",
+    "monochrome": "#101612"
+  },
+  "layout": "greenways-brand-2x5",
+  "sources": [
+    {
+      "brand": "hestia",
+      "input": "hestia-logo-explorations.png",
+      "sha256": "51437993818bec88defc3122c3679007e25024560dbfa1badbeb060efef0bbf1",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/hestia/01.svg",
+          "pathCount": 2,
+          "anchorCount": 111
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/01.svg",
+          "pathCount": 1,
+          "anchorCount": 111
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/02.svg",
+          "pathCount": 2,
+          "anchorCount": 93
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/02.svg",
+          "pathCount": 1,
+          "anchorCount": 84
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/03.svg",
+          "pathCount": 2,
+          "anchorCount": 67
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/03.svg",
+          "pathCount": 1,
+          "anchorCount": 67
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/04.svg",
+          "pathCount": 2,
+          "anchorCount": 99
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/04.svg",
+          "pathCount": 1,
+          "anchorCount": 99
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/05.svg",
+          "pathCount": 2,
+          "anchorCount": 101
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/05.svg",
+          "pathCount": 1,
+          "anchorCount": 101
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/06.svg",
+          "pathCount": 2,
+          "anchorCount": 119
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/06.svg",
+          "pathCount": 1,
+          "anchorCount": 119
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/07.svg",
+          "pathCount": 2,
+          "anchorCount": 104
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/07.svg",
+          "pathCount": 1,
+          "anchorCount": 104
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/08.svg",
+          "pathCount": 2,
+          "anchorCount": 103
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/08.svg",
+          "pathCount": 1,
+          "anchorCount": 103
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/09.svg",
+          "pathCount": 2,
+          "anchorCount": 88
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/09.svg",
+          "pathCount": 1,
+          "anchorCount": 88
+        },
+        {
+          "variant": "color",
+          "file": "color/hestia/10.svg",
+          "pathCount": 2,
+          "anchorCount": 116
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hestia/10.svg",
+          "pathCount": 1,
+          "anchorCount": 116
+        }
+      ]
+    },
+    {
+      "brand": "ignatius",
+      "input": "ignatius-logo-explorations.png",
+      "sha256": "dbd9c4aa72b4a416680971b64cf7e2469e41cd2bbbaaa9c6b9e9eb9790f75d6f",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/ignatius/01.svg",
+          "pathCount": 1,
+          "anchorCount": 50
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/01.svg",
+          "pathCount": 1,
+          "anchorCount": 50
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/02.svg",
+          "pathCount": 2,
+          "anchorCount": 82
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/02.svg",
+          "pathCount": 1,
+          "anchorCount": 75
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/03.svg",
+          "pathCount": 2,
+          "anchorCount": 100
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/03.svg",
+          "pathCount": 1,
+          "anchorCount": 100
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/04.svg",
+          "pathCount": 1,
+          "anchorCount": 97
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/04.svg",
+          "pathCount": 1,
+          "anchorCount": 97
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/05.svg",
+          "pathCount": 2,
+          "anchorCount": 80
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/05.svg",
+          "pathCount": 1,
+          "anchorCount": 80
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/06.svg",
+          "pathCount": 2,
+          "anchorCount": 85
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/06.svg",
+          "pathCount": 1,
+          "anchorCount": 85
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/07.svg",
+          "pathCount": 2,
+          "anchorCount": 39
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/07.svg",
+          "pathCount": 1,
+          "anchorCount": 49
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/08.svg",
+          "pathCount": 2,
+          "anchorCount": 63
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/08.svg",
+          "pathCount": 1,
+          "anchorCount": 63
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/09.svg",
+          "pathCount": 2,
+          "anchorCount": 68
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/09.svg",
+          "pathCount": 1,
+          "anchorCount": 68
+        },
+        {
+          "variant": "color",
+          "file": "color/ignatius/10.svg",
+          "pathCount": 2,
+          "anchorCount": 90
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/ignatius/10.svg",
+          "pathCount": 1,
+          "anchorCount": 90
+        }
+      ]
+    },
+    {
+      "brand": "tahto",
+      "input": "tahto-logo-explorations.png",
+      "sha256": "c549fc1c58c4544b87e957c0355b26ef6ec2891152f13294e2e9f868ee734629",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/tahto/01.svg",
+          "pathCount": 2,
+          "anchorCount": 131
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/01.svg",
+          "pathCount": 1,
+          "anchorCount": 131
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/02.svg",
+          "pathCount": 2,
+          "anchorCount": 88
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/02.svg",
+          "pathCount": 1,
+          "anchorCount": 88
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/03.svg",
+          "pathCount": 2,
+          "anchorCount": 112
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/03.svg",
+          "pathCount": 1,
+          "anchorCount": 112
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/04.svg",
+          "pathCount": 2,
+          "anchorCount": 104
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/04.svg",
+          "pathCount": 1,
+          "anchorCount": 111
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/05.svg",
+          "pathCount": 2,
+          "anchorCount": 89
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/05.svg",
+          "pathCount": 1,
+          "anchorCount": 89
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/06.svg",
+          "pathCount": 2,
+          "anchorCount": 83
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/06.svg",
+          "pathCount": 1,
+          "anchorCount": 79
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/07.svg",
+          "pathCount": 2,
+          "anchorCount": 76
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/07.svg",
+          "pathCount": 1,
+          "anchorCount": 76
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/08.svg",
+          "pathCount": 2,
+          "anchorCount": 109
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/08.svg",
+          "pathCount": 1,
+          "anchorCount": 109
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/09.svg",
+          "pathCount": 2,
+          "anchorCount": 164
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/09.svg",
+          "pathCount": 1,
+          "anchorCount": 155
+        },
+        {
+          "variant": "color",
+          "file": "color/tahto/10.svg",
+          "pathCount": 2,
+          "anchorCount": 148
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/tahto/10.svg",
+          "pathCount": 1,
+          "anchorCount": 148
+        }
+      ]
+    },
+    {
+      "brand": "hoplite",
+      "input": "hoplite-logo-explorations.png",
+      "sha256": "bb56a511467c2d25b7571afae88c4f308d6364786f190f152eb4285acc074418",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/hoplite/01.svg",
+          "pathCount": 2,
+          "anchorCount": 91
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/01.svg",
+          "pathCount": 1,
+          "anchorCount": 91
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/02.svg",
+          "pathCount": 2,
+          "anchorCount": 146
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/02.svg",
+          "pathCount": 1,
+          "anchorCount": 146
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/03.svg",
+          "pathCount": 2,
+          "anchorCount": 145
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/03.svg",
+          "pathCount": 1,
+          "anchorCount": 97
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/04.svg",
+          "pathCount": 2,
+          "anchorCount": 92
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/04.svg",
+          "pathCount": 1,
+          "anchorCount": 92
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/05.svg",
+          "pathCount": 2,
+          "anchorCount": 85
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/05.svg",
+          "pathCount": 1,
+          "anchorCount": 85
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/06.svg",
+          "pathCount": 2,
+          "anchorCount": 143
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/06.svg",
+          "pathCount": 1,
+          "anchorCount": 143
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/07.svg",
+          "pathCount": 2,
+          "anchorCount": 48
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/07.svg",
+          "pathCount": 1,
+          "anchorCount": 48
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/08.svg",
+          "pathCount": 2,
+          "anchorCount": 66
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/08.svg",
+          "pathCount": 1,
+          "anchorCount": 66
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/09.svg",
+          "pathCount": 2,
+          "anchorCount": 140
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/09.svg",
+          "pathCount": 1,
+          "anchorCount": 140
+        },
+        {
+          "variant": "color",
+          "file": "color/hoplite/10.svg",
+          "pathCount": 2,
+          "anchorCount": 88
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hoplite/10.svg",
+          "pathCount": 1,
+          "anchorCount": 88
+        }
+      ]
+    },
+    {
+      "brand": "fabric",
+      "input": "fabric-logo-explorations.png",
+      "sha256": "278f4f39596ddecc457e0e2eb52d474508d7983bb40fe414cce7a85979116cef",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/fabric/01.svg",
+          "pathCount": 2,
+          "anchorCount": 692
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/01.svg",
+          "pathCount": 1,
+          "anchorCount": 684
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/02.svg",
+          "pathCount": 2,
+          "anchorCount": 323
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/02.svg",
+          "pathCount": 1,
+          "anchorCount": 296
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/03.svg",
+          "pathCount": 2,
+          "anchorCount": 691
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/03.svg",
+          "pathCount": 1,
+          "anchorCount": 681
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/04.svg",
+          "pathCount": 2,
+          "anchorCount": 450
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/04.svg",
+          "pathCount": 1,
+          "anchorCount": 418
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/05.svg",
+          "pathCount": 2,
+          "anchorCount": 474
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/05.svg",
+          "pathCount": 1,
+          "anchorCount": 459
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/06.svg",
+          "pathCount": 2,
+          "anchorCount": 372
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/06.svg",
+          "pathCount": 1,
+          "anchorCount": 345
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/07.svg",
+          "pathCount": 1,
+          "anchorCount": 542
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/07.svg",
+          "pathCount": 1,
+          "anchorCount": 542
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/08.svg",
+          "pathCount": 2,
+          "anchorCount": 335
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/08.svg",
+          "pathCount": 1,
+          "anchorCount": 316
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/09.svg",
+          "pathCount": 2,
+          "anchorCount": 609
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/09.svg",
+          "pathCount": 1,
+          "anchorCount": 609
+        },
+        {
+          "variant": "color",
+          "file": "color/fabric/10.svg",
+          "pathCount": 2,
+          "anchorCount": 147
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/fabric/10.svg",
+          "pathCount": 1,
+          "anchorCount": 143
+        }
+      ]
+    },
+    {
+      "brand": "search",
+      "input": "search-logo-explorations.png",
+      "sha256": "dcd96c13db042f5f24a059ca98e9bc28b0f16d4fe1bc462ca557209ad4c82907",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/search/01.svg",
+          "pathCount": 2,
+          "anchorCount": 94
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/01.svg",
+          "pathCount": 1,
+          "anchorCount": 94
+        },
+        {
+          "variant": "color",
+          "file": "color/search/02.svg",
+          "pathCount": 2,
+          "anchorCount": 78
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/02.svg",
+          "pathCount": 1,
+          "anchorCount": 73
+        },
+        {
+          "variant": "color",
+          "file": "color/search/03.svg",
+          "pathCount": 2,
+          "anchorCount": 101
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/03.svg",
+          "pathCount": 1,
+          "anchorCount": 101
+        },
+        {
+          "variant": "color",
+          "file": "color/search/04.svg",
+          "pathCount": 2,
+          "anchorCount": 71
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/04.svg",
+          "pathCount": 1,
+          "anchorCount": 57
+        },
+        {
+          "variant": "color",
+          "file": "color/search/05.svg",
+          "pathCount": 2,
+          "anchorCount": 103
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/05.svg",
+          "pathCount": 1,
+          "anchorCount": 103
+        },
+        {
+          "variant": "color",
+          "file": "color/search/06.svg",
+          "pathCount": 2,
+          "anchorCount": 137
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/06.svg",
+          "pathCount": 1,
+          "anchorCount": 69
+        },
+        {
+          "variant": "color",
+          "file": "color/search/07.svg",
+          "pathCount": 2,
+          "anchorCount": 96
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/07.svg",
+          "pathCount": 1,
+          "anchorCount": 96
+        },
+        {
+          "variant": "color",
+          "file": "color/search/08.svg",
+          "pathCount": 2,
+          "anchorCount": 87
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/08.svg",
+          "pathCount": 1,
+          "anchorCount": 87
+        },
+        {
+          "variant": "color",
+          "file": "color/search/09.svg",
+          "pathCount": 2,
+          "anchorCount": 115
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/09.svg",
+          "pathCount": 1,
+          "anchorCount": 115
+        },
+        {
+          "variant": "color",
+          "file": "color/search/10.svg",
+          "pathCount": 2,
+          "anchorCount": 82
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/search/10.svg",
+          "pathCount": 1,
+          "anchorCount": 82
+        }
+      ]
+    },
+    {
+      "brand": "timeline",
+      "input": "timeline-logo-explorations.png",
+      "sha256": "aa289b320179c770d7232753d4206fbc5dc0e18980531f99950ed43ef00d1915",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/timeline/01.svg",
+          "pathCount": 2,
+          "anchorCount": 608
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/01.svg",
+          "pathCount": 1,
+          "anchorCount": 582
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/02.svg",
+          "pathCount": 2,
+          "anchorCount": 541
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/02.svg",
+          "pathCount": 1,
+          "anchorCount": 536
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/03.svg",
+          "pathCount": 2,
+          "anchorCount": 673
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/03.svg",
+          "pathCount": 1,
+          "anchorCount": 673
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/04.svg",
+          "pathCount": 2,
+          "anchorCount": 230
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/04.svg",
+          "pathCount": 1,
+          "anchorCount": 215
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/05.svg",
+          "pathCount": 2,
+          "anchorCount": 943
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/05.svg",
+          "pathCount": 1,
+          "anchorCount": 890
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/06.svg",
+          "pathCount": 2,
+          "anchorCount": 629
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/06.svg",
+          "pathCount": 1,
+          "anchorCount": 629
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/07.svg",
+          "pathCount": 2,
+          "anchorCount": 368
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/07.svg",
+          "pathCount": 1,
+          "anchorCount": 340
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/08.svg",
+          "pathCount": 2,
+          "anchorCount": 625
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/08.svg",
+          "pathCount": 1,
+          "anchorCount": 625
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/09.svg",
+          "pathCount": 2,
+          "anchorCount": 367
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/09.svg",
+          "pathCount": 1,
+          "anchorCount": 367
+        },
+        {
+          "variant": "color",
+          "file": "color/timeline/10.svg",
+          "pathCount": 2,
+          "anchorCount": 536
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/timeline/10.svg",
+          "pathCount": 1,
+          "anchorCount": 512
+        }
+      ]
+    },
+    {
+      "brand": "world",
+      "input": "world-logo-explorations.png",
+      "sha256": "f5769174b35ba95bcb03a9c6f26cf49b4e5c875849a57d733a84730a8911b792",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/world/01.svg",
+          "pathCount": 2,
+          "anchorCount": 254
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/01.svg",
+          "pathCount": 1,
+          "anchorCount": 254
+        },
+        {
+          "variant": "color",
+          "file": "color/world/02.svg",
+          "pathCount": 2,
+          "anchorCount": 163
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/02.svg",
+          "pathCount": 1,
+          "anchorCount": 163
+        },
+        {
+          "variant": "color",
+          "file": "color/world/03.svg",
+          "pathCount": 2,
+          "anchorCount": 164
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/03.svg",
+          "pathCount": 1,
+          "anchorCount": 164
+        },
+        {
+          "variant": "color",
+          "file": "color/world/04.svg",
+          "pathCount": 2,
+          "anchorCount": 170
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/04.svg",
+          "pathCount": 1,
+          "anchorCount": 170
+        },
+        {
+          "variant": "color",
+          "file": "color/world/05.svg",
+          "pathCount": 2,
+          "anchorCount": 366
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/05.svg",
+          "pathCount": 1,
+          "anchorCount": 366
+        },
+        {
+          "variant": "color",
+          "file": "color/world/06.svg",
+          "pathCount": 2,
+          "anchorCount": 152
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/06.svg",
+          "pathCount": 1,
+          "anchorCount": 143
+        },
+        {
+          "variant": "color",
+          "file": "color/world/07.svg",
+          "pathCount": 2,
+          "anchorCount": 188
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/07.svg",
+          "pathCount": 1,
+          "anchorCount": 180
+        },
+        {
+          "variant": "color",
+          "file": "color/world/08.svg",
+          "pathCount": 2,
+          "anchorCount": 274
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/08.svg",
+          "pathCount": 1,
+          "anchorCount": 274
+        },
+        {
+          "variant": "color",
+          "file": "color/world/09.svg",
+          "pathCount": 2,
+          "anchorCount": 107
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/09.svg",
+          "pathCount": 1,
+          "anchorCount": 107
+        },
+        {
+          "variant": "color",
+          "file": "color/world/10.svg",
+          "pathCount": 2,
+          "anchorCount": 136
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/world/10.svg",
+          "pathCount": 1,
+          "anchorCount": 136
+        }
+      ]
+    },
+    {
+      "brand": "hodos",
+      "input": "hodos-logo-explorations.png",
+      "sha256": "5c23fca8792f22bc463f48e93d8beda9513b8d7334c3b8fafc1ee754ecd2fcf1",
+      "regions": 10,
+      "outputs": [
+        {
+          "variant": "color",
+          "file": "color/hodos/01.svg",
+          "pathCount": 1,
+          "anchorCount": 151
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/01.svg",
+          "pathCount": 1,
+          "anchorCount": 151
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/02.svg",
+          "pathCount": 2,
+          "anchorCount": 126
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/02.svg",
+          "pathCount": 1,
+          "anchorCount": 106
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/03.svg",
+          "pathCount": 2,
+          "anchorCount": 105
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/03.svg",
+          "pathCount": 1,
+          "anchorCount": 105
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/04.svg",
+          "pathCount": 2,
+          "anchorCount": 133
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/04.svg",
+          "pathCount": 1,
+          "anchorCount": 133
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/05.svg",
+          "pathCount": 2,
+          "anchorCount": 108
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/05.svg",
+          "pathCount": 1,
+          "anchorCount": 108
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/06.svg",
+          "pathCount": 2,
+          "anchorCount": 134
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/06.svg",
+          "pathCount": 1,
+          "anchorCount": 93
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/07.svg",
+          "pathCount": 2,
+          "anchorCount": 122
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/07.svg",
+          "pathCount": 1,
+          "anchorCount": 57
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/08.svg",
+          "pathCount": 2,
+          "anchorCount": 87
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/08.svg",
+          "pathCount": 1,
+          "anchorCount": 56
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/09.svg",
+          "pathCount": 2,
+          "anchorCount": 72
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/09.svg",
+          "pathCount": 1,
+          "anchorCount": 72
+        },
+        {
+          "variant": "color",
+          "file": "color/hodos/10.svg",
+          "pathCount": 2,
+          "anchorCount": 119
+        },
+        {
+          "variant": "monochrome",
+          "file": "monochrome/hodos/10.svg",
+          "pathCount": 1,
+          "anchorCount": 119
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "sources": 9,
+    "candidates": 90,
+    "outputs": 180
+  }
+}
