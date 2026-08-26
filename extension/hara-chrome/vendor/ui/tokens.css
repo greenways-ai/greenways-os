@@ -1,0 +1,42 @@
+/* Hara's shared editor palette. Keep consumer-specific aliases below. */
+:root {
+  color-scheme: dark;
+  --hara-abyss: #020408;
+  --hara-bg: var(--hara-abyss);
+  --hara-panel: rgba(4, 8, 15, .92);
+  --hara-raised: #0e1522;
+  --hara-overlay: #121b2c;
+  --hara-cyan: #41f5e4;
+  --hara-cyan-bright: #bafff8;
+  --hara-magenta: #ff2e88;
+  --hara-green: #3dff9e;
+  --hara-violet: #9c7bff;
+  --hara-spectrum: linear-gradient(120deg, #43f6d7 0%, #17b9ef 48%, #b42bfa 100%);
+  --hara-spectrum-soft: linear-gradient(120deg, rgba(67, 246, 215, .14), rgba(23, 185, 239, .08) 48%, rgba(180, 43, 250, .14));
+  --hara-amber: #f5d742;
+  --hara-text: #dce9f5;
+  --hara-muted: #8195a8;
+  --hara-faint: #4c6174;
+  --hara-line: rgba(65, 245, 228, .17);
+  --hara-line-strong: rgba(65, 245, 228, .42);
+  --hara-glow-cyan: 0 0 12px rgba(65, 245, 228, .22);
+  --hara-glow-magenta: 0 0 12px rgba(180, 43, 250, .28);
+  --hara-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  --hara-display: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+
+  /* Existing website names remain valid when the shared sheet is loaded. */
+  --abyss: var(--hara-abyss);
+  --panel: var(--hara-panel);
+  --cyan: var(--hara-cyan);
+  --cyan-bright: var(--hara-cyan-bright);
+  --magenta: var(--hara-magenta);
+  --violet: var(--hara-violet);
+  --amber: var(--hara-amber);
+  --text: var(--hara-text);
+  --muted: var(--hara-muted);
+  --faint: var(--hara-faint);
+  --line: var(--hara-line);
+  --line-strong: var(--hara-line-strong);
+  --mono: var(--hara-mono);
+  --display: var(--hara-display);
+}

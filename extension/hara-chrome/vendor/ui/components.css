@@ -1,0 +1,305 @@
+/* Small primitives intentionally usable without the explorer. */
+.hara-button {
+  border: 1px solid var(--hara-line);
+  border-radius: 3px;
+  padding: .38rem .56rem;
+  color: var(--hara-muted);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.hara-button:hover,
+.hara-button[aria-pressed="true"] {
+  border-color: var(--hara-cyan);
+  color: var(--hara-cyan-bright);
+  background: rgba(65, 245, 228, .08);
+}
+
+.hara-button:focus-visible,
+.hara-input:focus-visible,
+.hara-tree-file:focus-visible {
+  outline: 1px solid var(--hara-cyan);
+  outline-offset: 2px;
+}
+
+.hara-input {
+  width: 100%;
+  border: 1px solid var(--hara-line);
+  border-radius: 3px;
+  padding: .6rem .7rem;
+  color: var(--hara-text);
+  background: rgba(2, 4, 8, .72);
+  font: inherit;
+}
+
+.hara-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: .18rem .55rem;
+  border: 1px solid var(--hara-line);
+  border-radius: 999px;
+  color: var(--hara-cyan);
+  font: 650 .73rem var(--hara-mono);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.hara-source {
+  margin: 0;
+  padding: 1.25rem;
+  overflow: auto;
+  border: 1px solid var(--hara-line);
+  border-radius: 4px;
+  background: rgba(2, 4, 8, .72);
+  color: var(--hara-text);
+  font: .88rem/1.65 var(--hara-mono);
+  tab-size: 2;
+}
+
+.hara-tok-comment { color: var(--hara-faint); }
+.hara-tok-string { color: var(--hara-green); }
+.hara-tok-keyword { color: var(--hara-amber); }
+.hara-tok-number { color: var(--hara-cyan-bright); }
+.hara-tok-atom { color: var(--hara-violet); }
+.hara-tok-heading { color: var(--hara-cyan-bright); font-weight: 700; }
+.hara-tok-mark { color: var(--hara-faint); }
+.hara-tok-link { color: var(--hara-green); }
+
+/* Desktop-surface primitives: compose these into editors, inspectors, and tools. */
+.hara-window {
+  overflow: hidden;
+  border: 1px solid var(--hara-line-strong);
+  border-radius: 7px 2px;
+  background: var(--hara-panel);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .34), var(--hara-glow-cyan);
+}
+
+.hara-window-bar,
+.hara-menu-bar,
+.hara-toolbar,
+.hara-status-bar,
+.hara-window-controls,
+.hara-toolbar-group {
+  display: flex;
+  align-items: center;
+}
+
+.hara-window-bar {
+  min-height: 34px;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: 0 .65rem;
+  border-bottom: 1px solid var(--hara-line);
+  background: var(--hara-spectrum-soft);
+}
+
+.hara-window-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hara-cyan-bright);
+  font: 700 .7rem var(--hara-mono);
+  letter-spacing: .1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hara-window-controls { gap: .35rem; }
+.hara-window-control {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--hara-faint);
+  cursor: pointer;
+}
+.hara-window-control.close { background: var(--hara-magenta); }
+.hara-window-control.minimize { background: var(--hara-amber); }
+.hara-window-control.zoom { background: var(--hara-green); }
+
+.hara-menu-bar {
+  min-height: 30px;
+  gap: .15rem;
+  padding: 0 .38rem;
+  border-bottom: 1px solid var(--hara-line);
+  background: rgba(2, 4, 8, .48);
+}
+
+.hara-menu { position: relative; }
+.hara-menu > summary {
+  padding: .34rem .5rem;
+  color: var(--hara-muted);
+  font-size: .72rem;
+  cursor: pointer;
+  list-style: none;
+}
+.hara-menu > summary::-webkit-details-marker { display: none; }
+.hara-menu[open] > summary,
+.hara-menu > summary:hover { color: var(--hara-cyan-bright); background: rgba(65, 245, 228, .1); }
+.hara-menu-popover {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 3px);
+  left: 0;
+  min-width: 11rem;
+  padding: .3rem;
+  border: 1px solid var(--hara-line-strong);
+  background: var(--hara-overlay);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .42);
+}
+.hara-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.4rem;
+  width: 100%;
+  padding: .42rem .5rem;
+  border: 0;
+  color: var(--hara-text);
+  background: transparent;
+  font: .72rem var(--hara-mono);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.hara-menu-item:hover { color: var(--hara-cyan-bright); background: rgba(65, 245, 228, .1); }
+.hara-menu-shortcut { color: var(--hara-faint); }
+
+.hara-toolbar {
+  min-height: 38px;
+  gap: .45rem;
+  padding: .35rem .5rem;
+  border-bottom: 1px solid var(--hara-line);
+  background: rgba(2, 4, 8, .3);
+}
+.hara-toolbar-group { gap: .26rem; }
+.hara-toolbar-separator { width: 1px; align-self: stretch; margin: 0 .15rem; background: var(--hara-line); }
+
+/* Compact editor command row. Keep persistent commands visible, move
+   explanatory copy into the contextual help popover, and represent modes
+   with aria-pressed rather than a second status row. */
+.hara-editor-menubar {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: 42px;
+  color: var(--hara-muted);
+  background: rgba(2, 4, 8, .72);
+  font: 700 .64rem var(--hara-mono);
+  letter-spacing: .1em;
+}
+.hara-editor-menubar__group { display: flex; align-items: stretch; min-width: 0; }
+.hara-editor-menubar__group > button,
+.hara-editor-menubar__help {
+  min-width: 42px;
+  padding: 0 .8rem;
+  border: 0;
+  border-right: 1px solid var(--hara-line);
+  color: var(--hara-cyan-bright);
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.hara-editor-menubar button:hover,
+.hara-editor-menubar button:focus-visible {
+  color: var(--hara-text);
+  background: rgba(65, 245, 228, .09);
+}
+.hara-editor-menubar button:focus-visible { outline: 1px solid var(--hara-cyan); outline-offset: -2px; }
+.hara-editor-menubar button[aria-pressed="true"] { color: var(--hara-violet); }
+.hara-editor-menubar__help { margin-left: auto; }
+.hara-editor-menubar__close { font-size: 1rem; }
+.hara-editor-menubar__popover {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 1px);
+  right: 0;
+  width: min(22rem, calc(100vw - 1rem));
+  display: grid;
+  gap: .5rem;
+  padding: .75rem;
+  border: 1px solid var(--hara-line-strong);
+  color: var(--hara-muted);
+  background: var(--hara-overlay);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .48);
+  font: .68rem/1.5 var(--hara-mono);
+  letter-spacing: .04em;
+}
+.hara-editor-menubar__popover[hidden] { display: none; }
+.hara-editor-menubar__popover strong { color: var(--hara-violet); letter-spacing: .1em; }
+.hara-editor-menubar__popover kbd { color: var(--hara-cyan-bright); font: inherit; }
+.hara-icon-button {
+  width: 27px;
+  height: 27px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--hara-muted);
+  background: transparent;
+  font: 1rem/1 var(--hara-mono);
+  cursor: pointer;
+}
+.hara-icon-button:hover,
+.hara-icon-button[aria-pressed="true"] { border-color: var(--hara-line-strong); color: var(--hara-cyan-bright); background: rgba(65, 245, 228, .1); }
+.hara-icon-button:focus-visible { outline: 1px solid var(--hara-cyan); outline-offset: 2px; }
+
+.hara-window-body { min-height: 9rem; padding: 1rem; color: var(--hara-muted); font: .8rem/1.6 var(--hara-mono); }
+.hara-status-bar { min-height: 27px; justify-content: space-between; gap: .75rem; padding: 0 .6rem; border-top: 1px solid var(--hara-line); color: var(--hara-faint); background: rgba(2, 4, 8, .6); font: .65rem var(--hara-mono); letter-spacing: .05em; }
+
+/* Workspace navigation and inspectable code ↔ visual controls. */
+.hara-tabs { display: flex; align-items: end; gap: 1px; overflow-x: auto; border-bottom: 1px solid var(--hara-line); background: rgba(2, 4, 8, .45); }
+.hara-tab { flex: 0 0 auto; padding: .55rem .75rem; border: 0; border-right: 1px solid var(--hara-line); color: var(--hara-muted); background: transparent; font: .72rem var(--hara-mono); cursor: pointer; }
+.hara-tab:hover { color: var(--hara-text); background: rgba(65, 245, 228, .06); }
+.hara-tab[aria-selected="true"] { color: var(--hara-cyan-bright); background: var(--hara-panel); box-shadow: inset 0 2px var(--hara-cyan); }
+.hara-tab:focus-visible { outline: 1px solid var(--hara-cyan); outline-offset: -2px; }
+.hara-tab-panel { padding: .9rem; border: 1px solid var(--hara-line); border-top: 0; background: var(--hara-panel); }
+.hara-tab-panel[hidden] { display: none; }
+
+.hara-section { border: 1px solid var(--hara-line); background: rgba(2, 4, 8, .28); }
+.hara-section + .hara-section { border-top: 0; }
+.hara-section > summary { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .55rem .7rem; color: var(--hara-text); cursor: pointer; list-style: none; font: 700 .7rem var(--hara-mono); letter-spacing: .08em; text-transform: uppercase; }
+.hara-section > summary::-webkit-details-marker { display: none; }
+.hara-section > summary::after { content: "+"; color: var(--hara-faint); font-size: 1rem; font-weight: 400; }
+.hara-section[open] > summary::after { content: "−"; color: var(--hara-cyan); }
+.hara-section-body { padding: .1rem .7rem .8rem; color: var(--hara-muted); font: .76rem/1.55 var(--hara-mono); }
+
+.hara-code-visual-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; padding: .4rem; border: 1px solid var(--hara-line); background: rgba(2, 4, 8, .42); }
+.hara-code-visual-actions .hara-icon-button[data-link-state="stale"] { color: var(--hara-amber); }
+.hara-code-visual-actions .hara-icon-button[data-link-state="error"] { color: var(--hara-magenta); }
+.hara-link-status { margin-left: auto; color: var(--hara-faint); font: .62rem var(--hara-mono); letter-spacing: .07em; }
+.hara-link-status[data-state="current"] { color: var(--hara-green); }
+.hara-link-status[data-state="stale"] { color: var(--hara-amber); }
+.hara-link-status[data-state="error"] { color: var(--hara-magenta); }
+
+.hara-workbench { min-height: 440px; display: grid; grid-template-columns: 36px minmax(10rem, 15rem) minmax(22rem, 1fr) minmax(11rem, 16rem); overflow: hidden; border: 1px solid var(--hara-line-strong); background: var(--hara-abyss); }
+.hara-activity-rail { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .35rem; border-right: 1px solid var(--hara-line); background: rgba(2,4,8,.78); }
+.hara-dock { min-width: 0; border-right: 1px solid var(--hara-line); background: var(--hara-panel); }
+.hara-dock-right { border-right: 0; border-left: 1px solid var(--hara-line); }
+.hara-dock-header { display: flex; align-items: center; justify-content: space-between; min-height: 34px; padding: 0 .5rem; border-bottom: 1px solid var(--hara-line); color: var(--hara-cyan-bright); font: .67rem var(--hara-mono); letter-spacing: .09em; }
+.hara-dock-body { padding: .45rem; }
+.hara-workbench-main { min-width: 0; display: flex; flex-direction: column; }
+.hara-patch-canvas { position: relative; flex: 1; min-height: 360px; overflow: hidden; background-image: radial-gradient(var(--hara-line) 1px, transparent 1px); background-size: 14px 14px; }
+.hara-cable-layer, .hara-node-layer { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hara-cable-layer { pointer-events: none; overflow: visible; }
+.hara-cable { fill: none; stroke: var(--hara-violet); stroke-width: 2; opacity: .88; }
+.hara-cable.provisional { stroke: var(--hara-cyan); stroke-dasharray: 5 4; }
+.hara-patch-node { position: absolute; width: 145px; min-height: 66px; border: 1px solid var(--hara-line-strong); background: var(--hara-raised); box-shadow: 0 8px 18px rgba(0,0,0,.3); cursor: pointer; }
+.hara-patch-node.is-selected { border-color: var(--hara-cyan); box-shadow: var(--hara-glow-cyan); }
+.hara-patch-node header { display: flex; justify-content: space-between; padding: .35rem .45rem; color: var(--hara-cyan-bright); background: rgba(65,245,228,.08); font: .68rem var(--hara-mono); text-transform: uppercase; cursor: grab; touch-action: none; }
+.hara-patch-node header:active { cursor: grabbing; }
+.hara-patch-node small { color: var(--hara-faint); font-size: .58rem; }
+.hara-node-ports { position: absolute; top: 31px; bottom: .35rem; display: flex; flex-direction: column; justify-content: space-around; }
+.hara-node-ports.in { left: -6px; } .hara-node-ports.out { right: -6px; }
+.hara-port { width: 11px; height: 11px; padding: 0; border: 1px solid var(--hara-abyss); border-radius: 50%; background: var(--hara-cyan); cursor: crosshair; }
+.hara-port.event { background: var(--hara-amber); } .hara-port.state { background: var(--hara-violet); } .hara-port.capability { background: var(--hara-magenta); }
+.hara-palette-popout { position: absolute; z-index: 5; top: .6rem; left: .6rem; width: min(15rem, calc(100% - 1.2rem)); padding: .45rem; border: 1px solid var(--hara-line-strong); background: var(--hara-overlay); box-shadow: 0 12px 28px rgba(0,0,0,.48); }
+.hara-palette-item { display: block; width: 100%; padding: .48rem; border: 0; color: var(--hara-text); background: transparent; text-align: left; font: .72rem var(--hara-mono); cursor: pointer; }
+.hara-palette-item:hover { color: var(--hara-cyan-bright); background: rgba(65,245,228,.1); }
+.hara-workbench-source { flex: 1; margin: 0; white-space: pre-wrap; }
+@media (max-width: 800px) { .hara-workbench { grid-template-columns: 36px minmax(0,1fr); } .hara-dock { display: none; } .hara-dock-right { display: none; } }
