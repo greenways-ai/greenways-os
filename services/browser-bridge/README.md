@@ -1,5 +1,11 @@
 # Greenways browser bridge
 
+> **Status: legacy/manual tooling.** The packaged plugin companion now lives in
+> [`../../native-host/`](../../native-host/). This Node implementation is not
+> the active Greenways OS product boundary; the target is the root-scoped
+> Tahto folder mirror described in
+> [`../../docs/chrome-plugin-architecture.md`](../../docs/chrome-plugin-architecture.md).
+
 `ai.greenways.browser_bridge` is the narrow Chrome Native Messaging companion for the daemon-first Greenways architecture.
 
 The production Greenways Desktop path packages a self-contained Rust executable named `greenways-browser-bridge-host`. It connects the exact packaged extension to the private local `greenwaysd` Unix socket using one pre-enrolled `browser-bridge` credential. The extension can request only a bounded connection snapshot through the closed `connect`, `status`, and `disconnect` commands.

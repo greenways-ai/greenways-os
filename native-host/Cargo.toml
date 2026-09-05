@@ -7,9 +7,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-greenways-authority = { path = "../../crates/greenways-authority" }
-greenways-local = { path = "../../crates/greenways-local" }
-greenways-protocol = { path = "../../crates/greenways-protocol" }
+greenways-authority = { path = "../crates/greenways-authority" }
+greenways-local = { path = "../crates/greenways-local" }
+greenways-protocol = { path = "../crates/greenways-protocol" }
 serde.workspace = true
 serde_json.workspace = true
 

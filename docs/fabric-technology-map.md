@@ -2,6 +2,11 @@
 
 ## Status and decision
 
+> **Legacy/backlog:** this map records the earlier OS-composition direction.
+> Tahto is now the Fabric and Greenways OS is only the Chrome folder-mirror
+> plugin. Do not add active OS work under this model; use [Chrome plugin
+> architecture](chrome-plugin-architecture.md) and [#207](https://github.com/greenways-ai/greenways-os/issues/207).
+
 This document records the ownership decision in
 [`greenways-ai/greenways-os#154`](https://github.com/greenways-ai/greenways-os/issues/154).
 It replaces the earlier peer-layer model in which Historia owned content,

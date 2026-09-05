@@ -2,6 +2,11 @@
 
 ## Status
 
+> **Legacy/backlog:** Tahto is now the Fabric. Greenways OS is only the Chrome
+> folder-mirror plugin and does not own the Fabric Server described below. See
+> [Chrome plugin architecture](chrome-plugin-architecture.md) and
+> [#207](https://github.com/greenways-ai/greenways-os/issues/207).
+
 This document records the current product direction. It supersedes the earlier
 Chats-first workspace architecture as the north-star design. Existing daemon,
 Desktop, browser, Chats, and compatibility code remains implementation and

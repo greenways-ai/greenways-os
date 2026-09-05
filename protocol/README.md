@@ -1,5 +1,11 @@
 # Greenways OS confidence protocol
 
+> **Status: mixed historical inventory.** The active Greenways OS protocol work
+> is the root-scoped Chrome folder mirror described in
+> [`docs/chrome-plugin-architecture.md`](../docs/chrome-plugin-architecture.md).
+> The Flow, Hestia, package, workspace, and browser-kernel protocols below are
+> backlog evidence unless a new issue explicitly reactivates them.
+
 The cross-system meanings of verification, authentication, approval, grants,
 authorization decisions, admission, resource scope and host ownership are fixed
 by [`authority-model.md`](authority-model.md). Protocol documents must use those

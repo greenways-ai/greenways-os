@@ -1,16 +1,16 @@
 # Greenways OS
 
-> **Architecture direction:** Greenways Flow is the current foreground
-> coordination application and is delivered through an invisible private
-> personal Fabric. Greenways OS installs, verifies, updates, and launches Flow
-> through its cross-platform Fabric Server and Desktop, CLI, and browser
-> application hosts. Foreman remains Flow's internal coordination engine and
-> durable domain implementation. Person and AI-agent identity, permissions,
-> storage, messaging, and application history remain private Fabric services.
-> Public publication and multi-channel delivery belong to the separate Greenways
-> Platform product. See [the Fabric architecture](docs/fabric-architecture.md).
+> **Current direction:** Greenways OS is the Chrome plugin for a self-hosted
+> Tahto Fabric. It mirrors one explicitly selected Fabric folder into extension
+> IndexedDB and, after confirmation, uses a reviewed website adapter to publish
+> that snapshot. It is not a Fabric server, desktop suite, package runtime, or
+> general programmable browser OS. See the [Chrome plugin architecture](docs/chrome-plugin-architecture.md)
+> and [reorganisation inventory](docs/reorganisation-inventory.md).
 
-The current developer release remains a programmable browser operating system built around one resident Hara kernel in a Chrome Manifest V3 service worker while that migration is implemented.
+The repository still contains the earlier browser-kernel, Desktop, Flow,
+Hestia, package, and service experiments. They are legacy/backlog evidence,
+not the current product direction; their associated planning issues were closed
+in favour of [#207](https://github.com/greenways-ai/greenways-os/issues/207).
 
 ## Greenways Desktop development shell
 
@@ -249,11 +249,12 @@ See [`protocol/devtools.md`](protocol/devtools.md), [`protocol/core-services.md`
 
 ## Repository layout
 
-- `extension/` — Chrome Manifest V3 root OS, launcher, Kernel DevTools, package runtime, and trusted browser surfaces.
-- `src/gw/os/` — Hara-owned kernel, service, and adaptor namespaces.
-- `services/devtools-node/` — loopback RESP and Native Messaging transport for Kernel DevTools.
-- `services/packages/` — signed package-registry builder and server.
-- `services/beacon/` — optional `greenways.beacon` application.
-- `services/home-node/` — legacy signed browser-pairing compatibility implementation.
-- `services/identity/` — development slice of `id.greenways.ai`.
-- `protocol/` — executable-code, capability, package, DevTools, and evidence contracts.
+- `extension/` — the retained Chrome-plugin boundary; its current kernel and
+  package code is legacy until reduced to the folder mirror and website adapters.
+- `native-host/` — the packaged Native Messaging companion for the closed
+  Tahto-to-extension mirror boundary.
+- `protocol/` — the retained plugin contracts, led by the future root-scoped
+  mirror protocol.
+- `docs/` — the current plugin architecture and complete migration inventory.
+- `crates/`, `apps/`, `cli/`, `repl/`, `services/`, and `src/gw/os/` — legacy
+  or migration material; see [the reorganisation inventory](docs/reorganisation-inventory.md).

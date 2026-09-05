@@ -1,5 +1,10 @@
 # Browser authority to `greenwaysd` migration inventory
 
+> **Status: legacy/backlog.** The status-only `greenwaysd` migration is not the
+> current Greenways OS product direction. Greenways OS is now the Chrome
+> folder-mirror plugin around Tahto; see [Chrome plugin
+> architecture](chrome-plugin-architecture.md) and [#207](https://github.com/greenways-ai/greenways-os/issues/207).
+
 This inventory implements the architecture decision in
 [issue #49](https://github.com/greenways-ai/greenways-os/issues/49). It maps the
 current extension-first implementation to its daemon-first destination before

@@ -1,5 +1,10 @@
 # Workspace architecture
 
+> **Status: legacy/backlog.** Greenways OS is now only the Tahto-backed Chrome
+> folder-mirror plugin. This Flow-first architecture is retained as historical
+> evidence and must not guide active implementation. See [Chrome plugin
+> architecture](chrome-plugin-architecture.md) and [#207](https://github.com/greenways-ai/greenways-os/issues/207).
+
 The current product direction is Greenways Flow delivered and grounded by the
 Greenways Fabric. Flow is what a person opens. Foreman remains Flow's internal
 coordination engine and durable domain implementation.

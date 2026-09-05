@@ -13,7 +13,7 @@ members = [
   "crates/greenways-vault",
   "crates/greenways-workspace-contracts",
   "services/greenways-desktop-bridge",
-  "services/greenways-browser-bridge-host",
+  "native-host",
   "services/greenwaysd",
 ]
 resolver = "2"
